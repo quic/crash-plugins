@@ -29,9 +29,13 @@ endif()
 if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
 list(APPEND PLUGIN_SOURCES
-            plugins.cpp)
+            plugins.cpp
+            binder/binder.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 else()
-# TODO
+add_library(binder SHARED
+            ${PLUGIN_SOURCES}
+            binder/binder.cpp)
+set_target_properties(binder PROPERTIES PREFIX "")
 endif()
