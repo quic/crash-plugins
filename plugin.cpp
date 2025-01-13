@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #include "plugin.h"
@@ -316,6 +316,7 @@ std::vector<ulong> PaserPlugin::for_each_vma(ulong& task_addr){
 }
 
 std::string PaserPlugin::read_start_args(ulong& task_addr){
+    std::string result;
     if (!is_kvaddr(task_addr))return nullptr;
     ulong mm_addr = read_pointer(task_addr + field_offset(task_struct, mm), "task_struct_mm");
     void *buf = read_struct(mm_addr,"mm_struct");
@@ -328,19 +329,39 @@ std::string PaserPlugin::read_start_args(ulong& task_addr){
     physaddr_t paddr_start;
     struct task_context *tc = task_to_context(task_addr);
     uvtop(tc, arg_start, &paddr_start, 0);
+    // fprintf(fp, "pid :%ld arg_start %lx paddr_start %lx \n",tc->pid, arg_start, paddr_start);
     if(paddr_start == 0){
         return std::string(tc->comm);
     }
+
     buf = read_phys_memory(paddr_start, len, "read_args");
     char* args = static_cast<char*>(buf);
-    std::string result;
+    //maybe swap
+    if (args == nullptr || args[0] == '\0') {
+        return std::string(tc->comm);
+    }
     for (size_t i = 0; i < len; ++i) {
         if (args[i] != '\0') {
             result += args[i];
         }else{
-            result += " ";
+            result += ' ';
         }
     }
+
+    // remove all '\n'
+    result.erase(std::remove(result.begin(), result.end(), '\n'), result.end());
+
+    // reslut = "     "
+    if (result.find_first_not_of(' ') == std::string::npos) {
+        result = std::string(tc->comm);
+    } else {
+        // result = "command    "
+        size_t last_non_space = result.find_last_not_of(' ');
+        if (last_non_space != std::string::npos) {
+            result = result.substr(0, last_non_space + 1) + ' ';
+        }
+    }
+
     return result;
 }
 
@@ -457,8 +478,8 @@ void* PaserPlugin::read_memory(ulong kvaddr,int len, const std::string& note){
 
 void* PaserPlugin::read_phys_memory(ulong paddr, int len, const std::string& note){
     void* buf = (void *)GETBUF(len);
-    if (!readmem(paddr, PHYSADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        LOGE("Can't read %s at %lx\n", TO_CONST_STRING(note.c_str()), paddr);
+    if (!readmem(paddr, PHYSADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR)) {
+        fprintf(fp, "Can't read %s at %lx\n", TO_CONST_STRING(note.c_str()), paddr);
         return NULL;
     }
     return buf;
@@ -525,6 +546,38 @@ ulong PaserPlugin::phy_to_virt(ulong paddr){
     return PTOV(paddr);
 }
 
+ulong PaserPlugin::phy_to_pfn(ulong paddr){
+    return BTOP(paddr);
+}
+
+physaddr_t PaserPlugin::pfn_to_phy(ulong pfn){
+    return PTOB(pfn);
+}
+
+ulong PaserPlugin::page_to_pfn(ulong page){
+    return phy_to_pfn(page_to_phy(page));
+}
+
+ulong PaserPlugin::pfn_to_page(ulong pfn){
+    return phy_to_page(pfn_to_phy(pfn));
+}
+
+ulong PaserPlugin::phy_to_page(ulong paddr){
+    ulong page;
+    if(phys_to_page(paddr, &page)){
+        return page;
+    }
+    return 0;
+}
+
+physaddr_t PaserPlugin::page_to_phy(ulong page){
+    physaddr_t paddr = 0;
+    if (is_page_ptr(page, &paddr)){
+        return paddr;
+    }
+    return 0;
+}
+
 std::string PaserPlugin::get_config_val(const std::string& conf_name){
     char *config_val;
     int ret = get_kernel_config(TO_CONST_STRING(conf_name.c_str()),&config_val);
@@ -556,21 +609,17 @@ void PaserPlugin::cfill_ptbl(ulonglong ptbl, int type, ulong size){
 // maybe we can refer to symbols.c is_binary_stripped
 bool PaserPlugin::is_binary_stripped(std::string& filename){
     std::string command = "readelf -s " + filename;
-
     FILE *pipe = popen(command.c_str(), "r");
     if (!pipe) {
         LOGE("Failed to run readelf command. \n");
         return false;
     }
-
     std::string output;
     char buffer[BUFSIZE];
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         output += buffer;
     }
-
     pclose(pipe);
-
     return output.find("Symbol table '.symtab' contains") == std::string::npos;
 }
 
@@ -579,7 +628,6 @@ bool PaserPlugin::add_symbol_file(std::string& filename){
         LOGE("This file is not symbols file \n");
         return false;
     }
-
     char buf[BUFSIZE];
     sprintf(buf, "add-symbol-file %s", filename.c_str());
     if(!gdb_pass_through(buf, NULL, GNU_RETURN_ON_ERROR)){

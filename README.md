@@ -1,5 +1,5 @@
 ```
-Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 SPDX-License-Identifier: BSD-3-Clause-Clear
 ```
 
@@ -12,7 +12,7 @@ We have developed the plugins that can gather more information based on crash-ut
 sudo apt-get install cmake  // cmake >= 3.21.1
 ```
 ```
-$ sudo apt-get install gcc-multilib g++-multilib
+sudo apt-get install gcc-multilib g++-multilib
 ```
 
 # How to build
@@ -56,14 +56,14 @@ crash> extend <path-to>/output/arm64/plugins.so or extend <path-to>/output/arm64
 Supprot command:
 |  command   |    arm64  | arm       |
 |  --------  | --------  | --------  |
+| binder     | √         | √         |
+| procrank   | √         | √         |
 | cma        | x         | x         |
 | buddy      | x         | x         |
 | memblock   | x         | x         |
 | reserved   | x         | x         |
 | vmalloc    | x         | x         |
-| binder     | x         | x         |
 | dts        | x         | x         |
-| procrank   | x         | x         |
 | coredump   | x         | x         |
 | workqueue  | x         | x         |
 | slub       | x         | x         |
@@ -125,7 +125,7 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
 # How to develop
 1. Add the header file: demo.h
 ```
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #ifndef DEMO_DEFS_H_
@@ -145,7 +145,7 @@ public:
 ```
 2. Add the Demo.cpp file
 ```
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #include "demo.h"
@@ -163,7 +163,7 @@ void Demo::cmd_main(void) {
     while ((c = getopt(argcnt, args, "a")) != EOF) {
 		switch(c) {
             case 'a':
-                do_somethins();
+                do_somethings();
                 break;
             default:
                 argerrs++;
@@ -174,7 +174,7 @@ void Demo::cmd_main(void) {
 		cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Demo::Demo():PaserPlugin(){
+Demo::Demo(){
     cmd_name = "demo";
     help_str_list={
 	"demo",					/* command name */

@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #ifndef PARSER_DEFS_H_
@@ -80,6 +80,12 @@ public:
     bool is_uvaddr(ulong addr, struct task_context *);
     ulong virt_to_phy(ulong paddr);
     ulong phy_to_virt(ulong vaddr);
+    ulong page_to_pfn(ulong page);
+    ulong pfn_to_page(ulong pfn);
+    ulong phy_to_page(ulong paddr);
+    physaddr_t page_to_phy(ulong page);
+    physaddr_t pfn_to_phy(ulong pfn);
+    ulong phy_to_pfn(ulong paddr);
     std::string get_config_val(const std::string& conf_name);
     void cfill_pgd(ulonglong pgd, int type, ulong size);
     void cfill_pmd(ulonglong pmd, int type, ulong size);
