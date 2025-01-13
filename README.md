@@ -1,5 +1,5 @@
 ```
-Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 SPDX-License-Identifier: BSD-3-Clause-Clear
 ```
 
@@ -125,7 +125,7 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
 # How to develop
 1. Add the header file: demo.h
 ```
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #ifndef DEMO_DEFS_H_
@@ -145,7 +145,7 @@ public:
 ```
 2. Add the Demo.cpp file
 ```
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #include "demo.h"
