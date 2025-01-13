@@ -31,6 +31,7 @@ add_definitions(-DBUILD_TARGET_TOGETHER)
 list(APPEND PLUGIN_SOURCES
             plugins.cpp
             binder/binder.cpp
+	    memory/cma.cpp
             procrank/procrank.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
@@ -40,6 +41,10 @@ add_library(binder SHARED
             binder/binder.cpp)
 set_target_properties(binder PROPERTIES PREFIX "")
 
+add_library(cma SHARED
+            ${PLUGIN_SOURCES}
+            memory/cma.cpp)
+set_target_properties(cma PROPERTIES PREFIX "")
 add_library(procrank SHARED
             ${PLUGIN_SOURCES}
             procrank/procrank.cpp)
