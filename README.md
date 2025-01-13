@@ -6,6 +6,8 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 # Overall
 We have developed the plugins that can gather more information based on crash-utility, including both kernel space and user space. This enhances our debugging efficiency.
 
+![alt text](doc/image.png)
+
 # How to start
 
 ```
@@ -59,7 +61,7 @@ Supprot command:
 |  --------  | --------  | --------  |    --------                                          |
 | binder     | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
 | procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
-| cma        | x         | x         |                                      		    |
+| cma        | √         | √         | parser cma info                                      |
 | buddy      | x         | x         |                                                      |
 | memblock   | x         | x         |                                                      |
 | reserved   | x         | x         |                                                      |
