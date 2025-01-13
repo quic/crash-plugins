@@ -54,24 +54,25 @@ crash> extend <path-to>/output/arm64/plugins.so or extend <path-to>/output/arm64
 ```
 
 Supprot command:
-|  command   |    arm64  | arm       |
-|  --------  | --------  | --------  |
-| binder     | √         | √         |
-| procrank   | √         | √         |
-| cma        | x         | x         |
-| buddy      | x         | x         |
-| memblock   | x         | x         |
-| reserved   | x         | x         |
-| vmalloc    | x         | x         |
-| dts        | x         | x         |
-| coredump   | x         | x         |
-| workqueue  | x         | x         |
-| slub       | x         | x         |
-| zram       | x         | x         |
-| partition  | x         | x         |
-| pageowner  | x         | x         |
-| meminfo    | x         | x         |
 
+|  command   |    arm64  |    arm    |    comment                                           |
+|  --------  | --------  | --------  |    --------                                          |
+| binder     | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
+| procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
+| cma        | x         | x         |                                      		    |
+| buddy      | x         | x         |                                                      |
+| memblock   | x         | x         |                                                      |
+| reserved   | x         | x         |                                                      |
+| vmalloc    | x         | x         |                                                      |
+| dmabuf     | x         | x         |                                                      |
+| slub       | x         | x         |                                                      |
+| pageowner  | x         | x         |                  				    |
+| coredump   | x         | x         |                                                      |
+| workqueue  | x         | x         |                                                      |
+| zram       | x         | x         |                                                      |
+| partition  | x         | x         |                                                      |
+| meminfo    | x         | x         |                                                      |
+| dts        | x         | x         |                                                      |
 
 ## usage
 ```

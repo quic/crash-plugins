@@ -125,29 +125,19 @@ std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr
             continue;
         }
         uvtop(tc, page_vaddr, &physic_addr, 0);
-        ulong page_addr = 0;
-        phys_to_page(physic_addr, &page_addr);
-        void *page_struct = read_struct(page_addr,"page");
+        ulong page_addr = phy_to_page(physic_addr);
         // typedef struct {
         //     int counter;
         // } atomic_t;
         // SIZE: 4
-        ulong page_count = 0;
-        if (type_size("page", "_mapcount") == 4){
-            page_count = UINT(page_struct + field_offset(page, _mapcount));
-        } else if(type_size("page", "_mapcount") == 8) {
-            page_count = ULONG(page_struct + field_offset(page, _mapcount));
-        }
-
+        ulong page_count = read_structure_field(page_addr,"page","_mapcount");
         // Page was unmapped between the presence check at the beginning of the loop and here.
         if(page_count == 0){
-            FREEBUF(page_struct);
             continue;
         }
         procrank_ptr->rss += PAGESIZE();
         procrank_ptr->pss += PAGESIZE() / page_count;
         procrank_ptr->uss += (page_count == 1) ? PAGESIZE() : (0);
-        FREEBUF(page_struct);
     }
     procrank_ptr->vss += vm_end - vm_start;
     FREEBUF(vma_struct);

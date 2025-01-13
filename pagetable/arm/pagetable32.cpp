@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #include "pagetable32.h"
@@ -46,9 +46,7 @@ ulong PageTable32::get_pte(ulong task_addr, ulong page_vaddr){
         error(FATAL, TO_CONST_STRING("panic task pgd is trashed by soft reboot code\n"));
 
     if (is_kernel_thread(tc->task) && IS_KVADDR(page_vaddr)) {
-        void* task_buf = read_structure_field(tc->task,"task_struct","active_mm");
-        long active_mm = ULONG(task_buf);
-        FREEBUF(task_buf);
+        ulong active_mm = read_structure_field(tc->task,"task_struct","active_mm");
         if (!active_mm)
             error(FATAL, TO_CONST_STRING("no active_mm for this kernel thread\n"));
         

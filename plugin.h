@@ -17,6 +17,7 @@
 #include "logger/log.h"
 #include <algorithm>
 #include <bitset>
+#include <set>
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -24,6 +25,7 @@
 
 #define struct_init(type) type_init(TO_STD_STRING(type))
 #define struct_size(type) type_size(TO_STD_STRING(type))
+#define IS_ALIGNED(x, a)    (((x) & ((typeof(x))(a) - 1)) == 0)
 
 class PaserPlugin {
 protected:
@@ -58,7 +60,7 @@ public:
     std::vector<ulong> for_each_vma(ulong& task_addr);
 
     std::string read_start_args(ulong& task_addr);
-    void* read_structure_field(ulong kvaddr,const std::string& type,const std::string& field);
+    ulonglong read_structure_field(ulong kvaddr,const std::string& type,const std::string& field);
     std::string read_cstring(ulong kvaddr,int len, const std::string& note);
     void* read_struct(ulong kvaddr,const std::string& type);
     bool read_struct(ulong kvaddr,void* buf, int len, const std::string& type);
@@ -78,6 +80,7 @@ public:
     ulong csymbol_value(const std::string& note);
     bool is_kvaddr(ulong addr);
     bool is_uvaddr(ulong addr, struct task_context *);
+    int page_to_nid(ulong page);
     ulong virt_to_phy(ulong paddr);
     ulong phy_to_virt(ulong vaddr);
     ulong page_to_pfn(ulong page);

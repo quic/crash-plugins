@@ -365,17 +365,36 @@ std::string PaserPlugin::read_start_args(ulong& task_addr){
     return result;
 }
 
-void* PaserPlugin::read_structure_field(ulong kvaddr,const std::string& type,const std::string& field){
+ulonglong PaserPlugin::read_structure_field(ulong kvaddr,const std::string& type,const std::string& field){
     int offset = type_offset(type,field);
     int size = type_size(type,field);
     std::string note = type + "_" + field;
     ulong addr = kvaddr + offset;
+    ulonglong result = 0;
     void *buf = (void *)GETBUF(size);
     if (!readmem(addr, KVADDR, buf, size, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         LOGE("Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
-        return nullptr;
+        FREEBUF(buf);
+        return 0;
     }
-    return buf;
+    switch(size){
+        case 1:
+            result = UCHAR(buf);
+            break;
+        case 2:
+            result = USHORT(buf);
+            break;
+        case 4:
+            result = UINT(buf);
+            break;
+        case 8:
+            result = ULONGLONG(buf);
+            break;
+        default:
+            result = ULONG(buf);
+    }
+    FREEBUF(buf);
+    return result;
 }
 
 std::string PaserPlugin::read_cstring(ulong kvaddr,int len, const std::string& note){
@@ -471,6 +490,7 @@ void* PaserPlugin::read_memory(ulong kvaddr,int len, const std::string& note){
     void* buf = (void *)GETBUF(len);
     if (!readmem(kvaddr, KVADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         LOGE("Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
+        FREEBUF(buf);
         return nullptr;
     }
     return buf;
@@ -480,6 +500,7 @@ void* PaserPlugin::read_phys_memory(ulong paddr, int len, const std::string& not
     void* buf = (void *)GETBUF(len);
     if (!readmem(paddr, PHYSADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR)) {
         fprintf(fp, "Can't read %s at %lx\n", TO_CONST_STRING(note.c_str()), paddr);
+	FREEBUF(buf);
         return NULL;
     }
     return buf;
@@ -490,6 +511,7 @@ void* PaserPlugin::read_struct(ulong kvaddr,const std::string& type){
     void* buf = (void *)GETBUF(size);
     if (!readmem(kvaddr, KVADDR, buf, size, TO_CONST_STRING(type.c_str()), RETURN_ON_ERROR|QUIET)) {
         LOGE("Can't read %s at %lx\n",TO_CONST_STRING(type.c_str()),kvaddr);
+        FREEBUF(buf);
         return nullptr;
     }
     return buf;
@@ -536,6 +558,23 @@ bool PaserPlugin::is_kvaddr(ulong addr){
 
 bool PaserPlugin::is_uvaddr(ulong addr, struct task_context* tc){
     return IS_UVADDR(addr,tc);
+}
+
+int PaserPlugin::page_to_nid(ulong page){
+    int i;
+    struct node_table *nt;
+    physaddr_t paddr = page_to_phy(page);
+    if (paddr == 0){
+        return -1;
+    }
+    for (i = 0; i < vt->numnodes; i++){
+        nt = &vt->node_table[i];
+        physaddr_t end_paddr = nt->start_paddr + ((physaddr_t)nt->size * (physaddr_t)PAGESIZE());
+        if ((paddr >= nt->start_paddr) && (paddr < end_paddr)){
+            return i;
+        }
+    }
+    return -1;
 }
 
 ulong PaserPlugin::virt_to_phy(ulong vaddr){

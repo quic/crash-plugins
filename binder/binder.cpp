@@ -328,11 +328,10 @@ void Binder::print_binder_proc(ulong proc_addr,int flags) {
     // read context addr
     ulong context_addr = ULONG(binder_proc_buf + field_offset(binder_proc,context));
     // fprintf(fp, "context addr:%lx\n",context_addr);
-    void* buf = read_structure_field(context_addr,"binder_context","name");
-    if(buf == nullptr) return;
+    ulong name_addr = read_structure_field(context_addr,"binder_context","name");
+    if (!is_kvaddr(name_addr)) return;
     // read context name
-    std::string context_name = read_cstring(ULONG(buf),16, "binder_context_name");
-    FREEBUF(buf);
+    std::string context_name = read_cstring(name_addr,16, "binder_context_name");
     // read proc name
     ulong tsk_addr = (ulong)proc_part1.tsk;
     std::string task_name = read_cstring(tsk_addr + field_offset(task_struct,comm),16, "task_struct_comm");
@@ -391,9 +390,7 @@ void Binder::print_binder_node_nilocked(ulong node_addr) {
     if(!read_struct((node_addr + field_offset(binder_node,work)),&node,sizeof(node),"binder_node")){
         return;
     }
-    void* buf = read_structure_field(node_addr,"binder_node","debug_id");
-    int debug_id = UINT(buf);
-    FREEBUF(buf);
+    int debug_id = read_structure_field(node_addr,"binder_node","debug_id");
     // list all the binder_ref of node with hlist
     int offset = field_offset(binder_ref,node_entry);
     ulong refs_head = node_addr + field_offset(binder_node,refs);
@@ -445,9 +442,7 @@ void Binder::print_binder_ref_olocked(ulong ref_addr) {
     if(!read_struct((node_addr + field_offset(binder_node,work)),&node,sizeof(node),"binder_node")){
         return;
     }
-    void* buf = read_structure_field(node_addr,"binder_node","debug_id");
-    int debug_id = UINT(buf);
-    FREEBUF(buf);
+    int debug_id = read_structure_field(node_addr,"binder_node","debug_id");
     if (is_kvaddr((ulong)node.proc)){
         void *binder_proc_buf = read_struct((ulong)node.proc,"binder_proc");
         if(binder_proc_buf == nullptr) return;
@@ -559,9 +554,7 @@ void Binder::print_binder_transaction_ilocked(ulong proc_addr, const char* prefi
     }
     ulong target_node = (ulong)buf.target_node;
     if (is_kvaddr(target_node)){
-        void* buf = read_structure_field((ulong)target_node,"binder_node","debug_id");
-        int debug_id = UINT(buf);
-        FREEBUF(buf);
+        int debug_id = read_structure_field((ulong)target_node,"binder_node","debug_id");
         fprintf(fp, " target_node:0x%lx id:%d", target_node,debug_id);
     }
     fprintf(fp, " binder_buffer:0x%lx size:%zd offset:%zd data:%p\n",t_buffer, buf.data_size, buf.offsets_size, buf.user_data);
@@ -595,9 +588,7 @@ void Binder::print_binder_work_ilocked(ulong proc_addr, const char* prefix, cons
             if(!read_struct((node_addr + field_offset(binder_node,work)),&node,sizeof(node),"binder_node")){
                 break;
             }
-            void* buf = read_structure_field(node_addr,"binder_node","debug_id");
-            int debug_id = UINT(buf);
-            FREEBUF(buf);
+            int debug_id = read_structure_field(node_addr,"binder_node","debug_id");
             fprintf(fp, "%snode:0x%lx work %d: u%lx c%lx\n", prefix, node_addr, debug_id, (ulong)node.ptr, (ulong)node.cookie);
         } break;
         case BINDER_WORK_DEAD_BINDER:

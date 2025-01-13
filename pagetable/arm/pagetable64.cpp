@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #include "pagetable64.h"
@@ -20,9 +20,7 @@ ulong PageTable64::get_pte(ulong task_addr, ulong page_vaddr){
     ulong *pte_base, *pte_ptr, pte_val;
     struct task_context *tc;
     tc = task_to_context(task_addr);
-    void* buf = read_structure_field(tc->mm_struct,"mm_struct","pgd");
-    long user_pgd = ULONG(buf);
-    FREEBUF(buf);
+    ulong user_pgd = read_structure_field(tc->mm_struct,"mm_struct","pgd");
     if (verbose){
         fprintf(fp, "PAGE DIRECTORY: %lx\n", user_pgd);
     }
