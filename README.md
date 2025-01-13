@@ -57,7 +57,7 @@ Supprot command:
 |  command   |    arm64  | arm       |
 |  --------  | --------  | --------  |
 | binder     | √         | √         |
-| procrank   | x         | x         |
+| procrank   | √         | √         |
 | cma        | x         | x         |
 | buddy      | x         | x         |
 | memblock   | x         | x         |

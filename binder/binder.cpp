@@ -68,7 +68,7 @@ void Binder::cmd_main(void) {
 		cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Binder::Binder():PaserPlugin(){
+Binder::Binder(){
     field_init(binder_proc,proc_node);
     field_init(binder_proc,context);
     field_init(binder_proc,max_threads);
@@ -265,7 +265,7 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
         }
         ulong page_addr = (ulong)lru_page.page_ptr;
         if(is_kvaddr(page_addr)){
-            is_page_ptr(page_addr, &paddr);
+            paddr = page_to_phy(page_addr);
             fprintf(fp, "    Page :0x%lx PA:0x%llx\n",page_addr,(ulonglong)paddr);
         }
     }

@@ -30,7 +30,8 @@ if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
 list(APPEND PLUGIN_SOURCES
             plugins.cpp
-            binder/binder.cpp)
+            binder/binder.cpp
+            procrank/procrank.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 else()
@@ -38,4 +39,9 @@ add_library(binder SHARED
             ${PLUGIN_SOURCES}
             binder/binder.cpp)
 set_target_properties(binder PROPERTIES PREFIX "")
+
+add_library(procrank SHARED
+            ${PLUGIN_SOURCES}
+            procrank/procrank.cpp)
+set_target_properties(procrank PROPERTIES PREFIX "")
 endif()

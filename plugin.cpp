@@ -337,7 +337,6 @@ std::string PaserPlugin::read_start_args(ulong& task_addr){
     buf = read_phys_memory(paddr_start, len, "read_args");
     char* args = static_cast<char*>(buf);
     //maybe swap
-    //TODO
     if (args == nullptr || args[0] == '\0') {
         return std::string(tc->comm);
     }
