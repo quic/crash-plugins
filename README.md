@@ -12,7 +12,7 @@ We have developed the plugins that can gather more information based on crash-ut
 sudo apt-get install cmake  // cmake >= 3.21.1
 ```
 ```
-$ sudo apt-get install gcc-multilib g++-multilib
+sudo apt-get install gcc-multilib g++-multilib
 ```
 
 # How to build
@@ -56,14 +56,14 @@ crash> extend <path-to>/output/arm64/plugins.so or extend <path-to>/output/arm64
 Supprot command:
 |  command   |    arm64  | arm       |
 |  --------  | --------  | --------  |
+| binder     | √         | √         |
+| procrank   | x         | x         |
 | cma        | x         | x         |
 | buddy      | x         | x         |
 | memblock   | x         | x         |
 | reserved   | x         | x         |
 | vmalloc    | x         | x         |
-| binder     | x         | x         |
 | dts        | x         | x         |
-| procrank   | x         | x         |
 | coredump   | x         | x         |
 | workqueue  | x         | x         |
 | slub       | x         | x         |
@@ -163,7 +163,7 @@ void Demo::cmd_main(void) {
     while ((c = getopt(argcnt, args, "a")) != EOF) {
 		switch(c) {
             case 'a':
-                do_somethins();
+                do_somethings();
                 break;
             default:
                 argerrs++;
@@ -174,7 +174,7 @@ void Demo::cmd_main(void) {
 		cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Demo::Demo():PaserPlugin(){
+Demo::Demo(){
     cmd_name = "demo";
     help_str_list={
 	"demo",					/* command name */
