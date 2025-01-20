@@ -32,7 +32,9 @@ list(APPEND PLUGIN_SOURCES
             plugins.cpp
             binder/binder.cpp
 	    memory/cma.cpp
-            procrank/procrank.cpp)
+            procrank/procrank.cpp
+	    devicetree/dts.cpp
+            devicetree/devicetree.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 else()
@@ -49,4 +51,9 @@ add_library(procrank SHARED
             ${PLUGIN_SOURCES}
             procrank/procrank.cpp)
 set_target_properties(procrank PROPERTIES PREFIX "")
+add_library(dts SHARED
+            ${PLUGIN_SOURCES}
+            devicetree/dts.cpp
+            devicetree/devicetree.cpp)
+set_target_properties(dts PROPERTIES PREFIX "")
 endif()

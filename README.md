@@ -62,6 +62,7 @@ Supprot command:
 | binder     | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
 | procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
 | cma        | √         | √         | parser cma info                                      |
+| dts        | √         | √         | parser device tree                                   |
 | buddy      | x         | x         |                                                      |
 | memblock   | x         | x         |                                                      |
 | reserved   | x         | x         |                                                      |
@@ -74,7 +75,6 @@ Supprot command:
 | zram       | x         | x         |                                                      |
 | partition  | x         | x         |                                                      |
 | meminfo    | x         | x         |                                                      |
-| dts        | x         | x         |                                                      |
 
 ## usage
 ```
