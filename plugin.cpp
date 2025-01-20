@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 #include "plugin.h"
-#include <execinfo.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -35,12 +32,21 @@ PaserPlugin::PaserPlugin(){
     struct_init(vm_area_struct);
 
     field_init(page, _mapcount);
+    field_init(page, freelist);
+    field_init(page, units);
+    field_init(page, index);
     struct_init(page);
 
     field_init(list_head, prev);
     field_init(list_head, next);
     struct_init(list_head);
     //print_table();
+}
+
+bool PaserPlugin::isNumber(const std::string& str) {
+    std::regex decimalPattern("^-?\\d+$");
+    std::regex hexPattern("^0[xX][0-9a-fA-F]+$");
+    return std::regex_match(str, decimalPattern) || std::regex_match(str, hexPattern);
 }
 
 void PaserPlugin::convert_size(ulong size,char* buf){
@@ -79,7 +85,7 @@ int PaserPlugin::type_offset(const std::string& type,const std::string& field){
     if (it != typetable.end()) {
         return it->second->offset();
     } else {
-        LOGE("Error: Typeinfo not found for %s\n",name.c_str());
+        fprintf(fp, "Error: Typeinfo not found for %s\n",name.c_str());
         return -1; 
     }
 }
@@ -90,7 +96,7 @@ int PaserPlugin::type_size(const std::string& type,const std::string& field){
     if (it != typetable.end()) {
         return it->second->size();
     } else {
-        LOGE("Error: Typeinfo not found for %s\n",name.c_str());
+        fprintf(fp, "Error: Typeinfo not found for %s\n",name.c_str());
         return -1; 
     }
 }
@@ -101,7 +107,7 @@ int PaserPlugin::type_size(const std::string& type){
     if (it != typetable.end()) {
         return it->second->size();
     } else {
-        LOGE("Error: Typeinfo not found for %s\n",name.c_str());
+        fprintf(fp, "Error: Typeinfo not found for %s\n",name.c_str());
         return -1; 
     }
 }
@@ -111,11 +117,10 @@ void PaserPlugin::print_backtrace(){
     int nptrs = backtrace(buffer, 100);
     char **strings = backtrace_symbols(buffer, nptrs);
     if (strings == NULL) {
-        perror("backtrace_symbols");
-        exit(EXIT_FAILURE);
+        fprintf(fp, "backtrace_symbols");
     }
     for (int i = 0; i < nptrs; i++) {
-        printf("%s\n", strings[i]);
+        fprintf(fp, "%s\n", strings[i]);
     }
     free(strings);
 }
@@ -131,28 +136,17 @@ void PaserPlugin::print_table(){
     }
 }
 
-std::vector<ulong> PaserPlugin::for_each_radix(ulong rb_root){
+std::vector<ulong> PaserPlugin::for_each_radix(ulong root_rnode){
     std::vector<ulong> res;
-    ulong *treeList;
-    struct tree_data td;
-    int cnt = 0;
-    BZERO(&td, sizeof(struct tree_data));
-    // td.flags |= VERBOSE | TREE_POSITION_DISPLAY | TREE_LINEAR_ORDER;
-    td.flags |= TREE_NODE_POINTER;
-    td.start = rb_root;
-    hq_open();
-    cnt = do_rdtree(&td);
-    if(cnt==0)return res;
-    treeList = (ulong *)GETBUF(cnt * sizeof(void *));
-    retrieve_list(treeList, cnt);
-    for (int i = 0; i < cnt; ++i) {
-        if (!is_kvaddr(treeList[i]))continue;
-        // LOGI("node addr:%lx\n",treeList[i]);
-        treeList[i] -= td.node_member_offset;
-        res.push_back(treeList[i]);
+    size_t entry_num = do_radix_tree(root_rnode, RADIX_TREE_COUNT, NULL);
+	struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
+    entry_list[0].index = entry_num;
+    do_radix_tree(root_rnode, RADIX_TREE_GATHER, entry_list);
+    for (size_t i = 0; i < entry_num; ++i){
+        ulong addr = (ulong)entry_list[i].value;
+        if (!is_kvaddr(addr))continue;
+        res.push_back(addr);
     }
-    FREEBUF(treeList);
-    hq_close();
     return res;
 }
 
@@ -169,28 +163,17 @@ std::vector<ulong> PaserPlugin::for_each_mptree(ulong maptree_addr){
     return res;
 }
 
-std::vector<ulong> PaserPlugin::for_each_xarray(ulong rb_root){
+std::vector<ulong> PaserPlugin::for_each_xarray(ulong xarray_addr){
     std::vector<ulong> res;
-    ulong *treeList;
-    struct tree_data td;
-    int cnt = 0;
-    BZERO(&td, sizeof(struct tree_data));
-    // td.flags |= VERBOSE | TREE_POSITION_DISPLAY | TREE_LINEAR_ORDER;
-    td.flags |= TREE_NODE_POINTER;
-    td.start = rb_root;
-    hq_open();
-    cnt = do_xatree(&td);
-    if(cnt==0)return res;
-    treeList = (ulong *)GETBUF(cnt * sizeof(void *));
-    retrieve_list(treeList, cnt);
-    for (int i = 0; i < cnt; ++i) {
-        if (!is_kvaddr(treeList[i]))continue;
-        // LOGI("node addr:%lx\n",treeList[i]);
-        treeList[i] -= td.node_member_offset;
-        res.push_back(treeList[i]);
+    size_t entry_num = do_xarray(xarray_addr, XARRAY_COUNT, NULL);
+	struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
+    entry_list[0].index = entry_num;
+    do_xarray(xarray_addr, XARRAY_GATHER, entry_list);
+    for (size_t i = 0; i < entry_num; ++i){
+        ulong addr = (ulong)entry_list[i].value;
+        if (!is_kvaddr(addr))continue;
+        res.push_back(addr);
     }
-    FREEBUF(treeList);
-    hq_close();
     return res;
 }
 
@@ -373,7 +356,7 @@ ulonglong PaserPlugin::read_structure_field(ulong kvaddr,const std::string& type
     ulonglong result = 0;
     void *buf = (void *)GETBUF(size);
     if (!readmem(addr, KVADDR, buf, size, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        LOGE("Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
         FREEBUF(buf);
         return 0;
     }
@@ -400,7 +383,7 @@ ulonglong PaserPlugin::read_structure_field(ulong kvaddr,const std::string& type
 std::string PaserPlugin::read_cstring(ulong kvaddr,int len, const std::string& note){
     char res[len];
     if (!readmem(kvaddr, KVADDR, res, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        LOGE("Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
         return nullptr;
     }
     return std::string(res);
@@ -489,7 +472,7 @@ short PaserPlugin::read_short(ulong kvaddr,const std::string& note){
 void* PaserPlugin::read_memory(ulong kvaddr,int len, const std::string& note){
     void* buf = (void *)GETBUF(len);
     if (!readmem(kvaddr, KVADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        LOGE("Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
         FREEBUF(buf);
         return nullptr;
     }
@@ -500,7 +483,7 @@ void* PaserPlugin::read_phys_memory(ulong paddr, int len, const std::string& not
     void* buf = (void *)GETBUF(len);
     if (!readmem(paddr, PHYSADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR)) {
         fprintf(fp, "Can't read %s at %lx\n", TO_CONST_STRING(note.c_str()), paddr);
-	FREEBUF(buf);
+        FREEBUF(buf);
         return NULL;
     }
     return buf;
@@ -510,16 +493,16 @@ void* PaserPlugin::read_struct(ulong kvaddr,const std::string& type){
     int size = type_size(type);
     void* buf = (void *)GETBUF(size);
     if (!readmem(kvaddr, KVADDR, buf, size, TO_CONST_STRING(type.c_str()), RETURN_ON_ERROR|QUIET)) {
-        LOGE("Can't read %s at %lx\n",TO_CONST_STRING(type.c_str()),kvaddr);
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(type.c_str()),kvaddr);
         FREEBUF(buf);
         return nullptr;
     }
     return buf;
 }
 
-bool PaserPlugin::read_struct(ulong kvaddr,void* buf, int len, const std::string& type){
-    if (!readmem(kvaddr, KVADDR, buf, len, TO_CONST_STRING(type.c_str()), RETURN_ON_ERROR|QUIET)) {
-        LOGE("Can't read %s at %lx\n",TO_CONST_STRING(type.c_str()),kvaddr);
+bool PaserPlugin::read_struct(ulong kvaddr,void* buf, int len, const std::string& note){
+    if (!readmem(kvaddr, KVADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()),kvaddr);
         return false;
     }
     return true;
@@ -538,7 +521,7 @@ ulong PaserPlugin::read_pointer(ulong kvaddr, const std::string& note){
 unsigned char PaserPlugin::read_byte(ulong kvaddr, const std::string& note){
     unsigned char val;
     if (!readmem(kvaddr, KVADDR, &val, 1, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        LOGE("Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
         return -1;
     }
     return val;
@@ -650,7 +633,7 @@ bool PaserPlugin::is_binary_stripped(std::string& filename){
     std::string command = "readelf -s " + filename;
     FILE *pipe = popen(command.c_str(), "r");
     if (!pipe) {
-        LOGE("Failed to run readelf command. \n");
+        fprintf(fp, "Failed to run readelf command. \n");
         return false;
     }
     std::string output;
@@ -664,13 +647,13 @@ bool PaserPlugin::is_binary_stripped(std::string& filename){
 
 bool PaserPlugin::add_symbol_file(std::string& filename){
     if(is_binary_stripped(filename)){
-        LOGE("This file is not symbols file \n");
+        fprintf(fp, "This file is not symbols file \n");
         return false;
     }
     char buf[BUFSIZE];
     sprintf(buf, "add-symbol-file %s", filename.c_str());
     if(!gdb_pass_through(buf, NULL, GNU_RETURN_ON_ERROR)){
-        LOGE("add symbol file: %s failed\n", filename.c_str());
+        fprintf(fp, "add symbol file: %s failed\n", filename.c_str());
         return false;
     }
     return true;
@@ -680,7 +663,7 @@ void PaserPlugin::verify_userspace_symbol(std::string& symbol_name){
     char buf[BUFSIZE];
     sprintf(buf, "ptype %s", symbol_name.c_str());
     if(!gdb_pass_through(buf, NULL, GNU_RETURN_ON_ERROR)){
-        LOGE("verify_userspace_symbol: %s failed \n", symbol_name.c_str());
+        fprintf(fp, "verify_userspace_symbol: %s failed \n", symbol_name.c_str());
     }
 }
 

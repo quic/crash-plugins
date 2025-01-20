@@ -18,6 +18,10 @@
 #include <algorithm>
 #include <bitset>
 #include <set>
+#include <regex>
+#include <execinfo.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -51,9 +55,9 @@ public:
     std::vector<ulong> for_each_rbtree(ulong rb_root,int offset);
     std::vector<ulong> for_each_list(ulong list_head,int offset);
     std::vector<ulong> for_each_hlist(ulong hlist_head,int offset);
-    std::vector<ulong> for_each_xarray(ulong rb_root);
+    std::vector<ulong> for_each_xarray(ulong xarray_addr);
     std::vector<ulong> for_each_mptree(ulong maptree_addr);
-    std::vector<ulong> for_each_radix(ulong rb_root);
+    std::vector<ulong> for_each_radix(ulong root_rnode);
 
     std::vector<ulong> for_each_process();
     std::vector<ulong> for_each_threads();
@@ -98,6 +102,7 @@ public:
     bool is_binary_stripped(std::string& filename);
     bool add_symbol_file(std::string& filename);
     void verify_userspace_symbol(std::string& symbol_name);
+    bool isNumber(const std::string& str);
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \
