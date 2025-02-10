@@ -44,9 +44,23 @@ PaserPlugin::PaserPlugin(){
 }
 
 bool PaserPlugin::isNumber(const std::string& str) {
-    std::regex decimalPattern("^-?\\d+$");
-    std::regex hexPattern("^0[xX][0-9a-fA-F]+$");
-    return std::regex_match(str, decimalPattern) || std::regex_match(str, hexPattern);
+    regex_t decimal, hex;
+    bool result = false;
+    if (regcomp(&decimal, "^-?\\d+$", REG_EXTENDED)) {
+        fprintf(fp, "Could not compile decimal regex\n");
+        return false;
+    }
+    if (regcomp(&hex, "^0[xX][0-9a-fA-F]+$", REG_EXTENDED)) {
+        fprintf(fp, "Could not compile hex regex \n");
+        regfree(&decimal);
+        return false;
+    }
+    if (!regexec(&decimal, str.c_str(), 0, NULL, 0) || !regexec(&hex, str.c_str(), 0, NULL, 0)) {
+        result = true;
+    }
+    regfree(&decimal);
+    regfree(&hex);
+    return result;
 }
 
 void PaserPlugin::convert_size(ulong size,char* buf){

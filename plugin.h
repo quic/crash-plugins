@@ -18,10 +18,12 @@
 #include <algorithm>
 #include <bitset>
 #include <set>
-#include <regex>
+#include <regex.h>
 #include <execinfo.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <iomanip>
+#include <arpa/inet.h>
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))

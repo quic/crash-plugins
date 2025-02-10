@@ -6,8 +6,6 @@
 
 #include "plugin.h"
 #include "devicetree/devicetree.h"
-#include <arpa/inet.h>
-#include <algorithm>
 
 class Dts : public Devicetree {
 private:

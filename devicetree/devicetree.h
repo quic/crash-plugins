@@ -5,8 +5,6 @@
 #define DEVICE_TREE_DEFS_H_
 
 #include "plugin.h"
-#include <arpa/inet.h>
-#include <algorithm>
 
 struct DdrRange {
     size_t address;
