@@ -63,8 +63,8 @@ Supprot command:
 | procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
 | cma        | √         | √         | parser cma info                                      |
 | dts        | √         | √         | parser device tree                                   |
+| memblock   | √         | √         | parser memblock info                                 |
 | buddy      | x         | x         |                                                      |
-| memblock   | x         | x         |                                                      |
 | reserved   | x         | x         |                                                      |
 | vmalloc    | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |
