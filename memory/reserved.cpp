@@ -35,22 +35,22 @@ Reserved::Reserved(){
     struct_init(reserved_mem);
     cmd_name = "reserved";
     help_str_list={
-	    "reserved",                            /* command name */
-	    "dump reserved memory information",    /* short description */
-	    "-a \n"
-		    "\n",
-	    "EXAMPLES",
-	    "  Display reserved memory info",
-	    "    %s> reserved -a",
-	    "    ==============================================================================================================",
-	    "    [0] oda_region@45700000        reserved_mem:0xffffffde316b16e0 range:[0x45700000~0x45a00000] size:3.00Mb     [no-map]",
-	    "    [1] deepsleep_region@45A00000  reserved_mem:0xffffffde316b1718 range:[0x45a00000~0x45b00000] size:1.00Mb     [no-map]",
-	    "    [2] splash_region@5c000000     reserved_mem:0xffffffde316b19b8 range:[0x5c000000~0x5cf00000] size:15.00Mb    [unknow]",
-	    "    [3] linux,cma                  reserved_mem:0xffffffde316b1600 range:[0xbc000000~0xbe000000] size:32.00Mb    [reusable]",
-	    "    [4] adsp_region                reserved_mem:0xffffffde316b15c8 range:[0xbe000000~0xbe800000] size:8.00Mb     [reusable]",
-	    "    ==============================================================================================================",
-	    "    Total:448.20Mb nomap:168.20Mb reuse:264.00Mb other:16.00Mb",
-	    "\n",
+        "reserved",                            /* command name */
+        "dump reserved memory information",    /* short description */
+        "-a \n"
+            "\n",
+        "EXAMPLES",
+        "  Display reserved memory info",
+        "    %s> reserved -a",
+        "    ==============================================================================================================",
+        "    [0] oda_region@45700000        reserved_mem:0xffffffde316b16e0 range:[0x45700000~0x45a00000] size:3.00Mb     [no-map]",
+        "    [1] deepsleep_region@45A00000  reserved_mem:0xffffffde316b1718 range:[0x45a00000~0x45b00000] size:1.00Mb     [no-map]",
+        "    [2] splash_region@5c000000     reserved_mem:0xffffffde316b19b8 range:[0x5c000000~0x5cf00000] size:15.00Mb    [unknow]",
+        "    [3] linux,cma                  reserved_mem:0xffffffde316b1600 range:[0xbc000000~0xbe000000] size:32.00Mb    [reusable]",
+        "    [4] adsp_region                reserved_mem:0xffffffde316b15c8 range:[0xbe000000~0xbe800000] size:8.00Mb     [reusable]",
+        "    ==============================================================================================================",
+        "    Total:448.20Mb nomap:168.20Mb reuse:264.00Mb other:16.00Mb",
+        "\n",
     };
     initialize();
     parser_reserved_mem();

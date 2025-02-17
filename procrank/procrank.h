@@ -5,12 +5,6 @@
 #define PROCRANK_DEFS_H_
 #include "plugin.h"
 
-#ifdef ARM64
-#include "pagetable/arm/pagetable64.h"
-#else
-#include "pagetable/arm/pagetable32.h"
-#endif
-
 struct procrank{
     ulong vss;
     ulong rss;
@@ -22,11 +16,7 @@ struct procrank{
     std::string cmdline;
 };
 
-#ifdef ARM64
-class Procrank : public PageTable64 {
-#else
-class Procrank : public PageTable32 {
-#endif
+class Procrank : public PaserPlugin {
 public:
     Procrank();
     void cmd_main(void) override;
@@ -36,6 +26,5 @@ public:
 
 private:
     std::vector<std::shared_ptr<procrank>> procrank_list;
-    const ulong page_mask = ~((ulong)(PAGESIZE() - 1));
 };
 #endif // PROCRANK_DEFS_H_

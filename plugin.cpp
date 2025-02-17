@@ -35,6 +35,7 @@ PaserPlugin::PaserPlugin(){
     field_init(page, freelist);
     field_init(page, units);
     field_init(page, index);
+    field_init(page, private);
     struct_init(page);
 
     field_init(list_head, prev);
@@ -63,9 +64,9 @@ bool PaserPlugin::isNumber(const std::string& str) {
     return result;
 }
 
-void PaserPlugin::convert_size(ulong size,char* buf){
+void PaserPlugin::convert_size(int64_t size,char* buf){
     if (size < 1024){
-        sprintf(buf, "%ldb",size);
+        sprintf(buf, "%" PRId64 "b",size);
     }else if (size < 1024 * 1024){
         sprintf(buf, "%.2fKb",(float)size/1024);
     }else if (size < 1024 * 1024 * 1024){
@@ -566,7 +567,7 @@ int PaserPlugin::page_to_nid(ulong page){
     }
     for (i = 0; i < vt->numnodes; i++){
         nt = &vt->node_table[i];
-        physaddr_t end_paddr = nt->start_paddr + ((physaddr_t)nt->size * (physaddr_t)PAGESIZE());
+        physaddr_t end_paddr = nt->start_paddr + ((physaddr_t)nt->size * (physaddr_t)page_size);
         if ((paddr >= nt->start_paddr) && (paddr < end_paddr)){
             return i;
         }
@@ -616,9 +617,12 @@ physaddr_t PaserPlugin::page_to_phy(ulong page){
 
 std::string PaserPlugin::get_config_val(const std::string& conf_name){
     char *config_val;
-    int ret = get_kernel_config(TO_CONST_STRING(conf_name.c_str()),&config_val);
-    std::string val(config_val);
-    return val;
+    if (get_kernel_config(TO_CONST_STRING(conf_name.c_str()),&config_val) != IKCONFIG_N){
+        std::string val(config_val);
+        return val;
+    }else{
+        return "n";
+    }
 }
 
 void PaserPlugin::cfill_pgd(ulonglong pgd, int type, ulong size){
@@ -679,6 +683,77 @@ void PaserPlugin::verify_userspace_symbol(std::string& symbol_name){
     if(!gdb_pass_through(buf, NULL, GNU_RETURN_ON_ERROR)){
         fprintf(fp, "verify_userspace_symbol: %s failed \n", symbol_name.c_str());
     }
+}
+
+std::string PaserPlugin::extract_string(const char *input) {
+    std::string result;
+    const char *ptr = input;
+    while (*ptr != '\0') {
+        if (!result.empty()) {
+            result += ' ';
+        }
+        result += std::string(ptr);
+        ptr += strlen(ptr) + 1;
+    }
+    return result;
+}
+
+void PaserPlugin::print_memory(ulong vaddr, char *buf,size_t size) {
+    if(!is_bigendian()){
+        for (size_t i = 0; i < size; i += 4) {
+            if (i + 3 < size) {
+                uint32_t* value = reinterpret_cast<uint32_t*>(buf + i);
+                *value = swap32(*value,1);
+            }
+        }
+    }
+    for (size_t i = 0; i < size; i += 16){
+        // print address
+        std::cout << std::hex << (vaddr + i) << ": ";
+        // print data
+        size_t line_start = i;
+        size_t line_end = std::min(i + 16, size);
+        std::stringstream line_stream;
+        line_stream << std::uppercase << std::hex << std::setfill('0');
+        for (size_t j = line_start; j < line_end; j += 2) {
+            uint8_t high = buf[j];
+            uint8_t low = (j + 1 < line_end) ? buf[j + 1] : 0x00;
+            uint16_t val = (static_cast<uint16_t>(high) << 8) | low;
+            line_stream << std::setw(4) << val << " ";
+        }
+        std::string line = line_stream.str();
+        if (!line.empty()) {
+            line.pop_back();
+        }
+        std::cout << line;
+        // print ASCII
+        std::cout << " ";
+        for (size_t j = 0; j < 16; ++j){
+            if (i + j < size){
+                unsigned char c = buf[i + j];
+                if (std::isprint(c)){
+                    std::cout << c;
+                }else{
+                    std::cout << '.';
+                }
+            }
+        }
+        std::cout << std::endl;
+    }
+}
+
+int PaserPlugin::is_bigendian(void){
+    int i = 0x12345678;
+    if (*(char *)&i == 0x12)
+        return TRUE;
+    else
+        return FALSE;
+}
+
+long PaserPlugin::read_enum_val(const std::string& enum_name){
+     long enum_val = 0;
+     enumerator_value(TO_CONST_STRING(enum_name.c_str()), &enum_val);
+     return enum_val;
 }
 
 #pragma GCC diagnostic pop

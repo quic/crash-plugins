@@ -32,12 +32,8 @@ void Procrank::cmd_main(void) {
 Procrank::Procrank(){
     cmd_name = "procrank";
     help_str_list={
-        "procrank",                /* command name */
-        "dump process memory information",    /* short description */
-    };
-    help_str_list={
-        "procrank",                         /* command name */
-        "dump process memory information",  /* short description */
+        "procrank",                            /* command name */
+        "dump process memory information",        /* short description */
         "-a \n"
             "  This command dumps the process info. sorted by rss",
         "\n",
@@ -102,7 +98,6 @@ void Procrank::parser_process_memory() {
 
 std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr) {
     auto procrank_ptr = std::make_shared<procrank>();
-    physaddr_t physic_addr = (physaddr_t)0x0;
     // read struct vm_area_struct
     void *vma_struct = read_struct(vma_addr,"vm_area_struct");
     if(vma_struct == nullptr){
@@ -114,18 +109,20 @@ std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr
     if(tc == nullptr){
         return nullptr;
     }
-    for(ulong vaddr = vm_start; vaddr < vm_end; vaddr+= PAGESIZE()){
+    for(ulong vaddr = vm_start; vaddr < vm_end; vaddr+= page_size){
         ulong page_vaddr = vaddr & page_mask;
-        ulong pte = get_pte(task_addr, page_vaddr);
-        if(pte == 0x0)
-            continue;
-        // bit0 is 0
-        if((pte & (1UL << 0)) == 0){
-            procrank_ptr->swap += PAGESIZE();
+        physaddr_t paddr;
+        if (!uvtop(tc, page_vaddr, &paddr, 0)) { //page not exists
+            if(paddr == 0x0){ // pte == 0
+                continue;
+            }
+            // bit0 is 0
+            if((paddr & (1UL << 0)) == 0){
+                procrank_ptr->swap += page_size;
+            }
             continue;
         }
-        uvtop(tc, page_vaddr, &physic_addr, 0);
-        ulong page_addr = phy_to_page(physic_addr);
+        ulong page_addr = phy_to_page(paddr);
         // typedef struct {
         //     int counter;
         // } atomic_t;
@@ -135,9 +132,9 @@ std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr
         if(page_count == 0){
             continue;
         }
-        procrank_ptr->rss += PAGESIZE();
-        procrank_ptr->pss += PAGESIZE() / page_count;
-        procrank_ptr->uss += (page_count == 1) ? PAGESIZE() : (0);
+        procrank_ptr->rss += page_size;
+        procrank_ptr->pss += page_size / page_count;
+        procrank_ptr->uss += (page_count == 1) ? page_size : (0);
     }
     procrank_ptr->vss += vm_end - vm_start;
     FREEBUF(vma_struct);

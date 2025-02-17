@@ -13,8 +13,6 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
-#include "struct_info.h"
-#include "logger/log.h"
 #include <algorithm>
 #include <bitset>
 #include <set>
@@ -24,6 +22,9 @@
 #include <stdlib.h>
 #include <iomanip>
 #include <arpa/inet.h>
+#include <inttypes.h>
+#include "struct_info.h"
+#include "logger/log.h"
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -33,20 +34,34 @@
 #define struct_size(type) type_size(TO_STD_STRING(type))
 #define IS_ALIGNED(x, a)    (((x) & ((typeof(x))(a) - 1)) == 0)
 
+typedef struct {
+    long long counter;
+} atomic64_t;
+
+typedef struct {
+    int counter;
+} atomic_t;
+
+typedef struct {
+    int counter;
+} atomic_long_t;
+
 class PaserPlugin {
 protected:
     std::unordered_map<std::string, std::unique_ptr<Typeinfo>> typetable;
 
 public:
     PaserPlugin();
-
+    const uint page_size = PAGESIZE();
+    const uint page_shift = PAGESHIFT();
+    const ulong page_mask = ~((ulong)(page_size - 1));
     std::string cmd_name;
     std::vector<std::string> help_str_list;
     char** cmd_help;
 
     virtual void cmd_main(void)=0;
     void initialize(void);
-    void convert_size(ulong size,char* buf);
+    void convert_size(int64_t size,char* buf);
     void print_table();
     void type_init(const std::string& type);
     void type_init(const std::string& type,const std::string& field);
@@ -105,6 +120,11 @@ public:
     bool add_symbol_file(std::string& filename);
     void verify_userspace_symbol(std::string& symbol_name);
     bool isNumber(const std::string& str);
+    std::string extract_string(const char *input);
+    void print_memory(ulong vaddr, char *buf,size_t size);
+    int is_bigendian(void);
+
+    long read_enum_val(const std::string& enum_name);
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \
