@@ -66,6 +66,7 @@ Supprot command:
 | memblock   | √         | √         | parser memblock info                                 |
 | workqueue  | √         | √         | parser workqueue info                                |
 | reserved   | √         | √         | parser reserved memory info                          |
+| iomem      | √         | √         | parser memory layout info                            |
 | buddy      | x         | x         |                                                      |
 | vmalloc    | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |

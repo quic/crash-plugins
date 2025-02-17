@@ -33,7 +33,8 @@ list(APPEND PLUGIN_SOURCES
         binder/binder.cpp
         memory/cma.cpp
 	memory/reserved.cpp
-        memory/memblock.cpp
+	memory/memblock.cpp
+	memory/iomem.cpp
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
@@ -77,4 +78,9 @@ add_library(reserved SHARED
             memory/reserved.cpp
             devicetree/devicetree.cpp)
 set_target_properties(reserved PROPERTIES PREFIX "")
+
+add_library(iomem SHARED
+            ${PLUGIN_SOURCES}
+            memory/iomem.cpp)
+set_target_properties(iomem PROPERTIES PREFIX "")
 endif()
