@@ -49,7 +49,7 @@ $ ./build.sh
 
 # How to use
 
-To load the module's commands to a running crash-8.0.4+ session, enter:
+To load the module's commands to a running crash-8.0.6+ session, enter:
 
 ```
 crash> extend <path-to>/output/arm64/plugins.so or extend <path-to>/output/arm64/${module}.so
@@ -64,14 +64,14 @@ Supprot command:
 | cma        | √         | √         | parser cma info                                      |
 | dts        | √         | √         | parser device tree                                   |
 | memblock   | √         | √         | parser memblock info                                 |
+| workqueue  | √         | √         | parser workqueue info                                |
 | buddy      | x         | x         |                                                      |
 | reserved   | x         | x         |                                                      |
 | vmalloc    | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |
 | slub       | x         | x         |                                                      |
-| pageowner  | x         | x         |                  				    |
+| pageowner  | x         | x         |                                                      |
 | coredump   | x         | x         |                                                      |
-| workqueue  | x         | x         |                                                      |
 | zram       | x         | x         |                                                      |
 | partition  | x         | x         |                                                      |
 | meminfo    | x         | x         |                                                      |
@@ -164,24 +164,24 @@ void Demo::cmd_main(void) {
     int c;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     while ((c = getopt(argcnt, args, "a")) != EOF) {
-		switch(c) {
+        switch(c) {
             case 'a':
                 do_somethings();
                 break;
             default:
                 argerrs++;
                 break;
-		}
-	}
+    }
+  }
     if (argerrs)
-		cmd_usage(pc->curcmd, SYNOPSIS);
+    cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
 Demo::Demo(){
     cmd_name = "demo";
     help_str_list={
-	"demo",					/* command name */
-	"your description",		/* short description */
+    "demo",                    /* command name */
+    "your description",        /* short description */
     };
     initialize();
 }

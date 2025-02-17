@@ -29,13 +29,14 @@ endif()
 if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
 list(APPEND PLUGIN_SOURCES
-	plugins.cpp
-	binder/binder.cpp
-	memory/cma.cpp
-	memory/memblock.cpp
-	procrank/procrank.cpp
-	devicetree/dts.cpp
-	devicetree/devicetree.cpp)
+        plugins.cpp
+        binder/binder.cpp
+        memory/cma.cpp
+        memory/memblock.cpp
+        procrank/procrank.cpp
+        devicetree/dts.cpp
+        devicetree/devicetree.cpp
+        workqueue/workqueue.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 else()
@@ -64,4 +65,9 @@ add_library(memblock SHARED
             ${PLUGIN_SOURCES}
             memory/memblock.cpp)
 set_target_properties(memblock PROPERTIES PREFIX "")
+
+add_library(wq SHARED
+            ${PLUGIN_SOURCES}
+            workqueue/workqueue.cpp)
+set_target_properties(wq PROPERTIES PREFIX "")
 endif()
