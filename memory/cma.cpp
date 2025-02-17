@@ -15,7 +15,7 @@ void Cma::cmd_main(void) {
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     while ((c = getopt(argcnt, args, "au:f:")) != EOF) {
-		switch(c) {
+        switch(c) {
             case 'a':
                 print_cma_areas();
                 break;
@@ -30,10 +30,10 @@ void Cma::cmd_main(void) {
             default:
                 argerrs++;
                 break;
-		}
-	}
+        }
+    }
     if (argerrs)
-		cmd_usage(pc->curcmd, SYNOPSIS);
+        cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
 Cma::Cma(){
@@ -45,53 +45,53 @@ Cma::Cma(){
     struct_init(cma);
     cmd_name = "cma";
     help_str_list={
-	"cma",							/* command name */
-	"dump cma information",		/* short description */
-	"-a \n"
-    "  cma -u <cma name>\n"
-    "  cma -f <cma name>\n"
-	"  This command dumps the cma info.",
-    "\n",
-    "EXAMPLES",
-	"  Display cma memory info:",
-	"    %s> cma -a",
-    "	==============================================================================================================",
-    "	[1]mem_dump_region            cma:0xffffffde315f35a8 PFN:0xbf800~0xc0000       size:8.00Mb     used:0b         order:0",
-    "	[2]user_contig_region         cma:0xffffffde315f3668 PFN:0xbe800~0xbf800       size:16.00Mb    used:0b         order:0",
-    "	[3]adsp_region                cma:0xffffffde315f3728 PFN:0xbe000~0xbe800       size:8.00Mb     used:2.20Mb     order:0",
-    "	[4]linux,cma                  cma:0xffffffde315f37e8 PFN:0xbc000~0xbe000       size:32.00Mb    used:12.38Mb    order:0",
-    "	==============================================================================================================",
-    "	Total:264.00Mb allocated:15.77Mb",
-    "\n",
-	"  Display the allocted pages of specified cma region by cma name:",
-	"    %s> cma -u adsp_region",
-    "	========================================================================",
-    "	name           : adsp_region",
-    "	base_pfn       : 0xbe000",
-    "	end_pfn        : 0xbe800",
-    "	count          : 2048",
-    "	size           : 0x2000",
-    "	bitmap         : 0xffffff8006986900 ~ 0xffffff8006986a00",
-    "	========================================================================",
-    "	[1]PFN:0xbe000 paddr:0xbe000000 page:0xfffffffe01f80000 allocted",
-    "	[2]PFN:0xbe001 paddr:0xbe001000 page:0xfffffffe01f80040 allocted",
-    "	[3]PFN:0xbe002 paddr:0xbe002000 page:0xfffffffe01f80080 allocted",
-    "	[4]PFN:0xbe003 paddr:0xbe003000 page:0xfffffffe01f800c0 allocted",
-    "\n",
-	"  Display the free pages of specified cma region by cma name:",
-	"    %s> cma -f adsp_region",
-    "	========================================================================",
-    "	name           : adsp_region",
-    "	base_pfn       : 0xbe000",
-    "	end_pfn        : 0xbe800",
-    "	count          : 2048",
-    "	size           : 0x2000",
-    "	bitmap         : 0xffffff8006986900 ~ 0xffffff8006986a00",
-    "	========================================================================",
-    "	[1]PFN:0xbe032 paddr:0xbe032000 page:0xfffffffe01f80c80 free",
-    "	[2]PFN:0xbe033 paddr:0xbe033000 page:0xfffffffe01f80cc0 free",
-    "	[3]PFN:0xbe034 paddr:0xbe034000 page:0xfffffffe01f80d00 free",
-    "\n",
+        "cma",                         /* command name */
+        "dump cma information",        /* short description */
+        "-a \n"
+            "  cma -u <cma name>\n"
+            "  cma -f <cma name>\n"
+            "  This command dumps the cma info.",
+        "\n",
+        "EXAMPLES",
+        "  Display cma memory info:",
+        "    %s> cma -a",
+        "    ==============================================================================================================",
+        "    [1]mem_dump_region            cma:0xffffffde315f35a8 PFN:0xbf800~0xc0000       size:8.00Mb     used:0b         order:0",
+        "    [2]user_contig_region         cma:0xffffffde315f3668 PFN:0xbe800~0xbf800       size:16.00Mb    used:0b         order:0",
+        "    [3]adsp_region                cma:0xffffffde315f3728 PFN:0xbe000~0xbe800       size:8.00Mb     used:2.20Mb     order:0",
+        "    [4]linux,cma                  cma:0xffffffde315f37e8 PFN:0xbc000~0xbe000       size:32.00Mb    used:12.38Mb    order:0",
+        "    ==============================================================================================================",
+        "    Total:264.00Mb allocated:15.77Mb",
+        "\n",
+        "  Display the allocted pages of specified cma region by cma name:",
+        "    %s> cma -u adsp_region",
+        "    ========================================================================",
+        "    name           : adsp_region",
+        "    base_pfn       : 0xbe000",
+        "    end_pfn        : 0xbe800",
+        "    count          : 2048",
+        "    size           : 0x2000",
+        "    bitmap         : 0xffffff8006986900 ~ 0xffffff8006986a00",
+        "    ========================================================================",
+        "    [1]PFN:0xbe000 paddr:0xbe000000 page:0xfffffffe01f80000 allocted",
+        "    [2]PFN:0xbe001 paddr:0xbe001000 page:0xfffffffe01f80040 allocted",
+        "    [3]PFN:0xbe002 paddr:0xbe002000 page:0xfffffffe01f80080 allocted",
+        "    [4]PFN:0xbe003 paddr:0xbe003000 page:0xfffffffe01f800c0 allocted",
+        "\n",
+        "  Display the free pages of specified cma region by cma name:",
+        "    %s> cma -f adsp_region",
+        "    ========================================================================",
+        "    name           : adsp_region",
+        "    base_pfn       : 0xbe000",
+        "    end_pfn        : 0xbe800",
+        "    count          : 2048",
+        "    size           : 0x2000",
+        "    bitmap         : 0xffffff8006986900 ~ 0xffffff8006986a00",
+        "    ========================================================================",
+        "    [1]PFN:0xbe032 paddr:0xbe032000 page:0xfffffffe01f80c80 free",
+        "    [2]PFN:0xbe033 paddr:0xbe033000 page:0xfffffffe01f80cc0 free",
+        "    [3]PFN:0xbe034 paddr:0xbe034000 page:0xfffffffe01f80d00 free",
+        "\n",
     };
     initialize();
     parser_cma_areas();

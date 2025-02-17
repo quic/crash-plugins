@@ -16,7 +16,7 @@ void Dts::cmd_main(void) {
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     while ((c = getopt(argcnt, args, "afb:n:m")) != EOF) {
-		switch(c) {
+        switch(c) {
             case 'a': //print dts info
             {
                 flags = DTS_SHOW;
@@ -59,64 +59,64 @@ void Dts::cmd_main(void) {
             default:
                 argerrs++;
                 break;
-		}
-	}
+        }
+    }
     if (argerrs)
-		cmd_usage(pc->curcmd, SYNOPSIS);
+        cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
 Dts::Dts(){
     cmd_name = "dts";
     help_str_list={
-	"dts",							/* command name */
-	"dump dts info",		/* short description */
-	"-a \n"
-    "  dts -f\n"
-    "  dts -b\n"
-    "  dts -n <name>\n"
-    "  dts -m\n"
-	"  This command dumps the dts info.",
-    "\n",
-    "EXAMPLES",
-	"  Display whole dts info:",
-	"    %s> dts -a",
-	"       {",
-	"           model=<Qualcomm Technologies, Inc. Monaco WDP V1.1>;",
-    "           compatible=<qcom,monaco>;",
-    "           qcom,msm-id=< 0x1e6 0x10000 >;",
-    "           qcom,board-id=< 0x10124 0x0 >;",
-    "\n",
-	"  Display whole dts info with address:",
-	"    %s> dts -f",
-	"       ffffff806f28a458:{",
-	"           ffffff806f28a5b8:model=<Qualcomm Technologies, Inc. Monaco WDP V1.1>;",
-    "           ffffff806f28a618:compatible=<qcom,monaco>;",
-    "           ffffff806f28a678:qcom,msm-id=< 0x1e6 0x10000 >;",
-    "           ffffff806f28a7f8:qcom,board-id=< 0x10124 0x0 >;",
-    "\n",
-	"  Display one node info by node name or node path",
-	"    %s> dts -n memory",
-	"       memory{",
-	"           ddr_device_type=< 0x7 >;",
-    "           device_type=<memory>;",
-    "           reg=< 0x0 0x40000000 0x0 0x3ee00000 0x0 0x80000000 0x0 0x40000000 >;",
-    "       };",
-    "\n",
-	"  Display physic memory total size:",
-	"    %s> dts -m",
-	"       =========================================",
-	"         0x40000000~0x7ee00000  size:0x3ee00000 ",
-    "         0x80000000~0xc0000000  size:0x40000000 ",
-	"       =========================================",
-    "          Total size:    2030M ",
-    "\n",
-	"  Read out the whole dtb memory:",
-	"    %s> dts -b ./dts.dtb",
-	"       save dtb to ./dts.dtb",
-    "\n",
-    "       please use below command to generate dts file:",
-    "           dtc -I dtb -O dts -o ./xx.dts ./dts.dtb",
-    "\n",
+        "dts",                      /* command name */
+        "dump dts info",            /* short description */
+        "-a \n"
+            "  dts -f\n"
+            "  dts -b\n"
+            "  dts -n <name>\n"
+            "  dts -m\n"
+            "  This command dumps the dts info.",
+        "\n",
+        "EXAMPLES",
+        "  Display whole dts info:",
+        "    %s> dts -a",
+        "       {",
+        "           model=<Qualcomm Technologies, Inc. Monaco WDP V1.1>;",
+        "           compatible=<qcom,monaco>;",
+        "           qcom,msm-id=< 0x1e6 0x10000 >;",
+        "           qcom,board-id=< 0x10124 0x0 >;",
+        "\n",
+        "  Display whole dts info with address:",
+        "    %s> dts -f",
+        "       ffffff806f28a458:{",
+        "           ffffff806f28a5b8:model=<Qualcomm Technologies, Inc. Monaco WDP V1.1>;",
+        "           ffffff806f28a618:compatible=<qcom,monaco>;",
+        "           ffffff806f28a678:qcom,msm-id=< 0x1e6 0x10000 >;",
+        "           ffffff806f28a7f8:qcom,board-id=< 0x10124 0x0 >;",
+        "\n",
+        "  Display one node info by node name or node path",
+        "    %s> dts -n memory",
+        "       memory{",
+        "           ddr_device_type=< 0x7 >;",
+        "           device_type=<memory>;",
+        "           reg=< 0x0 0x40000000 0x0 0x3ee00000 0x0 0x80000000 0x0 0x40000000 >;",
+        "       };",
+        "\n",
+        "  Display physic memory total size:",
+        "    %s> dts -m",
+        "       =========================================",
+        "         0x40000000~0x7ee00000  size:0x3ee00000 ",
+        "         0x80000000~0xc0000000  size:0x40000000 ",
+        "       =========================================",
+        "          Total size:    2030M ",
+        "\n",
+        "  Read out the whole dtb memory:",
+        "    %s> dts -b ./dts.dtb",
+        "       save dtb to ./dts.dtb",
+        "\n",
+        "       please use below command to generate dts file:",
+        "           dtc -I dtb -O dts -o ./xx.dts ./dts.dtb",
+        "\n",
     };
     initialize();
 }

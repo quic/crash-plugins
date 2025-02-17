@@ -16,38 +16,38 @@ void Procrank::cmd_main(void) {
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     while ((c = getopt(argcnt, args, "a")) != EOF) {
-		switch(c) {
+        switch(c) {
             case 'a':
                 parser_process_memory();
                 break;
             default:
                 argerrs++;
                 break;
-		}
-	}
+        }
+    }
     if (argerrs)
-		cmd_usage(pc->curcmd, SYNOPSIS);
+        cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
 Procrank::Procrank(){
     cmd_name = "procrank";
     help_str_list={
-    "procrank",/* command name */
-    "dump process memory information",/* short description */
+        "procrank",                /* command name */
+        "dump process memory information",    /* short description */
     };
     help_str_list={
-	"procrank",							/* command name */
-	"dump process memory information",		/* short description */
-	"-a \n"
-	"  This command dumps the process info. sorted by rss",
-    "\n",
-    "EXAMPLES",
-	"  Display process memory info:",
-	"    %s> procrank -a",
-    "	PID        Vss        Rss        Pss        Uss        Swap        Comm",
-    "	975      1.97Gb     51.09Mb    13.71Mb    3.54Mb     1.99Mb     Binder:975_3",
-    "	465      1.69Gb     4.53Mb     286.01Kb   36.00Kb    26.01Mb    main",
-    "\n",
+        "procrank",                         /* command name */
+        "dump process memory information",  /* short description */
+        "-a \n"
+            "  This command dumps the process info. sorted by rss",
+        "\n",
+        "EXAMPLES",
+        "  Display process memory info:",
+        "    %s> procrank -a",
+        "    PID        Vss        Rss        Pss        Uss        Swap        Comm",
+        "    975      1.97Gb     51.09Mb    13.71Mb    3.54Mb     1.99Mb     Binder:975_3",
+        "    465      1.69Gb     4.53Mb     286.01Kb   36.00Kb    26.01Mb    main",
+        "\n",
     };
     initialize();
     //print_table();

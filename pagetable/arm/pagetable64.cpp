@@ -31,7 +31,7 @@ ulong PageTable64::get_pte(ulong task_addr, ulong page_vaddr){
     pgd_val = ULONG(machdep->pgd + PAGEOFFSET(pgd_ptr));
     if (verbose){
         fprintf(fp, "   PGD: %lx => %lx\n", (ulong)pgd_ptr, pgd_val);
-    }  
+    }
     if (!pgd_val){
         return 0;
     }

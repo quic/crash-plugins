@@ -61,8 +61,8 @@ struct hlist_head {
  * SCHED_RR
  */
 struct binder_priority {
-	unsigned int sched_policy;
-	int prio;
+    unsigned int sched_policy;
+    int prio;
 };
 
 struct binder_buffer {
@@ -114,147 +114,147 @@ struct binder_error {
 };
 
 struct binder_ref_data {
-	int debug_id;
-	uint32_t desc;
-	int strong;
-	int weak;
+    int debug_id;
+    uint32_t desc;
+    int strong;
+    int weak;
 };
 
 struct binder_ref {
-	struct binder_ref_data data;
-	struct rb_node rb_node_desc;
-	struct rb_node rb_node_node;
-	struct kernel_list_head node_entry;
-	void *proc;
-	void *node;
-	void *death;
+    struct binder_ref_data data;
+    struct rb_node rb_node_desc;
+    struct rb_node rb_node_node;
+    struct kernel_list_head node_entry;
+    void *proc;
+    void *node;
+    void *death;
 };
 
 #define BINDERFS_MAX_NAME 255
 
 struct binder_transaction_log_entry {
-	int debug_id;
-	int debug_id_done;
-	int call_type;
-	int from_proc;
-	int from_thread;
-	int target_handle;
-	int to_proc;
-	int to_thread;
-	int to_node;
-	int data_size;
-	int offsets_size;
-	int return_error_line;
-	uint32_t return_error;
-	uint32_t return_error_param;
-	char context_name[BINDERFS_MAX_NAME + 1];
+    int debug_id;
+    int debug_id_done;
+    int call_type;
+    int from_proc;
+    int from_thread;
+    int target_handle;
+    int to_proc;
+    int to_thread;
+    int to_node;
+    int data_size;
+    int offsets_size;
+    int return_error_line;
+    uint32_t return_error;
+    uint32_t return_error_param;
+    char context_name[BINDERFS_MAX_NAME + 1];
 };
 
 struct binder_transaction_log {
-	int cur;
-	bool full;
-	struct binder_transaction_log_entry entry[32];
+    int cur;
+    bool full;
+    struct binder_transaction_log_entry entry[32];
 };
 
 struct binder_alloc {
-	void *vma;
-	void *vma_vm_mm;
-	void *buffer;
-	struct kernel_list_head buffers;
-	struct rb_root free_buffers;
-	struct rb_root allocated_buffers;
-	uint32_t free_async_space;
-	void *pages;
-	uint32_t buffer_size;
-	uint32_t buffer_free;
-	int pid;
-	uint32_t pages_high;
-	bool oneway_spam_detected;
+    void *vma;
+    void *vma_vm_mm;
+    void *buffer;
+    struct kernel_list_head buffers;
+    struct rb_root free_buffers;
+    struct rb_root allocated_buffers;
+    uint32_t free_async_space;
+    void *pages;
+    uint32_t buffer_size;
+    uint32_t buffer_free;
+    int pid;
+    uint32_t pages_high;
+    bool oneway_spam_detected;
 };
 
 struct binder_lru_page {
-	struct kernel_list_head lru;
-	void *page_ptr;
-	void *alloc;
+    struct kernel_list_head lru;
+    void *page_ptr;
+    void *alloc;
 };
 
 struct binder_proc_part1 {
-	struct kernel_list_head proc_node;
-	struct rb_root threads;
-	struct rb_root nodes;
-	struct rb_root refs_by_desc;
-	struct rb_root refs_by_node;
-	struct kernel_list_head waiting_threads;
-	int pid;
-	void *tsk;
-	void *cred;
-	struct kernel_list_head deferred_work_node;
-	int deferred_work;
-	int outstanding_txns;
-	bool is_dead;
-	bool is_frozen;
-	bool sync_recv;
-	bool async_recv;
+    struct kernel_list_head proc_node;
+    struct rb_root threads;
+    struct rb_root nodes;
+    struct rb_root refs_by_desc;
+    struct rb_root refs_by_node;
+    struct kernel_list_head waiting_threads;
+    int pid;
+    void *tsk;
+    void *cred;
+    struct kernel_list_head deferred_work_node;
+    int deferred_work;
+    int outstanding_txns;
+    bool is_dead;
+    bool is_frozen;
+    bool sync_recv;
+    bool async_recv;
 };
 
 struct binder_proc_part2 {
-	int max_threads;
-	int requested_threads;
-	int requested_threads_started;
-	int tmp_ref;
-	struct binder_priority default_priority;
+    int max_threads;
+    int requested_threads;
+    int requested_threads_started;
+    int tmp_ref;
+    struct binder_priority default_priority;
 };
 
 struct binder_thread {
-	void *proc;
-	struct rb_node rb_node;
-	struct kernel_list_head waiting_thread_node;
-	int pid;
-	int looper;              /* only modified by this thread */
-	bool looper_need_return; /* can be written by other thread */
-	void *transaction_stack;
-	struct kernel_list_head todo;
-	bool process_todo;
-	struct binder_error return_error;
-	struct binder_error reply_error;
+    void *proc;
+    struct rb_node rb_node;
+    struct kernel_list_head waiting_thread_node;
+    int pid;
+    int looper;              /* only modified by this thread */
+    bool looper_need_return; /* can be written by other thread */
+    void *transaction_stack;
+    struct kernel_list_head todo;
+    bool process_todo;
+    struct binder_error return_error;
+    struct binder_error reply_error;
 };
 
 struct binder_node {
-	struct binder_work work;
-	union {
-		struct rb_node rb_node;
-		struct kernel_list_head dead_node;
-	};
-	void *proc;
-	struct hlist_head refs;
-	int internal_strong_refs;
-	int local_weak_refs;
-	int local_strong_refs;
-	int tmp_refs;
-	unsigned long long ptr;
-	unsigned long long cookie;
-	struct {
-		/*
-		 * bitfield elements protected by
-		 * proc inner_lock
-		 */
-		uint8_t has_strong_ref:1;
-		uint8_t pending_strong_ref:1;
-		uint8_t has_weak_ref:1;
-		uint8_t pending_weak_ref:1;
-	};
-	struct {
-		/*
-		 * invariant after initialization
-		 */
-		uint8_t sched_policy:2;
-		uint8_t inherit_rt:1;
-		uint8_t accept_fds:1;
-		uint8_t txn_security_ctx:1;
-		uint8_t min_priority;
-	};
-	bool has_async_transaction;
-	struct kernel_list_head async_todo;
+    struct binder_work work;
+    union {
+        struct rb_node rb_node;
+        struct kernel_list_head dead_node;
+    };
+    void *proc;
+    struct hlist_head refs;
+    int internal_strong_refs;
+    int local_weak_refs;
+    int local_strong_refs;
+    int tmp_refs;
+    unsigned long long ptr;
+    unsigned long long cookie;
+    struct {
+        /*
+         * bitfield elements protected by
+         * proc inner_lock
+         */
+        uint8_t has_strong_ref:1;
+        uint8_t pending_strong_ref:1;
+        uint8_t has_weak_ref:1;
+        uint8_t pending_weak_ref:1;
+    };
+    struct {
+        /*
+         * invariant after initialization
+         */
+        uint8_t sched_policy:2;
+        uint8_t inherit_rt:1;
+        uint8_t accept_fds:1;
+        uint8_t txn_security_ctx:1;
+        uint8_t min_priority;
+    };
+    bool has_async_transaction;
+    struct kernel_list_head async_todo;
 };
 
 #endif // BINDER_DEFS_H_

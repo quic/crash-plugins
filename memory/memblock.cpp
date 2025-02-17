@@ -14,17 +14,17 @@ void Memblock::cmd_main(void) {
     int c;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     while ((c = getopt(argcnt, args, "a")) != EOF) {
-	    switch(c) {
-		    case 'a':
-			    print_memblock();
-			    break;
-		    default:
-			    argerrs++;
-			    break;
-	    }
+        switch(c) {
+            case 'a':
+                print_memblock();
+                break;
+            default:
+                argerrs++;
+                break;
+        }
     }
     if (argerrs)
-	    cmd_usage(pc->curcmd, SYNOPSIS);
+        cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
 Memblock::Memblock(){
@@ -45,34 +45,34 @@ Memblock::Memblock(){
     struct_init(memblock_region);
     cmd_name = "memblock";
     help_str_list={
-	    "memblock",				/* command name */
-	    "dump memblock memory information",	/* short description */
-	    "-a \n"
-		    "\n",
-	    "EXAMPLES",
-	    "  Display memblock memory info:",
-	    "    %s> memblock -a",
-	    "	memblock_type:0xffffffde30f33048 [memory] total size:1.98Gb",
-	    "	  [0]  memblock_region:0xffffffde310dc8a8 range:[0x40000000~0x45700000] size:87.00Mb    flags:MEMBLOCK_NONE",
-	    "	  [1]  memblock_region:0xffffffde310dc8c0 range:[0x45700000~0x45f1b000] size:8.11Mb     flags:MEMBLOCK_NOMAP",
-	    "	  [2]  memblock_region:0xffffffde310dc8d8 range:[0x45f1b000~0x45fff000] size:912.00Kb   flags:MEMBLOCK_NONE",
-	    "",
-	    "	memblock_type:0xffffffde30f33070 [reserved] total size:352.26Mb",
-	    "	  [0]  memblock_region:0xffffffde310dd4a8 range:[0x40010000~0x42ccd000] size:44.74Mb    flags:MEMBLOCK_NONE",
-	    "	  [1]  memblock_region:0xffffffde310dd4c0 range:[0x44a75000~0x44abfb5c] size:298.84Kb   flags:MEMBLOCK_NONE",
-	    "	  [2]  memblock_region:0xffffffde310dd4d8 range:[0x47fffe80~0x48000000] size:384b       flags:MEMBLOCK_NONE",
-	    "\n",
+        "memblock",                            /* command name */
+        "dump memblock memory information",        /* short description */
+        "-a \n"
+            "\n",
+        "EXAMPLES",
+        "  Display memblock memory info:",
+        "    %s> memblock -a",
+        "    memblock_type:0xffffffde30f33048 [memory] total size:1.98Gb",
+        "      [0]  memblock_region:0xffffffde310dc8a8 range:[0x40000000~0x45700000] size:87.00Mb    flags:MEMBLOCK_NONE",
+        "      [1]  memblock_region:0xffffffde310dc8c0 range:[0x45700000~0x45f1b000] size:8.11Mb     flags:MEMBLOCK_NOMAP",
+        "      [2]  memblock_region:0xffffffde310dc8d8 range:[0x45f1b000~0x45fff000] size:912.00Kb   flags:MEMBLOCK_NONE",
+        "",
+        "    memblock_type:0xffffffde30f33070 [reserved] total size:352.26Mb",
+        "      [0]  memblock_region:0xffffffde310dd4a8 range:[0x40010000~0x42ccd000] size:44.74Mb    flags:MEMBLOCK_NONE",
+        "      [1]  memblock_region:0xffffffde310dd4c0 range:[0x44a75000~0x44abfb5c] size:298.84Kb   flags:MEMBLOCK_NONE",
+        "      [2]  memblock_region:0xffffffde310dd4d8 range:[0x47fffe80~0x48000000] size:384b       flags:MEMBLOCK_NONE",
+        "\n",
     };
     initialize();
     parser_memblock();
 }
 
 static std::vector<std::string> flags_str = {
-	"MEMBLOCK_NONE",
-	"MEMBLOCK_HOTPLUG",
-	"MEMBLOCK_MIRROR",
-	"",
-	"MEMBLOCK_NOMAP",
+    "MEMBLOCK_NONE",
+    "MEMBLOCK_HOTPLUG",
+    "MEMBLOCK_MIRROR",
+    "",
+    "MEMBLOCK_NOMAP",
 };
 
 void Memblock::parser_memblock(){

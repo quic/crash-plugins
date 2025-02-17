@@ -13,10 +13,10 @@ DEFINE_PLUGIN_COMMAND(Binder)
 void Binder::cmd_main(void) {
     int c;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-	struct binder_argument_t binder_arg;
+    struct binder_argument_t binder_arg;
     BZERO(&binder_arg, sizeof(binder_arg));
     while ((c = getopt(argcnt, args, "tnrbflap:")) != EOF) {
-		switch(c) {
+        switch(c) {
             case 'a':
                 binder_arg.dump_all = 1;
                 binder_arg.flags |= BINDER_THREAD;
@@ -41,31 +41,31 @@ void Binder::cmd_main(void) {
                 break;
             case 't':
                 binder_arg.dump_all = 1;
-			    binder_arg.flags |= BINDER_THREAD;
+                binder_arg.flags |= BINDER_THREAD;
                 binder_proc_show(&binder_arg);
-			    break;
-		    case 'n':
+                break;
+            case 'n':
                 binder_arg.dump_all = 1;
-			    binder_arg.flags |= BINDER_NODE;
+                binder_arg.flags |= BINDER_NODE;
                 binder_proc_show(&binder_arg);
                 break;
             case 'r':
                 binder_arg.dump_all = 1;
-			    binder_arg.flags |= BINDER_REF;
+                binder_arg.flags |= BINDER_REF;
                 binder_proc_show(&binder_arg);
-			    break;
+                break;
             case 'b':
                 binder_arg.dump_all = 1;
-			    binder_arg.flags |= BINDER_ALLOC;
+                binder_arg.flags |= BINDER_ALLOC;
                 binder_proc_show(&binder_arg);
-			    break;
+                break;
             default:
                 argerrs++;
                 break;
-		}
-	}
+        }
+    }
     if (argerrs)
-		cmd_usage(pc->curcmd, SYNOPSIS);
+        cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
 Binder::Binder(){
@@ -120,69 +120,69 @@ Binder::Binder(){
     struct_init(binder_work);
     cmd_name = "binder";
     help_str_list={
-	"binder",							/* command name */
-	"dump binder log information",		/* short description */
-	"-a \n"
-    "  binder -p [pid]\n"
-    "  binder -l\n"
-    "  binder -f\n"
-    "  binder -n\n"
-    "  binder -b\n"
-    "  binder -t\n"
-    "  binder -r\n",				    /* argument synopsis, or " " if none */			       
-	"  This command dumps the binder log information of a specified process.",
-	"       -p  pid argument.",
-    "\n",
-    "EXAMPLES",
-	"  Display all binder proc states:",
-	"    %s> binder -a",
-	"       proc 7312",
-	"       context hwbinder",
-    "           thread 7335: l 00 need_return 0 tr 0",
-    "\n",
-    "  Display specific process binder states:",
-	"    %s> binder -p 7312",
-	"       proc 7312",
-	"       context hwbinder",
-    "           thread 7335: l 00 need_return 0 tr 0",
-    "\n",
-	"  Display binder transaction log:", 
-	"    %s> binder -l",
-    "       409173: reply from 1239:5444 to 5301:5301 context binder node 0 handle -1 size 8:0 ret 0/0 l=0",
-    "       409174: call  from 666:666 to 614:0 context hwbinder node 1171 handle 4 size 220:32 ret 0/0 l=0",
-    "\n",
-	"  Display binder fail log:", 
-	"    %s> binder -f",
-    "       840   : call  from 616:616 to 0:0 context hwbinder node 738 handle 1 size 32:0 ret 29201/-1 l=2793",
-    "       210296: reply from 1239:2118 to 0:0 context binder node 0 handle -1 size 8:0 ret 29189/0 l=2717" ,
-    "\n",
-	"  Display binder thread info:", 
-	"    %s> binder -t",
-    "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
-    "         binder_thread:0xef071e00 pid:7358 loop:12 need_return:0",
-    "         binder_thread:0xea194600 pid:7360 loop:11 need_return:0", 
-    "\n",
-	"  Display binder node info:", 
-	"    %s> binder -n",
-    "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
-    "         binder_node:0xebb46680 id:407676 ptr:0xa7fe1460 cookie:0xac7c9278 pri:0[139] hs:1 hw:1 ls:0 lw:0 is:1 iw:0 tr:0",
-    "         binder_node:0xebeed500 id:407473 ptr:0xa7fe13e0 cookie:0xac7c91b0 pri:0[139] hs:1 hw:1 ls:0 lw:0 is:2 iw:0 tr:0", 
-    "\n",
-	"  Display binder ref info:", 
-	"    %s> binder -r",
-    "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
-    "         binder_ref:0xe8407e80 id:406535 desc:15 s:1 w:1 death:0x0 -> node_id:9291 binder_proc:0xebf3ba00 Binder:1239_3[1239]",
-    "         binder_ref:0xdec2e640 id:406527 desc:7 s:1 w:1 death:0x0 -> node_id:9540 binder_proc:0xebf3ba00 Binder:1239_3[1239]", 
-    "\n",
-	"  Display binder buffer info:", 
-	"    %s> binder -b",
-    "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
-    "         binder_alloc:0xea194154 mm_struct:0xe681df80 vma:0xefa9d880 buffer:0x81a39000 size:1040384 free:520192",
-    "           Page :0xf815f28c PA:0xa664b000",
-    "           Page :0xf7d338f8 PA:0x88bce000",
-    "           Free binder_buffer :0xdb035300 id:409018 data:0x81a390e0 PA:0xa664b0e0 size:296 offset:24 extra:0 pid:666 delivered",
-    "           Alloc binder_buffer:0xdd8f62c0 id:408034 data:0x81a390d8 PA:0xa664b0d8 size:8 offset:0 extra:0 pid:1239 delivered",
-	"\n",
+        "binder",                             /* command name */
+        "dump binder log information",        /* short description */
+        "-a \n"
+            "  binder -p [pid]\n"
+            "  binder -l\n"
+            "  binder -f\n"
+            "  binder -n\n"
+            "  binder -b\n"
+            "  binder -t\n"
+            "  binder -r\n",                    /* argument synopsis, or " " if none */
+        "  This command dumps the binder log information of a specified process.",
+        "       -p  pid argument.",
+        "\n",
+        "EXAMPLES",
+        "  Display all binder proc states:",
+        "    %s> binder -a",
+        "       proc 7312",
+        "       context hwbinder",
+        "           thread 7335: l 00 need_return 0 tr 0",
+        "\n",
+        "  Display specific process binder states:",
+        "    %s> binder -p 7312",
+        "       proc 7312",
+        "       context hwbinder",
+        "           thread 7335: l 00 need_return 0 tr 0",
+        "\n",
+        "  Display binder transaction log:",
+        "    %s> binder -l",
+        "       409173: reply from 1239:5444 to 5301:5301 context binder node 0 handle -1 size 8:0 ret 0/0 l=0",
+        "       409174: call  from 666:666 to 614:0 context hwbinder node 1171 handle 4 size 220:32 ret 0/0 l=0",
+        "\n",
+        "  Display binder fail log:",
+        "    %s> binder -f",
+        "       840   : call  from 616:616 to 0:0 context hwbinder node 738 handle 1 size 32:0 ret 29201/-1 l=2793",
+        "       210296: reply from 1239:2118 to 0:0 context binder node 0 handle -1 size 8:0 ret 29189/0 l=2717" ,
+        "\n",
+        "  Display binder thread info:",
+        "    %s> binder -t",
+        "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
+        "         binder_thread:0xef071e00 pid:7358 loop:12 need_return:0",
+        "         binder_thread:0xea194600 pid:7360 loop:11 need_return:0",
+        "\n",
+        "  Display binder node info:",
+        "    %s> binder -n",
+        "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
+        "         binder_node:0xebb46680 id:407676 ptr:0xa7fe1460 cookie:0xac7c9278 pri:0[139] hs:1 hw:1 ls:0 lw:0 is:1 iw:0 tr:0",
+        "         binder_node:0xebeed500 id:407473 ptr:0xa7fe13e0 cookie:0xac7c91b0 pri:0[139] hs:1 hw:1 ls:0 lw:0 is:2 iw:0 tr:0",
+        "\n",
+        "  Display binder ref info:",
+        "    %s> binder -r",
+        "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
+        "         binder_ref:0xe8407e80 id:406535 desc:15 s:1 w:1 death:0x0 -> node_id:9291 binder_proc:0xebf3ba00 Binder:1239_3[1239]",
+        "         binder_ref:0xdec2e640 id:406527 desc:7 s:1 w:1 death:0x0 -> node_id:9540 binder_proc:0xebf3ba00 Binder:1239_3[1239]",
+        "\n",
+        "  Display binder buffer info:",
+        "    %s> binder -b",
+        "       binder_proc:0xea194000 viders.calendar [7340] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:4 ready:5",
+        "         binder_alloc:0xea194154 mm_struct:0xe681df80 vma:0xefa9d880 buffer:0x81a39000 size:1040384 free:520192",
+        "           Page :0xf815f28c PA:0xa664b000",
+        "           Page :0xf7d338f8 PA:0x88bce000",
+        "           Free binder_buffer :0xdb035300 id:409018 data:0x81a390e0 PA:0xa664b0e0 size:296 offset:24 extra:0 pid:666 delivered",
+        "           Alloc binder_buffer:0xdd8f62c0 id:408034 data:0x81a390d8 PA:0xa664b0d8 size:8 offset:0 extra:0 pid:1239 delivered",
+        "\n",
     };
     initialize();
 }
@@ -213,14 +213,14 @@ void Binder::print_binder_transaction_log_entry(bool fail_log){
     for(int i=0;i<count;i++){
         struct binder_transaction_log_entry log_entry = btl.entry[i];
         if(log_entry.debug_id <= 0) continue;
-        fprintf(fp, "%-6d: %s from %d:%d to %d:%d context %s node %d handle %d size %d:%d ret %d/%d l=%d\n", 
+        fprintf(fp, "%-6d: %s from %d:%d to %d:%d context %s node %d handle %d size %d:%d ret %d/%d l=%d\n",
             log_entry.debug_id,
             (log_entry.call_type == 2) ? "reply" :
-		    ((log_entry.call_type == 1) ? "async" : "call "), log_entry.from_proc,
-		    log_entry.from_thread, log_entry.to_proc, log_entry.to_thread, log_entry.context_name,
-		    log_entry.to_node, log_entry.target_handle, log_entry.data_size, log_entry.offsets_size,
-		    log_entry.return_error, log_entry.return_error_param,
-		    log_entry.return_error_line);
+            ((log_entry.call_type == 1) ? "async" : "call "), log_entry.from_proc,
+            log_entry.from_thread, log_entry.to_proc, log_entry.to_thread, log_entry.context_name,
+            log_entry.to_node, log_entry.target_handle, log_entry.data_size, log_entry.offsets_size,
+            log_entry.return_error, log_entry.return_error_param,
+            log_entry.return_error_line);
     }
 }
 
@@ -283,10 +283,10 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
             uvtop(tc, (ulong)buf.user_data, &paddr, 0);
         }
         fprintf(fp, "    Free binder_buffer :0x%lx id:%d data:0x%lx PA:0x%llx size:%zd offset:%zd extra:%zd pid:%d %s\n",
-		   buffer_addr, buf.debug_id, (ulong)buf.user_data,(ulonglong)paddr,
-		   buf.data_size, buf.offsets_size,
-		   buf.extra_buffers_size,buf.pid,
-		   buf.transaction ? "active" : "delivered");
+           buffer_addr, buf.debug_id, (ulong)buf.user_data,(ulonglong)paddr,
+           buf.data_size, buf.offsets_size,
+           buf.extra_buffers_size,buf.pid,
+           buf.transaction ? "active" : "delivered");
     }
     // list all allocated_buffers buffers
     std::vector<ulong> alloc_list = for_each_rbtree((ulong)alloc.allocated_buffers.rb_node,offset);
@@ -300,10 +300,10 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
             uvtop(tc, (ulong)buf.user_data, &paddr, 0);
         }
         fprintf(fp, "    Alloc binder_buffer:0x%lx id:%d data:0x%lx PA:0x%llx size:%zd offset:%zd extra:%zd pid:%d %s\n",
-		   buffer_addr, buf.debug_id, (ulong)buf.user_data,(ulonglong)paddr,
-		   buf.data_size, buf.offsets_size,
-		   buf.extra_buffers_size,buf.pid,
-		   buf.transaction ? "active" : "delivered");
+           buffer_addr, buf.debug_id, (ulong)buf.user_data,(ulonglong)paddr,
+           buf.data_size, buf.offsets_size,
+           buf.extra_buffers_size,buf.pid,
+           buf.transaction ? "active" : "delivered");
     }
 }
 
@@ -341,7 +341,7 @@ void Binder::print_binder_proc(ulong proc_addr,int flags) {
     ulong list_head = (ulong)proc_part1.waiting_threads.next;
     offset = field_offset(binder_thread,waiting_thread_node);
     std::vector<ulong> wait_thread_list = for_each_list(list_head,offset);
-    fprintf(fp, "binder_proc:0x%lx %s [%d] %s dead:%d frozen:%d sr:%d ar:%d max:%d total:%zu requested:%d started:%d ready:%zu\n", 
+    fprintf(fp, "binder_proc:0x%lx %s [%d] %s dead:%d frozen:%d sr:%d ar:%d max:%d total:%zu requested:%d started:%d ready:%zu\n",
             proc_addr,task_name.c_str(),proc_part1.pid,context_name.c_str(),proc_part1.is_dead,proc_part1.is_frozen,proc_part1.sync_recv,proc_part1.async_recv,
             proc_part2.max_threads,thread_list.size(),proc_part2.requested_threads,proc_part2.requested_threads_started,wait_thread_list.size());
     // read all binder thread
@@ -397,11 +397,11 @@ void Binder::print_binder_node_nilocked(ulong node_addr) {
     if (!is_kvaddr(refs_head))return;
     std::vector<ulong> ref_list = for_each_hlist(refs_head,offset);
     fprintf(fp, "  binder_node:0x%lx id:%d ptr:0x%lx cookie:0x%lx pri:%s[%d] hs:%d hw:%d ls:%d lw:%d is:%d iw:%zu tr:%d\n",
-		   node_addr,debug_id, (ulong)node.ptr, (ulong)node.cookie,
-		   convert_sched(node.sched_policy), node.min_priority,
-		   node.has_strong_ref, node.has_weak_ref,
-		   node.local_strong_refs, node.local_weak_refs,
-		   node.internal_strong_refs, ref_list.size(), node.tmp_refs);
+           node_addr,debug_id, (ulong)node.ptr, (ulong)node.cookie,
+           convert_sched(node.sched_policy), node.min_priority,
+           node.has_strong_ref, node.has_weak_ref,
+           node.local_strong_refs, node.local_weak_refs,
+           node.internal_strong_refs, ref_list.size(), node.tmp_refs);
     for (const auto& ref_addr : ref_list) {
         struct binder_ref ref;
         if(!read_struct(ref_addr,&ref,sizeof(ref),"binder_ref")){
@@ -450,8 +450,8 @@ void Binder::print_binder_ref_olocked(ulong ref_addr) {
         int pid = UINT(binder_proc_buf + field_offset(binder_proc,pid));
         std::string task_name = read_cstring(tsk_addr + field_offset(task_struct,comm),16, "task_struct_comm");
         fprintf(fp, "  binder_ref:0x%lx id:%d desc:%d s:%d w:%d death:0x%lx -> node_id:%d binder_proc:0x%lx %s[%d]\n",ref_addr,
-		   ref.data.debug_id, ref.data.desc,
-		   ref.data.strong,ref.data.weak, death_addr,debug_id,(ulong)node.proc,
+           ref.data.debug_id, ref.data.desc,
+           ref.data.strong,ref.data.weak, death_addr,debug_id,(ulong)node.proc,
            task_name.c_str(),pid);
         FREEBUF(binder_proc_buf);
     }else{

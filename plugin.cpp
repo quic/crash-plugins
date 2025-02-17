@@ -100,7 +100,7 @@ int PaserPlugin::type_offset(const std::string& type,const std::string& field){
         return it->second->offset();
     } else {
         fprintf(fp, "Error: Typeinfo not found for %s\n",name.c_str());
-        return -1; 
+        return -1;
     }
 }
 
@@ -111,7 +111,7 @@ int PaserPlugin::type_size(const std::string& type,const std::string& field){
         return it->second->size();
     } else {
         fprintf(fp, "Error: Typeinfo not found for %s\n",name.c_str());
-        return -1; 
+        return -1;
     }
 }
 
@@ -122,7 +122,7 @@ int PaserPlugin::type_size(const std::string& type){
         return it->second->size();
     } else {
         fprintf(fp, "Error: Typeinfo not found for %s\n",name.c_str());
-        return -1; 
+        return -1;
     }
 }
 
@@ -153,7 +153,7 @@ void PaserPlugin::print_table(){
 std::vector<ulong> PaserPlugin::for_each_radix(ulong root_rnode){
     std::vector<ulong> res;
     size_t entry_num = do_radix_tree(root_rnode, RADIX_TREE_COUNT, NULL);
-	struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
+    struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
     entry_list[0].index = entry_num;
     do_radix_tree(root_rnode, RADIX_TREE_GATHER, entry_list);
     for (size_t i = 0; i < entry_num; ++i){
@@ -180,7 +180,7 @@ std::vector<ulong> PaserPlugin::for_each_mptree(ulong maptree_addr){
 std::vector<ulong> PaserPlugin::for_each_xarray(ulong xarray_addr){
     std::vector<ulong> res;
     size_t entry_num = do_xarray(xarray_addr, XARRAY_COUNT, NULL);
-	struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
+    struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
     entry_list[0].index = entry_num;
     do_xarray(xarray_addr, XARRAY_GATHER, entry_list);
     for (size_t i = 0; i < entry_num; ++i){

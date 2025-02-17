@@ -117,8 +117,8 @@ public:
 
 #ifndef BUILD_TARGET_TOGETHER
 #define DEFINE_PLUGIN_COMMAND(class_name)                                                                       \
-    extern "C" void class_name##_init(void);							                                        \
-    extern "C" void class_name##_fini(void);							                                        \
+    extern "C" void class_name##_init(void);                                                                    \
+    extern "C" void class_name##_fini(void);                                                                    \
     std::unique_ptr<class_name> class_name::instance = std::make_unique<class_name>();                          \
     static struct command_table_entry command_table[] = {                                                       \
         { &class_name::instance->cmd_name[0], &class_name::wrapper_func, class_name::instance->cmd_help, 0 },   \

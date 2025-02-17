@@ -49,7 +49,7 @@ ulong PageTable32::get_pte(ulong task_addr, ulong page_vaddr){
         ulong active_mm = read_structure_field(tc->task,"task_struct","active_mm");
         if (!active_mm)
             error(FATAL, TO_CONST_STRING("no active_mm for this kernel thread\n"));
-        
+
         pgd = ULONG_PTR(read_structure_field(active_mm,"mm_struct","pgd"));
     } else {
         ulong mm = task_mm(tc->task, TRUE);
