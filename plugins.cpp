@@ -5,6 +5,7 @@
 #include "memory/cma.h"
 #include "devicetree/dts.h"
 #include "memory/memblock.h"
+#include "workqueue/workqueue.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -18,6 +19,7 @@ std::unique_ptr<Procrank>   Procrank::instance = nullptr;
 std::unique_ptr<Cma>        Cma::instance = nullptr;
 std::unique_ptr<Dts>        Dts::instance = nullptr;
 std::unique_ptr<Memblock>   Memblock::instance = nullptr;
+std::unique_ptr<Workqueue>  Workqueue::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -26,13 +28,15 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Cma::instance = std::make_unique<Cma>();
     Dts::instance = std::make_unique<Dts>();
     Memblock::instance = std::make_unique<Memblock>();
+    Workqueue::instance = std::make_unique<Workqueue>();
     static struct command_table_entry command_table[] = {
-	    { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
-	    { &Procrank::instance->cmd_name[0], &Procrank::wrapper_func, Procrank::instance->cmd_help, 0 },
-	    { &Cma::instance->cmd_name[0], &Cma::wrapper_func, Cma::instance->cmd_help, 0 },
-	    { &Dts::instance->cmd_name[0], &Dts::wrapper_func, Dts::instance->cmd_help, 0 },
-	    { &Memblock::instance->cmd_name[0], &Memblock::wrapper_func, Memblock::instance->cmd_help, 0 },
-	    { NULL }
+        { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
+        { &Procrank::instance->cmd_name[0], &Procrank::wrapper_func, Procrank::instance->cmd_help, 0 },
+        { &Cma::instance->cmd_name[0], &Cma::wrapper_func, Cma::instance->cmd_help, 0 },
+        { &Dts::instance->cmd_name[0], &Dts::wrapper_func, Dts::instance->cmd_help, 0 },
+        { &Memblock::instance->cmd_name[0], &Memblock::wrapper_func, Memblock::instance->cmd_help, 0 },
+        { &Workqueue::instance->cmd_name[0], &Workqueue::wrapper_func, Workqueue::instance->cmd_help, 0 },
+        { NULL }
     };
     register_extension(command_table);
 }
@@ -44,6 +48,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Cma::instance.reset();
     Dts::instance.reset();
     Memblock::instance.reset();
+    Workqueue::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
