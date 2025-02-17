@@ -65,8 +65,8 @@ Supprot command:
 | dts        | √         | √         | parser device tree                                   |
 | memblock   | √         | √         | parser memblock info                                 |
 | workqueue  | √         | √         | parser workqueue info                                |
+| reserved   | √         | √         | parser reserved memory info                          |
 | buddy      | x         | x         |                                                      |
-| reserved   | x         | x         |                                                      |
 | vmalloc    | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |
 | slub       | x         | x         |                                                      |

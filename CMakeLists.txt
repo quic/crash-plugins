@@ -32,6 +32,7 @@ list(APPEND PLUGIN_SOURCES
         plugins.cpp
         binder/binder.cpp
         memory/cma.cpp
+	memory/reserved.cpp
         memory/memblock.cpp
         procrank/procrank.cpp
         devicetree/dts.cpp
@@ -70,4 +71,10 @@ add_library(wq SHARED
             ${PLUGIN_SOURCES}
             workqueue/workqueue.cpp)
 set_target_properties(wq PROPERTIES PREFIX "")
+
+add_library(reserved SHARED
+            ${PLUGIN_SOURCES}
+            memory/reserved.cpp
+            devicetree/devicetree.cpp)
+set_target_properties(reserved PROPERTIES PREFIX "")
 endif()
