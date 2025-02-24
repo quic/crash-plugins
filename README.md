@@ -67,8 +67,8 @@ Supprot command:
 | workqueue  | √         | √         | parser workqueue info                                |
 | reserved   | √         | √         | parser reserved memory info                          |
 | iomem      | √         | √         | parser memory layout info                            |
+| vmalloc    | √         | √         | parser vmalloc info                                  |
 | buddy      | x         | x         |                                                      |
-| vmalloc    | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |
 | slub       | x         | x         |                                                      |
 | pageowner  | x         | x         |                                                      |

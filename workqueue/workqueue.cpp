@@ -85,35 +85,35 @@ Workqueue::Workqueue(){
     // print_table();
     cmd_name = "wq";
     help_str_list={
-    "wq",                            /* command name */
-    "dump workqueue information",        /* short description */
-    "-w\n"
-    "  wq -p\n"
-    "  wq -P <worker_pool addr>\n"
-    "  This command dumps the workqueue info.",
-    "\n",
-    "EXAMPLES",
-    "  Display worker:",
-    "    %s> wq -w",
-    "    worker           name             pid    flags                                  workqueue      sleeping last_active IDLE last_func current_func",
-    "    ffffff8017a46840 kworker/1:1H     111    WORKER_PREP|WORKER_IDLE                kverityd       0        4294894838  Yes  func_name func_name",
-    "\n",
-    "  Display worker_pool:",
-    "    %s> wq -p",
-    "    worker_pool       cpu     workers idle running works flags",
-    "    ffffff800a019c00  Unbound 1       1    0       0     POOL_DISASSOCIATED",
-    "\n",
-    "  Display worker by given the worker_pool address",
-    "    %s> wq -P ffffff800303e400",
-    "     worker:",
-    "        kworker/u8:0 [Idle] pid:8",
-    "        kworker/u8:1 [Idle] pid:10",
-    "        kworker/u8:2 [Busy] pid:67",
-    "        kworker/u8:3 [Idle] pid:87",
-    "     Delayed Work:",
-    "     Pending Work:",
-    "        func_name",
-    "\n",
+        "wq",                            /* command name */
+        "dump workqueue information",        /* short description */
+        "-w\n"
+            "  wq -p\n"
+            "  wq -P <worker_pool addr>\n"
+            "  This command dumps the workqueue info.",
+        "\n",
+        "EXAMPLES",
+        "  Display worker:",
+        "    %s> wq -w",
+        "    worker           name             pid    flags                                  workqueue      sleeping last_active IDLE last_func current_func",
+        "    ffffff8017a46840 kworker/1:1H     111    WORKER_PREP|WORKER_IDLE                kverityd       0        4294894838  Yes  func_name func_name",
+        "\n",
+        "  Display worker_pool:",
+        "    %s> wq -p",
+        "    worker_pool       cpu     workers idle running works flags",
+        "    ffffff800a019c00  Unbound 1       1    0       0     POOL_DISASSOCIATED",
+        "\n",
+        "  Display worker by given the worker_pool address",
+        "    %s> wq -P ffffff800303e400",
+        "     worker:",
+        "        kworker/u8:0 [Idle] pid:8",
+        "        kworker/u8:1 [Idle] pid:10",
+        "        kworker/u8:2 [Busy] pid:67",
+        "        kworker/u8:3 [Idle] pid:87",
+        "     Delayed Work:",
+        "     Pending Work:",
+        "        func_name",
+        "\n",
     };
     initialize();
     parse_workqueue();

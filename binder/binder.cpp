@@ -120,7 +120,7 @@ Binder::Binder(){
     struct_init(binder_work);
     cmd_name = "binder";
     help_str_list={
-        "binder",                             /* command name */
+        "binder",                            /* command name */
         "dump binder log information",        /* short description */
         "-a \n"
             "  binder -p [pid]\n"

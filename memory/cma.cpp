@@ -45,7 +45,7 @@ Cma::Cma(){
     struct_init(cma);
     cmd_name = "cma";
     help_str_list={
-        "cma",                         /* command name */
+        "cma",                            /* command name */
         "dump cma information",        /* short description */
         "-a \n"
             "  cma -u <cma name>\n"
@@ -153,7 +153,7 @@ void Cma::print_cma_areas(){
         sprintf(buf_index, "[%d]",index);
         sprintf(buf_addr, "cma:0x%lx",cma->addr);
         sprintf(buf_pfn, "range:[0x%lx~0x%lx]",cma->base_pfn << 12,(cma->base_pfn + cma->count) << 12);
-        convert_size(cma->count * PAGESIZE(),buf_size);
+        convert_size(cma->count * page_size,buf_size);
         convert_size(cma->allocated_size,buf_used);
         fprintf(fp, "%s%s %s %s size:%s used:%s order:%s\n",
             mkstring(buf_index, 4, LJUST,buf_index),
@@ -166,7 +166,7 @@ void Cma::print_cma_areas(){
         index += 1;
     }
     fprintf(fp, "==============================================================================================================\n");
-    convert_size(totalcma_pages * PAGESIZE(),buf_size);
+    convert_size(totalcma_pages * page_size,buf_size);
     fprintf(fp, "Total:%s ",buf_size);
     convert_size(total_use,buf_size);
     fprintf(fp, "allocated:%s\n",buf_size);
@@ -175,7 +175,7 @@ void Cma::print_cma_areas(){
 int Cma::get_cma_used_size(std::shared_ptr<cma_mem> cma){
     // calc how many byte of bitmap
     int nr_byte = (cma->count >> cma->order_per_bit) / 8;
-    int per_bit_size = (1U << cma->order_per_bit) * PAGESIZE();
+    int per_bit_size = (1U << cma->order_per_bit) * page_size;
     int used_count = 0;
     ulong bitmap_addr = cma->bitmap;
     for (int i = 0; i < nr_byte; ++i) {

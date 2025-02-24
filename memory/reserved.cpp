@@ -36,7 +36,7 @@ Reserved::Reserved(){
     cmd_name = "reserved";
     help_str_list={
         "reserved",                            /* command name */
-        "dump reserved memory information",    /* short description */
+        "dump reserved memory information",        /* short description */
         "-a \n"
             "\n",
         "EXAMPLES",
@@ -56,6 +56,15 @@ Reserved::Reserved(){
     parser_reserved_mem();
 }
 
+// struct reserved_mem {
+//     const char *name;
+//     unsigned long fdt_node;
+//     unsigned long phandle;
+//     const struct reserved_mem_ops *ops;
+//     phys_addr_t base;
+//     phys_addr_t size;
+//     void *priv;
+// }
 void Reserved::parser_reserved_mem(){
     if (!csymbol_exists("reserved_mem")){
         LOGE("reserved_mem doesn't exist in this kernel!\n");

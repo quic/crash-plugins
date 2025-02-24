@@ -698,50 +698,6 @@ std::string PaserPlugin::extract_string(const char *input) {
     return result;
 }
 
-void PaserPlugin::print_memory(ulong vaddr, char *buf,size_t size) {
-    if(!is_bigendian()){
-        for (size_t i = 0; i < size; i += 4) {
-            if (i + 3 < size) {
-                uint32_t* value = reinterpret_cast<uint32_t*>(buf + i);
-                *value = swap32(*value,1);
-            }
-        }
-    }
-    for (size_t i = 0; i < size; i += 16){
-        // print address
-        std::cout << std::hex << (vaddr + i) << ": ";
-        // print data
-        size_t line_start = i;
-        size_t line_end = std::min(i + 16, size);
-        std::stringstream line_stream;
-        line_stream << std::uppercase << std::hex << std::setfill('0');
-        for (size_t j = line_start; j < line_end; j += 2) {
-            uint8_t high = buf[j];
-            uint8_t low = (j + 1 < line_end) ? buf[j + 1] : 0x00;
-            uint16_t val = (static_cast<uint16_t>(high) << 8) | low;
-            line_stream << std::setw(4) << val << " ";
-        }
-        std::string line = line_stream.str();
-        if (!line.empty()) {
-            line.pop_back();
-        }
-        std::cout << line;
-        // print ASCII
-        std::cout << " ";
-        for (size_t j = 0; j < 16; ++j){
-            if (i + j < size){
-                unsigned char c = buf[i + j];
-                if (std::isprint(c)){
-                    std::cout << c;
-                }else{
-                    std::cout << '.';
-                }
-            }
-        }
-        std::cout << std::endl;
-    }
-}
-
 int PaserPlugin::is_bigendian(void){
     int i = 0x12345678;
     if (*(char *)&i == 0x12)
@@ -756,4 +712,73 @@ long PaserPlugin::read_enum_val(const std::string& enum_name){
      return enum_val;
 }
 
+char PaserPlugin::get_printable(uint8_t d) {
+    return std::isprint(d) ? static_cast<char>(d) : '.';
+}
+
+std::string PaserPlugin::print_line(uint64_t addr, const std::vector<uint8_t>& data) {
+    std::vector<char> printable;
+    std::vector<std::string> data_hex;
+    for (uint8_t d : data) {
+        printable.push_back(get_printable(d));
+        char hex[3];
+        snprintf(hex, sizeof(hex), "%02x", d);
+        data_hex.push_back(hex);
+    }
+    while (printable.size() < 16) {
+        printable.push_back(' ');
+        data_hex.push_back("  ");
+    }
+    std::ostringstream oss;
+    oss << std::setw(8) << std::setfill('0') << std::hex << addr << ": ";
+    for (size_t i = 0; i < 16; ++i) {
+        if (i % 2 == 0 && i > 0) {
+            oss << " ";
+        }
+        oss << data_hex[i];
+    }
+    oss << " ";
+    for (char c : printable) {
+        oss << c;
+    }
+    oss << "\n";
+    return oss.str();
+}
+
+std::string PaserPlugin::hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian) {
+    std::ostringstream sio;
+    std::vector<uint8_t> data_list;
+    if (little_endian) {
+        data_list.assign(reinterpret_cast<const uint8_t*>(buf), reinterpret_cast<const uint8_t*>(buf) + length);
+    } else {
+        std::vector<size_t> places;
+        for (size_t i = 0; i < length / 4; ++i) {
+            places.push_back((i + 1) * 4 - 1);
+            places.push_back((i + 1) * 4 - 2);
+            places.push_back((i + 1) * 4 - 3);
+            places.push_back(i * 4);
+        }
+        for (const auto& i : places) {
+            data_list.push_back(static_cast<uint8_t>(buf[i]));
+        }
+    }
+    uint64_t address = addr;
+    std::vector<uint8_t> bb;
+    size_t n = 0;
+    for (uint8_t i : data_list) {
+        bb.push_back(i);
+        if (n == 15) {
+            sio << print_line(address, bb);
+            bb.clear();
+            n = 0;
+            address += 16;
+        } else {
+            ++n;
+        }
+    }
+    if (!bb.empty()) {
+        sio << print_line(address, bb);
+    }
+    return sio.str();
+}
 #pragma GCC diagnostic pop

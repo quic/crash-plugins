@@ -121,10 +121,11 @@ public:
     void verify_userspace_symbol(std::string& symbol_name);
     bool isNumber(const std::string& str);
     std::string extract_string(const char *input);
-    void print_memory(ulong vaddr, char *buf,size_t size);
     int is_bigendian(void);
-
     long read_enum_val(const std::string& enum_name);
+    char get_printable(uint8_t d);
+    std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
+    std::string hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian = true);
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \

@@ -68,8 +68,8 @@ void Dts::cmd_main(void) {
 Dts::Dts(){
     cmd_name = "dts";
     help_str_list={
-        "dts",                      /* command name */
-        "dump dts info",            /* short description */
+        "dts",                            /* command name */
+        "dump dts info",        /* short description */
         "-a \n"
             "  dts -f\n"
             "  dts -b\n"
