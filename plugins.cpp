@@ -7,6 +7,7 @@
 #include "memory/memblock.h"
 #include "memory/reserved.h"
 #include "memory/iomem.h"
+#include "memory/vmalloc.h"
 #include "workqueue/workqueue.h"
 
 #pragma GCC diagnostic push
@@ -24,6 +25,7 @@ std::unique_ptr<Memblock>   Memblock::instance = nullptr;
 std::unique_ptr<Workqueue>  Workqueue::instance = nullptr;
 std::unique_ptr<Reserved>   Reserved::instance = nullptr;
 std::unique_ptr<IoMem>      IoMem::instance = nullptr;
+std::unique_ptr<Vmalloc>    Vmalloc::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -35,6 +37,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Workqueue::instance = std::make_unique<Workqueue>();
     Reserved::instance = std::make_unique<Reserved>();
     IoMem::instance = std::make_unique<IoMem>();
+    Vmalloc::instance = std::make_unique<Vmalloc>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -45,6 +48,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Workqueue::instance->cmd_name[0], &Workqueue::wrapper_func, Workqueue::instance->cmd_help, 0 },
         { &Reserved::instance->cmd_name[0], &Reserved::wrapper_func, Reserved::instance->cmd_help, 0 },
         { &IoMem::instance->cmd_name[0], &IoMem::wrapper_func, IoMem::instance->cmd_help, 0 },
+        { &Vmalloc::instance->cmd_name[0], &Vmalloc::wrapper_func, Vmalloc::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -60,6 +64,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Workqueue::instance.reset();
     Reserved::instance.reset();
     IoMem::instance.reset();
+    Vmalloc::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER

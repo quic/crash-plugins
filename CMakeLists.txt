@@ -35,6 +35,7 @@ list(APPEND PLUGIN_SOURCES
 	memory/reserved.cpp
 	memory/memblock.cpp
 	memory/iomem.cpp
+        memory/vmalloc.cpp
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
@@ -83,4 +84,8 @@ add_library(iomem SHARED
             ${PLUGIN_SOURCES}
             memory/iomem.cpp)
 set_target_properties(iomem PROPERTIES PREFIX "")
+add_library(vmalloc SHARED
+            ${PLUGIN_SOURCES}
+            memory/vmalloc.cpp)
+set_target_properties(vmalloc PROPERTIES PREFIX "")
 endif()
