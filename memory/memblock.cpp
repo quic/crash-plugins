@@ -77,13 +77,19 @@ static std::vector<std::string> flags_str = {
 
 void Memblock::parser_memblock(){
     if (!csymbol_exists("memblock")){
-        LOGE("memblock doesn't exist in this kernel!\n");
+        fprintf(fp, "memblock doesn't exist in this kernel!\n");
         return;
     }
     ulong memblock_addr = csymbol_value("memblock");
-    if (!is_kvaddr(memblock_addr)) return;
+    if (!is_kvaddr(memblock_addr)) {
+        fprintf(fp, "memblock address is invalid!\n");
+        return;
+    }
     void *buf = read_struct(memblock_addr,"memblock");
-    if(buf == nullptr) return;
+    if (!buf) {
+        fprintf(fp, "Failed to read memblock structure at address %lx\n", memblock_addr);
+        return;
+    }
     block = std::make_shared<memblock>();
     block->addr = memblock_addr;
     block->bottom_up = BOOL(buf + field_offset(memblock,bottom_up));
@@ -95,7 +101,10 @@ void Memblock::parser_memblock(){
 
 void Memblock::parser_memblock_type(ulong addr,memblock_type* type){
     void *buf = read_struct(addr,"memblock_type");
-    if(buf == nullptr) return;
+    if (!buf) {
+        fprintf(fp, "Failed to read memblock_type structure at address %lx\n", addr);
+        return;
+    }
     type->addr = addr;
     type->cnt = ULONG(buf + field_offset(memblock_type,cnt));
     type->max = ULONG(buf + field_offset(memblock_type,max));
@@ -115,7 +124,10 @@ std::vector<std::shared_ptr<memblock_region>> Memblock::parser_memblock_region(u
     for (int i = 0; i < cnt; ++i) {
         ulong reg_addr = addr + i * struct_size(memblock_region);
         void *buf = read_struct(reg_addr,"memblock_region");
-        if(buf == nullptr) return res;
+        if (!buf) {
+            fprintf(fp, "Failed to read memblock_region structure at address %lx\n", reg_addr);
+            return res;
+        }
         std::shared_ptr<memblock_region> region = std::make_shared<memblock_region>();
         region->addr = reg_addr;
         if(get_config_val("CONFIG_PHYS_ADDR_T_64BIT") == "y"){
@@ -133,31 +145,38 @@ std::vector<std::shared_ptr<memblock_region>> Memblock::parser_memblock_region(u
 }
 
 void Memblock::print_memblock(){
-    char buf[BUFSIZE];
     if (block.get() == nullptr){
         fprintf(fp, "Parser memblock fail !");
         return;
     }
-    convert_size(block->memory.total_size,buf);
-    fprintf(fp, "memblock_type:0x%lx [%s] total size:%s\n",block->memory.addr,block->memory.name.c_str(),buf);
+    std::ostringstream oss;
+    oss << "memblock_type:" << std::hex << block->memory.addr
+        << " [" << block->memory.name << "] "
+        << "total_size:" << csize(block->memory.total_size);
+    fprintf(fp, "%s \n",oss.str().c_str());
     print_memblock_type(&block->memory);
+
     fprintf(fp, "\n");
-    convert_size(block->reserved.total_size,buf);
-    fprintf(fp, "memblock_type:0x%lx [%s] total size:%s\n",block->reserved.addr,block->reserved.name.c_str(),buf);
+    oss.str("");
+
+    oss << "memblock_type:" << std::hex << block->reserved.addr
+        << " [" << block->reserved.name << "] "
+        << "total_size:" << csize(block->reserved.total_size);
+    fprintf(fp, "%s \n",oss.str().c_str());
     print_memblock_type(&block->reserved);
 }
 
 void Memblock::print_memblock_type(memblock_type* type){
-    char buf[BUFSIZE];
     for (int i = 0; i < type->cnt; ++i) {
-        sprintf(buf, "  [%d]",i);
-        fprintf(fp, "%s ",mkstring(buf, 6, LJUST, buf));
-
-        fprintf(fp, "memblock_region:0x%lx ",type->regions[i]->addr);
-        fprintf(fp, "range:[0x%llx~0x%llx] ",(ulonglong)type->regions[i]->base,(ulonglong)(type->regions[i]->base + type->regions[i]->size));
-        convert_size(type->regions[i]->size,buf);
-        fprintf(fp, "size:%s ",mkstring(buf, 10, LJUST,buf));
-        fprintf(fp, "flags:%s\n",flags_str[type->regions[i]->flags].c_str());
+        std::ostringstream oss;
+        oss << "  ["
+            << std::setw(5) << std::setfill('0') << i << "]"
+            << "memblock_region:" << std::hex << std::setfill(' ') << type->regions[i]->addr
+            << " range:[" << std::hex << type->regions[i]->base
+            << "~" << std::hex << (type->regions[i]->base + type->regions[i]->size) << "]"
+            << " size:" << std::left << std::setw(10) << csize(type->regions[i]->size)
+            << " flags:" << flags_str[type->regions[i]->flags];
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 #pragma GCC diagnostic pop

@@ -15,6 +15,9 @@ void Vmalloc::cmd_main(void) {
     int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if(area_list.size() == 0){
+        parser_vmap_area_list();
+    }
     while ((c = getopt(argcnt, args, "arvsf:t:")) != EOF) {
         switch(c) {
             case 'a':
@@ -132,56 +135,66 @@ Vmalloc::Vmalloc(){
         "\n",
     };
     initialize();
-    parser_vmap_area_list();
 }
 
 void Vmalloc::parser_vmap_area_list(){
     if (!csymbol_exists("vmap_area_list")){
-        LOGE("vmap_area_list doesn't exist in this kernel!\n");
+        fprintf(fp, "vmap_area_list doesn't exist in this kernel!\n");
         return;
     }
     ulong area_list_addr = csymbol_value("vmap_area_list");
-    if (!area_list_addr) return;
+    if (!is_kvaddr(area_list_addr)) {
+        fprintf(fp, "vmap_area_list address is invalid!\n");
+        return;
+    }
     int offset = field_offset(vmap_area,list);
     std::vector<ulong> vmap_list = for_each_list(area_list_addr,offset);
     for (const auto& area_addr : vmap_list) {
-        void *buf = read_struct(area_addr,"vmap_area");
-        if(buf == nullptr) continue;
+        void *vmap_buf = read_struct(area_addr,"vmap_area");
+        if (!vmap_buf) {
+            fprintf(fp, "Failed to read vmap_area structure at address %lx\n", area_addr);
+            continue;
+        }
         std::shared_ptr<vmap_area> area_ptr = std::make_shared<vmap_area>();
         area_ptr->addr = area_addr;
-        area_ptr->va_start = ULONG(buf + field_offset(vmap_area,va_start));
-        area_ptr->va_end = ULONG(buf + field_offset(vmap_area,va_end));
+        area_ptr->va_start = ULONG(vmap_buf + field_offset(vmap_area,va_start));
+        area_ptr->va_end = ULONG(vmap_buf + field_offset(vmap_area,va_end));
         area_list.push_back(area_ptr);
-        ulong vm_addr = ULONG(buf + field_offset(vmap_area,vm));
-        FREEBUF(buf);
+        ulong vm_addr = ULONG(vmap_buf + field_offset(vmap_area,vm));
+        FREEBUF(vmap_buf);
         while (vm_addr > 0)
         {
-            void *buf = read_struct(vm_addr,"vm_struct");
-            if(buf == nullptr) continue;
+            void *vm_buf = read_struct(vm_addr,"vm_struct");
+            if (!vm_buf) {
+                fprintf(fp, "Failed to read vm_struct structure at address %lx\n", vm_addr);
+                continue;
+            }
             std::shared_ptr<vm_struct> vm_ptr = std::make_shared<vm_struct>();
             vm_ptr->addr = vm_addr;
-            vm_ptr->kaddr = ULONG(buf + field_offset(vm_struct,addr));
-            vm_ptr->size = ULONG(buf + field_offset(vm_struct,size));
-            vm_ptr->nr_pages = UINT(buf + field_offset(vm_struct,nr_pages));
-            vm_ptr->phys_addr = ULONG(buf + field_offset(vm_struct,phys_addr));
+            vm_ptr->kaddr = ULONG(vm_buf + field_offset(vm_struct,addr));
+            vm_ptr->size = ULONG(vm_buf + field_offset(vm_struct,size));
+            vm_ptr->nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
+            vm_ptr->phys_addr = ULONG(vm_buf + field_offset(vm_struct,phys_addr));
 
-            ulong caller = ULONG(buf + field_offset(vm_struct,caller));
-            ulong next = ULONG(buf + field_offset(vm_struct,next));
-            ulong pages = ULONG(buf + field_offset(vm_struct,pages));
-            ulong flags = ULONG(buf + field_offset(vm_struct,flags));
-            FREEBUF(buf);
+            ulong caller = ULONG(vm_buf + field_offset(vm_struct,caller));
+            ulong next = ULONG(vm_buf + field_offset(vm_struct,next));
+            ulong pages = ULONG(vm_buf + field_offset(vm_struct,pages));
+            ulong flags = ULONG(vm_buf + field_offset(vm_struct,flags));
+            FREEBUF(vm_buf);
             if (flags & Vmalloc::VM_IOREMAP){
-                vm_ptr->flags.append("ioremap");
+                vm_ptr->flags.assign("ioremap");
             }else if (flags & Vmalloc::VM_ALLOC){
-                vm_ptr->flags.append("vmalloc");
+                vm_ptr->flags.assign("vmalloc");
             }else if (flags & Vmalloc::VM_MAP){
-                vm_ptr->flags.append("vmap");
+                vm_ptr->flags.assign("vmap");
             }else if (flags & Vmalloc::VM_USERMAP){
-                vm_ptr->flags.append("user");
+                vm_ptr->flags.assign("user");
             }else if (flags & Vmalloc::VM_VPAGES){
-                vm_ptr->flags.append("vpages");
+                vm_ptr->flags.assign("vpages");
             }else if (flags & Vmalloc::VM_UNLIST){
-                vm_ptr->flags.append("unlist");
+                vm_ptr->flags.assign("unlist");
+            }else{
+                vm_ptr->flags.assign("unknow");
             }
             struct syment *sp;
             ulong offset;
@@ -197,11 +210,13 @@ void Vmalloc::parser_vmap_area_list(){
             for (int j = 0; j < vm_ptr->nr_pages; ++j) {
                 ulong addr = pages + j * sizeof(void *);
                 ulong page_addr = read_pointer(addr,"vm_struct pages");
-                if (!is_kvaddr(page_addr))continue;
+                if (!is_kvaddr(page_addr)) {
                     continue;
+                }
                 physaddr_t paddr = page_to_phy(page_addr);
-                if (paddr <= 0)
+                if (paddr <= 0){
                     continue;
+                }
                 vm_ptr->page_list.push_back(page_addr);
             }
             area_ptr->vm_list.push_back(vm_ptr);
@@ -211,41 +226,60 @@ void Vmalloc::parser_vmap_area_list(){
 }
 
 void Vmalloc::print_vmap_area_list(){
-    char buf[BUFSIZE];
+    size_t index = 0;
     for(auto area: area_list){
-        convert_size((area->va_end - area->va_start),buf);
-        fprintf(fp, "vmap_area:0x%lx range:[0x%lx~0x%lx] size:%s\n",area->addr,area->va_start,area->va_end,buf);
+        std::ostringstream oss_area;
+        oss_area << "[" << std::setw(4) << std::setfill('0') << index << "]"
+            << "vmap_area:" << std::hex << area->addr << " "
+            << "range:[" << std::hex << area->va_start << "~" << std::hex << area->va_end << "]" << " "
+            << "size:" << csize((area->va_end - area->va_start));
+        fprintf(fp, "%s \n",oss_area.str().c_str());
+
         for (auto vm : area->vm_list){
-            convert_size(vm->size,buf);
-            fprintf(fp, "   vm_struct:0x%lx size:%s flags:%s nr_pages:%d addr:0x%lx phys_addr:0x%llx %s\n",
-                    vm->addr,buf,vm->flags.c_str(),vm->nr_pages,vm->kaddr,vm->phys_addr,vm->caller.c_str());
+            std::ostringstream oss_vm;
+            oss_vm << "   vm_struct:" << std::hex << vm->addr << " "
+                << "size:" << csize(vm->size) << " "
+                << "flags:" << std::dec << vm->flags.c_str() << " "
+                << "nr_pages:" << std::dec << vm->nr_pages << " "
+                << "addr:" << std::hex << vm->kaddr << " "
+                << "phys_addr:" << std::hex << vm->phys_addr << " "
+                << vm->caller;
+            fprintf(fp, "%s \n",oss_vm.str().c_str());
+
+            size_t cnt = 1;
             for (auto page_addr : vm->page_list){
                 physaddr_t paddr = page_to_phy(page_addr);
-                fprintf(fp, "       Page:0x%lx PA:0x%llx\n",page_addr,(ulonglong)paddr);
+                std::ostringstream oss_p;
+                oss_p << "       [" << std::setw(4) << std::setfill('0') << cnt << "]"
+                    << "Page:" << std::hex << page_addr << " "
+                    << "PA:" << paddr;
+                fprintf(fp, "%s \n",oss_p.str().c_str());
+                cnt++;
             }
         }
+        index++;
         fprintf(fp, "\n");
     }
 }
 
 void Vmalloc::print_vmap_area(){
-    char buf[BUFSIZE];
     ulong total_size = 0;
     for(auto area: area_list){
         total_size += (area->va_end - area->va_start);
     }
-    convert_size(total_size,buf);
-    fprintf(fp, "Total vm size:%s\n",buf);
+    fprintf(fp, "Total vm size:%s\n",csize(total_size).c_str());
     fprintf(fp, "==============================================================================================================\n");
     for(int i=0; i < area_list.size(); i++){
-        convert_size((area_list[i]->va_end - area_list[i]->va_start),buf);
-        fprintf(fp, "[%d]vmap_area:0x%lx range:[0x%lx~0x%lx] size:%s\n",i,
-            area_list[i]->addr,area_list[i]->va_start,area_list[i]->va_end,buf);
+        std::ostringstream oss_area;
+        oss_area << "[" << std::setw(4) << std::setfill('0') << i << "]"
+            << "vmap_area:" << std::hex << area_list[i]->addr << " "
+            << "range:[" << std::hex << area_list[i]->va_start << "~" << std::hex << area_list[i]->va_end << "]" << " "
+            << "size:" << csize((area_list[i]->va_end - area_list[i]->va_start));
+        fprintf(fp, "%s \n",oss_area.str().c_str());
     }
 }
 
 void Vmalloc::print_vm_struct(){
-    char buf[BUFSIZE];
     ulong total_size = 0;
     ulong total_pages = 0;
     for(auto area: area_list){
@@ -254,26 +288,21 @@ void Vmalloc::print_vm_struct(){
             total_pages += vm->nr_pages;
         }
     }
-    convert_size(total_size,buf);
-    fprintf(fp, "Total vm size:%s, ",buf);
-    convert_size(total_pages*page_size,buf);
-    fprintf(fp, "physical size:%s\n",buf);
+    fprintf(fp, "Total vm size:%s, ",csize(total_size).c_str());
+    fprintf(fp, "physical size:%s\n",csize(total_pages*page_size).c_str());
     fprintf(fp, "==============================================================================================================\n");
     int index = 0;
     for(auto area: area_list){
         for (auto vm : area->vm_list){
-            fprintf(fp, "[%d]vm_struct:0x%lx",index,vm->addr);
-            convert_size(vm->size,buf);
-            fprintf(fp, " size:%s ",mkstring(buf, 8, LJUST,buf));
-            sprintf(buf, "flags:%s",vm->flags.c_str());
-            fprintf(fp, "%s ",mkstring(buf, 14, LJUST,buf));
-            sprintf(buf, "nr_pages:%d",vm->nr_pages);
-            fprintf(fp, "%s ",mkstring(buf, 15, LJUST,buf));
-            sprintf(buf, "addr:0x%lx",vm->kaddr);
-            fprintf(fp, "%s ",mkstring(buf, 21, LJUST,buf));
-            sprintf(buf, "phys_addr:0x%llx",vm->phys_addr);
-            fprintf(fp, "%s ",mkstring(buf, 24, LJUST,buf));
-            fprintf(fp, "%s\n",vm->caller.c_str());
+            std::ostringstream oss_vm;
+            oss_vm << "[" << std::setw(4) << std::setfill('0') << index << "]"
+                << "vm_struct:" << std::hex << vm->addr << " "
+                << "size:" << std::left << std::setw(8) << std::setfill(' ') << csize(vm->size) << " "
+                << "flags:" << std::setw(8) << vm->flags << " "
+                << "nr_pages:" << std::dec << std::setw(4) << vm->nr_pages << " "
+                << "kaddr:" << std::hex << vm->kaddr << " "
+                << "phys_addr:" << std::hex << vm->phys_addr;
+            fprintf(fp, "%s \n",oss_vm.str().c_str());
             index +=1;
         }
     }
@@ -312,15 +341,12 @@ void Vmalloc::print_summary_caller(){
     for (const auto& info : callers) {
         max_len = std::max(max_len,info.func.size());
     }
-    char buf[BUFSIZE];
     for(const auto& info: callers){
-        sprintf(buf, "[%s]",info.func.c_str());
-        fprintf(fp, "%s",mkstring(buf, max_len + 3, LJUST, buf));
-
-        convert_size(info.virt_size,buf);
-        fprintf(fp, "virt_size:%s ",mkstring(buf, 10, LJUST,buf));
-        convert_size(info.page_cnt*page_size,buf);
-        fprintf(fp, "phys_size:%s\n",mkstring(buf, 10, LJUST,buf));
+        std::ostringstream oss;
+        oss << "[" << std::left << std::setw(max_len) << info.func << "]"
+            << "virt_size:" << std::setw(9) << csize(info.virt_size) << " "
+            << "phys_size:" << csize(info.page_cnt*page_size);
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 
@@ -353,14 +379,16 @@ void Vmalloc::print_summary_type(){
     std::sort(types.begin(), types.end(),[&](vmalloc_info a, vmalloc_info b){
         return a.virt_size > b.virt_size;
     });
-    char buf[BUFSIZE];
+    size_t max_len = 0;
+    for (const auto& info : types) {
+        max_len = std::max(max_len,info.func.size());
+    }
     for(const auto& info: types){
-        sprintf(buf, "[%s]",info.func.c_str());
-        fprintf(fp, "%s",mkstring(buf, 20, LJUST, buf));
-        convert_size(info.virt_size,buf);
-        fprintf(fp, "virt_size:%s ",mkstring(buf, 10, LJUST,buf));
-        convert_size(info.page_cnt*page_size,buf);
-        fprintf(fp, "phys_size:%s\n",mkstring(buf, 10, LJUST,buf));
+        std::ostringstream oss;
+        oss << "[" << std::left << std::setw(max_len) << info.func << "]"
+            << "virt_size:" << std::setw(9) << csize(info.virt_size) << " "
+            << "phys_size:" << csize(info.page_cnt*page_size);
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 
@@ -394,7 +422,11 @@ void Vmalloc::print_vm_info_caller(std::string func){
             for(auto vm: vm_list){
                 for (auto page_addr : vm->page_list){
                     physaddr_t paddr = page_to_phy(page_addr);
-                    fprintf(fp, "[%d]Page:0x%lx PA:0x%llx\n",index,page_addr,(ulonglong)paddr);
+                    std::ostringstream oss;
+                    oss << "[" << std::setw(4) << std::setfill('0') << index << "]"
+                        << "Page:" << std::left << std::hex << page_addr << " "
+                        << "PA:" << paddr;
+                    fprintf(fp, "%s \n",oss.str().c_str());
                     index += 1;
                 }
             }
@@ -423,7 +455,11 @@ void Vmalloc::print_vm_info_type(std::string type){
             for(auto vm: vm_list){
                 for (auto page_addr : vm->page_list){
                     physaddr_t paddr = page_to_phy(page_addr);
-                    fprintf(fp, "[%d]Page:0x%lx PA:0x%llx\n",index,page_addr,(ulonglong)paddr);
+                    std::ostringstream oss;
+                    oss << "[" << std::setw(4) << std::setfill('0') << index << "]"
+                        << "Page:" << std::left << std::hex << page_addr << " "
+                        << "PA:" << paddr;
+                    fprintf(fp, "%s \n",oss.str().c_str());
                     index += 1;
                 }
             }

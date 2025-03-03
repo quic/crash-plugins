@@ -45,6 +45,8 @@ struct work_struct{
 // staff
 struct worker{
   ulong addr;
+  std::string comm;
+  int pid;
   // std::shared_ptr<work_struct> current_work;
   ulong current_func;
   ulong task_addr;
@@ -120,7 +122,7 @@ public:
     std::shared_ptr<pool_workqueue> parser_pool_workqueue(ulong addr,std::shared_ptr<workqueue_struct> wq_ptr);
     std::shared_ptr<workqueue_struct> parser_workqueue_struct(ulong addr);
     void parse_workqueue();
-    void print_func_name(ulong func_addr,char* buf);
+    std::string print_func_name(ulong func_addr);
     Workqueue();
     void cmd_main(void) override;
     DEFINE_PLUGIN_INSTANCE(Workqueue)

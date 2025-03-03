@@ -41,7 +41,7 @@ IoMem::IoMem(){
     struct_init(resource);
     cmd_name = "iomem";
     help_str_list={
-        "iomem",                /* command name */
+        "iomem",                        /* command name */
         "dump io memory information",    /* short description */
         "-a \n"
             "\n",
@@ -65,11 +65,12 @@ void IoMem::print_iomem(std::vector<std::shared_ptr<resource>>& res_list,int lev
         for (int i = 0; i < level; i++) {
             fprintf(fp, "\t");
         }
-        convert_size((res_ptr->end - res_ptr->start),buf_size);
-        fprintf(fp, "0x%lx-0x%lx  %s : %s\n",
-            res_ptr->start,res_ptr->end,
-            mkstring(buf_size, 10, LJUST, buf_size),
-            res_ptr->name.c_str());
+        std::ostringstream oss;
+        oss << std::left << std::setw(9) << csize((res_ptr->end - res_ptr->start)) << " "
+            << "[" << std::hex << res_ptr->start << "~" << res_ptr->end << "] "
+            << res_ptr->name;
+        fprintf(fp, "%s \n",oss.str().c_str());
+
         if(res_ptr->childs.size() > 0){
             print_iomem(res_ptr->childs,(level+1));
         }
@@ -83,9 +84,15 @@ void IoMem::parser_iomem(){
 }
 
 void IoMem::parser_resource(ulong addr,std::vector<std::shared_ptr<resource>>& res_list){
-    if (!is_kvaddr(addr)) return;
+    if (!is_kvaddr(addr)) {
+        fprintf(fp, "resource address is invalid!\n");
+        return;
+    }
     void *res_buf = read_struct(addr,"resource");
-    if(res_buf == nullptr) return;
+    if (!res_buf) {
+        fprintf(fp, "Failed to read resource structure at address %lx\n", addr);
+        return;
+    }
     std::shared_ptr<resource> res_ptr = std::make_shared<resource>();
     res_ptr->addr = addr;
     ulong name_addr = ULONG(res_buf + field_offset(resource,name));

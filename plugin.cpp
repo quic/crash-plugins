@@ -64,16 +64,18 @@ bool PaserPlugin::isNumber(const std::string& str) {
     return result;
 }
 
-void PaserPlugin::convert_size(int64_t size,char* buf){
-    if (size < 1024){
-        sprintf(buf, "%" PRId64 "b",size);
-    }else if (size < 1024 * 1024){
-        sprintf(buf, "%.2fKb",(float)size/1024);
-    }else if (size < 1024 * 1024 * 1024){
-        sprintf(buf, "%.2fMb",(float)size/1024/1024);
-    }else{
-        sprintf(buf, "%.2fGb",(float)size/1024/1024/1024);
+std::string PaserPlugin::csize(size_t size){
+    std::ostringstream oss;
+    if (size < KB) {
+        oss << size << "B";
+    } else if (size < MB) {
+        oss << std::fixed << std::setprecision(2) << (size / KB) << "KB";
+    } else if (size < GB) {
+        oss << std::fixed << std::setprecision(2) << (size / MB) << "MB";
+    } else {
+        oss << std::fixed << std::setprecision(2) << (size / GB) << "GB";
     }
+    return oss.str();
 }
 
 void PaserPlugin::initialize(void){

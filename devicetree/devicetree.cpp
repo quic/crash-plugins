@@ -24,11 +24,14 @@ Devicetree::Devicetree(){
     struct_init(property);
 
     if (!csymbol_exists("of_root")){
-        LOGE( "of_root doesn't exist in this kernel!\n");
+        fprintf(fp,  "of_root doesn't exist in this kernel!\n");
         return;
     }
     ulong of_root_addr = csymbol_value("of_root");
-    if (!is_kvaddr(of_root_addr)) return;
+    if (!is_kvaddr(of_root_addr)) {
+        fprintf(fp, "of_root address is invalid!\n");
+        return;
+    }
     root_addr = read_pointer(of_root_addr,"of_root");
     root_node = read_node("", root_addr);
 }
@@ -72,10 +75,6 @@ std::shared_ptr<device_node> Devicetree::read_node(const std::string& path, ulon
     }
     ulong name_addr = ULONG(node_buf + field_offset(device_node,name));
     node_ptr->name = read_cstring(name_addr,64, "device_node name");
-    // fprintf(fp, "addr:0x%lx, name:%s,full_name:%s,node_path:%s\n",node_addr,
-    //     node_ptr->name.c_str(),
-    //     node_ptr->full_name.c_str(),
-    //     node_ptr->node_path.c_str());
     ulong prop_addr = ULONG(node_buf + field_offset(device_node,properties));
     if (is_kvaddr(prop_addr)){
         std::vector<std::shared_ptr<Property>> props = read_propertys(prop_addr);
@@ -127,8 +126,7 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
     if (nodes.size() == 0)
         return res;
     std::shared_ptr<Property> prop = getprop(nodes[0]->addr,"device_type");
-    std::string tempstr;
-    tempstr.assign((char *)prop->value);
+    std::string tempstr = (char *)prop->value;
     if (tempstr != "memory"){
         return res;
     }
@@ -144,14 +142,14 @@ std::vector<DdrRange> Devicetree::parse_memory_regs(std::shared_ptr<Property> pr
     std::vector<DdrRange> result;
     char* ptr = reinterpret_cast<char*>(prop->value);
     // prop->length how many byte of this prop val
-    uint32_t reg_cnt = prop->length / 4;
-    uint32_t regs[reg_cnt];
-    for (uint32_t i = 0; i < reg_cnt; ++i) {
+    size_t reg_cnt = prop->length / 4;
+    size_t regs[reg_cnt];
+    for (size_t i = 0; i < reg_cnt; ++i) {
         regs[i] = ntohl(UINT(ptr + i * sizeof(int)));
     }
     int group_cnt = reg_cnt / 4;
-    for (uint32_t i = 0; i < group_cnt; ++i) {
-        size_t address = static_cast<size_t>((static_cast<uint64_t>(regs[i * 4 + 0]) << 32) | regs[i * 4 + 1]);
+    for (size_t i = 0; i < group_cnt; ++i) {
+        uint64_t address = (static_cast<uint64_t>(regs[i * 4 + 0]) << 32) | regs[i * 4 + 1];
         size_t size = static_cast<size_t>((static_cast<uint64_t>(regs[i * 4 + 2]) << 32) | regs[i * 4 + 3]);
         result.push_back({address, size});
     }

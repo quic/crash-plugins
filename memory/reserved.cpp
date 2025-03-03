@@ -56,27 +56,24 @@ Reserved::Reserved(){
     parser_reserved_mem();
 }
 
-// struct reserved_mem {
-//     const char *name;
-//     unsigned long fdt_node;
-//     unsigned long phandle;
-//     const struct reserved_mem_ops *ops;
-//     phys_addr_t base;
-//     phys_addr_t size;
-//     void *priv;
-// }
 void Reserved::parser_reserved_mem(){
     if (!csymbol_exists("reserved_mem")){
-        LOGE("reserved_mem doesn't exist in this kernel!\n");
+        fprintf(fp, "reserved_mem doesn't exist in this kernel!\n");
         return;
     }
     ulong reserved_mem_addr = csymbol_value("reserved_mem");
-    if (!reserved_mem_addr) return;
+    if (!is_kvaddr(reserved_mem_addr)) {
+        fprintf(fp, "reserved_mem address is invalid!\n");
+        return;
+    }
     ulong reserved_mem_count = read_pointer(csymbol_value("reserved_mem_count"),"reserved_mem_count");
     for (int i = 0; i < reserved_mem_count; ++i) {
         ulong reserved_addr = reserved_mem_addr + i * struct_size(reserved_mem);
         void *reserved_mem_buf = read_struct(reserved_addr,"reserved_mem");
-        if(reserved_mem_buf == nullptr) return;
+        if (!reserved_mem_buf) {
+            fprintf(fp, "Failed to read reserved_mem structure at address %lx\n", reserved_addr);
+            return;
+        }
         std::shared_ptr<reserved_mem> mem_ptr = std::make_shared<reserved_mem>();
         std::string name = read_cstring(ULONG(reserved_mem_buf + field_offset(reserved_mem,name)),64, "reserved_mem_name");
         mem_ptr->addr = reserved_addr;
@@ -111,12 +108,6 @@ void Reserved::print_reserved_mem(){
     ulong nomap_size = 0;
     ulong reusable_size = 0;
     ulong other_size = 0;
-    char buf_index[BUFSIZE];
-    char buf_name[BUFSIZE];
-    char buf_addr[BUFSIZE];
-    char buf_range[BUFSIZE];
-    char buf_size[BUFSIZE];
-    char buf_flag[BUFSIZE];
     int index = 0;
     fprintf(fp, "==============================================================================================================\n");
     std::sort(mem_list.begin(), mem_list.end(),[&](const std::shared_ptr<reserved_mem>& a, const std::shared_ptr<reserved_mem>& b){
@@ -128,39 +119,34 @@ void Reserved::print_reserved_mem(){
     }
     for (const auto& mem : mem_list) {
         total_size += mem->size;
-        sprintf(buf_index, "[%d]",index);
-        sprintf(buf_addr, "reserved_mem:0x%lx",mem->addr);
-        sprintf(buf_range, "range:[0x%llx~0x%llx]",mem->base,(mem->base + mem->size));
-        convert_size(mem->size,buf_size);
+        std::ostringstream oss;
+        oss << "[" << std::setw(3) << std::setfill('0') << index << "]"
+            << std::left << std::setw(max_name_len + 1) <<  std::setfill(' ') << mem->name << " "
+            << "reserved_mem:" << std::hex << mem->addr << " "
+            << "range:[" << std::hex << mem->base << "~" << std::hex << (mem->base + mem->size) << "]" << " "
+            << "size:" << std::setw(8) << csize(mem->size) << " "
+            << "[";
         if (mem->type == Type::NO_MAP){
-            sprintf(buf_flag, "[%s]", "no-map");
+            oss << std::setw(8) << "no-map";
             nomap_size += mem->size;
         }else if (mem->type == Type::REUSABLE){
-            sprintf(buf_flag, "[%s]", "reusable");
+            oss << std::setw(8) <<"reusable";
             reusable_size += mem->size;
         }else{
-            sprintf(buf_flag, "[%s]", "unknow");
+            oss << std::setw(8) << "unknow";
             other_size += mem->size;
         }
-        fprintf(fp, "%s%s %s %s %s %s\n",
-            mkstring(buf_index, 4, LJUST,buf_index),
-            mkstring(buf_name, max_name_len + 1, LJUST, mem->name.c_str()),
-            mkstring(buf_addr, 20, LJUST, buf_addr),
-            mkstring(buf_range,20, LJUST, buf_range),
-            mkstring(buf_flag, 10, LJUST, buf_flag),
-            mkstring(buf_size, 10, LJUST, buf_size));
-
+        oss << "]";
+        fprintf(fp, "%s \n",oss.str().c_str());
         index += 1;
     }
     fprintf(fp, "==============================================================================================================\n");
-    convert_size(total_size,buf_size);
-    fprintf(fp, "Total:%s ",buf_size);
-    convert_size(nomap_size,buf_size);
-    fprintf(fp, "nomap:%s ",buf_size);
-    convert_size(reusable_size,buf_size);
-    fprintf(fp, "reuse:%s ",buf_size);
-    convert_size(other_size,buf_size);
-    fprintf(fp, "other:%s\n",buf_size);
+    std::ostringstream oss_t;
+    oss_t << "Total:" << csize(total_size) << " ";
+    oss_t << "nomap:" << csize(nomap_size) << " ";
+    oss_t << "reuse:" << csize(reusable_size) << " ";
+    oss_t << "unknow:" << csize(other_size) << " ";
+    fprintf(fp, "%s \n",oss_t.str().c_str());
 }
 
 #pragma GCC diagnostic pop

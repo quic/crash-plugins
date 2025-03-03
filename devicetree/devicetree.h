@@ -7,7 +7,7 @@
 #include "plugin.h"
 
 struct DdrRange {
-    size_t address;
+    uint64_t address;
     size_t size;
 };
 

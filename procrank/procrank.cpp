@@ -50,13 +50,6 @@ Procrank::Procrank(){
 }
 
 void Procrank::parser_process_memory() {
-    char buf_pid[BUFSIZE];
-    char buf_vss[BUFSIZE];
-    char buf_rss[BUFSIZE];
-    char buf_pss[BUFSIZE];
-    char buf_uss[BUFSIZE];
-    char buf_swap[BUFSIZE];
-    char buf_name[BUFSIZE];
     if (procrank_list.size() == 0){
         for(ulong task_addr: for_each_process()){
             auto procrank_result = std::make_shared<procrank>();
@@ -78,21 +71,25 @@ void Procrank::parser_process_memory() {
             return a->rss > b->rss;
         });
     }
-    fprintf(fp,"PID        Vss        Rss        Pss        Uss        Swap        Comm\n");
+    std::ostringstream oss_hd;
+    oss_hd << std::left << std::setw(8) << "PID" << " "
+        << std::left << std::setw(10) << "Vss" << " "
+        << std::left << std::setw(10) << "Rss" << " "
+        << std::left << std::setw(10) << "Pss" << " "
+        << std::left << std::setw(10) << "Uss" << " "
+        << std::left << std::setw(10) << "Swap" << " "
+        << "Comm";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for (const auto& p : procrank_list) {
-        convert_size(p->vss,buf_vss);
-        convert_size(p->rss,buf_rss);
-        convert_size(p->pss,buf_pss);
-        convert_size(p->uss,buf_uss);
-        convert_size(p->swap,buf_swap);
-        fprintf(fp, "%s %s %s %s %s %s %s\n",
-            mkstring(buf_pid, 8, LJUST|INT_DEC, (char *)(unsigned long)p->pid),
-            mkstring(buf_vss, 10, LJUST, buf_vss),
-            mkstring(buf_rss, 10, LJUST, buf_rss),
-            mkstring(buf_pss, 10, LJUST, buf_pss),
-            mkstring(buf_uss, 10, LJUST, buf_uss),
-            mkstring(buf_swap, 10, LJUST, buf_swap),
-            mkstring(buf_name, p->cmdline.size() + 1, LJUST, p->cmdline.c_str()));
+        std::ostringstream oss;
+        oss << std::left << std::setw(8) << p->pid << " "
+            << std::left << std::setw(10) << csize(p->vss) << " "
+            << std::left << std::setw(10) << csize(p->rss) << " "
+            << std::left << std::setw(10) << csize(p->pss) << " "
+            << std::left << std::setw(10) << csize(p->uss) << " "
+            << std::left << std::setw(10) << csize(p->swap) << " "
+            << p->cmdline;
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 

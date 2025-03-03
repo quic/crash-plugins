@@ -99,16 +99,26 @@ Cma::Cma(){
 
 void Cma::parser_cma_areas(){
     if (!csymbol_exists("cma_areas")){
-        LOGE("cma_areas doesn't exist in this kernel!\n");
+        fprintf(fp, "cma_areas doesn't exist in this kernel!\n");
         return;
     }
     ulong cma_areas_addr = csymbol_value("cma_areas");
-    if (!cma_areas_addr) return;
+    if (!is_kvaddr(cma_areas_addr)) {
+        fprintf(fp, "cma_areas address is invalid!\n");
+        return;
+    }
     ulong cma_area_count = read_ulong(csymbol_value("cma_area_count"),"cma_area_count");
+    if (cma_area_count == 0) {
+        fprintf(fp, "cma_area_count is zero!\n");
+        return;
+    }
     for (int i = 0; i < cma_area_count; ++i) {
         ulong cma_addr = cma_areas_addr + i * struct_size(cma);
         void *cma_buf = read_struct(cma_addr,"cma");
-        if(cma_buf == nullptr) return;
+        if (!cma_buf) {
+            fprintf(fp, "Failed to read cma structure at address %lx\n", cma_addr);
+            continue;
+        }
         std::shared_ptr<cma_mem> cma_ptr = std::make_shared<cma_mem>();
         cma_ptr->addr = cma_addr;
         cma_ptr->base_pfn = ULONG(cma_buf + field_offset(cma,base_pfn));
@@ -118,7 +128,7 @@ void Cma::parser_cma_areas(){
         // read cma name
         if (THIS_KERNEL_VERSION >= LINUX(5,10,0)){
             char cma_name[64];
-            memcpy(&cma_name,cma_buf + field_offset(cma,name),64);
+            memcpy(cma_name,cma_buf + field_offset(cma,name),64);
             cma_ptr->name = cma_name;
         }else{
             ulong name_addr = ULONG(cma_buf + field_offset(cma,name));
@@ -131,13 +141,6 @@ void Cma::parser_cma_areas(){
 }
 
 void Cma::print_cma_areas(){
-    char buf_index[BUFSIZE];
-    char buf_name[BUFSIZE];
-    char buf_addr[BUFSIZE];
-    char buf_pfn[BUFSIZE];
-    char buf_size[BUFSIZE];
-    char buf_used[BUFSIZE];
-    char buf_order[BUFSIZE];
     ulong totalcma_pages = 0;
     ulong total_use = 0;
     fprintf(fp, "==============================================================================================================\n");
@@ -149,27 +152,20 @@ void Cma::print_cma_areas(){
     for (const auto& cma : mem_list) {
         totalcma_pages += cma->count;
         total_use += cma->allocated_size;
-
-        sprintf(buf_index, "[%d]",index);
-        sprintf(buf_addr, "cma:0x%lx",cma->addr);
-        sprintf(buf_pfn, "range:[0x%lx~0x%lx]",cma->base_pfn << 12,(cma->base_pfn + cma->count) << 12);
-        convert_size(cma->count * page_size,buf_size);
-        convert_size(cma->allocated_size,buf_used);
-        fprintf(fp, "%s%s %s %s size:%s used:%s order:%s\n",
-            mkstring(buf_index, 4, LJUST,buf_index),
-            mkstring(buf_name, max_len + 1, LJUST, cma->name.c_str()),
-            mkstring(buf_addr, 20, LJUST, buf_addr),
-            mkstring(buf_pfn,20, LJUST, buf_pfn),
-            mkstring(buf_size, 10, LJUST, buf_size),
-            mkstring(buf_used, 7, LJUST, buf_used),
-            mkstring(buf_order, 5, LJUST|INT_DEC, (char *)(unsigned long)cma->order_per_bit));
+        std::ostringstream oss;
+        oss << "[" << std::setw(2) << std::setfill('0') << index << "]"
+            << std::left << std::setw(max_len + 1) <<  std::setfill(' ') << cma->name << " "
+            << "cma:" << std::hex << cma->addr << " "
+            << "range:[" << std::hex << (cma->base_pfn << 12) << "~" << std::hex << ((cma->base_pfn + cma->count) << 12) << "]" << " "
+            << "size:" << std::setw(8) << csize(cma->count * page_size) << " "
+            << "used:" << std::setw(8) << csize(cma->allocated_size) << " "
+            << "order:" << cma->order_per_bit;
+        fprintf(fp, "%s \n",oss.str().c_str());
         index += 1;
     }
     fprintf(fp, "==============================================================================================================\n");
-    convert_size(totalcma_pages * page_size,buf_size);
-    fprintf(fp, "Total:%s ",buf_size);
-    convert_size(total_use,buf_size);
-    fprintf(fp, "allocated:%s\n",buf_size);
+    fprintf(fp, "Total:%s ",csize(totalcma_pages * page_size).c_str());
+    fprintf(fp, "allocated:%s\n",csize(total_use).c_str());
 }
 
 int Cma::get_cma_used_size(std::shared_ptr<cma_mem> cma){
@@ -182,7 +178,7 @@ int Cma::get_cma_used_size(std::shared_ptr<cma_mem> cma){
         unsigned char bitmap_data = read_byte(bitmap_addr,"cma bitmap");
         std::bitset<8> bits(bitmap_data);
         int nr_bit = bits.count();
-        // fprintf(fp, "bitmap_addr:0x%lx bitmap:%x, nr_bit:%d\n",bitmap_addr, bitmap_data, nr_bit);
+        // fprintf(fp, "bitmap_addr:%#lx bitmap:%x, nr_bit:%d\n",bitmap_addr, bitmap_data, nr_bit);
         used_count += nr_bit;
         bitmap_addr += 1;
     }
@@ -190,27 +186,45 @@ int Cma::get_cma_used_size(std::shared_ptr<cma_mem> cma){
 }
 
 void Cma::print_cma_page_status(std::string name,bool alloc){
-    char buf[BUFSIZE];
     for (const auto& cma : mem_list) {
         if (cma->name.find(name) != std::string::npos) {
             fprintf(fp, "\n========================================================================\n");
-            sprintf(buf, "%s","name");
-            fprintf(fp, "%s: %s\n",mkstring(buf, 15, LJUST, buf),cma->name.c_str());
-            sprintf(buf, "%s","base_pfn");
-            fprintf(fp, "%s: 0x%lx\n",mkstring(buf, 15, LJUST, buf),cma->base_pfn);
-            sprintf(buf, "%s","end_pfn");
-            fprintf(fp, "%s: 0x%lx\n",mkstring(buf, 15, LJUST, buf),(cma->base_pfn + cma->count));
-            sprintf(buf, "%s","count");
-            fprintf(fp, "%s: %ld\n",mkstring(buf, 15, LJUST, buf),cma->count);
-            sprintf(buf, "%s","size");
-            fprintf(fp, "%s: 0x%lx\n",mkstring(buf, 15, LJUST, buf),(cma->count << 0x2));
-            sprintf(buf, "%s","bitmap");
-            fprintf(fp, "%s: 0x%lx",mkstring(buf, 15, LJUST, buf),cma->bitmap);
+            std::ostringstream oss;
+            oss << std::left << std::setw(10) << "Name" << ": "
+                << cma->name;
+            fprintf(fp, "%s \n",oss.str().c_str());
+            oss.str("");
+
+            oss << std::left << std::setw(10) << "Base_pfn" << ": "
+                << std::hex << cma->base_pfn;
+            fprintf(fp, "%s \n",oss.str().c_str());
+            oss.str("");
+
+            oss << std::left << std::setw(10) << "End_pfn" << ": "
+                << std::hex << (cma->base_pfn + cma->count);
+            fprintf(fp, "%s \n",oss.str().c_str());
+            oss.str("");
+
+            oss << std::left << std::setw(10) << "Count" << ": "
+                << std::dec << cma->count;
+            fprintf(fp, "%s \n",oss.str().c_str());
+            oss.str("");
+
+            oss << std::left << std::setw(10) << "Size" << ": "
+                << csize(cma->count * page_size);
+            fprintf(fp, "%s \n",oss.str().c_str());
+            oss.str("");
+
             // calc how many byte of bitmap
             int nr_byte = (cma->count >> cma->order_per_bit) / 8;
+            oss << std::left << std::setw(10) << "Bitmap" << ": "
+                << std::hex << cma->bitmap
+                << " ~ "
+                << std::hex << (cma->bitmap + nr_byte);
+            fprintf(fp, "%s \n",oss.str().c_str());
+            oss.str("");
             // calc how many page of one bit
             int nr_pages = (1U << cma->order_per_bit);
-            fprintf(fp, " ~ 0x%lx\n",(cma->bitmap + nr_byte));
             fprintf(fp, "========================================================================\n");
             ulong bitmap_addr = cma->bitmap;
             int index = 1;
@@ -225,7 +239,19 @@ void Cma::print_cma_page_status(std::string name,bool alloc){
                         physaddr_t paddr = pfn << 12;
                         ulong page = 0;
                         if (phys_to_page(paddr, &page) && bit_value == alloc) {
-                            fprintf(fp, "[%d]PFN:0x%lx paddr:0x%llx page:0x%lx %s\n",index,pfn,(ulonglong)paddr,page,(bit_value ? "allocted":"free"));
+                            std::ostringstream oss_p;
+                            oss_p << "["
+                                << std::setw(5) << std::setfill('0') << index
+                                << "]Pfn:"
+                                << std::setfill(' ') << std::hex << pfn
+                                << " Page:"
+                                << std::hex << (ulonglong)page
+                                << " paddr:"
+                                << std::hex << (ulonglong)paddr
+                                << " "
+                                << (bit_value ? "allocted":"free");
+                            fprintf(fp, "%s \n",oss_p.str().c_str());
+                            oss_p.str("");
                             index += 1;
                         }
                     }

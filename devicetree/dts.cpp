@@ -122,24 +122,29 @@ Dts::Dts(){
 }
 
 void Dts::print_ddr_info(){
-    char size_buf[BUFSIZE];
     ulong total_size = 0;
     std::vector<DdrRange> ranges = get_ddr_size();
+    fprintf(fp, "DDR memory ranges:\n");
     fprintf(fp, "===================================================\n");
+    int index = 1;
     for (auto it = ranges.begin(); it != ranges.end(); ++it) {
         DdrRange item = *it;
-        sprintf(size_buf, "0x%zx~0x%zx",item.address,(item.address + item.size));
-        fprintf(fp, "  %s size:0x%zx\n",mkstring(size_buf, 30, LJUST,size_buf),item.size);
+        std::ostringstream oss;
+        oss << "[" << std::setw(2) << std::setfill('0') << index << "]"
+            << "<" << std::hex << item.address << "~" << std::hex << (item.address + item.size) << "> "
+            << "[" << std::left << std::setfill(' ') << std::setw(9) << csize(item.size) << "]";
+        fprintf(fp, "%s \n",oss.str().c_str());
         total_size += item.size;
+        index++;
     }
     fprintf(fp, "===================================================\n");
-    fprintf(fp, "Total size:%8ldM\n",total_size/1024/1024);
+    fprintf(fp, "Total size:%s\n",csize(total_size).c_str());
 }
 
 void Dts::print_node(std::shared_ptr<device_node> node_ptr,int flag){
     fprintf(fp, "%s\n",node_ptr->node_path.c_str());
     if (flag & DTS_ADDR){
-        fprintf(fp, "0x%lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
+        fprintf(fp, "%#lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
     }else{
         fprintf(fp, "%s{\n",node_ptr->full_name.c_str());
     }
@@ -159,14 +164,20 @@ void Dts::print_node(std::shared_ptr<device_node> node_ptr,int flag){
 
 void Dts::read_dtb(std::string& path){
     if (!csymbol_exists("initial_boot_params")){
-        LOGE( "initial_boot_params doesn't exist in this kernel!\n");
-        return;
+       fprintf(fp, "initial_boot_params doesn't exist in this kernel!\n");
+       return;
     }
     ulong initial_boot_params_addr = csymbol_value("initial_boot_params");
-    if (!initial_boot_params_addr) return;
+    if (!is_kvaddr(initial_boot_params_addr)) {
+       fprintf(fp,"initial_boot_params address is invalid !\n");
+       return;
+    }
     ulong initial_boot_params = read_pointer(initial_boot_params_addr,"initial_boot_params");
     void* header = read_memory(initial_boot_params,20,"dtb header");
-    if(header == nullptr) return;
+    if (!header) {
+       fprintf(fp,"Failed to read dtb header at address %lx\n", initial_boot_params);
+       return;
+    }
     int magic = UINT(header);
     if (magic != 0xEDFE0DD0){
         fprintf(fp, "magic:%x is not correct !\n",magic);
@@ -201,7 +212,7 @@ void Dts::print_node(std::shared_ptr<device_node> node_ptr,int level,int flag){
             fprintf(fp, "\t");
         }
         if (flag & DTS_ADDR){
-            fprintf(fp, "0x%lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
+            fprintf(fp, "%#lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
         }else{
             fprintf(fp, "%s{\n",node_ptr->full_name.c_str());
         }
@@ -246,13 +257,13 @@ void Dts::print_properties(std::vector<std::shared_ptr<Property>> props,int leve
         }
         if (is_symbol || is_str_prop(prop_name)){
             if (flag & DTS_ADDR){
-                fprintf(fp, "0x%lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+                fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
             }else{
                 fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
             }
         }else if (is_int_prop(prop_name) || ((prop_length % 4) == 0)){
             if (flag & DTS_ADDR){
-                fprintf(fp, "0x%lx:%s=< ",prop_addr,prop_name.c_str());
+                fprintf(fp, "%#lx:%s=< ",prop_addr,prop_name.c_str());
             }else{
                 fprintf(fp, "%s=< ",prop_name.c_str());
             }
@@ -263,7 +274,7 @@ void Dts::print_properties(std::vector<std::shared_ptr<Property>> props,int leve
             fprintf(fp, ">;\n");
         }else{
             if (flag & DTS_ADDR){
-                fprintf(fp, "0x%lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+                fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
             }else{
                 fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
             }

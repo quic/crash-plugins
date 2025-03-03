@@ -120,74 +120,57 @@ Workqueue::Workqueue(){
 }
 
 void Workqueue::print_worker(){
-    char buf_worker[BUFSIZE];
-    char buf_name[BUFSIZE];
-    char buf_pid[BUFSIZE];
-    char buf_flags[BUFSIZE];
-    char buf_workqueue_name[BUFSIZE];
-    char buf_sleeping[BUFSIZE];
-    char buf_last_active[BUFSIZE];
-    char buf_current_func[BUFSIZE];
-    char buf_last_func[BUFSIZE];
-    char buf_idle[BUFSIZE];
-    fprintf(fp, "%s %s %s %s %s %s %s %s %s %s\n",
-        mkstring(buf_worker, VADDR_PRLEN, LJUST, "worker"),
-        mkstring(buf_name, 16, LJUST, "name"),
-        mkstring(buf_pid, 6, LJUST, "pid"),
-        mkstring(buf_flags, worker_flags_len, LJUST, "flags"),
-        mkstring(buf_workqueue_name, workqueue_name_len, LJUST, "workqueue"),
-        mkstring(buf_sleeping, 8, LJUST, "sleeping"),
-        mkstring(buf_last_active, 11, LJUST, "last_active"),
-        mkstring(buf_idle, 4, LJUST, "IDLE"),
-        mkstring(buf_last_func, 80, LJUST, "last_func"),
-        mkstring(buf_current_func, 32, LJUST, "current_func")
-    );
     //sort
     std::vector<std::pair<ulong, std::shared_ptr<worker>>> worker_list(worker_list_map.begin(), worker_list_map.end());
     std::sort(worker_list.begin(), worker_list.end(),[&](const std::pair<ulong, std::shared_ptr<worker>>& a, const std::pair<ulong, std::shared_ptr<worker>>& b){
         return a.second->last_active > b.second->last_active;
     });
+    size_t name_max_len = 0;
+    size_t last_func_max_len = 0;
+    for (const auto& pair_ptr : worker_list) {
+        std::shared_ptr<worker> worker_ptr = pair_ptr.second;
+        if(worker_ptr == nullptr) continue;
+        name_max_len = std::max(name_max_len,worker_ptr->comm.size());
+        last_func_max_len = std::max(last_func_max_len,print_func_name(worker_ptr->last_func).size());
+    }
+    std::ostringstream oss_hd;
+    oss_hd << std::left << std::setw(VADDR_PRLEN) << "worker" << " "
+        << std::left << std::setw(name_max_len) << "name" << " "
+        << std::left << std::setw(6) << "pid" << " "
+        << std::left << std::setw(worker_flags_len) << "flags" << " "
+        << std::left << std::setw(workqueue_name_len) << "workqueue" << " "
+        << std::left << std::setw(8) << "sleeping" << " "
+        << std::left << std::setw(11) << "last_active" << " "
+        << std::left << std::setw(4) << "IDLE" << " "
+        << std::left << std::setw(last_func_max_len) << "last_func" << " "
+        << "current_func";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for(const auto& pair_ptr : worker_list){
         std::shared_ptr<worker> worker_ptr = pair_ptr.second;
         if(worker_ptr == nullptr) continue;
-        // LOGE("worker addr:%lx\n",worker_ptr->addr);
-        std::string name = "unknow";
-        int pid = 0;
-        struct task_context *tc = task_to_context(worker_ptr->task_addr);
-        if (tc){
-            name = std::string(tc->comm);
-            pid = tc->pid;
-        }
-        print_func_name(worker_ptr->last_func,buf_last_func);
-        print_func_name(worker_ptr->current_func,buf_current_func);
+        std::string idle = "No";
         if (std::find(idle_worker_list.begin(), idle_worker_list.end(), worker_ptr) != idle_worker_list.end()) {
-            sprintf(buf_idle, "%s", "Yes");
+            idle = "Yes";
         } else {
-            sprintf(buf_idle, "%s", "No");
+            idle = "No";
         }
-        fprintf(fp, "%s %s %s %s %s %s %s %s %s %s\n",
-            mkstring(buf_worker, VADDR_PRLEN, LJUST|LONG_HEX, MKSTR(worker_ptr->addr)),
-            mkstring(buf_name, 16, LJUST, name.c_str()),
-            mkstring(buf_pid, 6, LJUST|INT_DEC, (char *)(unsigned long)pid),
-            mkstring(buf_flags, worker_flags_len, LJUST, worker_ptr->flags.c_str()),
-            mkstring(buf_workqueue_name, workqueue_name_len, LJUST, worker_ptr->desc.c_str()),
-            mkstring(buf_sleeping, 8, LJUST|INT_DEC, (char *)(unsigned long)worker_ptr->sleeping),
-            mkstring(buf_last_active, 11, LJUST|INT_DEC, (char *)(unsigned long)worker_ptr->last_active),
-            mkstring(buf_idle, 4, LJUST, buf_idle),
-            mkstring(buf_last_func, 80, LJUST, buf_last_func),
-            mkstring(buf_current_func, 32, LJUST, buf_current_func)
-        );
+        std::ostringstream oss;
+        oss << std::left << std::setw(VADDR_PRLEN) << std::hex << worker_ptr->addr << " "
+            << std::left << std::setw(name_max_len) << worker_ptr->comm << " "
+            << std::left << std::setw(6) << std::dec << worker_ptr->pid << " "
+            << std::left << std::setw(worker_flags_len) << worker_ptr->flags << " "
+            << std::left << std::setw(workqueue_name_len) << worker_ptr->desc << " "
+            << std::left << std::setw(8) << worker_ptr->sleeping << " "
+            << std::left << std::setw(11) << worker_ptr->last_active << " "
+            << std::left << std::setw(4) << idle << " "
+            << std::left << std::setw(last_func_max_len) << print_func_name(worker_ptr->last_func) << " "
+            << print_func_name(worker_ptr->current_func);
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 
 void Workqueue::print_pool_by_addr(std::string addr){
-    char buf_delayed_work[BUFSIZE];
-    char buf_pending_work[BUFSIZE];
-    char buf_worker[BUFSIZE];
-    char buf_idle[BUFSIZE];
-    char buf_pid[BUFSIZE];
     ulong address = 0;
-
     try {
         address = std::stoul(addr, nullptr, 16);
     } catch (const std::exception& e) {
@@ -198,49 +181,29 @@ void Workqueue::print_pool_by_addr(std::string addr){
             fprintf(fp, "No such worker pool \n");
         for(const auto& worker_pool : worker_pool_map){
             if(worker_pool.first == address){
-                fprintf(fp, "%s\n",
-                    mkstring(buf_worker, 1, LJUST, "worker:")
-                );
+                fprintf(fp, "worker:\n");
                 for(const auto& worker_ptr : worker_pool.second->workers){
-                    struct task_context *tc = task_to_context(worker_ptr->task_addr);
-                    std::string name = "unknow";
-                    int pid = 0;
-                    if (tc){
-                        name = std::string(tc->comm);
-                        pid = tc->pid;
-                    }
+                    std::string idle = "Idle";
                     if (std::find(idle_worker_list.begin(), idle_worker_list.end(), worker_ptr) != idle_worker_list.end()) {
-                        sprintf(buf_idle, "%s", "Idle");
+                        idle = "Idle";
                     } else {
-                        sprintf(buf_idle, "%s", "Busy");
+                        idle = "Busy";
                     }
-                    fprintf(fp, "   %s [%s] pid:%s\n",
-                        mkstring(buf_worker, 1, LJUST, name.c_str()),
-                        mkstring(buf_idle, 1, LJUST, buf_idle),
-                        mkstring(buf_pid, 6, LJUST|INT_DEC, (char *)(unsigned long)pid)
-                    );
+                    std::ostringstream oss;
+                    oss << std::left << "   " << worker_ptr->comm << " "
+                        << std::left << "[" << idle << "] "
+                        << std::left << "pid:" << worker_ptr->pid;
+                    fprintf(fp, "%s \n",oss.str().c_str());
                 }
-                fprintf(fp, "\n");
-                fprintf(fp, "%s\n",
-                    mkstring(buf_delayed_work, 1, LJUST, "Delayed Work:")
-                );
+                fprintf(fp, "\nDelayed Work:\n");
                 for(const auto& pool_workqueue_ptr : worker_pool.second->pwq_list){
                     for(const auto& work_struct_ptr : pool_workqueue_ptr->delay_works_list){
-                        print_func_name(work_struct_ptr->func, buf_delayed_work);
-                        fprintf(fp, "   %s\n",
-                            mkstring(buf_delayed_work, 1, LJUST, buf_delayed_work)
-                        );
+                        fprintf(fp, "   %s\n",print_func_name(work_struct_ptr->func).c_str());
                     }
                 }
-                fprintf(fp, "\n");
-                fprintf(fp, "%s\n",
-                    mkstring(buf_pending_work, 1, LJUST, "Pending Work:")
-                );
+                fprintf(fp, "\nPending Work:\n");
                 for(const auto& work_struct_ptr : worker_pool.second->worklist){
-                    print_func_name(work_struct_ptr->func, buf_pending_work);
-                    fprintf(fp, "   %s\n",
-                        mkstring(buf_pending_work, 1, LJUST, buf_pending_work)
-                    );
+                    fprintf(fp, "   %s\n",print_func_name(work_struct_ptr->func).c_str());
                 }
             } /*else {
                 fprintf(fp, "No such worker pool \n");
@@ -252,59 +215,51 @@ void Workqueue::print_pool_by_addr(std::string addr){
 }
 
 void Workqueue::print_pool(){
-    char buf_worker_pool[BUFSIZE];
-    char buf_cpu[BUFSIZE];
-    char buf_flags[BUFSIZE];
-    char buf_total_worker[BUFSIZE];
-    char buf_idle_worker[BUFSIZE];
-    char buf_running_worker[BUFSIZE];
-    char buf_nr_active[BUFSIZE];
-    char buf_delayed_work[BUFSIZE];
-    char buf_pending_work[BUFSIZE];
-    char buf_worker[BUFSIZE];
-
-    fprintf(fp, "%s %s %s %s %s %s %s \n",
-        mkstring(buf_worker_pool, 17, LJUST, "worker_pool"),
-        mkstring(buf_cpu, 7, LJUST, "cpu"),
-        mkstring(buf_total_worker, 7, LJUST, "workers"),
-        mkstring(buf_idle_worker, 4, LJUST, "idle"),
-        mkstring(buf_running_worker, 7, LJUST, "running"),
-        mkstring(buf_pending_work, 5, LJUST, "works"),
-        mkstring(buf_flags, worker_pool_flags_len + 3, LJUST, "flags")
-    );
+    std::ostringstream oss_hd;
+    oss_hd << std::left << std::setw(VADDR_PRLEN + 5) << "worker_pool" << " "
+        << std::left << std::setw(10) << "cpu" << " "
+        << std::left << std::setw(10) << "workers" << " "
+        << std::left << std::setw(10) << "idle" << " "
+        << std::left << std::setw(10) << "running" << " "
+        << std::left << std::setw(10) << "works" << " "
+        << std::left << "flags";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for(const auto& pair_ptr : worker_pool_map){
         std::shared_ptr<worker_pool> wp_ptr = pair_ptr.second;
+        std::string cpu = "";
         if(wp_ptr->cpu < 0){
-            sprintf(buf_cpu, "%s", "Unbound");
+            cpu = "Unbound";
         } else {
-            sprintf(buf_cpu, "%d", wp_ptr->cpu);
+            cpu = std::to_string(wp_ptr->cpu);
         }
-        fprintf(fp, "%s %s %s %s %s %s %s \n",
-            mkstring(buf_worker_pool, 17, LJUST|LONG_HEX, (char *)(unsigned long)wp_ptr->addr),
-            mkstring(buf_cpu, 7, LJUST, buf_cpu),
-            mkstring(buf_total_worker, 7, LJUST|INT_DEC, (char *)(unsigned long)wp_ptr->nr_workers),
-            mkstring(buf_idle_worker, 4, LJUST|INT_DEC, (char *)(unsigned long)wp_ptr->nr_idle),
-            mkstring(buf_running_worker, 7, LJUST|INT_DEC, (char *)(unsigned long)wp_ptr->nr_running),
-            mkstring(buf_pending_work, 5, LJUST|INT_DEC, (char *)(unsigned long)wp_ptr->worklist.size()),
-            mkstring(buf_flags, worker_pool_flags_len + 3, LJUST, wp_ptr->flags.c_str())
-        );
+        std::ostringstream oss;
+        oss << std::left << std::setw(VADDR_PRLEN + 5) << std::hex << wp_ptr->addr << " "
+            << std::left << std::setw(10) << std::dec << cpu << " "
+            << std::left << std::setw(10) << std::dec << wp_ptr->nr_workers << " "
+            << std::left << std::setw(10) << std::dec << wp_ptr->nr_idle << " "
+            << std::left << std::setw(10) << std::dec << wp_ptr->nr_running << " "
+            << std::left << std::setw(10) << std::dec << wp_ptr->worklist.size() << " "
+            << std::left << wp_ptr->flags;
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 
-void Workqueue::print_func_name(ulong func_addr,char* buf){
+std::string Workqueue::print_func_name(ulong func_addr){
     struct syment *sp;
     ulong offset;
+    std::ostringstream oss;
     if (is_kvaddr(func_addr)){
         sp = value_search(func_addr, &offset);
         if (sp){
+            oss << sp->name << "+0x" << std::hex << offset;
             // sprintf(buf_last_func, "[<%lx>] %s+0x%lx ", worker_member->last_func, sp->name, offset);
-            sprintf(buf, "%s+0x%lx ", sp->name, offset);
         }else{
-            sprintf(buf, "[<%lx>] %p", func_addr, sp);
+            oss << "[<" << std::hex << func_addr << ">] " << sp;
         }
     }else{
-        sprintf(buf, "%s", "None");
+        oss << "None";
     }
+    return oss.str();
 }
 
 template <typename T>
@@ -350,6 +305,15 @@ std::shared_ptr<worker> Workqueue::parser_worker(ulong addr,std::shared_ptr<work
     worker_ptr->desc = read_cstring(addr + field_offset(worker, desc), 24, "worker_desc");
     if (worker_ptr->desc.size() == 0)
     worker_ptr->desc = "None";
+    int pid = 0;
+    struct task_context *tc = task_to_context(worker_ptr->task_addr);
+    if (tc){
+        worker_ptr->comm = tc->comm;
+        worker_ptr->pid = tc->pid;
+    }else{
+        worker_ptr->comm = "";
+        worker_ptr->pid = -1;
+    }
     workqueue_name_len = std::max(workqueue_name_len, worker_ptr->desc.size());
     worker_ptr->last_func = ULONG(worker_buf + field_offset(worker, last_func));
     FREEBUF(worker_buf);
@@ -469,7 +433,7 @@ std::shared_ptr<workqueue_struct> Workqueue::parser_workqueue_struct(ulong addr)
 
 void Workqueue::parse_workqueue(){
     if (!csymbol_exists("workqueues")){
-        LOGE("workqueues doesn't exist in this kernel! \n");
+        fprintf(fp, "workqueues doesn't exist in this kernel! \n");
         return;
     }
     ulong workqueues_addr = csymbol_value("workqueues");
@@ -478,7 +442,7 @@ void Workqueue::parse_workqueue(){
     int offset = field_offset(workqueue_struct, list);
     std::vector<ulong> list = for_each_list(workqueues_addr, offset);
     for(const auto& addr : list){
-        // LOGE("workqueue_addr %lx \n", addr);
+        // fprintf(fp, "workqueue_addr %lx \n", addr);
         auto workqueue_struct = parser_workqueue_struct(addr);
         workqueue_list.push_back(workqueue_struct);
     }

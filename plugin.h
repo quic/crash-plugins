@@ -25,6 +25,7 @@
 #include <inttypes.h>
 #include "struct_info.h"
 #include "logger/log.h"
+#include <sstream>
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -49,11 +50,14 @@ typedef struct {
 class PaserPlugin {
 protected:
     std::unordered_map<std::string, std::unique_ptr<Typeinfo>> typetable;
+    static constexpr double KB = 1024.0;
+    static constexpr double MB = 1024.0 * 1024.0;
+    static constexpr double GB = 1024.0 * 1024.0 * 1024.0;
 
 public:
     PaserPlugin();
-    const uint page_size = PAGESIZE();
-    const uint page_shift = PAGESHIFT();
+    const size_t page_size = PAGESIZE();
+    const size_t page_shift = PAGESHIFT();
     const ulong page_mask = ~((ulong)(page_size - 1));
     std::string cmd_name;
     std::vector<std::string> help_str_list;
@@ -61,7 +65,7 @@ public:
 
     virtual void cmd_main(void)=0;
     void initialize(void);
-    void convert_size(int64_t size,char* buf);
+    std::string csize(size_t size);
     void print_table();
     void type_init(const std::string& type);
     void type_init(const std::string& type,const std::string& field);

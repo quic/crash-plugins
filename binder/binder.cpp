@@ -190,13 +190,15 @@ Binder::Binder(){
 void Binder::print_binder_transaction_log_entry(bool fail_log){
     ulong binder_transaction_log_addr;
     if(fail_log == true){
-        if (!csymbol_exists("binder_transaction_log_failed"))
-            LOGE("binder_transaction_log_failed doesn't exist in this kernel!\n");
+        if (!csymbol_exists("binder_transaction_log_failed")){
+            fprintf(fp, "binder_transaction_log_failed doesn't exist in this kernel !\n");
+        }
         binder_transaction_log_addr = csymbol_value("binder_transaction_log_failed");
         if (!is_kvaddr(binder_transaction_log_addr)) return;
     }else{
-        if (!csymbol_exists("binder_transaction_log"))
-            LOGE("binder_transaction_log doesn't exist in this kernel!\n");
+        if (!csymbol_exists("binder_transaction_log")){
+            fprintf(fp, "binder_transaction_log doesn't exist in this kernel !\n");
+        }
         binder_transaction_log_addr = csymbol_value("binder_transaction_log");
         if (!is_kvaddr(binder_transaction_log_addr)) return;
     }
@@ -226,7 +228,7 @@ void Binder::print_binder_transaction_log_entry(bool fail_log){
 
 void Binder::binder_proc_show(struct binder_argument_t* binder_arg) {
     if (!csymbol_exists("binder_procs")){
-        LOGE("binder_procs doesn't exist in this kernel!\n");
+        fprintf(fp, "binder_procs doesn't exist in this kernel!\n");
         return;
     }
     ulong binder_procs = csymbol_value("binder_procs");
@@ -253,7 +255,7 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
     if(!read_struct(alloc_addr,&alloc,sizeof(alloc),"binder_alloc")){
         return;
     }
-    fprintf(fp, "  binder_alloc:0x%lx mm_struct:%p vma:%p buffer:%p size:%d free:%d\n",alloc_addr,
+    fprintf(fp, "  binder_alloc:%#lx mm_struct:%p vma:%p buffer:%p size:%d free:%d\n",alloc_addr,
             alloc.vma_vm_mm, alloc.vma, alloc.buffer, alloc.buffer_size, alloc.free_async_space);
     // read all the pages
     int nr_pages = alloc.buffer_size / PAGESIZE();
@@ -266,7 +268,7 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
         ulong page_addr = (ulong)lru_page.page_ptr;
         if(is_kvaddr(page_addr)){
             paddr = page_to_phy(page_addr);
-            fprintf(fp, "    Page :0x%lx PA:0x%llx\n",page_addr,(ulonglong)paddr);
+            fprintf(fp, "    Page :%#lx PA:%#llx\n",page_addr,(ulonglong)paddr);
         }
     }
     // list all free buffers
@@ -282,7 +284,7 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
         if(tc != nullptr){
             uvtop(tc, (ulong)buf.user_data, &paddr, 0);
         }
-        fprintf(fp, "    Free binder_buffer :0x%lx id:%d data:0x%lx PA:0x%llx size:%zd offset:%zd extra:%zd pid:%d %s\n",
+        fprintf(fp, "    Free binder_buffer :%#lx id:%d data:%#lx PA:%#llx size:%zd offset:%zd extra:%zd pid:%d %s\n",
            buffer_addr, buf.debug_id, (ulong)buf.user_data,(ulonglong)paddr,
            buf.data_size, buf.offsets_size,
            buf.extra_buffers_size,buf.pid,
@@ -299,7 +301,7 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
         if(tc != nullptr){
             uvtop(tc, (ulong)buf.user_data, &paddr, 0);
         }
-        fprintf(fp, "    Alloc binder_buffer:0x%lx id:%d data:0x%lx PA:0x%llx size:%zd offset:%zd extra:%zd pid:%d %s\n",
+        fprintf(fp, "    Alloc binder_buffer:%#lx id:%d data:%#lx PA:%#llx size:%zd offset:%zd extra:%zd pid:%d %s\n",
            buffer_addr, buf.debug_id, (ulong)buf.user_data,(ulonglong)paddr,
            buf.data_size, buf.offsets_size,
            buf.extra_buffers_size,buf.pid,
@@ -341,7 +343,7 @@ void Binder::print_binder_proc(ulong proc_addr,int flags) {
     ulong list_head = (ulong)proc_part1.waiting_threads.next;
     offset = field_offset(binder_thread,waiting_thread_node);
     std::vector<ulong> wait_thread_list = for_each_list(list_head,offset);
-    fprintf(fp, "binder_proc:0x%lx %s [%d] %s dead:%d frozen:%d sr:%d ar:%d max:%d total:%zu requested:%d started:%d ready:%zu\n",
+    fprintf(fp, "binder_proc:%#lx %s [%d] %s dead:%d frozen:%d sr:%d ar:%d max:%d total:%zu requested:%d started:%d ready:%zu\n",
             proc_addr,task_name.c_str(),proc_part1.pid,context_name.c_str(),proc_part1.is_dead,proc_part1.is_frozen,proc_part1.sync_recv,proc_part1.async_recv,
             proc_part2.max_threads,thread_list.size(),proc_part2.requested_threads,proc_part2.requested_threads_started,wait_thread_list.size());
     // read all binder thread
@@ -396,7 +398,7 @@ void Binder::print_binder_node_nilocked(ulong node_addr) {
     ulong refs_head = node_addr + field_offset(binder_node,refs);
     if (!is_kvaddr(refs_head))return;
     std::vector<ulong> ref_list = for_each_hlist(refs_head,offset);
-    fprintf(fp, "  binder_node:0x%lx id:%d ptr:0x%lx cookie:0x%lx pri:%s[%d] hs:%d hw:%d ls:%d lw:%d is:%d iw:%zu tr:%d\n",
+    fprintf(fp, "  binder_node:%#lx id:%d ptr:%#lx cookie:%#lx pri:%s[%d] hs:%d hw:%d ls:%d lw:%d is:%d iw:%zu tr:%d\n",
            node_addr,debug_id, (ulong)node.ptr, (ulong)node.cookie,
            convert_sched(node.sched_policy), node.min_priority,
            node.has_strong_ref, node.has_weak_ref,
@@ -415,7 +417,7 @@ void Binder::print_binder_node_nilocked(ulong node_addr) {
         ulong tsk_addr = ULONG(binder_proc_buf + field_offset(binder_proc,tsk));
         int pid = UINT(binder_proc_buf + field_offset(binder_proc,pid));
         std::string task_name = read_cstring(tsk_addr + field_offset(task_struct,comm),16, "task_struct_comm");
-        fprintf(fp, "     binder_ref:0x%lx id:%d binder_proc:0x%lx %s[%d]\n",ref_addr,ref.data.debug_id ,proc_addr,task_name.c_str(),pid);
+        fprintf(fp, "     binder_ref:%#lx id:%d binder_proc:%#lx %s[%d]\n",ref_addr,ref.data.debug_id ,proc_addr,task_name.c_str(),pid);
         FREEBUF(binder_proc_buf);
     }
     if (is_kvaddr((ulong)node.proc)){
@@ -449,13 +451,13 @@ void Binder::print_binder_ref_olocked(ulong ref_addr) {
         ulong tsk_addr = ULONG(binder_proc_buf + field_offset(binder_proc,tsk));
         int pid = UINT(binder_proc_buf + field_offset(binder_proc,pid));
         std::string task_name = read_cstring(tsk_addr + field_offset(task_struct,comm),16, "task_struct_comm");
-        fprintf(fp, "  binder_ref:0x%lx id:%d desc:%d s:%d w:%d death:0x%lx -> node_id:%d binder_proc:0x%lx %s[%d]\n",ref_addr,
+        fprintf(fp, "  binder_ref:%#lx id:%d desc:%d s:%d w:%d death:%#lx -> node_id:%d binder_proc:%#lx %s[%d]\n",ref_addr,
            ref.data.debug_id, ref.data.desc,
            ref.data.strong,ref.data.weak, death_addr,debug_id,(ulong)node.proc,
            task_name.c_str(),pid);
         FREEBUF(binder_proc_buf);
     }else{
-        fprintf(fp, "  binder_ref:0x%lx id:%d desc:%d s:%d w:%d death:0x%lx -> node_id:%d %s\n",ref_addr,
+        fprintf(fp, "  binder_ref:%#lx id:%d desc:%d s:%d w:%d death:%#lx -> node_id:%d %s\n",ref_addr,
             ref.data.debug_id, ref.data.desc,ref.data.strong,
             ref.data.weak, death_addr,debug_id,"[dead]");
     }
@@ -469,7 +471,7 @@ void Binder::print_binder_thread_ilocked(ulong thread) {
         return;
     }
     if(binder_thread.pid <= 0)return;
-    fprintf(fp, "  binder_thread:0x%lx pid:%d loop:%d need_return:%d\n",thread, binder_thread.pid, binder_thread.looper,
+    fprintf(fp, "  binder_thread:%#lx pid:%d loop:%d need_return:%d\n",thread, binder_thread.pid, binder_thread.looper,
          binder_thread.looper_need_return);
     ulong proc = (ulong)binder_thread.proc;
     ulong t = (ulong)binder_thread.transaction_stack;
@@ -532,7 +534,7 @@ void Binder::print_binder_transaction_ilocked(ulong proc_addr, const char* prefi
     if(!is_kvaddr(t_to_thread) || !read_struct(t_to_thread,&to_thread,sizeof(to_thread),"binder_thread")){
         return;
     }
-    fprintf(fp, "%s:0x%lx id:%d from %d:%d to %d:%d code:%d flags:%d pri:%s[%d] reply:%d",
+    fprintf(fp, "%s:%#lx id:%d from %d:%d to %d:%d code:%d flags:%d pri:%s[%d] reply:%d",
             prefix, transaction,t_debug_id,
             t_from ? from_proc.pid : 0,
             t_from ? from_thread.pid : 0,
@@ -555,9 +557,9 @@ void Binder::print_binder_transaction_ilocked(ulong proc_addr, const char* prefi
     ulong target_node = (ulong)buf.target_node;
     if (is_kvaddr(target_node)){
         int debug_id = read_structure_field((ulong)target_node,"binder_node","debug_id");
-        fprintf(fp, " target_node:0x%lx id:%d", target_node,debug_id);
+        fprintf(fp, " target_node:%#lx id:%d", target_node,debug_id);
     }
-    fprintf(fp, " binder_buffer:0x%lx size:%zd offset:%zd data:%p\n",t_buffer, buf.data_size, buf.offsets_size, buf.user_data);
+    fprintf(fp, " binder_buffer:%#lx size:%zd offset:%zd data:%p\n",t_buffer, buf.data_size, buf.offsets_size, buf.user_data);
 }
 
 void Binder::print_binder_work_ilocked(ulong proc_addr, const char* prefix, const char* transaction_prefix, ulong work) {
@@ -589,7 +591,7 @@ void Binder::print_binder_work_ilocked(ulong proc_addr, const char* prefix, cons
                 break;
             }
             int debug_id = read_structure_field(node_addr,"binder_node","debug_id");
-            fprintf(fp, "%snode:0x%lx work %d: u%lx c%lx\n", prefix, node_addr, debug_id, (ulong)node.ptr, (ulong)node.cookie);
+            fprintf(fp, "%snode:%#lx work %d: u%lx c%lx\n", prefix, node_addr, debug_id, (ulong)node.ptr, (ulong)node.cookie);
         } break;
         case BINDER_WORK_DEAD_BINDER:
             fprintf(fp, "%shas dead binder\n", prefix);
