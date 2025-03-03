@@ -39,7 +39,8 @@ list(APPEND PLUGIN_SOURCES
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
-        workqueue/workqueue.cpp)
+        workqueue/workqueue.cpp
+	partition/filesystem.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 else()

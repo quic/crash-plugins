@@ -68,13 +68,13 @@ Supprot command:
 | reserved   | √         | √         | parser reserved memory info                          |
 | iomem      | √         | √         | parser memory layout info                            |
 | vmalloc    | √         | √         | parser vmalloc info                                  |
+| partition  | √         | √         | parser partition info                                |
 | buddy      | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |
 | slub       | x         | x         |                                                      |
 | pageowner  | x         | x         |                                                      |
 | coredump   | x         | x         |                                                      |
 | zram       | x         | x         |                                                      |
-| partition  | x         | x         |                                                      |
 | meminfo    | x         | x         |                                                      |
 
 ## usage

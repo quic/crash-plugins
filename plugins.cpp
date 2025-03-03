@@ -9,7 +9,7 @@
 #include "memory/iomem.h"
 #include "memory/vmalloc.h"
 #include "workqueue/workqueue.h"
-
+#include "partition/filesystem.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
@@ -26,6 +26,7 @@ std::unique_ptr<Workqueue>  Workqueue::instance = nullptr;
 std::unique_ptr<Reserved>   Reserved::instance = nullptr;
 std::unique_ptr<IoMem>      IoMem::instance = nullptr;
 std::unique_ptr<Vmalloc>    Vmalloc::instance = nullptr;
+std::unique_ptr<FileSystem> FileSystem::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -38,6 +39,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Reserved::instance = std::make_unique<Reserved>();
     IoMem::instance = std::make_unique<IoMem>();
     Vmalloc::instance = std::make_unique<Vmalloc>();
+    FileSystem::instance = std::make_unique<FileSystem>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -49,6 +51,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Reserved::instance->cmd_name[0], &Reserved::wrapper_func, Reserved::instance->cmd_help, 0 },
         { &IoMem::instance->cmd_name[0], &IoMem::wrapper_func, IoMem::instance->cmd_help, 0 },
         { &Vmalloc::instance->cmd_name[0], &Vmalloc::wrapper_func, Vmalloc::instance->cmd_help, 0 },
+	{ &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -65,6 +68,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Reserved::instance.reset();
     IoMem::instance.reset();
     Vmalloc::instance.reset();
+    FileSystem::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
