@@ -60,16 +60,16 @@ Supprot command:
 |  command   |    arm64  |    arm    |    comment                                           |
 |  --------  | --------  | --------  |    --------                                          |
 | binder     | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
+| dts        | √         | √         | parser device tree                                   |
 | procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
 | cma        | √         | √         | parser cma info                                      |
-| dts        | √         | √         | parser device tree                                   |
 | memblock   | √         | √         | parser memblock info                                 |
-| workqueue  | √         | √         | parser workqueue info                                |
 | reserved   | √         | √         | parser reserved memory info                          |
 | iomem      | √         | √         | parser memory layout info                            |
 | vmalloc    | √         | √         | parser vmalloc info                                  |
+| buddy      | √         | √         | parser memory node/zone/buddy info                   |
 | partition  | √         | √         | parser partition info                                |
-| buddy      | x         | x         |                                                      |
+| workqueue  | √         | √         | parser workqueue info                                |
 | dmabuf     | x         | x         |                                                      |
 | slub       | x         | x         |                                                      |
 | pageowner  | x         | x         |                                                      |
