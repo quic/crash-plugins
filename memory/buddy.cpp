@@ -242,17 +242,17 @@ void Buddy::get_migratetype_names(){
 void Buddy::parser_buddy_info(){
     struct node_table *nt;
     if (!(vt->flags & (NODES|ZONES)))
-        LOGE("dump_pgtype_info called without (NODES|ZONES)\n");
+        fprintf(fp, "dump_pgtype_info called without (NODES|ZONES)\n");
     if (!struct_size(zone)){
-        LOGE("zone not found in this kernel\n");
+        fprintf(fp, "zone not found in this kernel\n");
         return;
     }
     if (!struct_size(free_area)) {
-        LOGE("free_area not found in this kernel\n");
+        fprintf(fp, "free_area not found in this kernel\n");
         return;
     }
     if (!csymbol_exists("migratetype_names") || (get_symbol_type(TO_CONST_STRING("migratetype_names"),nullptr, nullptr) != TYPE_CODE_ARRAY)) {
-        LOGE("migratetype_names not found in this kernel\n");
+        fprintf(fp, "migratetype_names not found in this kernel\n");
         return;
     }
     for (size_t n = 0; n < vt->numnodes; n++) {

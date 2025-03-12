@@ -37,6 +37,7 @@ list(APPEND PLUGIN_SOURCES
 	memory/iomem.cpp
         memory/vmalloc.cpp
 	memory/buddy.cpp
+	memory/slub.cpp
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
@@ -55,6 +56,10 @@ add_library(cma SHARED
             memory/cma.cpp)
 set_target_properties(cma PROPERTIES PREFIX "")
 
+add_library(slub SHARED
+            ${PLUGIN_SOURCES}
+            memory/slub.cpp)
+set_target_properties(slub PROPERTIES PREFIX "")
 add_library(procrank SHARED
             ${PLUGIN_SOURCES}
             procrank/procrank.cpp)

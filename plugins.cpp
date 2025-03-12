@@ -8,6 +8,7 @@
 #include "memory/reserved.h"
 #include "memory/iomem.h"
 #include "memory/vmalloc.h"
+#include "memory/slub.h"
 #include "workqueue/workqueue.h"
 #include "partition/filesystem.h"
 #include "memory/buddy.h"
@@ -20,6 +21,7 @@ extern "C" void plugin_init(void);
 extern "C" void plugin_fini(void);
 
 std::unique_ptr<Binder>     Binder::instance = nullptr;
+std::unique_ptr<Slub>       Slub::instance = nullptr;
 std::unique_ptr<Procrank>   Procrank::instance = nullptr;
 std::unique_ptr<Cma>        Cma::instance = nullptr;
 std::unique_ptr<Dts>        Dts::instance = nullptr;
@@ -41,6 +43,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Workqueue::instance = std::make_unique<Workqueue>();
     Reserved::instance = std::make_unique<Reserved>();
     IoMem::instance = std::make_unique<IoMem>();
+    Slub::instance = std::make_unique<Slub>();
     Vmalloc::instance = std::make_unique<Vmalloc>();
     FileSystem::instance = std::make_unique<FileSystem>();
     Buddy::instance = std::make_unique<Buddy>();
@@ -55,6 +58,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Reserved::instance->cmd_name[0], &Reserved::wrapper_func, Reserved::instance->cmd_help, 0 },
         { &IoMem::instance->cmd_name[0], &IoMem::wrapper_func, IoMem::instance->cmd_help, 0 },
         { &Vmalloc::instance->cmd_name[0], &Vmalloc::wrapper_func, Vmalloc::instance->cmd_help, 0 },
+	{ &Slub::instance->cmd_name[0], &Slub::wrapper_func, Slub::instance->cmd_help, 0 },
 	{ &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
 	{ &Buddy::instance->cmd_name[0], &Buddy::wrapper_func, Buddy::instance->cmd_help, 0 },
         { NULL }
@@ -75,6 +79,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Vmalloc::instance.reset();
     FileSystem::instance.reset();
     Buddy::instance.reset();
+    Slub::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
