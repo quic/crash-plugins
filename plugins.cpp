@@ -20,33 +20,33 @@
 extern "C" void plugin_init(void);
 extern "C" void plugin_fini(void);
 
-std::unique_ptr<Binder>     Binder::instance = nullptr;
-std::unique_ptr<Slub>       Slub::instance = nullptr;
-std::unique_ptr<Procrank>   Procrank::instance = nullptr;
-std::unique_ptr<Cma>        Cma::instance = nullptr;
-std::unique_ptr<Dts>        Dts::instance = nullptr;
-std::unique_ptr<Memblock>   Memblock::instance = nullptr;
-std::unique_ptr<Workqueue>  Workqueue::instance = nullptr;
-std::unique_ptr<Reserved>   Reserved::instance = nullptr;
-std::unique_ptr<IoMem>      IoMem::instance = nullptr;
-std::unique_ptr<Vmalloc>    Vmalloc::instance = nullptr;
-std::unique_ptr<FileSystem> FileSystem::instance = nullptr;
-std::unique_ptr<Buddy>      Buddy::instance = nullptr;
+std::shared_ptr<Binder>     Binder::instance = nullptr;
+std::shared_ptr<Slub>       Slub::instance = nullptr;
+std::shared_ptr<Procrank>   Procrank::instance = nullptr;
+std::shared_ptr<Cma>        Cma::instance = nullptr;
+std::shared_ptr<Dts>        Dts::instance = nullptr;
+std::shared_ptr<Memblock>   Memblock::instance = nullptr;
+std::shared_ptr<Workqueue>  Workqueue::instance = nullptr;
+std::shared_ptr<Reserved>   Reserved::instance = nullptr;
+std::shared_ptr<IoMem>      IoMem::instance = nullptr;
+std::shared_ptr<Vmalloc>    Vmalloc::instance = nullptr;
+std::shared_ptr<FileSystem> FileSystem::instance = nullptr;
+std::shared_ptr<Buddy>      Buddy::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
-    Binder::instance = std::make_unique<Binder>();
-    Procrank::instance = std::make_unique<Procrank>();
-    Cma::instance = std::make_unique<Cma>();
-    Dts::instance = std::make_unique<Dts>();
-    Memblock::instance = std::make_unique<Memblock>();
-    Workqueue::instance = std::make_unique<Workqueue>();
-    Reserved::instance = std::make_unique<Reserved>();
-    IoMem::instance = std::make_unique<IoMem>();
-    Slub::instance = std::make_unique<Slub>();
-    Vmalloc::instance = std::make_unique<Vmalloc>();
-    FileSystem::instance = std::make_unique<FileSystem>();
-    Buddy::instance = std::make_unique<Buddy>();
+    Binder::instance = std::make_shared<Binder>();
+    Procrank::instance = std::make_shared<Procrank>();
+    Cma::instance = std::make_shared<Cma>();
+    Dts::instance = std::make_shared<Dts>();
+    Memblock::instance = std::make_shared<Memblock>();
+    Workqueue::instance = std::make_shared<Workqueue>();
+    Reserved::instance = std::make_shared<Reserved>();
+    IoMem::instance = std::make_shared<IoMem>();
+    Slub::instance = std::make_shared<Slub>();
+    Vmalloc::instance = std::make_shared<Vmalloc>();
+    FileSystem::instance = std::make_shared<FileSystem>();
+    Buddy::instance = std::make_shared<Buddy>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },

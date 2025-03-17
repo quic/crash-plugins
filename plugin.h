@@ -58,7 +58,7 @@ public:
     PaserPlugin();
     const size_t page_size = PAGESIZE();
     const size_t page_shift = PAGESHIFT();
-    const ulong page_mask = ~((ulong)(page_size - 1));
+    const size_t page_mask = ~((ulong)(page_size - 1));
     std::string cmd_name;
     std::vector<std::string> help_str_list;
     char** cmd_help;
@@ -133,7 +133,7 @@ public:
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \
-    static std::unique_ptr<class_name> instance;                                                                \
+    static std::shared_ptr<class_name> instance;                                                                \
     static void wrapper_func() {                                                                                \
         if (instance) {                                                                                         \
             instance->cmd_main();                                                                               \
@@ -144,7 +144,7 @@ public:
 #define DEFINE_PLUGIN_COMMAND(class_name)                                                                       \
     extern "C" void class_name##_init(void);                                                                    \
     extern "C" void class_name##_fini(void);                                                                    \
-    std::unique_ptr<class_name> class_name::instance = std::make_unique<class_name>();                          \
+    std::shared_ptr<class_name> class_name::instance = std::make_shared<class_name>();                          \
     static struct command_table_entry command_table[] = {                                                       \
         { &class_name::instance->cmd_name[0], &class_name::wrapper_func, class_name::instance->cmd_help, 0 },   \
         { NULL }                                                                                                \

@@ -69,11 +69,26 @@ std::string PaserPlugin::csize(size_t size){
     if (size < KB) {
         oss << size << "B";
     } else if (size < MB) {
-        oss << std::fixed << std::setprecision(2) << (size / KB) << "KB";
+        double sizeInKB = static_cast<double>(size) / KB;
+        if (sizeInKB == static_cast<size_t>(sizeInKB)) {
+            oss << static_cast<size_t>(sizeInKB) << "KB";
+        } else {
+            oss << std::fixed << std::setprecision(2) << sizeInKB << "KB";
+        }
     } else if (size < GB) {
-        oss << std::fixed << std::setprecision(2) << (size / MB) << "MB";
+        double sizeInMB = static_cast<double>(size) / MB;
+        if (sizeInMB == static_cast<size_t>(sizeInMB)) {
+            oss << static_cast<size_t>(sizeInMB) << "MB";
+        } else {
+            oss << std::fixed << std::setprecision(2) << sizeInMB << "MB";
+        }
     } else {
-        oss << std::fixed << std::setprecision(2) << (size / GB) << "GB";
+        double sizeInGB = static_cast<double>(size) / GB;
+        if (sizeInGB == static_cast<size_t>(sizeInGB)) {
+            oss << static_cast<size_t>(sizeInGB) << "GB";
+        } else {
+            oss << std::fixed << std::setprecision(2) << sizeInGB << "GB";
+        }
     }
     return oss.str();
 }
@@ -498,10 +513,10 @@ void* PaserPlugin::read_memory(ulong kvaddr,int len, const std::string& note){
 
 void* PaserPlugin::read_phys_memory(ulong paddr, int len, const std::string& note){
     void* buf = (void *)GETBUF(len);
-    if (!readmem(paddr, PHYSADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR)) {
+    if (!readmem(paddr, PHYSADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR)){
         fprintf(fp, "Can't read %s at %lx\n", TO_CONST_STRING(note.c_str()), paddr);
         FREEBUF(buf);
-        return NULL;
+        return nullptr;
     }
     return buf;
 }
@@ -666,14 +681,13 @@ bool PaserPlugin::is_binary_stripped(std::string& filename){
 }
 
 bool PaserPlugin::add_symbol_file(std::string& filename){
-    if(is_binary_stripped(filename)){
+    if(is_elf_file(TO_CONST_STRING(filename.c_str())) && is_binary_stripped(filename)){
         fprintf(fp, "This file is not symbols file \n");
         return false;
     }
     char buf[BUFSIZE];
     sprintf(buf, "add-symbol-file %s", filename.c_str());
     if(!gdb_pass_through(buf, NULL, GNU_RETURN_ON_ERROR)){
-        fprintf(fp, "add symbol file: %s failed\n", filename.c_str());
         return false;
     }
     return true;
