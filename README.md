@@ -72,6 +72,7 @@ Supprot command:
 | workqueue  | √         | √         | parser workqueue info                                |
 | slub info  | √         | √         | parser slub detail memory info                       |
 | zram       | √         | √         | parser zram detail info                              |
+| swap       | √         | √         | parser swap info and provider API to userspace parser|
 | slub poison| x         | x         | check slub object memory poison                      |
 | slub trace | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |

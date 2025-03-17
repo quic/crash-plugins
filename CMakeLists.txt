@@ -49,6 +49,8 @@ list(APPEND PLUGIN_SOURCES
 	memory/slub.cpp
 	memory/zraminfo.cpp
         memory/zram.cpp
+	memory/swapinfo.cpp
+	memory/swap.cpp
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
@@ -118,5 +120,14 @@ add_library(zram SHARED
             memory/zram.cpp)
 set_target_properties(zram PROPERTIES PREFIX "")
 target_link_libraries(zram ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
+
+# =================== build swap ===================
+add_library(swap SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            memory/swap.cpp)
+set_target_properties(swap PROPERTIES PREFIX "")
+target_link_libraries(swap ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
 set_target_properties(buddy PROPERTIES PREFIX "")
 endif()

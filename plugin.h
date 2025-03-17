@@ -34,6 +34,7 @@
 #define struct_init(type) type_init(TO_STD_STRING(type))
 #define struct_size(type) type_size(TO_STD_STRING(type))
 #define IS_ALIGNED(x, a)    (((x) & ((typeof(x))(a) - 1)) == 0)
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 typedef struct {
     long long counter;
@@ -48,6 +49,11 @@ typedef struct {
 } atomic_long_t;
 
 class PaserPlugin {
+private:
+#if defined(ARM)
+    ulong* pmd_page_addr(ulong pmd);
+#endif
+
 protected:
     std::unordered_map<std::string, std::unique_ptr<Typeinfo>> typetable;
     static constexpr double KB = 1024.0;
@@ -130,6 +136,9 @@ public:
     char get_printable(uint8_t d);
     std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
     std::string hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian = true);
+#if defined(ARM)
+    ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
+#endif
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \
