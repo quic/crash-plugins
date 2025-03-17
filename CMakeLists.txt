@@ -55,7 +55,8 @@ list(APPEND PLUGIN_SOURCES
         devicetree/dts.cpp
         devicetree/devicetree.cpp
         workqueue/workqueue.cpp
-	partition/filesystem.cpp)
+	partition/filesystem.cpp
+	rtb/rtb.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 else()
@@ -104,6 +105,7 @@ add_library(iomem SHARED
             ${PLUGIN_SOURCES}
             memory/iomem.cpp)
 set_target_properties(iomem PROPERTIES PREFIX "")
+
 add_library(vmalloc SHARED
             ${PLUGIN_SOURCES}
             memory/vmalloc.cpp)
@@ -112,6 +114,12 @@ set_target_properties(vmalloc PROPERTIES PREFIX "")
 add_library(buddy SHARED
             ${PLUGIN_SOURCES}
             memory/buddy.cpp)
+set_target_properties(buddy PROPERTIES PREFIX "")
+
+add_library(rtb SHARED
+            ${PLUGIN_SOURCES}
+            rtb/rtb.cpp)
+set_target_properties(rtb PROPERTIES PREFIX "")
 
 # =================== build zram ===================
 add_library(zram SHARED
