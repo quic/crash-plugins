@@ -41,7 +41,7 @@ std::shared_ptr<Rtb>        Rtb::instance = nullptr;
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
     Binder::instance = std::make_shared<Binder>();
-    Procrank::instance = std::make_shared<Procrank>();
+
     Cma::instance = std::make_shared<Cma>();
     Dts::instance = std::make_shared<Dts>();
     Memblock::instance = std::make_shared<Memblock>();
@@ -55,6 +55,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Zram::instance = std::make_shared<Zram>();
     Swap::instance = std::make_shared<Swap>(Zram::instance);
     Rtb::instance = std::make_shared<Rtb>();
+	Procrank::instance = std::make_shared<Procrank>(Swap::instance);
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },

@@ -29,7 +29,17 @@ void Procrank::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
+Procrank::Procrank(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
+    init_command();
+}
+
 Procrank::Procrank(){
+    init_command();
+    swap_ptr = std::make_unique<Swapinfo>();
+    //print_table();
+}
+
+void Procrank::init_command(){
     cmd_name = "procrank";
     help_str_list={
         "procrank",                            /* command name */
@@ -64,7 +74,7 @@ void Procrank::parser_process_memory() {
             struct task_context *tc = task_to_context(task_addr);
             procrank_result->pid = tc->pid;
             // memcpy(procrank_result->comm, tc->comm, TASK_COMM_LEN + 1);
-            procrank_result->cmdline = read_start_args(task_addr);
+            procrank_result->cmdline = swap_ptr->read_start_args(task_addr);
             procrank_list.push_back(procrank_result);
         }
         std::sort(procrank_list.begin(), procrank_list.end(),[&](const std::shared_ptr<procrank>& a, const std::shared_ptr<procrank>& b){

@@ -59,6 +59,7 @@ list(APPEND PLUGIN_SOURCES
 	rtb/rtb.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
+target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
 else()
 add_library(binder SHARED
             ${PLUGIN_SOURCES}
@@ -76,8 +77,11 @@ add_library(slub SHARED
 set_target_properties(slub PROPERTIES PREFIX "")
 add_library(procrank SHARED
             ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
             procrank/procrank.cpp)
 set_target_properties(procrank PROPERTIES PREFIX "")
+target_link_libraries(procrank ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
 
 add_library(dts SHARED
             ${PLUGIN_SOURCES}

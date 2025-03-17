@@ -330,56 +330,6 @@ std::vector<ulong> PaserPlugin::for_each_vma(ulong& task_addr){
     return vma_list;
 }
 
-std::string PaserPlugin::read_start_args(ulong& task_addr){
-    std::string result;
-    if (!is_kvaddr(task_addr))return nullptr;
-    ulong mm_addr = read_pointer(task_addr + field_offset(task_struct, mm), "task_struct_mm");
-    void *buf = read_struct(mm_addr,"mm_struct");
-    ulong arg_start = ULONG(buf + field_offset(mm_struct, arg_start));
-    ulong arg_end = ULONG(buf + field_offset(mm_struct, arg_end));
-    // ulong pgd = (ulong)VOID_PTR(buf + field_offset(mm_struct, pgd));
-    // fprintf(fp, "pgd:%lx \n",pgd);
-    FREEBUF(buf);
-    ulong len = arg_end - arg_start;
-    physaddr_t paddr_start;
-    struct task_context *tc = task_to_context(task_addr);
-    uvtop(tc, arg_start, &paddr_start, 0);
-    // fprintf(fp, "pid :%ld arg_start %lx paddr_start %lx \n",tc->pid, arg_start, paddr_start);
-    if(paddr_start == 0){
-        return std::string(tc->comm);
-    }
-
-    buf = read_phys_memory(paddr_start, len, "read_args");
-    char* args = static_cast<char*>(buf);
-    //maybe swap
-    if (args == nullptr || args[0] == '\0') {
-        return std::string(tc->comm);
-    }
-    for (size_t i = 0; i < len; ++i) {
-        if (args[i] != '\0') {
-            result += args[i];
-        }else{
-            result += ' ';
-        }
-    }
-
-    // remove all '\n'
-    result.erase(std::remove(result.begin(), result.end(), '\n'), result.end());
-
-    // reslut = "     "
-    if (result.find_first_not_of(' ') == std::string::npos) {
-        result = std::string(tc->comm);
-    } else {
-        // result = "command    "
-        size_t last_non_space = result.find_last_not_of(' ');
-        if (last_non_space != std::string::npos) {
-            result = result.substr(0, last_non_space + 1) + ' ';
-        }
-    }
-
-    return result;
-}
-
 ulonglong PaserPlugin::read_structure_field(ulong kvaddr,const std::string& type,const std::string& field){
     int offset = type_offset(type,field);
     int size = type_size(type,field);

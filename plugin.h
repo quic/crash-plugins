@@ -90,7 +90,6 @@ public:
     std::vector<ulong> for_each_threads();
     std::vector<ulong> for_each_vma(ulong& task_addr);
 
-    std::string read_start_args(ulong& task_addr);
     ulonglong read_structure_field(ulong kvaddr,const std::string& type,const std::string& field);
     std::string read_cstring(ulong kvaddr,int len, const std::string& note);
     void* read_struct(ulong kvaddr,const std::string& type);

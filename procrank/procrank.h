@@ -4,6 +4,7 @@
 #ifndef PROCRANK_DEFS_H_
 #define PROCRANK_DEFS_H_
 #include "plugin.h"
+#include "memory/swapinfo.h"
 
 struct procrank{
     ulong vss;
@@ -19,12 +20,15 @@ struct procrank{
 class Procrank : public PaserPlugin {
 public:
     Procrank();
+    Procrank(std::shared_ptr<Swapinfo> swap);
+    void init_command();
     void cmd_main(void) override;
     void parser_process_memory();
     std::shared_ptr<procrank> parser_vma(ulong& vma_addr, ulong& task_addr);
     DEFINE_PLUGIN_INSTANCE(Procrank)
 
 private:
+    std::shared_ptr<Swapinfo> swap_ptr;
     std::vector<std::shared_ptr<procrank>> procrank_list;
 };
 #endif // PROCRANK_DEFS_H_
