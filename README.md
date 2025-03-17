@@ -71,11 +71,11 @@ Supprot command:
 | partition  | √         | √         | parser partition info                                |
 | workqueue  | √         | √         | parser workqueue info                                |
 | slub info  | √         | √         | parser slub detail memory info                       |
+| zram       | √         | √         | parser zram detail info                              |
 | slub poison| x         | x         | check slub object memory poison                      |
 | slub trace | x         | x         |                                                      |
 | dmabuf     | x         | x         |                                                      |
 | meminfo    | x         | x         |                                                      |
-| zram       | x         | x         |                                                      |
 | swap       | x         | x         |                                                      |
 | pageowner  | x         | x         |                                                      |
 | coredump   | x         | x         |                                                      |

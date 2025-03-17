@@ -12,19 +12,28 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -rdynamic -Wall")
 
 include_directories(.)
-include_directories(lib)
+
+if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
+set(CMAKE_LIBRARY_ARCHITECTURE x86_64-linux-gnu)
+elseif(CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
+set(CMAKE_LIBRARY_ARCHITECTURE i386-linux-gnu)
+endif()
+
+find_package(PkgConfig REQUIRED)
+# sudo apt-get install liblzo2-dev liblzo2-dev:i386
+pkg_check_modules(LZO2 REQUIRED lzo2)
+if(NOT LZO2_FOUND)
+    message(FATAL_ERROR "LZO2 library not found")
+endif()
+# sudo apt-get install liblz4-dev liblz4-dev:i386
+pkg_check_modules(LZ4 REQUIRED liblz4)
+if(NOT LZ4_FOUND)
+    message(FATAL_ERROR "LZ4 library not found")
+endif()
 
 set(PLUGIN_SOURCES
     plugin.cpp
     logger/log.cpp)
-
-if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
-list(APPEND PLUGIN_SOURCES
-        pagetable/arm/pagetable64.cpp)
-elseif(CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
-list(APPEND PLUGIN_SOURCES
-        pagetable/arm/pagetable32.cpp)
-endif()
 
 if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
@@ -38,6 +47,8 @@ list(APPEND PLUGIN_SOURCES
         memory/vmalloc.cpp
 	memory/buddy.cpp
 	memory/slub.cpp
+	memory/zraminfo.cpp
+        memory/zram.cpp
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
@@ -99,5 +110,13 @@ set_target_properties(vmalloc PROPERTIES PREFIX "")
 add_library(buddy SHARED
             ${PLUGIN_SOURCES}
             memory/buddy.cpp)
+
+# =================== build zram ===================
+add_library(zram SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/zram.cpp)
+set_target_properties(zram PROPERTIES PREFIX "")
+target_link_libraries(zram ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
 set_target_properties(buddy PROPERTIES PREFIX "")
 endif()

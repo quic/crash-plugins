@@ -9,6 +9,7 @@
 #include "memory/iomem.h"
 #include "memory/vmalloc.h"
 #include "memory/slub.h"
+#include "memory/zram.h"
 #include "workqueue/workqueue.h"
 #include "partition/filesystem.h"
 #include "memory/buddy.h"
@@ -32,6 +33,7 @@ std::shared_ptr<IoMem>      IoMem::instance = nullptr;
 std::shared_ptr<Vmalloc>    Vmalloc::instance = nullptr;
 std::shared_ptr<FileSystem> FileSystem::instance = nullptr;
 std::shared_ptr<Buddy>      Buddy::instance = nullptr;
+std::shared_ptr<Zram>       Zram::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -47,6 +49,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Vmalloc::instance = std::make_shared<Vmalloc>();
     FileSystem::instance = std::make_shared<FileSystem>();
     Buddy::instance = std::make_shared<Buddy>();
+    Zram::instance = std::make_shared<Zram>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -61,6 +64,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
 	{ &Slub::instance->cmd_name[0], &Slub::wrapper_func, Slub::instance->cmd_help, 0 },
 	{ &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
 	{ &Buddy::instance->cmd_name[0], &Buddy::wrapper_func, Buddy::instance->cmd_help, 0 },
+	{ &Zram::instance->cmd_name[0], &Zram::wrapper_func, Zram::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -80,6 +84,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     FileSystem::instance.reset();
     Buddy::instance.reset();
     Slub::instance.reset();
+    Zram::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER

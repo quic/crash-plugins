@@ -3165,8 +3165,8 @@ typedef struct QEMUCPUState QEMUCPUState;
 #define PGD_OFFSET(vaddr)       ((vaddr) >> PGDIR_SHIFT)
 #define PTE_OFFSET(vaddr)       (((vaddr) >> PAGESHIFT()) & (PTRS_PER_PTE - 1))
 
-#define __SWP_TYPE_SHIFT	3
-#define __SWP_TYPE_BITS		6
+#define __SWP_TYPE_SHIFT	2
+#define __SWP_TYPE_BITS		5
 #define __SWP_TYPE_MASK		((1 << __SWP_TYPE_BITS) - 1)
 #define __SWP_OFFSET_SHIFT	(__SWP_TYPE_BITS + __SWP_TYPE_SHIFT)
 
@@ -7514,6 +7514,13 @@ struct zspage {
             unsigned int isolated : 3;
             unsigned int magic : 8;
         } v5_17;
+	struct {
+            unsigned int huge : 1;
+            unsigned int fullness : 4;
+            unsigned int class_id : 9;
+            unsigned int isolated : 5;
+            unsigned int magic : 8;
+        } v6_6;
     };
     unsigned int inuse;
     unsigned int freeobj;
