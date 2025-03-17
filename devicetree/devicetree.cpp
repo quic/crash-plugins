@@ -122,7 +122,7 @@ std::vector<std::shared_ptr<Property>> Devicetree::read_propertys(ulong addr){
 
 std::vector<DdrRange> Devicetree::get_ddr_size(){
     std::vector<DdrRange> res;
-    std::vector<std::shared_ptr<device_node>> nodes = find_node_by_name("/memory");
+    std::vector<std::shared_ptr<device_node>> nodes = find_node_by_name("memory");
     if (nodes.size() == 0)
         return res;
     std::shared_ptr<Property> prop = getprop(nodes[0]->addr,"device_type");

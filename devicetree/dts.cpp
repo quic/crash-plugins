@@ -133,8 +133,9 @@ void Dts::print_ddr_info(){
         DdrRange item = *it;
         std::ostringstream oss;
         oss << "[" << std::setw(2) << std::setfill('0') << index << "]"
-            << "<" << std::hex << item.address << "~" << std::hex << (item.address + item.size) << "> "
-            << "[" << std::left << std::setfill(' ') << std::setw(9) << csize(item.size) << "]";
+            << "<" << std::left << std::hex  << std::setfill(' ') << std::setw(10) << item.address
+            << "~" << std::right << std::hex  << std::setfill(' ') << std::setw(10) << (item.address + item.size) << "> "
+            << ": " << std::left << csize(item.size);
         fprintf(fp, "%s \n",oss.str().c_str());
         total_size += item.size;
         index++;
