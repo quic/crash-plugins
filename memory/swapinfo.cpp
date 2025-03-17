@@ -473,4 +473,198 @@ void Swapinfo::parser_swap_info(){
     }
 }
 
+uint64_t Swapinfo::read_sections(std::string& section_name,std::string& libname, int *align) {
+    int fd = open(libname.c_str(), O_RDONLY);
+    if (fd == -1) {
+        fprintf(fp, "Failed to open %s\n", libname.c_str());
+        return 0;
+    }
+    if (elf_version(EV_CURRENT) == EV_NONE) {
+        fprintf(fp, "ELF library initialization failed: %s\n", elf_errmsg(-1));
+        close(fd);
+        return 0;
+    }
+    Elf* e = elf_begin(fd, ELF_C_READ, nullptr);
+    if (!e) {
+        fprintf(fp, "elf_begin() failed: %s\n", elf_errmsg(-1));
+        close(fd);
+        return 0;
+    }
+    if (elf_kind(e) != ELF_K_ELF) {
+        fprintf(fp, "%s is not an ELF file.\n", libname.c_str());
+        elf_end(e);
+        close(fd);
+        return 0;
+    }
+    size_t shstrndx;
+    if (elf_getshdrstrndx(e, &shstrndx) != 0) {
+        fprintf(fp, "elf_getshdrstrndx() failed: %s\n", elf_errmsg(-1));
+        elf_end(e);
+        close(fd);
+        return 0;
+    }
+    Elf_Scn* scn = nullptr;
+    while ((scn = elf_nextscn(e, scn)) != nullptr) {
+        GElf_Shdr shdr;
+        if (gelf_getshdr(scn, &shdr) != &shdr) {
+            fprintf(fp, "gelf_getshdr() failed: %s\n", elf_errmsg(-1));
+            elf_end(e);
+            close(fd);
+            return 0;
+        }
+        std::string name = elf_strptr(e, shstrndx, shdr.sh_name);
+        if (name == section_name) {
+            elf_end(e);
+            close(fd);
+            *align = shdr.sh_addralign;
+            return shdr.sh_addr;
+        }
+    }
+    elf_end(e);
+    close(fd);
+    return 0;
+}
+
+uint64_t Swapinfo::read_symbol(std::string& symbol_name,std::string& libname) {
+    int fd = open(libname.c_str(), O_RDONLY);
+    if (fd == -1) {
+        fprintf(fp, "Failed to open %s\n", libname.c_str());
+        return 0;
+    }
+    if (elf_version(EV_CURRENT) == EV_NONE) {
+        fprintf(fp, "ELF library initialization failed: %s\n", elf_errmsg(-1));
+        close(fd);
+        return 0;
+    }
+    Elf* e = elf_begin(fd, ELF_C_READ, nullptr);
+    if (!e) {
+        fprintf(fp, "elf_begin() failed: %s\n", elf_errmsg(-1));
+        close(fd);
+        return 0;
+    }
+    if (elf_kind(e) != ELF_K_ELF) {
+        fprintf(fp, "%s is not an ELF file.\n", libname.c_str());
+        elf_end(e);
+        close(fd);
+        return 0;
+    }
+    size_t shstrndx;
+    if (elf_getshdrstrndx(e, &shstrndx) != 0) {
+        fprintf(fp, "elf_getshdrstrndx() failed: %s\n", elf_errmsg(-1));
+        elf_end(e);
+        close(fd);
+        return 0;
+    }
+    Elf_Scn* scn = nullptr;
+    while ((scn = elf_nextscn(e, scn)) != nullptr) {
+        GElf_Shdr shdr;
+        if (gelf_getshdr(scn, &shdr) != &shdr) {
+            fprintf(fp, "gelf_getshdr() failed: %s\n", elf_errmsg(-1));
+            elf_end(e);
+            close(fd);
+            return 0;
+        }
+        if (shdr.sh_type == SHT_SYMTAB || shdr.sh_type == SHT_DYNSYM) {
+            Elf_Data* data = elf_getdata(scn, nullptr);
+            int count = shdr.sh_size / shdr.sh_entsize;
+            for (int i = 0; i < count; ++i) {
+                GElf_Sym sym;
+                gelf_getsym(data, i, &sym);
+                std::string name = elf_strptr(e, shdr.sh_link, sym.st_name);
+                if (name.find(symbol_name) != std::string::npos && name.find("_Z") != std::string::npos){
+                    elf_end(e);
+                    close(fd);
+                    return sym.st_value;
+                }
+            }
+        }
+    }
+    elf_end(e);
+    close(fd);
+    return 0;
+}
+
+//  f1e79bb0  b61db000  b6206000     71  /system/lib/bootstrap/libc.so
+//  f1e79990  b6206000  b628e000     75  /system/lib/bootstrap/libc.so
+//  f1e79b28  b628e000  b6293000 100071  /system/lib/bootstrap/libc.so
+//  f1e79cc0  b6293000  b6296000 100073  /system/lib/bootstrap/libc.so
+//  get the first vma start address,such as b61db000
+ulong Swapinfo::get_file_min_vaddr(ulong task_addr, std::string libname){
+    char buf[BUFSIZE];
+    std::vector<ulong> res_list;
+    for (auto &vma_addr : for_each_vma(task_addr)){
+        void *vma_buf = read_struct(vma_addr, "vm_area_struct");
+        if(vma_buf == nullptr){
+            fprintf(fp, "Failed to read vm_area_struct at address %lx\n", vma_addr);
+            continue;
+        }
+        ulong vm_start = ULONG(vma_buf + field_offset(vm_area_struct, vm_start));
+        ulong vm_file = ULONG(vma_buf + field_offset(vm_area_struct, vm_file));
+        FREEBUF(vma_buf);
+        if (!is_kvaddr(vm_file)){
+            continue;
+        }
+        if (field_offset(file, f_vfsmnt) != -1) {
+            get_pathname(file_to_dentry(vm_file), buf, BUFSIZE, 1, file_to_vfsmnt(vm_file));
+        } else {
+            get_pathname(file_to_dentry(vm_file), buf, BUFSIZE, 1, 0);
+        }
+        std::string file_name = buf;
+        if (file_name.find(libname) != std::string::npos){
+            res_list.push_back(vm_start);
+        }
+    }
+    std::sort(res_list.begin(), res_list.end());
+    return res_list[0];
+}
+
+ulong Swapinfo::get_var_addr_by_bss(std::string var_name, ulong task_addr, std::string lib){
+    struct task_context *tc = task_to_context(task_addr);
+    if (!tc){
+        return 0;
+    }
+    int verbose = 0;
+    std::string libname = lib;
+    size_t pos = lib.find_last_of("/\\");
+    if (pos != std::string::npos) {
+        libname = lib.substr(pos + 1);
+    }
+    // get the min vaddr of the lib
+    ulong vraddr = get_file_min_vaddr(task_addr, libname);
+    if (verbose){
+        fprintf(fp, "Min vaddr:0x%lx \n",vraddr);
+    }
+    // get the static addr of bss.
+    int bss_align = 0;
+    std::string section_name = ".bss";
+    size_t bss_saddr = read_sections(section_name,lib,&bss_align);
+    if (verbose){
+        fprintf(fp, "bss_saddr:%#zx \n",bss_saddr);
+        fprintf(fp, "bss_align:%d \n",bss_align);
+    }
+    // calc the runtime addr of bss for lib
+    size_t bss_vaddr = vraddr + bss_saddr;
+    bss_vaddr = roundup(bss_vaddr,bss_align);
+    if (verbose){
+        fprintf(fp, "bss_vaddr:%#zx \n",bss_vaddr);
+    }
+    // get the static addr of var_name
+    size_t var_saddr = read_symbol(var_name,lib);
+    if (var_saddr == 0){
+        return 0;
+    }
+    if (verbose){
+        fprintf(fp, "var_saddr:%#zx \n",var_saddr);
+    }
+    // calc the runtime addr of var_name
+    size_t var_vaddr = bss_vaddr + (var_saddr - bss_saddr);
+    if (verbose){
+        fprintf(fp, "var_vaddr:%#zx \n",var_vaddr);
+    }
+    if (!is_uvaddr(var_vaddr,tc)){
+        return 0;
+    }
+    return var_vaddr;
+}
+
 #pragma GCC diagnostic pop

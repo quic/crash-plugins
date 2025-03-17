@@ -841,4 +841,24 @@ ulong PaserPlugin::get_arm_pte(ulong task_addr, ulong page_vaddr){
     return pte;
 }
 #endif
+
+bool PaserPlugin::load_symbols(std::string& path, std::string name){
+    if (is_directory(TO_CONST_STRING(path.c_str()))){
+        char * buf = search_directory_tree(TO_CONST_STRING(path.c_str()), TO_CONST_STRING(name.c_str()), 1);
+        if (buf){
+            std::string retbuf(buf);
+            if (is_elf_file(TO_CONST_STRING(retbuf.c_str())) && add_symbol_file(retbuf)){
+                fprintf(fp, "Add symbol:%s succ \n",retbuf.c_str());
+                path = retbuf;
+                return true;
+            }
+        }
+    }else if (file_exists(TO_CONST_STRING(path.c_str()), NULL) && is_elf_file(TO_CONST_STRING(path.c_str()))){
+        if (add_symbol_file(path)){
+            fprintf(fp, "Add symbol:%s succ \n",path.c_str());
+            return true;
+        }
+    }
+    return false;
+}
 #pragma GCC diagnostic pop

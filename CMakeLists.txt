@@ -30,6 +30,11 @@ pkg_check_modules(LZ4 REQUIRED liblz4)
 if(NOT LZ4_FOUND)
     message(FATAL_ERROR "LZ4 library not found")
 endif()
+# sudo apt-get install libelf-dev libelf-dev:i386
+pkg_check_modules(ELF REQUIRED libelf)
+if(NOT ELF_FOUND)
+    message(FATAL_ERROR "ELF library not found")
+endif()
 
 set(PLUGIN_SOURCES
     plugin.cpp
@@ -56,10 +61,12 @@ list(APPEND PLUGIN_SOURCES
         devicetree/devicetree.cpp
         workqueue/workqueue.cpp
 	partition/filesystem.cpp
+	property/propinfo.cpp
+	property/prop.cpp
 	rtb/rtb.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
-target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
+target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
 else()
 add_library(binder SHARED
             ${PLUGIN_SOURCES}
@@ -75,6 +82,7 @@ add_library(slub SHARED
             ${PLUGIN_SOURCES}
             memory/slub.cpp)
 set_target_properties(slub PROPERTIES PREFIX "")
+
 add_library(procrank SHARED
             ${PLUGIN_SOURCES}
             memory/zraminfo.cpp
@@ -141,5 +149,14 @@ add_library(swap SHARED
             memory/swap.cpp)
 set_target_properties(swap PROPERTIES PREFIX "")
 target_link_libraries(swap ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
-set_target_properties(buddy PROPERTIES PREFIX "")
+
+# =================== build prop ===================
+add_library(prop SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            property/propinfo.cpp
+            property/prop.cpp)
+set_target_properties(prop PROPERTIES PREFIX "")
+target_link_libraries(prop ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
 endif()

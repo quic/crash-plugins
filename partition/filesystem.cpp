@@ -236,7 +236,7 @@ void FileSystem::print_mount_tree(std::vector<std::shared_ptr<Mount>>& mnt_list,
 
 void FileSystem::parser_mount_tree(){
     if (!csymbol_exists("init_nsproxy")){
-        LOGE("init_nsproxy doesn't exist in this kernel!\n");
+        fprintf(fp, "init_nsproxy doesn't exist in this kernel!\n");
         return;
     }
     ulong init_nsproxy_addr = csymbol_value("init_nsproxy");

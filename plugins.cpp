@@ -11,10 +11,11 @@
 #include "memory/slub.h"
 #include "memory/zram.h"
 #include "memory/swap.h"
+#include "memory/buddy.h"
 #include "workqueue/workqueue.h"
 #include "partition/filesystem.h"
-#include "memory/buddy.h"
 #include "rtb/rtb.h"
+#include "property/prop.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
@@ -36,6 +37,7 @@ std::shared_ptr<FileSystem> FileSystem::instance = nullptr;
 std::shared_ptr<Buddy>      Buddy::instance = nullptr;
 std::shared_ptr<Zram>       Zram::instance = nullptr;
 std::shared_ptr<Swap>       Swap::instance = nullptr;
+std::shared_ptr<Prop>       Prop::instance = nullptr;
 std::shared_ptr<Rtb>        Rtb::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
@@ -52,10 +54,12 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Vmalloc::instance = std::make_shared<Vmalloc>();
     FileSystem::instance = std::make_shared<FileSystem>();
     Buddy::instance = std::make_shared<Buddy>();
+    Rtb::instance = std::make_shared<Rtb>();
+
     Zram::instance = std::make_shared<Zram>();
     Swap::instance = std::make_shared<Swap>(Zram::instance);
-    Rtb::instance = std::make_shared<Rtb>();
-	Procrank::instance = std::make_shared<Procrank>(Swap::instance);
+    Prop::instance = std::make_shared<Prop>(Swap::instance);
+    Procrank::instance = std::make_shared<Procrank>(Swap::instance);
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -73,6 +77,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
 	{ &Rtb::instance->cmd_name[0], &Rtb::wrapper_func, Rtb::instance->cmd_help, 0 },
 	{ &Zram::instance->cmd_name[0], &Zram::wrapper_func, Zram::instance->cmd_help, 0 },
 	{ &Swap::instance->cmd_name[0], &Swap::wrapper_func, Swap::instance->cmd_help, 0 },
+	{ &Prop::instance->cmd_name[0], &Prop::wrapper_func, Prop::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -95,6 +100,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Slub::instance.reset();
     Zram::instance.reset();
     Swap::instance.reset();
+    Prop::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER

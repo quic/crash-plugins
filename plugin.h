@@ -26,6 +26,7 @@
 #include "struct_info.h"
 #include "logger/log.h"
 #include <sstream>
+#include <gelf.h>
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -138,6 +139,7 @@ public:
 #if defined(ARM)
     ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
 #endif
+    bool load_symbols(std::string& path, std::string name);
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \
