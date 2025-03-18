@@ -8,6 +8,7 @@
 #include "memory/reserved.h"
 #include "memory/iomem.h"
 #include "memory/vmalloc.h"
+#include "memory/dmabuf.h"
 #include "memory/slub.h"
 #include "memory/zram.h"
 #include "memory/swap.h"
@@ -30,6 +31,7 @@ std::shared_ptr<Procrank>   Procrank::instance = nullptr;
 std::shared_ptr<Cma>        Cma::instance = nullptr;
 std::shared_ptr<Dts>        Dts::instance = nullptr;
 std::shared_ptr<Memblock>   Memblock::instance = nullptr;
+std::shared_ptr<Dmabuf>     Dmabuf::instance = nullptr;
 std::shared_ptr<Workqueue>  Workqueue::instance = nullptr;
 std::shared_ptr<Reserved>   Reserved::instance = nullptr;
 std::shared_ptr<IoMem>      IoMem::instance = nullptr;
@@ -48,6 +50,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Cma::instance = std::make_shared<Cma>();
     Dts::instance = std::make_shared<Dts>();
     Memblock::instance = std::make_shared<Memblock>();
+    Dmabuf::instance = std::make_shared<Dmabuf>();
     Workqueue::instance = std::make_shared<Workqueue>();
     Reserved::instance = std::make_shared<Reserved>();
     IoMem::instance = std::make_shared<IoMem>();
@@ -67,6 +70,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
         { &Procrank::instance->cmd_name[0], &Procrank::wrapper_func, Procrank::instance->cmd_help, 0 },
         { &Cma::instance->cmd_name[0], &Cma::wrapper_func, Cma::instance->cmd_help, 0 },
+	{ &Dmabuf::instance->cmd_name[0], &Dmabuf::wrapper_func, Dmabuf::instance->cmd_help, 0 },
         { &Dts::instance->cmd_name[0], &Dts::wrapper_func, Dts::instance->cmd_help, 0 },
         { &Memblock::instance->cmd_name[0], &Memblock::wrapper_func, Memblock::instance->cmd_help, 0 },
         { &Workqueue::instance->cmd_name[0], &Workqueue::wrapper_func, Workqueue::instance->cmd_help, 0 },
@@ -91,6 +95,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Binder::instance.reset();
     Procrank::instance.reset();
     Cma::instance.reset();
+    Dmabuf::instance.reset();
     Dts::instance.reset();
     Memblock::instance.reset();
     Workqueue::instance.reset();

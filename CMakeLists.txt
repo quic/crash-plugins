@@ -55,6 +55,7 @@ list(APPEND PLUGIN_SOURCES
 	memory/memblock.cpp
 	memory/iomem.cpp
         memory/vmalloc.cpp
+	memory/dmabuf.cpp
 	memory/buddy.cpp
 	memory/slub.cpp
 	memory/zraminfo.cpp
@@ -77,6 +78,10 @@ add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 else()
+add_library(dmabuf SHARED
+            ${PLUGIN_SOURCES}
+            memory/dmabuf.cpp)
+set_target_properties(dmabuf PROPERTIES PREFIX "")
 add_library(binder SHARED
             ${PLUGIN_SOURCES}
             binder/binder.cpp)
