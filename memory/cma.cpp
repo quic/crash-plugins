@@ -14,6 +14,9 @@ void Cma::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (mem_list.size() == 0){
+        parser_cma_areas();
+    }
     while ((c = getopt(argcnt, args, "au:f:")) != EOF) {
         switch(c) {
             case 'a':
@@ -94,7 +97,6 @@ Cma::Cma(){
         "\n",
     };
     initialize();
-    parser_cma_areas();
 }
 
 void Cma::parser_cma_areas(){

@@ -13,6 +13,9 @@ DEFINE_PLUGIN_COMMAND(Reserved)
 void Reserved::cmd_main(void) {
     int c;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (mem_list.size() == 0){
+        parser_reserved_mem();
+    }
     while ((c = getopt(argcnt, args, "a")) != EOF) {
         switch(c) {
             case 'a':
@@ -53,7 +56,6 @@ Reserved::Reserved(){
         "\n",
     };
     initialize();
-    parser_reserved_mem();
 }
 
 void Reserved::parser_reserved_mem(){

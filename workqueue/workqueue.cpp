@@ -14,6 +14,9 @@ void Workqueue::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (workqueue_list.size() == 0){
+        parse_workqueue();
+    }
     while ((c = getopt(argcnt, args, "wpP:")) != EOF) {
         switch(c) {
             case 'w':
@@ -116,7 +119,6 @@ Workqueue::Workqueue(){
         "\n",
     };
     initialize();
-    parse_workqueue();
 }
 
 void Workqueue::print_worker(){

@@ -13,6 +13,9 @@ DEFINE_PLUGIN_COMMAND(Memblock)
 void Memblock::cmd_main(void) {
     int c;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (block.get() == nullptr){
+        parser_memblock();
+    }
     while ((c = getopt(argcnt, args, "a")) != EOF) {
         switch(c) {
             case 'a':
@@ -64,7 +67,6 @@ Memblock::Memblock(){
         "\n",
     };
     initialize();
-    parser_memblock();
 }
 
 static std::vector<std::string> flags_str = {

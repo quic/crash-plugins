@@ -14,6 +14,9 @@ void Buddy::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (node_list.size() == 0){
+        parser_buddy_info();
+    }
     while ((c = getopt(argcnt, args, "anz:")) != EOF) {
         switch(c) {
             case 'a':
@@ -131,7 +134,6 @@ Buddy::Buddy(){
         "\n",
     };
     initialize();
-    parser_buddy_info();
 }
 
 std::vector<std::vector<ulong>> Buddy::parser_free_list(ulong addr){

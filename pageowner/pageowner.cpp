@@ -241,57 +241,6 @@ Pageowner::Pageowner(){
         "\n",
     };
     initialize();
-    if(is_enable_pageowner()){
-        if (csymbol_exists("page_ext_size")) {/* 5.4 and later */
-            try_get_symbol_data(TO_CONST_STRING("page_ext_size"), sizeof(ulong), &page_ext_size);
-        }else if (csymbol_exists("extra_mem") && struct_size(page_ext)) {
-            ulong extra_mem;
-            if (try_get_symbol_data(TO_CONST_STRING("extra_mem"), sizeof(ulong), &extra_mem)){
-                page_ext_size = struct_size(page_ext) + extra_mem;
-            }
-        }
-        if (page_ext_size <= 0){
-            fprintf(fp, "cannot get page_ext_size value\n");
-        }
-        // fprintf(fp, "page_ext_size:%d\n", page_ext_size);
-        if (csymbol_exists("page_owner_ops")){
-            ulong ops_addr = csymbol_value("page_owner_ops");
-            // fprintf(fp, "ops_addr:%lx\n", ops_addr);
-            ops_offset = read_ulong(ops_addr + field_offset(page_ext_operations,offset),"page_owner_ops.offset");
-        }
-        if (ops_offset < 0){
-            fprintf(fp, "cannot get ops_offset value\n");
-        }
-        // fprintf(fp, "ops_offset:%zu\n", ops_offset);
-        if (csymbol_exists("depot_index")){
-            depot_index = read_int(csymbol_value("depot_index"),"depot_index");
-        }else if (csymbol_exists("pool_index")){
-            depot_index = read_int(csymbol_value("pool_index"),"pool_index");
-        }
-        if (csymbol_exists("stack_slabs")){
-            stack_slabs = csymbol_value("stack_slabs");
-        }else if (csymbol_exists("stack_pools")){/* 6.3 and later */
-            stack_slabs = csymbol_value("stack_pools");
-        }
-        if (!stack_slabs){
-            fprintf(fp, "cannot get stack_{pools|slabs}\n");
-        }
-        ulong page_start = stack_slabs & page_mask;
-        stack_record_page_list.insert(page_start);
-        page_start = (stack_slabs + depot_index * sizeof(void *)) & page_mask;
-        stack_record_page_list.insert(page_start);
-        /* max_pfn */
-        if (csymbol_exists("max_pfn")){
-            try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
-        }
-        /* min_low_pfn */
-        if (csymbol_exists("min_low_pfn")){
-            try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
-        }
-        /* PAGE_EXT_OWNER{,_ALLOCATED} */
-        enumerator_value(TO_CONST_STRING("PAGE_EXT_OWNER"), &PAGE_EXT_OWNER);
-        enumerator_value(TO_CONST_STRING("PAGE_EXT_OWNER_ALLOCATED"), &PAGE_EXT_OWNER_ALLOCATED); /* 5.4 and later */
-    }
 }
 
 void Pageowner::print_page_owner(std::string addr,int flags){
@@ -600,6 +549,61 @@ ulong Pageowner::parser_stack_record(uint page_owner_handle,uint* stack_len, ulo
 }
 
 void Pageowner::parser_all_pageowners(){
+    if (!is_enable_pageowner()){
+        return;
+    }
+    if (csymbol_exists("page_ext_size")) {/* 5.4 and later */
+        try_get_symbol_data(TO_CONST_STRING("page_ext_size"), sizeof(ulong), &page_ext_size);
+    }else if (csymbol_exists("extra_mem") && struct_size(page_ext)) {
+        ulong extra_mem;
+        if (try_get_symbol_data(TO_CONST_STRING("extra_mem"), sizeof(ulong), &extra_mem)){
+            page_ext_size = struct_size(page_ext) + extra_mem;
+        }
+    }
+    if (page_ext_size <= 0){
+        fprintf(fp, "cannot get page_ext_size value\n");
+        return;
+    }
+    // fprintf(fp, "page_ext_size:%d\n", page_ext_size);
+    if (csymbol_exists("page_owner_ops")){
+        ulong ops_addr = csymbol_value("page_owner_ops");
+        // fprintf(fp, "ops_addr:%lx\n", ops_addr);
+        ops_offset = read_ulong(ops_addr + field_offset(page_ext_operations,offset),"page_owner_ops.offset");
+    }
+    if (ops_offset < 0){
+        fprintf(fp, "cannot get ops_offset value\n");
+        return;
+    }
+    // fprintf(fp, "ops_offset:%zu\n", ops_offset);
+    if (csymbol_exists("depot_index")){
+        depot_index = read_int(csymbol_value("depot_index"),"depot_index");
+    }else if (csymbol_exists("pool_index")){
+        depot_index = read_int(csymbol_value("pool_index"),"pool_index");
+    }
+    if (csymbol_exists("stack_slabs")){
+        stack_slabs = csymbol_value("stack_slabs");
+    }else if (csymbol_exists("stack_pools")){/* 6.3 and later */
+        stack_slabs = csymbol_value("stack_pools");
+    }
+    if (!stack_slabs){
+        fprintf(fp, "cannot get stack_{pools|slabs}\n");
+        return;
+    }
+    ulong page_start = stack_slabs & page_mask;
+    stack_record_page_list.insert(page_start);
+    page_start = (stack_slabs + depot_index * sizeof(void *)) & page_mask;
+    stack_record_page_list.insert(page_start);
+    /* max_pfn */
+    if (csymbol_exists("max_pfn")){
+        try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
+    }
+    /* min_low_pfn */
+    if (csymbol_exists("min_low_pfn")){
+        try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
+    }
+    /* PAGE_EXT_OWNER{,_ALLOCATED} */
+    enumerator_value(TO_CONST_STRING("PAGE_EXT_OWNER"), &PAGE_EXT_OWNER);
+    enumerator_value(TO_CONST_STRING("PAGE_EXT_OWNER_ALLOCATED"), &PAGE_EXT_OWNER_ALLOCATED); /* 5.4 and later */
     // fprintf(fp, "min_low_pfn:%ld\n", min_low_pfn);
     // fprintf(fp, "max_pfn:%ld\n", max_pfn);
     for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
