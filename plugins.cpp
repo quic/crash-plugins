@@ -17,6 +17,7 @@
 #include "pageowner/pageowner.h"
 #include "workqueue/workqueue.h"
 #include "partition/filesystem.h"
+#include "cpu/cpuinfo.h"
 #include "rtb/rtb.h"
 #include "property/prop.h"
 #include "logcat/Logcat_parser.h"
@@ -47,6 +48,7 @@ std::shared_ptr<Swap>       Swap::instance = nullptr;
 std::shared_ptr<Prop>       Prop::instance = nullptr;
 std::shared_ptr<Logcat_Parser>  Logcat_Parser::instance = nullptr;
 std::shared_ptr<Rtb>        Rtb::instance = nullptr;
+std::shared_ptr<CpuInfo>    CpuInfo::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -65,6 +67,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Buddy::instance = std::make_shared<Buddy>();
     Rtb::instance = std::make_shared<Rtb>();
     DDriver::instance = std::make_shared<DDriver>();
+    CpuInfo::instance = std::make_shared<CpuInfo>();
     Zram::instance = std::make_shared<Zram>();
     Swap::instance = std::make_shared<Swap>(Zram::instance);
     Prop::instance = std::make_shared<Prop>(Swap::instance);
@@ -75,23 +78,24 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
         { &Procrank::instance->cmd_name[0], &Procrank::wrapper_func, Procrank::instance->cmd_help, 0 },
         { &Cma::instance->cmd_name[0], &Cma::wrapper_func, Cma::instance->cmd_help, 0 },
-	{ &Dmabuf::instance->cmd_name[0], &Dmabuf::wrapper_func, Dmabuf::instance->cmd_help, 0 },
+        { &Dmabuf::instance->cmd_name[0], &Dmabuf::wrapper_func, Dmabuf::instance->cmd_help, 0 },
         { &Dts::instance->cmd_name[0], &Dts::wrapper_func, Dts::instance->cmd_help, 0 },
         { &Memblock::instance->cmd_name[0], &Memblock::wrapper_func, Memblock::instance->cmd_help, 0 },
         { &Workqueue::instance->cmd_name[0], &Workqueue::wrapper_func, Workqueue::instance->cmd_help, 0 },
         { &Reserved::instance->cmd_name[0], &Reserved::wrapper_func, Reserved::instance->cmd_help, 0 },
         { &IoMem::instance->cmd_name[0], &IoMem::wrapper_func, IoMem::instance->cmd_help, 0 },
         { &Vmalloc::instance->cmd_name[0], &Vmalloc::wrapper_func, Vmalloc::instance->cmd_help, 0 },
-	{ &Pageowner::instance->cmd_name[0], &Pageowner::wrapper_func, Pageowner::instance->cmd_help, 0 },
-	{ &Slub::instance->cmd_name[0], &Slub::wrapper_func, Slub::instance->cmd_help, 0 },
-	{ &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
-	{ &Buddy::instance->cmd_name[0], &Buddy::wrapper_func, Buddy::instance->cmd_help, 0 },
-	{ &Rtb::instance->cmd_name[0], &Rtb::wrapper_func, Rtb::instance->cmd_help, 0 },
-	{ &DDriver::instance->cmd_name[0], &DDriver::wrapper_func, DDriver::instance->cmd_help, 0 },
-	{ &Zram::instance->cmd_name[0], &Zram::wrapper_func, Zram::instance->cmd_help, 0 },
-	{ &Swap::instance->cmd_name[0], &Swap::wrapper_func, Swap::instance->cmd_help, 0 },
-	{ &Prop::instance->cmd_name[0], &Prop::wrapper_func, Prop::instance->cmd_help, 0 },
-	{ &Logcat_Parser::instance->cmd_name[0], &Logcat_Parser::wrapper_func, Logcat_Parser::instance->cmd_help, 0 },
+        { &Pageowner::instance->cmd_name[0], &Pageowner::wrapper_func, Pageowner::instance->cmd_help, 0 },
+        { &Slub::instance->cmd_name[0], &Slub::wrapper_func, Slub::instance->cmd_help, 0 },
+        { &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
+        { &Buddy::instance->cmd_name[0], &Buddy::wrapper_func, Buddy::instance->cmd_help, 0 },
+        { &Rtb::instance->cmd_name[0], &Rtb::wrapper_func, Rtb::instance->cmd_help, 0 },
+        { &DDriver::instance->cmd_name[0], &DDriver::wrapper_func, DDriver::instance->cmd_help, 0 },
+        { &CpuInfo::instance->cmd_name[0], &CpuInfo::wrapper_func, CpuInfo::instance->cmd_help, 0 },
+        { &Zram::instance->cmd_name[0], &Zram::wrapper_func, Zram::instance->cmd_help, 0 },
+        { &Swap::instance->cmd_name[0], &Swap::wrapper_func, Swap::instance->cmd_help, 0 },
+        { &Prop::instance->cmd_name[0], &Prop::wrapper_func, Prop::instance->cmd_help, 0 },
+        { &Logcat_Parser::instance->cmd_name[0], &Logcat_Parser::wrapper_func, Logcat_Parser::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -119,6 +123,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Swap::instance.reset();
     Prop::instance.reset();
     Logcat_Parser::instance.reset();
+    CpuInfo::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER

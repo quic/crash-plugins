@@ -51,31 +51,32 @@ list(APPEND PLUGIN_SOURCES
         plugins.cpp
         binder/binder.cpp
         memory/cma.cpp
-	memory/reserved.cpp
-	memory/memblock.cpp
-	memory/iomem.cpp
+        memory/reserved.cpp
+        memory/memblock.cpp
+        memory/iomem.cpp
         memory/vmalloc.cpp
-	memory/dmabuf.cpp
-	memory/buddy.cpp
-	memory/slub.cpp
-	memory/zraminfo.cpp
+        memory/dmabuf.cpp
+        memory/buddy.cpp
+        memory/slub.cpp
+        memory/zraminfo.cpp
         memory/zram.cpp
-	memory/swapinfo.cpp
-	memory/swap.cpp
+        memory/swapinfo.cpp
+        memory/swap.cpp
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
-	pageowner/pageowner.cpp
+        pageowner/pageowner.cpp
         workqueue/workqueue.cpp
-	partition/filesystem.cpp
-	property/propinfo.cpp
-	property/prop.cpp
-	logcat/Logcat_parser.cpp
+        partition/filesystem.cpp
+        property/propinfo.cpp
+        property/prop.cpp
+        logcat/Logcat_parser.cpp
         logcat/logcat.cpp
         logcat/logcatS.cpp
         logcat/logcatR.cpp
-	device_driver/dd.cpp
-	rtb/rtb.cpp)
+        device_driver/dd.cpp
+        cpu/cpuinfo.cpp
+        rtb/rtb.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
 target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
@@ -197,4 +198,10 @@ add_library(dd SHARED
             ${PLUGIN_SOURCES}
             device_driver/dd.cpp)
 set_target_properties(dd PROPERTIES PREFIX "")
+
+# =================== build cpuinfo ===================
+add_library(cpuinfo SHARED
+            ${PLUGIN_SOURCES}
+            cpu/cpuinfo.cpp)
+set_target_properties(cpuinfo PROPERTIES PREFIX "")
 endif()
