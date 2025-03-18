@@ -74,6 +74,7 @@ list(APPEND PLUGIN_SOURCES
         logcat/logcat.cpp
         logcat/logcatS.cpp
         logcat/logcatR.cpp
+	device_driver/dd.cpp
 	rtb/rtb.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
@@ -192,4 +193,8 @@ add_library(logcat SHARED
             logcat/logcatR.cpp)
 set_target_properties(logcat PROPERTIES PREFIX "")
 target_link_libraries(logcat ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+add_library(dd SHARED
+            ${PLUGIN_SOURCES}
+            device_driver/dd.cpp)
+set_target_properties(dd PROPERTIES PREFIX "")
 endif()

@@ -13,6 +13,7 @@
 #include "memory/zram.h"
 #include "memory/swap.h"
 #include "memory/buddy.h"
+#include "device_driver/dd.h"
 #include "pageowner/pageowner.h"
 #include "workqueue/workqueue.h"
 #include "partition/filesystem.h"
@@ -32,6 +33,7 @@ std::shared_ptr<Procrank>   Procrank::instance = nullptr;
 std::shared_ptr<Cma>        Cma::instance = nullptr;
 std::shared_ptr<Dts>        Dts::instance = nullptr;
 std::shared_ptr<Memblock>   Memblock::instance = nullptr;
+std::shared_ptr<DDriver>    DDriver::instance = nullptr;
 std::shared_ptr<Dmabuf>     Dmabuf::instance = nullptr;
 std::shared_ptr<Workqueue>  Workqueue::instance = nullptr;
 std::shared_ptr<Reserved>   Reserved::instance = nullptr;
@@ -62,7 +64,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     FileSystem::instance = std::make_shared<FileSystem>();
     Buddy::instance = std::make_shared<Buddy>();
     Rtb::instance = std::make_shared<Rtb>();
-
+    DDriver::instance = std::make_shared<DDriver>();
     Zram::instance = std::make_shared<Zram>();
     Swap::instance = std::make_shared<Swap>(Zram::instance);
     Prop::instance = std::make_shared<Prop>(Swap::instance);
@@ -85,6 +87,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
 	{ &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
 	{ &Buddy::instance->cmd_name[0], &Buddy::wrapper_func, Buddy::instance->cmd_help, 0 },
 	{ &Rtb::instance->cmd_name[0], &Rtb::wrapper_func, Rtb::instance->cmd_help, 0 },
+	{ &DDriver::instance->cmd_name[0], &DDriver::wrapper_func, DDriver::instance->cmd_help, 0 },
 	{ &Zram::instance->cmd_name[0], &Zram::wrapper_func, Zram::instance->cmd_help, 0 },
 	{ &Swap::instance->cmd_name[0], &Swap::wrapper_func, Swap::instance->cmd_help, 0 },
 	{ &Prop::instance->cmd_name[0], &Prop::wrapper_func, Prop::instance->cmd_help, 0 },
@@ -102,6 +105,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Dmabuf::instance.reset();
     Dts::instance.reset();
     Memblock::instance.reset();
+    DDriver::instance.reset();
     Pageowner::instance.reset();
     Workqueue::instance.reset();
     Reserved::instance.reset();
