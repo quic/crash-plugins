@@ -5,6 +5,7 @@
 #define SLUB_DEFS_H_
 
 #include "plugin.h"
+// #include <unordered_set>
 
 /* Poison */
 #define SLAB_RED_ZONE 0x400
@@ -18,8 +19,42 @@
 #define POISON_FREE 0x6b
 #define POISON_END 0xa5
 
+#define TRACK_ALLOC 0
+#define TRACK_FREE 1
+
+/* from lib/stackdepot.c */
+#define DEPOT_STACK_ALIGN    4
+
+union handle_parts_v {
+    uint handle;
+    struct {
+        uint pool_index    : 21;
+        uint offset    : 10;
+        uint valid    : 1;
+    } v1;
+    struct {
+        uint pool_index : 16;
+        uint offset    : 10;
+        uint valid    : 1;
+        uint extra    : 5;
+    } v2;    /* 6.1 and later */
+    struct {
+        uint pool_index : 17;
+        uint offset    : 10;
+        uint extra    : 5;
+    } v3;    /* 6.8 and later */
+};
+
 struct obj {
     int index;
+    /*
+    +--------------+------------+
+    | red left zone|            |
+    +--------------+------------+
+    ^              < -obj size- >
+    |
+    start
+    */
     ulong start;
     ulong end;
     bool is_free;
@@ -80,11 +115,28 @@ struct kmem_cache {
     std::vector<std::shared_ptr<kmem_cache_node>> node_list;
 };
 
+struct track { // see __kmem_obj_info in slub.c
+    unsigned long trackp;
+    std::string frame;
+    int cpu;
+    int pid;
+    unsigned long when;
+    std::shared_ptr<kmem_cache> kmem_cache_ptr;
+    ulong obj_addr;
+};
+
 class Slub : public PaserPlugin {
-public:
+protected:
     std::vector<std::shared_ptr<kmem_cache>> cache_list;
-    Slub();
+    std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> alloc_trace_map;
+    std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> free_trace_map;
     ulong max_pfn;
+    int depot_index;
+    ulong stack_slabs;
+    // std::unordered_set<size_t> unique_hash;
+
+public:
+    Slub();
     void cmd_main(void) override;
     void parser_slab_caches();
     std::vector<std::shared_ptr<kmem_cache_node>> parser_kmem_cache_node(std::shared_ptr<kmem_cache> cache_ptr, ulong node_addr);
@@ -118,6 +170,18 @@ public:
     void print_slub_poison(ulong kmem_cache_addr = 0);
     int check_object(std::shared_ptr<kmem_cache> cache_ptr, ulong first_page, ulong start_addr, uint8_t val);
     ulong get_free_pointer(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr);
+
+    /*Trace*/
+    std::string extract_callstack(ulong frames_addr);
+    void parser_track_map(std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> map, bool is_free);
+    void print_all_slub_trace(size_t stack_id = 0);
+    void parser_slub_trace();
+    void print_slub_trace(std::string is_free);
+    ulong parser_stack_record(uint page_owner_handle, uint& stack_len);
+    void parser_track(ulong track_addr, std::shared_ptr<track> &track_ptr);
+    ulong get_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
+    void parser_obj_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
+    void parser_slab_track(std::shared_ptr<kmem_cache> cache_ptr, std::shared_ptr<slab> slab_ptr);
     DEFINE_PLUGIN_INSTANCE(Slub)
 };
 

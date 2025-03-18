@@ -68,6 +68,7 @@ Supprot command:
 | binder     | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
 | slub info  | √         | √         | parser slub detail memory info                       |
 | slub poison| √         | √         | check slub object memory poison                      |
+| slub trace | √         | √         | parser slub object trace                             |
 | procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
 | cma        | √         | √         | parser cma info                                      |
 | dts        | √         | √         | parser device tree                                   |
@@ -87,7 +88,6 @@ Supprot command:
 | cpu        | √         | √         | parser cpu freq and policy info                      |
 | meminfo    | x         | x         |                                                      |
 | coredump   | x         | x         |                                                      |
-| slub trace | x         | x         |                                                      |
 
 |  command   |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |
 |  --------  | ------------------- | ------------------- | ------------------- |
