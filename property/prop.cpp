@@ -90,7 +90,7 @@ void Prop::init_command(){
     help_str_list={
         "getprop",                            /* command name */
         "dump android property information",        /* short description */
-        "-s \n"
+        "-s <symbol directory path>\n"
             "  getprop -a\n"
             "  getprop -p <prop name>\n"
             "  This command dumps the property info.",

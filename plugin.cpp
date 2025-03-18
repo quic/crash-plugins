@@ -41,6 +41,13 @@ PaserPlugin::PaserPlugin(){
     field_init(list_head, prev);
     field_init(list_head, next);
     struct_init(list_head);
+    if (BITS64()){
+        std::string config = get_config_val("CONFIG_ARM64_VA_BITS");
+        int va_bits = std::stoi(config);
+        vaddr_mask = (static_cast<uint64_t>(1) << va_bits) - 1;
+    }else{
+        vaddr_mask = (static_cast<uint64_t>(1) << 32) - 1;
+    }
     //print_table();
 }
 

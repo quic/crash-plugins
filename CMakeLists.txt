@@ -30,6 +30,11 @@ pkg_check_modules(LZ4 REQUIRED liblz4)
 if(NOT LZ4_FOUND)
     message(FATAL_ERROR "LZ4 library not found")
 endif()
+# sudo apt-get install libzstd-dev libzstd-dev:i386
+pkg_check_modules(ZSTD REQUIRED libzstd)
+if(NOT ZSTD_FOUND)
+    message(FATAL_ERROR "ZSTD library not found")
+endif()
 # sudo apt-get install libelf-dev libelf-dev:i386
 pkg_check_modules(ELF REQUIRED libelf)
 if(NOT ELF_FOUND)
@@ -63,10 +68,14 @@ list(APPEND PLUGIN_SOURCES
 	partition/filesystem.cpp
 	property/propinfo.cpp
 	property/prop.cpp
+	logcat/Logcat_parser.cpp
+        logcat/logcat.cpp
+        logcat/logcatS.cpp
+        logcat/logcatR.cpp
 	rtb/rtb.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 set_target_properties(plugins PROPERTIES PREFIX "")
-target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
+target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 else()
 add_library(binder SHARED
             ${PLUGIN_SOURCES}
@@ -159,4 +168,17 @@ add_library(prop SHARED
             property/prop.cpp)
 set_target_properties(prop PROPERTIES PREFIX "")
 target_link_libraries(prop ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
+
+# =================== build logcat ===================
+add_library(logcat SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            property/propinfo.cpp
+            logcat/Logcat_parser.cpp
+            logcat/logcat.cpp
+            logcat/logcatS.cpp
+            logcat/logcatR.cpp)
+set_target_properties(logcat PROPERTIES PREFIX "")
+target_link_libraries(logcat ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 endif()

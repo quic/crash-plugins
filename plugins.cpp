@@ -16,6 +16,7 @@
 #include "partition/filesystem.h"
 #include "rtb/rtb.h"
 #include "property/prop.h"
+#include "logcat/Logcat_parser.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
@@ -38,12 +39,12 @@ std::shared_ptr<Buddy>      Buddy::instance = nullptr;
 std::shared_ptr<Zram>       Zram::instance = nullptr;
 std::shared_ptr<Swap>       Swap::instance = nullptr;
 std::shared_ptr<Prop>       Prop::instance = nullptr;
+std::shared_ptr<Logcat_Parser>  Logcat_Parser::instance = nullptr;
 std::shared_ptr<Rtb>        Rtb::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
     Binder::instance = std::make_shared<Binder>();
-
     Cma::instance = std::make_shared<Cma>();
     Dts::instance = std::make_shared<Dts>();
     Memblock::instance = std::make_shared<Memblock>();
@@ -59,6 +60,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Zram::instance = std::make_shared<Zram>();
     Swap::instance = std::make_shared<Swap>(Zram::instance);
     Prop::instance = std::make_shared<Prop>(Swap::instance);
+    Logcat_Parser::instance = std::make_shared<Logcat_Parser>(Swap::instance,Prop::instance);
     Procrank::instance = std::make_shared<Procrank>(Swap::instance);
 
     static struct command_table_entry command_table[] = {
@@ -78,6 +80,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
 	{ &Zram::instance->cmd_name[0], &Zram::wrapper_func, Zram::instance->cmd_help, 0 },
 	{ &Swap::instance->cmd_name[0], &Swap::wrapper_func, Swap::instance->cmd_help, 0 },
 	{ &Prop::instance->cmd_name[0], &Prop::wrapper_func, Prop::instance->cmd_help, 0 },
+	{ &Logcat_Parser::instance->cmd_name[0], &Logcat_Parser::wrapper_func, Logcat_Parser::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -101,6 +104,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Zram::instance.reset();
     Swap::instance.reset();
     Prop::instance.reset();
+    Logcat_Parser::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
