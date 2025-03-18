@@ -14,12 +14,12 @@ We have developed the plugins that can gather more information based on crash-ut
 sudo apt-get install cmake  // cmake >= 3.21.1
 ```
 ```
-sudo apt-get install gcc-multilib g++-multilib
+sudo apt install gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
 ```
 
 # How to build
 
-We support both single-module and multi-module compilation, managed through BUILD_TARGET_TOGETHER in build.sh.
+We can compile each plugin into a separate SO library or we can compile all plugins together.You can choose how to compile by configuring the macro BUILD_TARGET_TOGETHER in build.sh.
 
 ## single-module (by defalut)
 ```
@@ -73,15 +73,17 @@ Supprot command:
 | slub info  | √         | √         | parser slub detail memory info                       |
 | zram       | √         | √         | parser zram detail info                              |
 | swap       | √         | √         | parser swap info and provider API to userspace parser|
+| dmabuf     | √         | √         | parser dma-buf info                                  |
+| pageowner  | √         | √         | parser pageowner info                                |
 | slub poison| x         | x         | check slub object memory poison                      |
 | slub trace | x         | x         |                                                      |
-| dmabuf     | x         | x         |                                                      |
 | meminfo    | x         | x         |                                                      |
-| swap       | x         | x         |                                                      |
-| pageowner  | x         | x         |                                                      |
 | coredump   | x         | x         |                                                      |
-| property   | x         | x         |                                                      |
-| logcat     | x         | x         |                                                      |
+
+|  command   |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |
+|  --------  | ------------------- | ------------------- | ------------------- |
+| property   | √                   | √                   |                     |
+| logcat     | √                   | √                   |                     |
 
 ## usage
 ```

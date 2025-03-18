@@ -65,6 +65,7 @@ list(APPEND PLUGIN_SOURCES
         procrank/procrank.cpp
         devicetree/dts.cpp
         devicetree/devicetree.cpp
+	pageowner/pageowner.cpp
         workqueue/workqueue.cpp
 	partition/filesystem.cpp
 	property/propinfo.cpp
@@ -96,6 +97,11 @@ add_library(slub SHARED
             ${PLUGIN_SOURCES}
             memory/slub.cpp)
 set_target_properties(slub PROPERTIES PREFIX "")
+
+add_library(pageowner SHARED
+            ${PLUGIN_SOURCES}
+            pageowner/pageowner.cpp)
+set_target_properties(pageowner PROPERTIES PREFIX "")
 
 add_library(procrank SHARED
             ${PLUGIN_SOURCES}

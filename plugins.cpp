@@ -13,6 +13,7 @@
 #include "memory/zram.h"
 #include "memory/swap.h"
 #include "memory/buddy.h"
+#include "pageowner/pageowner.h"
 #include "workqueue/workqueue.h"
 #include "partition/filesystem.h"
 #include "rtb/rtb.h"
@@ -37,6 +38,7 @@ std::shared_ptr<Reserved>   Reserved::instance = nullptr;
 std::shared_ptr<IoMem>      IoMem::instance = nullptr;
 std::shared_ptr<Vmalloc>    Vmalloc::instance = nullptr;
 std::shared_ptr<FileSystem> FileSystem::instance = nullptr;
+std::shared_ptr<Pageowner>  Pageowner::instance = nullptr;
 std::shared_ptr<Buddy>      Buddy::instance = nullptr;
 std::shared_ptr<Zram>       Zram::instance = nullptr;
 std::shared_ptr<Swap>       Swap::instance = nullptr;
@@ -51,6 +53,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Dts::instance = std::make_shared<Dts>();
     Memblock::instance = std::make_shared<Memblock>();
     Dmabuf::instance = std::make_shared<Dmabuf>();
+    Pageowner::instance = std::make_shared<Pageowner>();
     Workqueue::instance = std::make_shared<Workqueue>();
     Reserved::instance = std::make_shared<Reserved>();
     IoMem::instance = std::make_shared<IoMem>();
@@ -77,6 +80,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Reserved::instance->cmd_name[0], &Reserved::wrapper_func, Reserved::instance->cmd_help, 0 },
         { &IoMem::instance->cmd_name[0], &IoMem::wrapper_func, IoMem::instance->cmd_help, 0 },
         { &Vmalloc::instance->cmd_name[0], &Vmalloc::wrapper_func, Vmalloc::instance->cmd_help, 0 },
+	{ &Pageowner::instance->cmd_name[0], &Pageowner::wrapper_func, Pageowner::instance->cmd_help, 0 },
 	{ &Slub::instance->cmd_name[0], &Slub::wrapper_func, Slub::instance->cmd_help, 0 },
 	{ &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
 	{ &Buddy::instance->cmd_name[0], &Buddy::wrapper_func, Buddy::instance->cmd_help, 0 },
@@ -98,6 +102,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Dmabuf::instance.reset();
     Dts::instance.reset();
     Memblock::instance.reset();
+    Pageowner::instance.reset();
     Workqueue::instance.reset();
     Reserved::instance.reset();
     IoMem::instance.reset();
