@@ -293,16 +293,17 @@ void Buddy::print_buddy_info(){
             if (free_list_cnt > migratetype_names.size()){
                 free_list_cnt = migratetype_names.size();
             }
-            int total_size = 0;
-            int total_by_order[vt->nr_free_areas] = {0};
+            size_t total_size = 0;
+            size_t total_by_order[vt->nr_free_areas] = {0};
             for (int m = 0; m < free_list_cnt; m++) { //migrate type
                 fprintf(fp, "%12s ", migratetype_names[m].c_str());
-                int total_per_type = 0;
+                size_t total_per_type = 0;
                 for (int o = 0; o < vt->nr_free_areas; o++) { //order
                     int free_cnt = zone_ptr->free_areas[o]->free_list[m].size();
                     fprintf(fp, "%8d ", free_cnt);
-                    total_per_type += (1U << o)*page_size*free_cnt;
-                    total_by_order[o] += (1U << o)*page_size*free_cnt;
+                    size_t per_size = power(2, o) * page_size;
+                    total_per_type +=  (per_size * free_cnt);
+                    total_by_order[o] += (per_size * free_cnt);
                 }
                 total_size += total_per_type;
                 fprintf(fp, "%10s\n", csize(total_per_type).c_str());
