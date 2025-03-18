@@ -11,24 +11,32 @@ on:
 env:
   BUILD_TYPE: Debug
 
-jobs: 
+jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: checkout branch
+    - name: Checkout code
       uses: actions/checkout@v4
 
     - name: get_tag
       run: echo "tag=$(git tag)" >> $GITHUB_ENV
-    
-    - name: Install Dependencies and Build
+
+    - name: Enable i386 architecture
+      run: sudo dpkg --add-architecture i386
+
+    - name: Update package list
+      run: sudo apt-get update
+
+    - name: Install packages
+      run: sudo apt-get install -y gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
+
+    - name: Build
       run: |
-        sudo apt install -y gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
         bash build.sh
         tar -czvf crash-plugins_${{ env.tag }}.tar.gz output/arm64/plugins.so \
-                                       output/arm/plugins.so
-                                       
+-                                       output/arm/plugins.so
+
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -37,7 +45,7 @@ jobs:
 
   release:
      needs: build
-     runs-on: ubuntu-20.04
+     runs-on: ubuntu-22.04
 
      steps:
      - name: checkout branch
