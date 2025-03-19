@@ -76,8 +76,16 @@ list(APPEND PLUGIN_SOURCES
     logcat/logcatR.cpp
     device_driver/dd.cpp
     rtb/rtb.cpp
-    cpu/cpuinfo.cpp)
+    cpu/cpuinfo.cpp
+    coredump/coredump.cpp
+    coredump/core.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
+if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
+    target_sources(plugins PRIVATE coredump/arm/arm64.cpp
+                                coredump/arm/compat.cpp)
+elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
+    target_sources(plugins PRIVATE coredump/arm/arm.cpp)
+endif()
 
 set_target_properties(plugins PROPERTIES PREFIX "")
 target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
@@ -222,4 +230,19 @@ add_library(cpuinfo SHARED
             ${PLUGIN_SOURCES}
             cpu/cpuinfo.cpp)
 set_target_properties(cpuinfo PROPERTIES PREFIX "")
+# =================== build core ===================
+add_library(core SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            coredump/coredump.cpp
+            coredump/core.cpp)
+if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
+    target_sources(core PRIVATE coredump/arm/arm64.cpp
+                                coredump/arm/compat.cpp)
+elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
+    target_sources(core PRIVATE coredump/arm/arm.cpp)
+endif()
+set_target_properties(core PROPERTIES PREFIX "")
+target_link_libraries(core ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
 endif()

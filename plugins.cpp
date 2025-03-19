@@ -21,6 +21,7 @@
 #include "rtb/rtb.h"
 #include "property/prop.h"
 #include "logcat/Logcat_parser.h"
+#include "coredump/coredump.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
@@ -49,6 +50,7 @@ std::shared_ptr<Prop>       Prop::instance = nullptr;
 std::shared_ptr<Logcat_Parser>  Logcat_Parser::instance = nullptr;
 std::shared_ptr<Rtb>        Rtb::instance = nullptr;
 std::shared_ptr<CpuInfo>    CpuInfo::instance = nullptr;
+std::shared_ptr<Coredump>   Coredump::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -73,6 +75,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Prop::instance = std::make_shared<Prop>(Swap::instance);
     Logcat_Parser::instance = std::make_shared<Logcat_Parser>(Swap::instance,Prop::instance);
     Procrank::instance = std::make_shared<Procrank>(Swap::instance);
+    Coredump::instance = std::make_shared<Coredump>(Swap::instance);
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -96,6 +99,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Swap::instance->cmd_name[0], &Swap::wrapper_func, Swap::instance->cmd_help, 0 },
         { &Prop::instance->cmd_name[0], &Prop::wrapper_func, Prop::instance->cmd_help, 0 },
         { &Logcat_Parser::instance->cmd_name[0], &Logcat_Parser::wrapper_func, Logcat_Parser::instance->cmd_help, 0 },
+        { &Coredump::instance->cmd_name[0], &Coredump::wrapper_func, Coredump::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -124,6 +128,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Prop::instance.reset();
     Logcat_Parser::instance.reset();
     CpuInfo::instance.reset();
+    Coredump::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER

@@ -86,8 +86,8 @@ Supprot command:
 | swap       | √         | √         | parser swap info and provider API to userspace parser|
 | rtb        | √         | √         | parser memory layout info                            |
 | cpu        | √         | √         | parser cpu freq and policy info                      |
+| coredump   | √         | √         | dump the coredump info                               |
 | meminfo    | x         | x         |                                                      |
-| coredump   | x         | x         |                                                      |
 
 |  command   |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |
 |  --------  | ------------------- | ------------------- | ------------------- |
