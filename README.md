@@ -75,6 +75,7 @@ Supprot command:
 | swap       | √         | √         | parser swap info and provider API to userspace parser|
 | dmabuf     | √         | √         | parser dma-buf info                                  |
 | pageowner  | √         | √         | parser pageowner info                                |
+| dd         | √         | √         | parser device driver info                            |
 | slub poison| x         | x         | check slub object memory poison                      |
 | slub trace | x         | x         |                                                      |
 | meminfo    | x         | x         |                                                      |

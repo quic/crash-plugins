@@ -124,7 +124,7 @@ ulong Swapinfo::lookup_swap_cache(ulonglong pte_val){
     ulong page = 0;
     lp.index = swp_offset;
     if (is_xarray){
-        if(do_xarray(swp_space + i_pages_offset, RADIX_TREE_SEARCH, &lp)){
+        if(do_xarray(swp_space + i_pages_offset, XARRAY_SEARCH, &lp)){
             if ((ulong)lp.value & 1){
                 return 0;
             }

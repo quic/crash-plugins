@@ -61,22 +61,22 @@ void Logcat_Parser::cmd_main(void) {
                         return;
                     }
                     if (android_ver >= 31) { //Android12 S
-                        logcat_ptr = std::make_unique<LogcatS>(std::move(swap_ptr));
+                        logcat_ptr = std::make_unique<LogcatS>(swap_ptr);
                     }else if (android_ver >= 30){ //Android11 R
-                        logcat_ptr = std::make_unique<LogcatR>(std::move(swap_ptr));
+                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
                         fprintf(fp, "LogcatR!\n");
                     }else if (android_ver >= 29){ //Android10 Q
-                        logcat_ptr = std::make_unique<LogcatR>(std::move(swap_ptr));
-                        // logcat_ptr = std::make_unique<LogcatQ>(std::move(swap_ptr));
+                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
+                        // logcat_ptr = std::make_unique<LogcatQ>(swap_ptr);
                     }else if (android_ver >= 28){ //Android9 Pie
-                        logcat_ptr = std::make_unique<LogcatR>(std::move(swap_ptr));
-                        // logcat_ptr = std::make_unique<LogcatPie>(std::move(swap_ptr));
+                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
+                        // logcat_ptr = std::make_unique<LogcatPie>(swap_ptr);
                     }else if (android_ver >= 27){ //Android8 Oreo
-                        logcat_ptr = std::make_unique<LogcatR>(std::move(swap_ptr));
-                        // logcat_ptr = std::make_unique<LogcatOreo>(std::move(swap_ptr));
+                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
+                        // logcat_ptr = std::make_unique<LogcatOreo>(swap_ptr);
                     }else if (android_ver >= 26){ //Android7 Nougat
-                        logcat_ptr = std::make_unique<LogcatR>(std::move(swap_ptr));
-                        // logcat_ptr = std::make_unique<LogcatNougat>(std::move(swap_ptr));
+                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
+                        // logcat_ptr = std::make_unique<LogcatNougat>(swap_ptr);
                     }else{
                         fprintf(fp, "Not support for this Android version !\n");
                         return;
