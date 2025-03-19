@@ -24,7 +24,6 @@
 #include <arpa/inet.h>
 #include <inttypes.h>
 #include "struct_info.h"
-#include "logger/log.h"
 #include <sstream>
 #include <gelf.h>
 

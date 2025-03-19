@@ -42,8 +42,7 @@ if(NOT ELF_FOUND)
 endif()
 
 set(PLUGIN_SOURCES
-    plugin.cpp
-    logger/log.cpp)
+    plugin.cpp)
 
 if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
