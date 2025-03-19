@@ -389,7 +389,7 @@ void DDriver::print_driver_list(){
         << std::left << std::setw(name_max_len) << "name" << " "
         << std::left << std::setw(15) << "Bus" << " "
         << std::left << std::setw(compat_max_len) << "compatible" << " "
-        << std::left << "probe func";;
+        << std::left << "probe func";
     fprintf(fp, "%s \n",oss_hd.str().c_str());
     for (auto& bus_ptr : bus_list) {
         for (auto& driv_ptr : bus_ptr->driver_list) {

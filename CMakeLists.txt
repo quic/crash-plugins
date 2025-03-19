@@ -78,7 +78,8 @@ list(APPEND PLUGIN_SOURCES
     rtb/rtb.cpp
     cpu/cpuinfo.cpp
     coredump/coredump.cpp
-    coredump/core.cpp)
+    coredump/core.cpp
+    thermal/thermal.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -245,4 +246,9 @@ elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
 endif()
 set_target_properties(core PROPERTIES PREFIX "")
 target_link_libraries(core ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
+# =================== build thermal ===================
+add_library(tm SHARED
+            ${PLUGIN_SOURCES}
+            thermal/thermal.cpp)
+set_target_properties(tm PROPERTIES PREFIX "")
 endif()

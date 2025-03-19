@@ -84,9 +84,10 @@ Supprot command:
 | buddy      | √         | √         | parser memory node/zone/buddy info                   |
 | zram       | √         | √         | parser zram detail info                              |
 | swap       | √         | √         | parser swap info and provider API to userspace parser|
-| rtb        | √         | √         | parser memory layout info                            |
+| rtb        | √         | √         | parser rtb log                                       |
 | cpu        | √         | √         | parser cpu freq and policy info                      |
 | coredump   | √         | √         | dump the coredump info                               |
+| thermal    | √         | √         | parser all thermal zone temperature info             |
 | meminfo    | x         | x         |                                                      |
 
 |  command   |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |
