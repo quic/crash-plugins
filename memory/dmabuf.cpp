@@ -15,6 +15,9 @@ void Dmabuf::cmd_main(void) {
     int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (buf_list.size() == 0){
+        parser_dma_bufs();
+    }
     while ((c = getopt(argcnt, args, "abd:")) != EOF) {
         switch(c) {
             case 'a':
@@ -105,7 +108,6 @@ Dmabuf::Dmabuf(){
         "\n",
     };
     initialize();
-    parser_dma_bufs();
 }
 
 void Dmabuf::parser_dma_bufs(){
@@ -125,7 +127,9 @@ void Dmabuf::parser_dma_bufs(){
         buf_ptr->size = INT(buf + field_offset(dma_buf,size));
         buf_ptr->priv = ULONG(buf + field_offset(dma_buf,priv));
         buf_ptr->file = ULONG(buf + field_offset(dma_buf,file));
-        buf_ptr->f_count = read_long(buf_ptr->file + field_offset(file,f_count),"file_f_count");
+        if (is_kvaddr(buf_ptr->file)){
+            buf_ptr->f_count = read_long(buf_ptr->file + field_offset(file,f_count),"file_f_count");
+        }
         ulong name_addr = ULONG(buf + field_offset(dma_buf,name));
         if (is_kvaddr(name_addr)){
              buf_ptr->name = read_cstring(name_addr,64,"dma_buf_name");

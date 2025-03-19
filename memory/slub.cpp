@@ -191,20 +191,6 @@ Slub::Slub(){
         "\n",
     };
     initialize();
-
-    if (csymbol_exists("depot_index")){
-        depot_index = read_int(csymbol_value("depot_index"),"depot_index");
-    }else if (csymbol_exists("pool_index")){
-        depot_index = read_int(csymbol_value("pool_index"),"pool_index");
-    }
-    if (csymbol_exists("stack_slabs")){
-        stack_slabs = csymbol_value("stack_slabs");
-    }else if (csymbol_exists("stack_pools")){/* 6.3 and later */
-        stack_slabs = csymbol_value("stack_pools");
-    }
-    if (!stack_slabs){
-        fprintf(fp, "cannot get stack_{pools|slabs}\n");
-    }
 }
 
 std::shared_ptr<slab> Slub::parser_slab(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr){
@@ -346,8 +332,27 @@ std::vector<std::shared_ptr<kmem_cache_cpu>> Slub::parser_kmem_cache_cpu(std::sh
 
 void Slub::parser_slab_caches(){
     cache_list.clear();
+    if (csymbol_exists("depot_index")){
+        depot_index = read_int(csymbol_value("depot_index"),"depot_index");
+    }else if (csymbol_exists("pool_index")){
+        depot_index = read_int(csymbol_value("pool_index"),"pool_index");
+    }
+    if (!depot_index){
+        fprintf(fp, "cannot get depot_index\n");
+        return;
+    }
+    if (csymbol_exists("stack_slabs")){
+        stack_slabs = csymbol_value("stack_slabs");
+    }else if (csymbol_exists("stack_pools")){/* 6.3 and later */
+        stack_slabs = csymbol_value("stack_pools");
+    }
+    if (!stack_slabs){
+        fprintf(fp, "cannot get stack_{pools|slabs}\n");
+        return;
+    }
     if (csymbol_exists("max_pfn")){
         max_pfn = read_ulong(csymbol_value("max_pfn"),"max_pfn");
+        return;
     }
     if (!csymbol_exists("slab_caches")){
         fprintf(fp, "slab_caches doesn't exist in this kernel!\n");

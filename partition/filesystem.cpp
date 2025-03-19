@@ -250,6 +250,9 @@ void FileSystem::parser_mount_tree(){
 
 void FileSystem::parser_mount_tree(ulong mount_addr,std::vector<std::shared_ptr<Mount>>& mnt_list){
     std::shared_ptr<Mount> mnt_ptr = parser_mount(mount_addr);
+    if (mnt_ptr == nullptr){
+        return;
+    }
     if(mnt_ptr->dir_name.empty()){
         mnt_ptr->dir_name = "None";
     }
