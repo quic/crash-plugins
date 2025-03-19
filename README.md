@@ -4,7 +4,7 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 ```
 
 # Overall
-We have developed the plugins that can gather more information based on crash-utility, including both kernel space and user space. This enhances our debugging efficiency.
+We've developed plugins based on crash-utility that can collect more information, covering both kernel space and user space. This improves our debugging efficiency.
 
 ![alt text](doc/image.png)
 
@@ -12,6 +12,12 @@ We have developed the plugins that can gather more information based on crash-ut
 
 ```
 sudo apt-get install cmake  // cmake >= 3.21.1
+```
+```
+sudo dpkg --add-architecture i386
+```
+```
+sudo apt-get update
 ```
 ```
 sudo apt install gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
@@ -60,26 +66,28 @@ Supprot command:
 |  command   |    arm64  |    arm    |    comment                                           |
 |  --------  | --------  | --------  |    --------                                          |
 | binder     | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
-| dts        | √         | √         | parser device tree                                   |
+| slub info  | √         | √         | parser slub detail memory info                       |
+| slub poison| √         | √         | check slub object memory poison                      |
+| slub trace | √         | √         | parser slub object trace                             |
 | procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
 | cma        | √         | √         | parser cma info                                      |
+| dts        | √         | √         | parser device tree                                   |
 | memblock   | √         | √         | parser memblock info                                 |
+| dd         | √         | √         | parser device driver info                            |
+| dmabuf     | √         | √         | parser dma-buf info                                  |
+| workqueue  | √         | √         | parser workqueue info                                |
 | reserved   | √         | √         | parser reserved memory info                          |
 | iomem      | √         | √         | parser memory layout info                            |
 | vmalloc    | √         | √         | parser vmalloc info                                  |
-| buddy      | √         | √         | parser memory node/zone/buddy info                   |
 | partition  | √         | √         | parser partition info                                |
-| workqueue  | √         | √         | parser workqueue info                                |
-| slub info  | √         | √         | parser slub detail memory info                       |
+| pageowner  | √         | √         | parser pageowner info                                |
+| buddy      | √         | √         | parser memory node/zone/buddy info                   |
 | zram       | √         | √         | parser zram detail info                              |
 | swap       | √         | √         | parser swap info and provider API to userspace parser|
-| dmabuf     | √         | √         | parser dma-buf info                                  |
-| pageowner  | √         | √         | parser pageowner info                                |
-| dd         | √         | √         | parser device driver info                            |
-| slub poison| x         | x         | check slub object memory poison                      |
-| slub trace | x         | x         |                                                      |
+| rtb        | √         | √         | parser memory layout info                            |
+| cpu        | √         | √         | parser cpu freq and policy info                      |
+| coredump   | √         | √         | dump the coredump info                               |
 | meminfo    | x         | x         |                                                      |
-| coredump   | x         | x         |                                                      |
 
 |  command   |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |
 |  --------  | ------------------- | ------------------- | ------------------- |
@@ -210,9 +218,9 @@ set_target_properties(demo PROPERTIES PREFIX "")
     ```
     #include "demo.h"
     ```
-  - Add the global unique_ptr
+  - Add the shared_ptr
     ```
-    std::unique_ptr<Demo>   Demo::instance = nullptr;
+    std::shared_ptr<Demo>   Demo::instance = nullptr;
     ```
   - register your module in function plugin_init
     ```
@@ -234,6 +242,7 @@ set_target_properties(demo PROPERTIES PREFIX "")
 
 # Related Links
 - https://github.com/quic/crash-plugins.git
+- https://crash-utility.github.io/
 
 # Author
  - quic_wya@quicinc.com

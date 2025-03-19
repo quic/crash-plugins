@@ -48,63 +48,79 @@ set(PLUGIN_SOURCES
 if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
 list(APPEND PLUGIN_SOURCES
-        plugins.cpp
-        binder/binder.cpp
-        memory/cma.cpp
-        memory/reserved.cpp
-        memory/memblock.cpp
-        memory/iomem.cpp
-        memory/vmalloc.cpp
-        memory/dmabuf.cpp
-        memory/buddy.cpp
-        memory/slub.cpp
-        memory/zraminfo.cpp
-        memory/zram.cpp
-        memory/swapinfo.cpp
-        memory/swap.cpp
-        procrank/procrank.cpp
-        devicetree/dts.cpp
-        devicetree/devicetree.cpp
-        pageowner/pageowner.cpp
-        workqueue/workqueue.cpp
-        partition/filesystem.cpp
-        property/propinfo.cpp
-        property/prop.cpp
-        logcat/Logcat_parser.cpp
-        logcat/logcat.cpp
-        logcat/logcatS.cpp
-        logcat/logcatR.cpp
-        device_driver/dd.cpp
-        cpu/cpuinfo.cpp
-        rtb/rtb.cpp)
+    plugins.cpp
+    binder/binder.cpp
+    memory/cma.cpp
+    memory/reserved.cpp
+    memory/memblock.cpp
+    memory/iomem.cpp
+    memory/vmalloc.cpp
+    memory/dmabuf.cpp
+    memory/buddy.cpp
+    memory/slub.cpp
+    memory/zraminfo.cpp
+    memory/zram.cpp
+    memory/swapinfo.cpp
+    memory/swap.cpp
+    procrank/procrank.cpp
+    devicetree/dts.cpp
+    devicetree/devicetree.cpp
+    pageowner/pageowner.cpp
+    workqueue/workqueue.cpp
+    partition/filesystem.cpp
+    property/propinfo.cpp
+    property/prop.cpp
+    logcat/Logcat_parser.cpp
+    logcat/logcat.cpp
+    logcat/logcatS.cpp
+    logcat/logcatR.cpp
+    device_driver/dd.cpp
+    rtb/rtb.cpp
+    cpu/cpuinfo.cpp
+    coredump/coredump.cpp
+    coredump/core.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
+if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
+    target_sources(plugins PRIVATE coredump/arm/arm64.cpp
+                                coredump/arm/compat.cpp)
+elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
+    target_sources(plugins PRIVATE coredump/arm/arm.cpp)
+endif()
+
 set_target_properties(plugins PROPERTIES PREFIX "")
 target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 else()
+# =================== build dmabuf ===================
 add_library(dmabuf SHARED
             ${PLUGIN_SOURCES}
             memory/dmabuf.cpp)
 set_target_properties(dmabuf PROPERTIES PREFIX "")
+
+# =================== build binder ===================
 add_library(binder SHARED
             ${PLUGIN_SOURCES}
             binder/binder.cpp)
 set_target_properties(binder PROPERTIES PREFIX "")
 
+# =================== build cma ===================
 add_library(cma SHARED
             ${PLUGIN_SOURCES}
             memory/cma.cpp)
 set_target_properties(cma PROPERTIES PREFIX "")
 
+# =================== build slub ===================
 add_library(slub SHARED
             ${PLUGIN_SOURCES}
             memory/slub.cpp)
 set_target_properties(slub PROPERTIES PREFIX "")
 
+# =================== build pageowner ===================
 add_library(pageowner SHARED
             ${PLUGIN_SOURCES}
             pageowner/pageowner.cpp)
 set_target_properties(pageowner PROPERTIES PREFIX "")
 
+# =================== build procrank ===================
 add_library(procrank SHARED
             ${PLUGIN_SOURCES}
             memory/zraminfo.cpp
@@ -113,43 +129,51 @@ add_library(procrank SHARED
 set_target_properties(procrank PROPERTIES PREFIX "")
 target_link_libraries(procrank ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
 
+# =================== build dts ===================
 add_library(dts SHARED
             ${PLUGIN_SOURCES}
             devicetree/dts.cpp
             devicetree/devicetree.cpp)
 set_target_properties(dts PROPERTIES PREFIX "")
 
+# =================== build memblock ===================
 add_library(memblock SHARED
             ${PLUGIN_SOURCES}
             memory/memblock.cpp)
 set_target_properties(memblock PROPERTIES PREFIX "")
 
+# =================== build wq ===================
 add_library(wq SHARED
             ${PLUGIN_SOURCES}
             workqueue/workqueue.cpp)
 set_target_properties(wq PROPERTIES PREFIX "")
 
+# =================== build reserved ===================
 add_library(reserved SHARED
             ${PLUGIN_SOURCES}
             memory/reserved.cpp
             devicetree/devicetree.cpp)
 set_target_properties(reserved PROPERTIES PREFIX "")
 
+# =================== build iomem ===================
 add_library(iomem SHARED
             ${PLUGIN_SOURCES}
             memory/iomem.cpp)
 set_target_properties(iomem PROPERTIES PREFIX "")
 
+# =================== build vmalloc ===================
 add_library(vmalloc SHARED
             ${PLUGIN_SOURCES}
             memory/vmalloc.cpp)
 set_target_properties(vmalloc PROPERTIES PREFIX "")
 
+# =================== build buddy ===================
 add_library(buddy SHARED
             ${PLUGIN_SOURCES}
             memory/buddy.cpp)
 set_target_properties(buddy PROPERTIES PREFIX "")
 
+# =================== build rtb ===================
 add_library(rtb SHARED
             ${PLUGIN_SOURCES}
             rtb/rtb.cpp)
@@ -194,6 +218,8 @@ add_library(logcat SHARED
             logcat/logcatR.cpp)
 set_target_properties(logcat PROPERTIES PREFIX "")
 target_link_libraries(logcat ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+
+# =================== build dd ===================
 add_library(dd SHARED
             ${PLUGIN_SOURCES}
             device_driver/dd.cpp)
@@ -204,4 +230,19 @@ add_library(cpuinfo SHARED
             ${PLUGIN_SOURCES}
             cpu/cpuinfo.cpp)
 set_target_properties(cpuinfo PROPERTIES PREFIX "")
+# =================== build core ===================
+add_library(core SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            coredump/coredump.cpp
+            coredump/core.cpp)
+if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
+    target_sources(core PRIVATE coredump/arm/arm64.cpp
+                                coredump/arm/compat.cpp)
+elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
+    target_sources(core PRIVATE coredump/arm/arm.cpp)
+endif()
+set_target_properties(core PROPERTIES PREFIX "")
+target_link_libraries(core ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
 endif()
