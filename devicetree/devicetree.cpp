@@ -125,16 +125,21 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
     std::vector<std::shared_ptr<device_node>> nodes = find_node_by_name("memory");
     if (nodes.size() == 0)
         return res;
-    std::shared_ptr<Property> prop = getprop(nodes[0]->addr,"device_type");
-    std::string tempstr = (char *)prop->value;
-    if (tempstr != "memory"){
-        return res;
+    for (auto node: nodes){
+        std::shared_ptr<Property> prop = getprop(node->addr,"device_type");
+        if (prop == nullptr){
+            continue;
+        }
+        std::string tempstr = (char *)prop->value;
+        if (tempstr != "memory"){
+            continue;
+        }
+        // read property of reg
+        //       <|  start     | |   size     |
+        // reg = <0x0 0x40000000 0x0 0x3ee00000 0x0 0x80000000 0x0 0x40000000>
+        prop = getprop(node->addr,"reg");
+        res = parse_memory_regs(prop);
     }
-    // read property of reg
-    //       <|  start     | |   size     |
-    // reg = <0x0 0x40000000 0x0 0x3ee00000 0x0 0x80000000 0x0 0x40000000>
-    prop = getprop(nodes[0]->addr,"reg");
-    res = parse_memory_regs(prop);
     return res;
 }
 
