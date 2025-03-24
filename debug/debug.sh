@@ -1,6 +1,16 @@
 :<<!
 Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
-SPDX-License-Identifier: BSD-3-Clause-Clear
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 2 and
+only version 2 as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+SPDX-License-Identifier: GPL-2.0-only
 !
 
 #!/bin/bash
@@ -20,7 +30,7 @@ IS_ARM=$(echo $ELF_HEADER | awk '{print $5}')
 CRASH_PLUGIN_ARM_SYM=<crash-plugin symbols path>
 CRASH_PLUGIN_ARM64_SYM=<crash-plugin symbols path>
 function debug_crash_plugin(){
-    sed -i '1{/^\/\//d};2{/^\/\//d}' ${GDB_CMD_PATH}
+    sed -i '/^\/\//d' ${GDB_CMD_PATH}
     if [ "$IS_ARM" == "02" ]; then
         sed -i '/^set solib-search-path/ s|set solib-search-path.*|set solib-search-path '"${CRASH_PLUGIN_ARM64_SYM}"'|' ${GDB_CMD_PATH}
         ${GDB_PATH} -x ${GDB_CMD_PATH} ${CRASH_UTILITY_SYM_PATH} ${CORE_DUMP}
