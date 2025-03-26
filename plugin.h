@@ -104,6 +104,7 @@ public:
     virtual void cmd_main(void)=0;
     void initialize(void);
     std::string csize(size_t size);
+    std::string csize(size_t size, int unit, int precision);
     void print_table();
     void type_init(const std::string& type);
     void type_init(const std::string& type,const std::string& field);
