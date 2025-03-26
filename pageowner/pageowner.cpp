@@ -24,7 +24,6 @@ DEFINE_PLUGIN_COMMAND(Pageowner)
 
 void Pageowner::cmd_main(void) {
     int c;
-    int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     if(!is_enable_pageowner())return;
@@ -40,19 +39,16 @@ void Pageowner::cmd_main(void) {
                 print_all_page_owner(false);
                 break;
             case 'n': //print the page_owner info for specific pfn
-                flags |= INPUT_PFN;
                 cppString.assign(optarg);
-                print_page_owner(cppString,flags);
+                print_page_owner(cppString,INPUT_PFN);
                 break;
             case 'p': //print the page_owner info for specific phys address
-                flags |= INPUT_PYHS;
                 cppString.assign(optarg);
-                print_page_owner(cppString,flags);
+                print_page_owner(cppString,INPUT_PYHS);
                 break;
             case 'P': //print the page_owner info for specific page
-                flags |= INPUT_PAGE;
                 cppString.assign(optarg);
-                print_page_owner(cppString,flags);
+                print_page_owner(cppString,INPUT_PAGE);
                 break;
             case 't': //sort the page_owner info by total alloc count
                 print_total_size_by_handle();
@@ -212,44 +208,123 @@ Pageowner::Pageowner(){
         "          [<ffffffde2ea11624>] el0t_64_sync+0x1b4",
         "\n",
         "  Display the alloc and free stack for specific physic address:",
-        "    %s> pageowner -p 0x4000e002",
-        "\n",
-        "  Display the alloc and free stack for specific page address:",
-        "    %s> pageowner -P fffffffe00000340",
-        "\n",
-        "  Display the alloc memory size for every stack:",
-        "    %s> Pageowner -t",
-        "    Allocated 46402 times, Total memory: 181.26Mb",
+        "    %s> pageowner -p 0x4000e000",
+        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b6eb0 PID:1 ts_nsec:3200156311",
         "          [<ffffffde2edb039c>] post_alloc_hook+0x20c",
         "          [<ffffffde2edb3064>] prep_new_page+0x28",
         "          [<ffffffde2edb46a4>] get_page_from_freelist+0x12ac",
         "          [<ffffffde2edb320c>] __alloc_pages+0xd8",
-        "          [<ffffffde2eacc40c>] alloc_zeroed_user_highpage_movable+0x38",
-        "          [<ffffffde2ed98568>] handle_pte_fault+0x494",
+        "          [<ffffffde2ed49210>] page_cache_ra_unbounded+0x130",
+        "          [<ffffffde2ed49754>] do_page_cache_ra+0x3c",
+        "          [<ffffffde2ed3b718>] do_sync_mmap_readahead+0x188",
+        "          [<ffffffde2ed3abc0>] filemap_fault+0x280",
+        "          [<ffffffde2ed98b7c>] __do_fault+0x6c",
+        "          [<ffffffde2ed98288>] handle_pte_fault+0x1b4",
         "          [<ffffffde2ed94820>] do_handle_mm_fault+0x4a0",
-        "          [<ffffffde2fa972a0>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x338",
+        "          [<ffffffde2fa97488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520",
         "          [<ffffffde2fa96f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44",
         "          [<ffffffde2eacbd90>] do_mem_abort+0x64",
         "          [<ffffffde2fa5ddf4>] el0_da+0x48",
         "          [<ffffffde2fa5dce0>] el0t_64_sync_handler+0x98",
+        "",
+        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b5350 PID:1 free_ts_nsec:3033067977",
+        "          [<ffffffde2edb11a0>] free_unref_page_prepare+0x2d8",
+        "          [<ffffffde2edb1634>] free_unref_page_list+0xa0",
+        "          [<ffffffde2ed4e808>] release_pages+0x510",
+        "          [<ffffffde2ed4e8b8>] __pagevec_release+0x34",
+        "          [<ffffffde2ed64b54>] shmem_undo_range+0x210",
+        "          [<ffffffde2ed6a9d0>] shmem_evict_inode.ac7d038029138368f3a468e11f4adc2c+0x12c",
+        "          [<ffffffde2ee4152c>] evict+0xd4",
+        "          [<ffffffde2ee3ed64>] iput+0x244",
+        "          [<ffffffde2ee25f1c>] do_unlinkat+0x1ac",
+        "          [<ffffffde2ee2605c>] __arm64_sys_unlinkat+0x48",
+        "          [<ffffffde2eab6ad4>] invoke_syscall+0x5c",
+        "          [<ffffffde2eab6a08>] el0_svc_common+0xc4",
+        "          [<ffffffde2eab68e4>] do_el0_svc+0x24",
+        "          [<ffffffde2fa5dd2c>] el0_svc+0x30",
+        "          [<ffffffde2fa5dcb0>] el0t_64_sync_handler+0x68",
         "          [<ffffffde2ea11624>] el0t_64_sync+0x1b4",
-        "          861(binder:861_2) Allocated 20885 times, Total memory: 81.58Mb",
-        "          1747(HeapTaskDaemon) Allocated 3283 times, Total memory: 12.82Mb",
-        "          1719(system_server) Allocated 1912 times, Total memory: 7.47Mb",
-        "          1582(binder:861_2) Allocated 1861 times, Total memory: 7.27Mb",
+        "\n",
+        "  Display the alloc and free stack for specific page address:",
+        "    %s> pageowner -P 0xfffffffe00000380",
+        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b6eb0 PID:1 ts_nsec:3200156311",
+        "          [<ffffffde2edb039c>] post_alloc_hook+0x20c",
+        "          [<ffffffde2edb3064>] prep_new_page+0x28",
+        "          [<ffffffde2edb46a4>] get_page_from_freelist+0x12ac",
+        "          [<ffffffde2edb320c>] __alloc_pages+0xd8",
+        "          [<ffffffde2ed49210>] page_cache_ra_unbounded+0x130",
+        "          [<ffffffde2ed49754>] do_page_cache_ra+0x3c",
+        "          [<ffffffde2ed3b718>] do_sync_mmap_readahead+0x188",
+        "          [<ffffffde2ed3abc0>] filemap_fault+0x280",
+        "          [<ffffffde2ed98b7c>] __do_fault+0x6c",
+        "          [<ffffffde2ed98288>] handle_pte_fault+0x1b4",
+        "          [<ffffffde2ed94820>] do_handle_mm_fault+0x4a0",
+        "          [<ffffffde2fa97488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520",
+        "          [<ffffffde2fa96f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44",
+        "          [<ffffffde2eacbd90>] do_mem_abort+0x64",
+        "          [<ffffffde2fa5ddf4>] el0_da+0x48",
+        "          [<ffffffde2fa5dce0>] el0t_64_sync_handler+0x98",
+        "",
+        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b5350 PID:1 free_ts_nsec:3033067977",
+        "          [<ffffffde2edb11a0>] free_unref_page_prepare+0x2d8",
+        "          [<ffffffde2edb1634>] free_unref_page_list+0xa0",
+        "          [<ffffffde2ed4e808>] release_pages+0x510",
+        "          [<ffffffde2ed4e8b8>] __pagevec_release+0x34",
+        "          [<ffffffde2ed64b54>] shmem_undo_range+0x210",
+        "          [<ffffffde2ed6a9d0>] shmem_evict_inode.ac7d038029138368f3a468e11f4adc2c+0x12c",
+        "          [<ffffffde2ee4152c>] evict+0xd4",
+        "          [<ffffffde2ee3ed64>] iput+0x244",
+        "          [<ffffffde2ee25f1c>] do_unlinkat+0x1ac",
+        "          [<ffffffde2ee2605c>] __arm64_sys_unlinkat+0x48",
+        "          [<ffffffde2eab6ad4>] invoke_syscall+0x5c",
+        "          [<ffffffde2eab6a08>] el0_svc_common+0xc4",
+        "          [<ffffffde2eab68e4>] do_el0_svc+0x24",
+        "          [<ffffffde2fa5dd2c>] el0_svc+0x30",
+        "          [<ffffffde2fa5dcb0>] el0t_64_sync_handler+0x68",
+        "          [<ffffffde2ea11624>] el0t_64_sync+0x1b4",
+        "\n",
+        "  Display the alloc memory size for every stack:",
+        "    %s> pageowner -t",
+        "    Allocated 19147 times, Total memory: 74.79MB",
+        "        [<ffffffd4d55b039c>] post_alloc_hook+0x20c",
+        "        [<ffffffd4d55b3064>] prep_new_page+0x28",
+        "        [<ffffffd4d55b46a4>] get_page_from_freelist+0x12ac",
+        "        [<ffffffd4d55b320c>] __alloc_pages+0xd8",
+        "        [<ffffffd4d5549210>] page_cache_ra_unbounded+0x130",
+        "        [<ffffffd4d5549754>] do_page_cache_ra+0x3c",
+        "        [<ffffffd4d553b718>] do_sync_mmap_readahead+0x188",
+        "        [<ffffffd4d553abc0>] filemap_fault+0x280",
+        "        [<ffffffd4d5598b7c>] __do_fault+0x6c",
+        "        [<ffffffd4d5598288>] handle_pte_fault+0x1b4",
+        "        [<ffffffd4d5594820>] do_handle_mm_fault+0x4a0",
+        "        [<ffffffd4d6297488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520",
+        "        [<ffffffd4d6296f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44",
+        "        [<ffffffd4d52cbd90>] do_mem_abort+0x64",
+        "        [<ffffffd4d625ddf4>] el0_da+0x48",
+        "        [<ffffffd4d625ebe0>] el0t_32_sync_handler+0x78",
+        "        -------------------------------------------------",
+        "        PID      Comm                 Times      Size",
+        "        3867     binder:1067_18       3920       15.31MB",
+        "        712      main                 2188       8.55MB",
+        "        3791     unknow               1324       5.17MB",
+        "        2023     ndroid.systemui      1035       4.04MB",
         "\n",
         "  Display the alloc memory size for every process:",
-        "    %s> Pageowner -m",
-        "    page_owner Total memory: 20.84Mb",
-        "    stack_record Total memory: 312.00Kb",
-        "    710(main) Allocated 39679 times, Total memory: 156.81Mb",
-        "    861(binder:861_2) Allocated 31943 times, Total memory: 144.84Mb",
-        "    1877(CachedAppOptimi) Allocated 20608 times, Total memory: 80.98Mb",
-        "    1(init) Allocated 19835 times, Total memory: 107.44Mb",
-        "    1719(system_server) Allocated 12457 times, Total memory: 50.39Mb",
-        "    963(unknow) Allocated 8288 times, Total memory: 32.61Mb",
-        "    3136(ndroid.settings) Allocated 7009 times, Total memory: 27.51Mb",
-        "    2001(ndroid.systemui) Allocated 6825 times, Total memory: 27.09Mb",
+        "    %s> pageowner -m",
+        "        PID      Comm                 Times      Size",
+        "                 page_owner                      20.80MB",
+        "                 stack_record                    308KB",
+        "        3772     memtester            179573     701.46MB",
+        "        1        init                 19078      104.62MB",
+        "        712      main                 14640      58.88MB",
+        "        1881     CachedAppOptimi      13552      52.98MB",
+        "        68       kswapd0              11550      45.20MB",
+        "        960      unknow               8262       32.44MB",
+        "        4268     ndroid.settings      6485       25.36MB",
+        "        1023     RenderEngine         5437       23.99MB",
+        "        1067     system_server        5199       22.14MB",
+        "        3867     binder:1067_18       4468       17.72MB",
+        "        2023     ndroid.systemui      4195       16.64MB",
         "\n",
     };
     initialize();
@@ -259,11 +334,12 @@ void Pageowner::print_page_owner(std::string addr,int flags){
     ulonglong number = std::stoul(addr, nullptr, 16);
     if (number <= 0)return;
     ulong pfn = 0;
-    if (flags & INPUT_PFN){
+    if (flags == INPUT_PFN){
         pfn = number;
-    }else if (flags & INPUT_PYHS){
+    }else if (flags == INPUT_PYHS){
+        fprintf(fp, "hello \n");
         pfn = phy_to_pfn(number);
-    }else if (flags & INPUT_PAGE){
+    }else if (flags == INPUT_PAGE){
         pfn = page_to_pfn(number);
     }
     if(pfn < min_low_pfn || pfn > max_pfn){
@@ -283,6 +359,7 @@ void Pageowner::print_page_owner(std::string addr,int flags){
         return;
     ulong page_owner_addr = get_page_owner(page_ext);
     std::shared_ptr<page_owner> owner_ptr = parser_page_owner(page_owner_addr);
+    owner_ptr->pfn = pfn;
     if(owner_ptr->handle > 0){
         print_page_owner(owner_ptr,false);
     }

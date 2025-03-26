@@ -89,6 +89,7 @@ Dmabuf::Dmabuf(){
         "-a \n"
             "  dmabuf -b\n"
             "  dmabuf -d <dmabuf addr>\n"
+            "  This command dumps the dmabuf information.",
             "\n",
         "EXAMPLES",
         "  Display full dmabuf info:",

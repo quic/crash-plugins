@@ -63,7 +63,8 @@ Memblock::Memblock(){
         "memblock",                            /* command name */
         "dump memblock memory information",        /* short description */
         "-a \n"
-            "\n",
+        "  This command dumps the memblock memory information.",
+        "\n",
         "EXAMPLES",
         "  Display memblock memory info:",
         "    %s> memblock -a",

@@ -53,7 +53,8 @@ Reserved::Reserved(){
         "reserved",                            /* command name */
         "dump reserved memory information",        /* short description */
         "-a \n"
-            "\n",
+        "  This command dumps the reserved memory information.",
+        "\n",
         "EXAMPLES",
         "  Display reserved memory info",
         "    %s> reserved -a",
@@ -157,9 +158,15 @@ void Reserved::print_reserved_mem(){
     fprintf(fp, "==============================================================================================================\n");
     std::ostringstream oss_t;
     oss_t << "Total:" << csize(total_size) << " ";
-    oss_t << "nomap:" << csize(nomap_size) << " ";
-    oss_t << "reuse:" << csize(reusable_size) << " ";
-    oss_t << "unknow:" << csize(other_size) << " ";
+    if (nomap_size > 0){
+        oss_t << "nomap:" << csize(nomap_size) << " ";
+    }
+    if (reusable_size > 0){
+        oss_t << "reuse:" << csize(reusable_size) << " ";
+    }
+    if (other_size > 0){
+        oss_t << "unknow:" << csize(other_size) << " ";
+    }
     fprintf(fp, "%s \n",oss_t.str().c_str());
 }
 

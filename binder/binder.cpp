@@ -141,9 +141,8 @@ Binder::Binder(){
             "  binder -n\n"
             "  binder -b\n"
             "  binder -t\n"
-            "  binder -r\n",                    /* argument synopsis, or " " if none */
-        "  This command dumps the binder log information of a specified process.",
-        "       -p  pid argument.",
+            "  binder -r\n"                    /* argument synopsis, or " " if none */
+        "  This command dumps the binder information.",
         "\n",
         "EXAMPLES",
         "  Display all binder proc states:",

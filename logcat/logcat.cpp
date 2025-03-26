@@ -109,7 +109,7 @@ void Logcat::print_logcat_log(LOG_ID id){
         if (log_ptr->msg.empty() || isWhitespaceOrNewline(log_ptr->msg)){
             continue;
         }
-        while (!log_ptr->msg.empty() && (log_ptr->msg.back() == '\r' || log_ptr->msg.back() == '\n')) {
+        while (!log_ptr->msg.empty() && log_ptr->msg.back() == '\n') {
             log_ptr->msg.pop_back();
         }
         std::ostringstream oss;

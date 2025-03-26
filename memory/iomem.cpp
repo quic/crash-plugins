@@ -56,7 +56,8 @@ IoMem::IoMem(){
         "iomem",                        /* command name */
         "dump io memory information",    /* short description */
         "-a \n"
-            "\n",
+        "  This command dumps the memory layout information.",
+        "\n",
         "EXAMPLES",
         "  Display io memory info:",
         "    %s> iomem -a",

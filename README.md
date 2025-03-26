@@ -266,3 +266,6 @@ set_target_properties(demo PROPERTIES PREFIX "")
 
 # Author
  - quic_wya@quicinc.com
+
+# License
+ - This project is licensed under the [GPL v2 License](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html). See [LICENSE.txt](LICENSE.txt) for the full license text.

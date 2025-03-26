@@ -148,8 +148,13 @@ Slub::Slub(){
         "slub",                            /* command name */
         "dump slub information",        /* short description */
         "-a \n"
-            "  slub -s\n"
             "  slub -c <cache addr>\n"
+            "  slub -s\n"
+            "  slub -p\n"
+            "  slub -P <cache addr>\n"
+            "  slub -t <A | F>\n"
+            "  slub -l\n"
+            "  slub -T <stack_id>\n"
             "  This command dumps the slab info.",
         "\n",
         "EXAMPLES",
@@ -364,17 +369,18 @@ void Slub::parser_slab_caches(){
     }
     if (csymbol_exists("max_pfn")){
         max_pfn = read_ulong(csymbol_value("max_pfn"),"max_pfn");
-        return;
     }
     if (!csymbol_exists("slab_caches")){
         fprintf(fp, "slab_caches doesn't exist in this kernel!\n");
         return;
     }
     ulong slab_caches_addr = csymbol_value("slab_caches");
-    if (!is_kvaddr(slab_caches_addr)) return;
+    if (!is_kvaddr(slab_caches_addr)){
+        fprintf(fp, "invaild slab_caches addr: %lx!\n",slab_caches_addr);
+        return;
+    }
     int offset = field_offset(kmem_cache,list);
-    std::vector<ulong> list = for_each_list(slab_caches_addr,offset);
-    for (const auto& cache_addr : list) {
+    for (const auto& cache_addr : for_each_list(slab_caches_addr,offset)) {
         void *cache_buf = read_struct(cache_addr,"kmem_cache");
         if(cache_buf == nullptr) continue;
         std::shared_ptr<kmem_cache> cache_ptr = std::make_shared<kmem_cache>();
