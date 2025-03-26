@@ -112,6 +112,20 @@ std::string PaserPlugin::csize(size_t size){
     return oss.str();
 }
 
+std::string PaserPlugin::csize(size_t size, int unit, int precision){
+    std::ostringstream oss;
+    if (unit == KB) {
+        oss << std::fixed << std::setprecision(precision) << (size / KB) << " KB";
+    } else if (unit == MB) {
+        oss << std::fixed << std::setprecision(precision) << (size / MB) << " MB";
+    } else if (unit == GB) {
+        oss << std::fixed << std::setprecision(precision) << (size / GB) << " GB";
+    } else {
+        oss << size << "B";
+    }
+    return oss.str();
+}
+
 void PaserPlugin::initialize(void){
     cmd_help = new char*[help_str_list.size()+1];
     for (size_t i = 0; i < help_str_list.size(); ++i) {

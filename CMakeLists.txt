@@ -88,7 +88,8 @@ list(APPEND PLUGIN_SOURCES
     cpu/cpuinfo.cpp
     coredump/coredump.cpp
     coredump/core.cpp
-    thermal/thermal.cpp)
+    thermal/thermal.cpp
+    memory/meminfo.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -260,4 +261,11 @@ add_library(tm SHARED
             ${PLUGIN_SOURCES}
             thermal/thermal.cpp)
 set_target_properties(tm PROPERTIES PREFIX "")
+
+# =================== build meminfo ===================
+add_library(meminfo SHARED
+            ${PLUGIN_SOURCES}
+            memory/meminfo.cpp)
+set_target_properties(meminfo PROPERTIES PREFIX "")
+
 endif()

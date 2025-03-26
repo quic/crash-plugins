@@ -83,7 +83,7 @@ Supprot command:
 | cpu        | √         | √         | parser cpu freq and policy info                      |
 | coredump   | √         | √         | dump the coredump info                               |
 | thermal    | √         | √         | parser all thermal zone temperature info             |
-| meminfo    | x         | x         |                                                      |
+| meminfo    | √         | √         | parser meminfo                                       |
 
 |  command   |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |
 |  --------  | ------------------- | ------------------- | ------------------- |
