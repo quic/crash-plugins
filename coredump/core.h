@@ -60,6 +60,7 @@ typedef unsigned long long __ull[2];
 # +--------------------------------+
 */
 
+#ifdef __x86_64__
 struct elf_prpsinfo {
     char pr_state;
     char pr_sname;
@@ -75,6 +76,7 @@ struct elf_prpsinfo {
     char pr_fname[16];
     char pr_psargs[80];
 };
+#endif
 
 struct vma {
     ulong addr;

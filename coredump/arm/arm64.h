@@ -54,12 +54,14 @@ struct user_pac_mask {
     uint64_t insn_mask;
 };
 
+#ifdef __x86_64__
 struct elf_siginfo {
     int si_signo;
     int si_errno;
     int si_code;
     // char padding[36];
 };
+#endif
 
 struct __kernel_old_timeval {
     long tv_sec;
