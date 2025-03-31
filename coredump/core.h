@@ -60,7 +60,7 @@ typedef unsigned long long __ull[2];
 # +--------------------------------+
 */
 
-#ifdef __x86_64__
+#ifndef IS_ARM
 struct elf_prpsinfo {
     char pr_state;
     char pr_sname;
