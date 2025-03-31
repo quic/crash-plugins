@@ -21,7 +21,7 @@
 #include "memory/reserved.h"
 #include "memory/iomem.h"
 #include "memory/vmalloc.h"
-#include "memory/dmabuf.h"
+#include "memory/dmabuf/cmd_buf.h"
 #include "memory/slub.h"
 #include "memory/zram.h"
 #include "memory/swap.h"
@@ -51,7 +51,7 @@ std::shared_ptr<Cma>        Cma::instance = nullptr;
 std::shared_ptr<Dts>        Dts::instance = nullptr;
 std::shared_ptr<Memblock>   Memblock::instance = nullptr;
 std::shared_ptr<DDriver>    DDriver::instance = nullptr;
-std::shared_ptr<Dmabuf>     Dmabuf::instance = nullptr;
+std::shared_ptr<DmaIon>     DmaIon::instance = nullptr;
 std::shared_ptr<Workqueue>  Workqueue::instance = nullptr;
 std::shared_ptr<Reserved>   Reserved::instance = nullptr;
 std::shared_ptr<IoMem>      IoMem::instance = nullptr;
@@ -78,7 +78,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Dts::instance = std::make_shared<Dts>();
     Memblock::instance = std::make_shared<Memblock>();
     DDriver::instance = std::make_shared<DDriver>();
-    Dmabuf::instance = std::make_shared<Dmabuf>();
+    DmaIon::instance = std::make_shared<DmaIon>();
     Workqueue::instance = std::make_shared<Workqueue>();
     Reserved::instance = std::make_shared<Reserved>();
     IoMem::instance = std::make_shared<IoMem>();
@@ -104,7 +104,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Dts::instance->cmd_name[0], &Dts::wrapper_func, Dts::instance->cmd_help, 0 },
         { &Memblock::instance->cmd_name[0], &Memblock::wrapper_func, Memblock::instance->cmd_help, 0 },
         { &DDriver::instance->cmd_name[0], &DDriver::wrapper_func, DDriver::instance->cmd_help, 0 },
-        { &Dmabuf::instance->cmd_name[0], &Dmabuf::wrapper_func, Dmabuf::instance->cmd_help, 0 },
+        { &DmaIon::instance->cmd_name[0], &DmaIon::wrapper_func, DmaIon::instance->cmd_help, 0 },
         { &Workqueue::instance->cmd_name[0], &Workqueue::wrapper_func, Workqueue::instance->cmd_help, 0 },
         { &Reserved::instance->cmd_name[0], &Reserved::wrapper_func, Reserved::instance->cmd_help, 0 },
         { &IoMem::instance->cmd_name[0], &IoMem::wrapper_func, IoMem::instance->cmd_help, 0 },
@@ -135,7 +135,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Dts::instance.reset();
     Memblock::instance.reset();
     DDriver::instance.reset();
-    Dmabuf::instance.reset();
+    DmaIon::instance.reset();
     Workqueue::instance.reset();
     Reserved::instance.reset();
     IoMem::instance.reset();

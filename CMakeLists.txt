@@ -64,7 +64,11 @@ list(APPEND PLUGIN_SOURCES
     memory/memblock.cpp
     memory/iomem.cpp
     memory/vmalloc.cpp
-    memory/dmabuf.cpp
+    memory/dmabuf/cmd_buf.cpp
+    memory/dmabuf/dmabuf.cpp
+    memory/dmabuf/heap.cpp
+    memory/dmabuf/dma_heap.cpp
+    memory/dmabuf/ion_heap.cpp
     memory/buddy.cpp
     memory/slub.cpp
     memory/zraminfo.cpp
@@ -104,7 +108,11 @@ else()
 # =================== build dmabuf ===================
 add_library(dmabuf SHARED
             ${PLUGIN_SOURCES}
-            memory/dmabuf.cpp)
+            memory/dmabuf/cmd_buf.cpp
+            memory/dmabuf/dmabuf.cpp
+            memory/dmabuf/heap.cpp
+            memory/dmabuf/dma_heap.cpp
+            memory/dmabuf/ion_heap.cpp)
 set_target_properties(dmabuf PROPERTIES PREFIX "")
 
 # =================== build binder ===================
