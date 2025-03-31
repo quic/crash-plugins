@@ -311,6 +311,19 @@ char* Swapinfo::uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const
     return result;
 }
 
+bool Swapinfo::is_swap_pte(ulong pte){
+    int present = 0;
+#if defined(ARM64)
+        present = pte & (PTE_VALID | machdep->machspec->PTE_PROT_NONE);
+#endif
+
+#if defined(ARM)
+        #define L_PTE_PRESENT           (1 << 0)
+        present = pte & L_PTE_PRESENT;
+#endif
+    return pte && !present;
+}
+
 char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
     physaddr_t paddr = 0;
     // struct task_context *tc = CURRENT_CONTEXT();
@@ -331,75 +344,71 @@ char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
         // fprintf(fp, "vaddr:%#llx is not in vma range\n", uvaddr);
     }
     char* page_data;
-    int is_exists = uvtop(tc, page_start, &paddr, 0);
-    if (!is_exists) { //page not exists
-        ulong pte = paddr;
-#if defined(ARM)
-        pte = get_arm_pte(tc->task,page_start);
-#endif
-        if(debug)fprintf(fp, "Pid:%ld vaddr:%llx PTE:%lx\n",tc->pid, page_start, pte);
-        if (pte > 0 && (pte & 1) == 0) { // pte > 0 and bit0 is 0
-            if (zram_page_cahe.find(pte) != zram_page_cahe.end()) {
-                return zram_page_cahe[pte];
-            } else {
-                if(debug){
-                    ulong swp_type = SWP_TYPE(pte);
-                    ulonglong swp_offset = (ulonglong)__swp_offset(pte);
-                    fprintf(fp, "PTE:%#lx, type:%ld, offset:%lld\n",pte, swp_type,swp_offset);
-                }
-                ulong swap_page = lookup_swap_cache(pte);
-                if (is_kvaddr(swap_page)){
-                    ulong page_paddr = page_to_phy(swap_page);
-                    if(debug)fprintf(fp, "read %llx from swapcache page_vaddr:%lx, page_paddr:%lx\n\n",uvaddr,swap_page,page_paddr);
-                    void* buf = read_phys_memory(page_paddr, page_size, "do_swap_page");
-                    if (buf != nullptr){
-                        page_data = (char*)std::malloc(page_size);
-                        BZERO(page_data, page_size);
-                        memcpy(page_data, buf, page_size);
-                        zram_page_cahe[pte] = page_data;
-                        FREEBUF(buf);
-                        return page_data;
-                    }else{
-                        if(debug)fprintf(fp, "read swap page %llx from memory failed \n",uvaddr);
-                        return nullptr;
-                    }
-                }
-                //in zram
-                std::shared_ptr<swap_info> swap_ptr = get_swap_info(pte);
-                if(swap_ptr == nullptr){
-                    fprintf(fp, "can't found swap_info !\n");
-                    return nullptr;
-                }
-                ulong zram_addr = get_zram_addr(swap_ptr,pte);
-                if (!is_kvaddr(zram_addr)){
-                    fprintf(fp, "invaild zram addr: %#lx !\n",zram_addr);
-                    return nullptr;
-                }
-                ulonglong index = pte_handle_index(swap_ptr,pte);
-                if(debug)fprintf(fp, "read %llx from zram:%lx, index:%lld\n\n",page_start,zram_addr, index);
-                return zram_ptr->read_zram_page(zram_addr,index);
-            }
-        }else{
-            return nullptr;
-        }
-    }else{ //page_exists
+    int page_exist = uvtop(tc, page_start, &paddr, 0);
+    if (page_exist){
         if (memory_page_cahe.find(paddr) != memory_page_cahe.end()) {
             return memory_page_cahe[paddr];
-        } else {
-            if(debug)fprintf(fp, "read %llx from page_vaddr:%llx, page_paddr:%llx\n\n",uvaddr,page_start,(ulonglong)paddr);
-            void* buf = (char*)read_phys_memory(paddr, page_size, "do_swap_page");
-            if (buf != nullptr){
+        }
+        if(debug)fprintf(fp, "read %llx from page_vaddr:%llx, page_paddr:%llx\n\n",uvaddr,page_start,(ulonglong)paddr);
+        void* buf = (char*)read_phys_memory(paddr, page_size, "do_swap_page");
+        if (buf == nullptr){
+            if(debug)fprintf(fp, "read %llx from memory failed \n",uvaddr);
+            return nullptr;
+        }
+        page_data = (char*)std::malloc(page_size);
+        BZERO(page_data, page_size);
+        memcpy(page_data, buf, page_size);
+        memory_page_cahe[paddr] = page_data;
+        FREEBUF(buf);
+        return page_data;
+    }else{
+        ulong pte = paddr;
+        #if defined(ARM)
+            pte = get_arm_pte(tc->task,page_start);
+        #endif
+        if(debug)fprintf(fp, "Pid:%ld vaddr:%llx PTE:%lx\n",tc->pid, page_start, pte);
+        if(is_swap_pte(pte)){
+            if (zram_page_cahe.find(pte) != zram_page_cahe.end()) {
+                return zram_page_cahe[pte];
+            }
+            if(debug){
+                ulong swp_type = SWP_TYPE(pte);
+                ulonglong swp_offset = (ulonglong)__swp_offset(pte);
+                fprintf(fp, "PTE:%#lx, type:%ld, offset:%lld\n",pte, swp_type,swp_offset);
+            }
+            ulong swap_page = lookup_swap_cache(pte);
+            if (is_kvaddr(swap_page)){
+                ulong page_paddr = page_to_phy(swap_page);
+                if(debug)fprintf(fp, "read %llx from swapcache page_vaddr:%lx, page_paddr:%lx\n\n",uvaddr,swap_page,page_paddr);
+                void* buf = read_phys_memory(page_paddr, page_size, "do_swap_page");
+                if (buf == nullptr){
+                    if(debug)fprintf(fp, "read swap page %llx from memory failed \n",uvaddr);
+                    return nullptr;
+                }
                 page_data = (char*)std::malloc(page_size);
                 BZERO(page_data, page_size);
                 memcpy(page_data, buf, page_size);
-                memory_page_cahe[paddr] = page_data;
+                zram_page_cahe[pte] = page_data;
                 FREEBUF(buf);
                 return page_data;
-            }else{
-                if(debug)fprintf(fp, "read %llx from memory failed \n",uvaddr);
+            }
+            //in zram
+            std::shared_ptr<swap_info> swap_ptr = get_swap_info(pte);
+            if(swap_ptr == nullptr){
+                fprintf(fp, "can't found swap_info !\n");
                 return nullptr;
             }
+            ulong zram_addr = get_zram_addr(swap_ptr,pte);
+            if (!is_kvaddr(zram_addr)){
+                fprintf(fp, "invaild zram addr: %#lx !\n",zram_addr);
+                return nullptr;
+            }
+            ulonglong index = pte_handle_index(swap_ptr,pte);
+            if(debug)fprintf(fp, "read %llx from zram:%lx, index:%lld \n",page_start,zram_addr, index);
+            return zram_ptr->read_zram_page(zram_addr,index);
         }
+        fprintf(fp, "invaild PTE:%#lx\n",pte);
+        return nullptr;
     }
 }
 

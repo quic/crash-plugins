@@ -67,7 +67,8 @@ public:
     ulong uread_pointer(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     unsigned char uread_byte(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     char* uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
-    void* uread_struct(ulong kvaddr,const std::string& type);
+    bool is_swap_pte(ulong pte);
+    void *uread_struct(ulong kvaddr, const std::string &type);
     bool uread_struct(ulong kvaddr,void* buf, int len, const std::string& type);
     std::string read_start_args(ulong& task_addr);
     uint64_t read_sections(std::string &section_name, std::string &libname, int *align);
