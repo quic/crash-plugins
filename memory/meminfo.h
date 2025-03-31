@@ -18,55 +18,31 @@
 
 #include <map>
 #include <cmath>
+#include <regex>
 #include "plugin.h"
 #include "buddy.h"
 
-#define LRU_BASE 0
-#define LRU_ACTIVE 1
-#define LRU_FILE 2
-
 class Meminfo : public PaserPlugin {
 private:
-    std::map<std::string, ulong> enumerator;
-    ulong totalram_addr;
-    ulong vm_node_addr;
-    ulong vm_zone_addr;
-    ulong totalreserveram_addr;
-    ulong blockdev_superblock_addr;
-    ulong total_swap_pages_addr;
-    ulong nr_swapfiles_addr;
-    ulong swap_info_addr;
-    ulong nr_swap_pages_addr;
-    ulong nr_vmalloc_pages_addr;
-    ulong sysctl_overcommit_addr;
-    ulong hstates_addr;
-    ulong vm_committed_addr;
-    ulong cpu_online_mask_addr;
-    ulong per_cpu_offset_addr;
-    ulong nr_cpu_ids_addr;
-    ulong pcpu_nr_units_addr;
-    ulong pcpu_nr_populated_addr;
-    ulong totalcma_pages_addr;
+    std::vector<ulong> node_page_state;
+    std::vector<ulong> zone_page_state;
+    std::map<std::string, ulong> enums;
+    std::map<std::string, ulong> g_param;
 
-
-    void parameters_init(void);
-    ulong get_bytes_from_page_count(ulong cnt);
-    ulong get_node_state_pages(const char*);
-    ulong get_node_state_pages(const char*, ulong);
-    ulong get_zone_state_pages(const char*);
-    ulong get_zone_state_pages(const char*, ulong);
+    void parse_meminfo(void);
+    bool is_digits(const std::string& str);
     ulong get_wmark_low(void);
-    ulong get_available(ulong, ulong);
+    ulong get_available(ulong);
     ulong get_blockdev_nr_pages(void);
     ulong get_to_be_unused_nr_pages(void);
-    ulong get_vm_commit_pages(void);
+    ulong get_vm_commit_pages(ulong);
     ulong get_mm_committed_pages(void);
     ulong get_vmalloc_total(void);
 
 public:
     Meminfo();
     void cmd_main(void) override;
-    void print_all(void);
+    void print_meminfo(void);
     DEFINE_PLUGIN_INSTANCE(Meminfo)
 };
 
