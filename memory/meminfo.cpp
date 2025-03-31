@@ -69,7 +69,7 @@ Meminfo::Meminfo(){
         "\n",
         "EXAMPLES",
         "  Display whole memory info:",
-        "    %s> memory -a",
+        "    %s> meminfo -a",
         " ",
         "    MemTotal:        11445568 KB",
         "    MemFree:          9862060 KB",
@@ -195,11 +195,6 @@ void Meminfo::parse_meminfo(void){
     FREEBUF(zone_page_list);
 }
 
-bool Meminfo::is_digits(const std::string& str) {
-    std::regex pattern(R"(\d+)");
-    return std::regex_match(str, pattern);
-}
-
 ulong Meminfo::get_wmark_low(void){
     ulong wmark_low = 0;
     for (size_t n = 0; n < vt->numnodes; n++) {
@@ -284,10 +279,7 @@ ulong Meminfo::get_vm_commit_pages(ulong totalram_pg){
 ulong Meminfo::get_mm_committed_pages(void){
     ulong allowed = read_ulong(g_param["vm_committed_as"] + field_offset(percpu_counter, count), "get percpu_counter count");
     std::string config_nr_cpus = get_config_val("CONFIG_NR_CPUS");
-    uint nr_cpus = 1;  // Default
-    if (is_digits(config_nr_cpus)){
-        nr_cpus = std::stoi(config_nr_cpus);
-    }
+    uint nr_cpus = isNumber(config_nr_cpus)?std::stoi(config_nr_cpus):1;  // Default: 1
 
     ulong cpu_online_mask = read_ulong(g_param["__cpu_online_mask"], "get cpu_online_mask");
     ulong nr_cpu_ids = read_uint(g_param["nr_cpu_ids"], "get nr_cpu_ids");
@@ -305,7 +297,7 @@ ulong Meminfo::get_mm_committed_pages(void){
 ulong Meminfo::get_vmalloc_total(void){
     if (get_config_val("CONFIG_MMU") == "y") {
         std::string config_arm64_va_bits = get_config_val("CONFIG_ARM64_VA_BITS");
-        ulong arm64_va_bits = is_digits(config_arm64_va_bits)?std::stoi(config_arm64_va_bits):39;   // Default:39
+        ulong arm64_va_bits = isNumber(config_arm64_va_bits)?std::stoi(config_arm64_va_bits):39;   // Default:39
         ulong struct_page_max_shift = static_cast<ulong>(std::ceil(std::log2(struct_size(page))));
         ulong vmemmap_shift = PAGESHIFT() - struct_page_max_shift;
         ulong vmemmap_start = -(1UL << (arm64_va_bits - vmemmap_shift));

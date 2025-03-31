@@ -18,7 +18,6 @@
 
 #include <map>
 #include <cmath>
-#include <regex>
 #include "plugin.h"
 #include "buddy.h"
 
@@ -30,7 +29,6 @@ private:
     std::map<std::string, ulong> g_param;
 
     void parse_meminfo(void);
-    bool is_digits(const std::string& str);
     ulong get_wmark_low(void);
     ulong get_available(ulong);
     ulong get_blockdev_nr_pages(void);
