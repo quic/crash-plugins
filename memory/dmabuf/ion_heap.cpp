@@ -30,6 +30,7 @@ IonHeap::IonHeap(std::shared_ptr<Dmabuf> dmabuf) : Heap(dmabuf){
     field_init(ion_heap,num_of_alloc_bytes);
     field_init(ion_heap,type);
     struct_init(ion_heap);
+    field_init(page, lru);
     heap_type[read_enum_val("ION_HEAP_TYPE_SYSTEM")] = "ION_HEAP_TYPE_SYSTEM";
     heap_type[read_enum_val("ION_HEAP_TYPE_DMA")] = "ION_HEAP_TYPE_DMA";
     heap_type[read_enum_val("ION_HEAP_TYPE_CUSTOM")] = "ION_HEAP_TYPE_CUSTOM";
@@ -67,6 +68,200 @@ void IonHeap::print_heaps(){
             << std::left << csize(heap_ptr->total_allocated);
         fprintf(fp, "%s \n",oss.str().c_str());
     }
+}
+
+void IonHeap::print_system_heap_pool(){
+    struct_init(ion_system_heap);
+    struct_init(ion_msm_system_heap);
+    for (const auto& heap_ptr : ion_heaps) {
+        if (heap_ptr->ops == "system_heap_ops"){
+            if (struct_size(ion_system_heap) != -1){
+                parser_ion_system_heap(heap_ptr->addr);
+            }else if (struct_size(ion_msm_system_heap) != -1){
+                parser_ion_msm_system_heap(heap_ptr->addr);
+            }
+        }
+    }
+}
+
+void IonHeap::parser_ion_system_heap(ulong addr){
+    field_init(ion_system_heap,heap);
+    field_init(ion_system_heap,pools);
+    ulong heap_addr = addr - field_offset(ion_system_heap,heap);
+    fprintf(fp, "pools: \n");
+    std::ostringstream oss_hd1;
+    oss_hd1  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+        << std::left << std::setw(5) << "order" << " "
+        << std::left << std::setw(10) << "high" << " "
+        << std::left << std::setw(10) << "low" << " "
+        << std::left << std::setw(10) << "total";
+    fprintf(fp, "   %s \n",oss_hd1.str().c_str());
+    int pools_cnt = field_size(ion_system_heap,pools)/sizeof(void *);
+    ulong pools_addr = heap_addr + field_offset(ion_system_heap,pools);
+    for (size_t i = 0; i < pools_cnt; i++){
+        ulong pool_addr = read_pointer(pools_addr + i * sizeof(void *),"pool");
+        if (!is_kvaddr(pool_addr)){
+            continue;
+        }
+        parser_ion_page_pool(pool_addr);
+    }
+}
+
+void IonHeap::parser_ion_msm_system_heap(ulong addr){
+    field_init(ion_msm_system_heap,heap);
+    field_init(ion_msm_system_heap,uncached_pools);
+    field_init(ion_msm_system_heap,cached_pools);
+    field_init(ion_msm_system_heap,secure_pools);
+    field_init(msm_ion_heap,ion_heap);
+    ulong heap_addr = addr - field_offset(msm_ion_heap,ion_heap) - field_offset(ion_msm_system_heap,heap);
+    fprintf(fp, "uncached_pools: \n");
+    std::ostringstream oss_hd1;
+    oss_hd1  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+        << std::left << std::setw(5) << "order" << " "
+        << std::left << std::setw(10) << "high" << " "
+        << std::left << std::setw(10) << "low" << " "
+        << std::left << std::setw(10) << "total" << " "
+        << std::left << "cached";
+    fprintf(fp, "   %s \n",oss_hd1.str().c_str());
+    int uncached_pools_cnt = field_size(ion_msm_system_heap,uncached_pools)/sizeof(void *);
+    ulong uncached_pools_addr = heap_addr + field_offset(ion_msm_system_heap,uncached_pools);
+    for (size_t i = 0; i < uncached_pools_cnt; i++){
+        ulong pools_addr = read_pointer(uncached_pools_addr + i * sizeof(void *),"uncached_pool");
+        if (!is_kvaddr(pools_addr)){
+            continue;
+        }
+        parser_ion_msm_page_pool(pools_addr);
+    }
+
+    fprintf(fp, "\n\ncached_pools: \n");
+    std::ostringstream oss_hd2;
+    oss_hd2  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+        << std::left << std::setw(5) << "order" << " "
+        << std::left << std::setw(10) << "high" << " "
+        << std::left << std::setw(10) << "low" << " "
+        << std::left << std::setw(10) << "total" << " "
+        << std::left << "cached";
+    fprintf(fp, "   %s \n",oss_hd2.str().c_str());
+    int cached_pools_cnt = field_size(ion_msm_system_heap,cached_pools)/sizeof(void *);
+    ulong cached_pools_addr = heap_addr + field_offset(ion_msm_system_heap,cached_pools);
+    for (size_t i = 0; i < uncached_pools_cnt; i++){
+        ulong pools_addr = read_pointer(cached_pools_addr + i * sizeof(void *),"cached_pools");
+        if (!is_kvaddr(pools_addr)){
+            continue;
+        }
+        parser_ion_msm_page_pool(pools_addr);
+    }
+
+    fprintf(fp, "\n\nsecure_pools: \n");
+    std::ostringstream oss_hd3;
+    oss_hd3  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+        << std::left << std::setw(5) << "order" << " "
+        << std::left << std::setw(10) << "high" << " "
+        << std::left << std::setw(10) << "low" << " "
+        << std::left << std::setw(10) << "total" << " "
+        << std::left << "cached";
+    fprintf(fp, "   %s \n",oss_hd3.str().c_str());
+    int secure_pools_cnt = field_size(ion_msm_system_heap,secure_pools)/sizeof(void *)/cached_pools_cnt;
+    ulong secure_pools_addr = heap_addr + field_offset(ion_msm_system_heap,secure_pools);
+    for (size_t i = 0; i < secure_pools_cnt; i++){
+        for (size_t j = 0; j < cached_pools_cnt; j++){
+            ulong pools_addr = read_pointer(secure_pools_addr + i * j * sizeof(void *),"secure_pools");
+            if (!is_kvaddr(pools_addr)){
+                continue;
+            }
+            parser_ion_msm_page_pool(pools_addr);
+        }
+    }
+}
+
+void IonHeap::parser_ion_page_pool(ulong addr){
+    struct_init(ion_page_pool);
+    field_init(ion_page_pool,high_count);
+    field_init(ion_page_pool,low_count);
+    field_init(ion_page_pool,order);
+    field_init(ion_page_pool,high_items);
+    field_init(ion_page_pool,low_items);
+    void *pool_buf = read_struct(addr,"ion_page_pool");
+    if (!pool_buf) {
+        return;
+    }
+    uInt order = UINT(pool_buf + field_offset(ion_page_pool,order));
+    int buf_size = power(2, order) * page_size;
+    int high_count = INT(pool_buf + field_offset(ion_page_pool,high_count));
+    if (high_count < 0){
+        high_count = 0;
+    }
+    high_count = high_count * buf_size;
+
+    int low_count = INT(pool_buf + field_offset(ion_page_pool,low_count));
+    if (low_count < 0){
+        low_count = 0;
+    }
+    low_count = low_count * buf_size;
+
+    // int offset = field_offset(page,lru);
+    // ulong high_items_head = addr + field_offset(ion_page_pool,high_items);
+    // std::vector<ulong> high_page_list = for_each_list(high_items_head,offset);
+
+    // ulong low_items_head = addr + field_offset(ion_page_pool,low_items);
+    // std::vector<ulong> low_page_list = for_each_list(low_items_head,offset);
+    std::ostringstream oss;
+    oss << std::left  << std::hex << std::setw(VADDR_PRLEN + 2) << addr << " "
+        << std::left << std::setw(5)  << order << " "
+        << std::left << std::setw(10) << csize(high_count) << " "
+        << std::left << std::setw(10) << csize(low_count) << " "
+        << std::left << std::setw(10) << csize(high_count + low_count);
+    fprintf(fp, "   %s \n",oss.str().c_str());
+}
+
+void IonHeap::parser_ion_msm_page_pool(ulong addr){
+    struct_init(ion_msm_page_pool);
+    field_init(ion_msm_page_pool,high_count);
+    field_init(ion_msm_page_pool,low_count);
+    field_init(ion_msm_page_pool,count);
+    field_init(ion_msm_page_pool,cached);
+    field_init(ion_msm_page_pool,order);
+    field_init(ion_msm_page_pool,high_items);
+    field_init(ion_msm_page_pool,low_items);
+    void *pool_buf = read_struct(addr,"ion_msm_page_pool");
+    if (!pool_buf) {
+        return;
+    }
+    uInt order = UINT(pool_buf + field_offset(ion_msm_page_pool,order));
+    int buf_size = power(2, order) * page_size;
+    int high_count = INT(pool_buf + field_offset(ion_msm_page_pool,high_count));
+    if (high_count < 0){
+        high_count = 0;
+    }
+    high_count = high_count * buf_size;
+
+    int low_count = INT(pool_buf + field_offset(ion_msm_page_pool,low_count));
+    if (low_count < 0){
+        low_count = 0;
+    }
+    low_count = low_count * buf_size;
+
+    int count = INT(pool_buf + field_offset(ion_msm_page_pool,count));
+    if (count < 0){
+        count = 0;
+    }
+    count = count * buf_size;
+    bool cached = UINT(pool_buf + field_offset(ion_msm_page_pool,cached));
+
+    // int offset = field_offset(page,lru);
+    // ulong high_items_head = addr + field_offset(ion_msm_page_pool,high_items);
+    // std::vector<ulong> high_page_list = for_each_list(high_items_head,offset);
+
+    // ulong low_items_head = addr + field_offset(ion_msm_page_pool,low_items);
+    // std::vector<ulong> low_page_list = for_each_list(low_items_head,offset);
+    std::ostringstream oss;
+    oss << std::left  << std::hex << std::setw(VADDR_PRLEN + 2) << addr << " "
+        << std::left << std::setw(5)  << order << " "
+        << std::left << std::setw(10) << csize(high_count) << " "
+        << std::left << std::setw(10) << csize(low_count) << " "
+        << std::left << std::setw(10) << csize(count) << " "
+        << std::left << (cached ? "True" : "False");
+    fprintf(fp, "   %s \n",oss.str().c_str());
 }
 
 void IonHeap::print_heap(std::string name){

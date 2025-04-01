@@ -72,6 +72,89 @@ void DmaHeap::print_heap(std::string name){
     }
 }
 
+void DmaHeap::print_system_heap_pool(){
+    for (const auto& heap_ptr : dma_heaps) {
+        if (heap_ptr->ops == "system_heap_ops"){
+            parser_ion_system_heap(heap_ptr);
+        }
+    }
+}
+
+void DmaHeap::parser_ion_system_heap(std::shared_ptr<dma_heap> heap_ptr){
+    if (!is_kvaddr(heap_ptr->priv_addr)){
+        return;
+    }
+    struct_init(qcom_system_heap);
+    field_init(qcom_system_heap,uncached);
+    field_init(qcom_system_heap,pool_list);
+    ulong pools_addr = read_pointer(heap_ptr->priv_addr + field_offset(qcom_system_heap,pool_list),"pools");
+    if (!is_kvaddr(pools_addr)){
+        return;
+    }
+    fprintf(fp, "%s: \n",heap_ptr->name.c_str());
+    std::ostringstream oss_hd;
+    oss_hd  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+        << std::left << std::setw(5) << "order" << " "
+        << std::left << std::setw(10) << "high" << " "
+        << std::left << std::setw(10) << "low" << " "
+        << std::left << std::setw(10) << "total";
+    fprintf(fp, "   %s \n",oss_hd.str().c_str());
+    for (size_t i = 0; i < 3; i++){
+        ulong pool_addr = read_pointer(pools_addr + i * sizeof(void *),"pool");
+        if (!is_kvaddr(pool_addr)){
+            continue;
+        }
+        parser_dynamic_page_pool(pool_addr);
+    }
+    fprintf(fp, "\n");
+}
+
+void DmaHeap::parser_dynamic_page_pool(ulong addr){
+    struct_init(dynamic_page_pool);
+    field_init(dynamic_page_pool,high_count);
+    field_init(dynamic_page_pool,low_count);
+    field_init(dynamic_page_pool,count);
+    field_init(dynamic_page_pool,order);
+    field_init(dynamic_page_pool,high_items);
+    field_init(dynamic_page_pool,low_items);
+    void *pool_buf = read_struct(addr,"dynamic_page_pool");
+    if (!pool_buf) {
+        return;
+    }
+    uInt order = UINT(pool_buf + field_offset(dynamic_page_pool,order));
+    int buf_size = power(2, order) * page_size;
+    int high_count = INT(pool_buf + field_offset(dynamic_page_pool,high_count));
+    if (high_count < 0){
+        high_count = 0;
+    }
+    high_count = high_count * buf_size;
+
+    int low_count = INT(pool_buf + field_offset(dynamic_page_pool,low_count));
+    if (low_count < 0){
+        low_count = 0;
+    }
+    low_count = low_count * buf_size;
+
+    int count = INT(pool_buf + field_offset(dynamic_page_pool,count));
+    if (count < 0){
+        count = 0;
+    }
+    count = count * buf_size;
+    // int offset = field_offset(page,lru);
+    // ulong high_items_head = addr + field_offset(dynamic_page_pool,high_items);
+    // std::vector<ulong> high_page_list = for_each_list(high_items_head,offset);
+
+    // ulong low_items_head = addr + field_offset(dynamic_page_pool,low_items);
+    // std::vector<ulong> low_page_list = for_each_list(low_items_head,offset);
+    std::ostringstream oss;
+    oss << std::left  << std::hex << std::setw(VADDR_PRLEN + 2) << addr << " "
+        << std::left << std::setw(5)  << order << " "
+        << std::left << std::setw(10) << csize(high_count) << " "
+        << std::left << std::setw(10) << csize(low_count) << " "
+        << std::left << std::setw(10) << csize(count);
+    fprintf(fp, "   %s \n",oss.str().c_str());
+}
+
 std::vector<ulong> DmaHeap::get_heaps(){
     std::vector<ulong> heap_list;
     if (!csymbol_exists("heap_list")){

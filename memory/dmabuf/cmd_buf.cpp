@@ -37,7 +37,7 @@ void DmaIon::cmd_main(void) {
             heap_ptr = std::make_shared<IonHeap>(dmabuf_ptr);
         }
     }
-    while ((c = getopt(argcnt, args, "bB:hH:pP:s:")) != EOF) {
+    while ((c = getopt(argcnt, args, "bB:hH:pP:sS:")) != EOF) {
         switch(c) {
             case 'b':
                 dmabuf_ptr->print_dma_buf_list();
@@ -67,6 +67,9 @@ void DmaIon::cmd_main(void) {
                 }
                 break;
             case 's':
+                heap_ptr->print_system_heap_pool();
+                break;
+            case 'S':
                 cppString.assign(optarg);
                 dmabuf_ptr->save_dma_buf(cppString);
                 break;
@@ -87,38 +90,86 @@ DmaIon::DmaIon(){
     help_str_list={
         "dmabuf",                            /* command name */
         "dump dmabuf information",        /* short description */
-        "-a \n"
-            "  dmabuf -b\n"
-            "  dmabuf -d <dmabuf addr>\n"
+        "-b \n"
+            "  dmabuf -B <dmabuf addr>\n"
+            "  dmabuf -h\n"
+            "  dmabuf -H <heap name>\n"
+            "  dmabuf -p \n"
+            "  dmabuf -P <pid>\n"
+            "  dmabuf -s \n"
+            "  dmabuf -S <dmabuf addr>\n"
             "  This command dumps the dmabuf information.",
             "\n",
         "EXAMPLES",
-        "  Display full dmabuf info:",
-        "    %s> dmabuf -a",
-        "    [1]dma_buf:0xffffff8023fbb800 ref:4 priv:0xffffff806cd37400 size:7.21Mb    [system]           ops:sg_buf_ops",
-        "           dma_buf_attachment:0xffffff80332ca680 dir:DMA_BIDIRECTIONAL device:[cam_smmu:cam_smmu_tfe] driver:[cam_smmu] priv:0xffffff806ab50a40",
-        "",
-        "    [2]dma_buf:0xffffff80521c3000 ref:4 priv:0xffffff806cd49200 size:7.21Mb    [system]           ops:sg_buf_ops",
-        "           dma_buf_attachment:0xffffff806cd2fd00 dir:DMA_BIDIRECTIONAL device:[cam_smmu:cam_smmu_tfe] driver:[cam_smmu] priv:0xffffff805beb9dc0",
-        "\n",
-        "  Display all dmabuf info:",
+        "  Display all dmabuf:",
         "    %s> dmabuf -b",
-        "    =======================================================================================",
-        "    [1]dma_buf:0xffffff80521c3000 ref:4 priv:0xffffff806cd49200 size:7.21Mb    [system]           ops:sg_buf_ops",
-        "    [2]dma_buf:0xffffff8064c21000 ref:4 priv:0xffffff8060214500 size:7.21Mb    [system]           ops:sg_buf_ops",
-        "    [3]dma_buf:0xffffff8034321400 ref:4 priv:0xffffff8041da9c00 size:7.21Mb    [system]           ops:sg_buf_ops",
-        "    [4]dma_buf:0xffffff802f5c8e00 ref:4 priv:0xffffff8041cdea00 size:7.21Mb    [system]           ops:sg_buf_ops",
+        "       =======================================================================================",
+        "       [001]dma_buf:ffffff80ce9d1c00 ref:3  priv:ffffff80a9774a80 ops::system_heap_buf_ops [system] size:256KB",
+        "       [002]dma_buf:ffffff80b9503800 ref:3  priv:ffffff80a9774900 ops::system_heap_buf_ops [system] size:256KB",
+        "       =======================================================================================",
+        "       Total size:1.58MB",
         "\n",
-        "  Display the detail info of dmabuf by dmabuf address:",
-        "    %s> dmabuf -d ",
-        "    ========================================================================",
-        "    dma_buf        : 0xffffff803516a800",
-        "    exp_name       : system-uncached",
-        "    ops            : sg_buf_ops",
-        "    size           : 3.47Mb",
-        "    sg_buffer : 0xffffff8023a98500",
-        "    ========================================================================",
-        "        dma_buf_attachment:0xffffff8045c1a600 dir:DMA_BIDIRECTIONAL device:[cam_smmu:cam_smmu_ope] driver:[cam_smmu] priv:0xffffff80693dc480",
+        "  Display dmabuf detail info:",
+        "    %s> dmabuf -B ffffff80ce9d1c00",
+        "       dma_buf:ffffff80ce9d1c00 ref:3  priv:ffffff80a9774a80  [system] sg_table:ffffff80a9774ad8 size:256KB",
+        "           dma_buf_attachment:ffffff80be58f4e0 dir:DMA_BIDIRECTIONAL priv:ffffff80b662d1c0 device:[26300000.remoteproc:glink-edge:fastrpc:compute-cb@1] driver:[qcom,fastrpc-cb]",
+        "           pid:1030  [cdsprpcd] fd:11",
+        "           scatterlist:ffffff80a9774480 page:fffffffe038c3000 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744a0 page:fffffffe038c3400 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744c0 page:fffffffe038c3800 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744e0 page:fffffffe038c3c00 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "\n",
+        "  Display the heap info:",
+        "    %s> dmabuf -h ",
+        "   dma_heap           Name                    ref  ops               priv               buf_cnt total_size",
+        "   ffffff80a4541600   reserved                1    cma_heap_ops      ffffff80a453e580   0       0B",
+        "   ffffff80a45419c0   system                  1    system_heap_ops   0                  12      1.02MB"
+        "\n",
+        "  Display dmabuf detail info for specified heap with heap name:",
+        "    %s> dmabuf -H system",
+        "       dma_buf:ffffff80ce9d1c00 ref:3  priv:ffffff80a9774a80  [system] sg_table:ffffff80a9774ad8 size:256KB",
+        "           dma_buf_attachment:ffffff80be58f4e0 dir:DMA_BIDIRECTIONAL priv:ffffff80b662d1c0 device:[26300000.remoteproc:glink-edge:fastrpc:compute-cb@1] driver:[qcom,fastrpc-cb]",
+        "           pid:1030  [cdsprpcd] fd:11",
+        "           scatterlist:ffffff80a9774480 page:fffffffe038c3000 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744a0 page:fffffffe038c3400 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744c0 page:fffffffe038c3800 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744e0 page:fffffffe038c3c00 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "\n",
+        "  Display dmabuf size for process:",
+        "    %s> dmabuf -p",
+        "       PID   Comm                 buf_cnt  total_size",
+        "       1010  adsprpcd             3        264KB",
+        "       1011  audioadsprpcd        2        220KB",
+        "       1020  cdsprpcd             3        264KB",
+        "       1459  pulseaudio           1        32KB"
+        "\n",
+        "  Display dmabuf detail info for specified process with pid:",
+        "    %s> dmabuf -P 1459",
+        "       dma_buf:ffffff80ce9d1c00 ref:3  priv:ffffff80a9774a80  [system] sg_table:ffffff80a9774ad8 size:256KB",
+        "           dma_buf_attachment:ffffff80be58f4e0 dir:DMA_BIDIRECTIONAL priv:ffffff80b662d1c0 device:[26300000.remoteproc:glink-edge:fastrpc:compute-cb@1] driver:[qcom,fastrpc-cb]",
+        "           pid:1030  [cdsprpcd] fd:11",
+        "           scatterlist:ffffff80a9774480 page:fffffffe038c3000 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744a0 page:fffffffe038c3400 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744c0 page:fffffffe038c3800 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "           scatterlist:ffffff80a97744e0 page:fffffffe038c3c00 offset:0 length:64KB dma_address:0 dma_length:0B",
+        "\n",
+        "  Display the memory pool of system heap:",
+        "    %s> dmabuf -s",
+        "       system:",
+        "           page_pool          order high       low        total",
+        "           ffffff8024374a80   9     0B         108MB      108MB",
+        "           ffffff8024374240   4     0B         79.69MB    79.69MB",
+        "           ffffff80243743c0   0     0B         368KB      368KB",
+        "",
+        "       qcom,system:",
+        "           page_pool          order high       low        total",
+        "           ffffff8024374a80   9     0B         108MB      108MB",
+        "           ffffff8024374240   4     0B         79.69MB    79.69MB",
+        "           ffffff80243743c0   0     0B         368KB      368KB"
+        "\n",
+        "  Save a dmabuf data to file:",
+        "    %s> dmabuf -S ffffff88d0010400",
+        "       Save dmabuf to file xxx/dma_buf@ffffff88d0010400.data !",
         "\n",
     };
     initialize();

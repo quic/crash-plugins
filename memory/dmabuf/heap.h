@@ -28,6 +28,7 @@ public:
     virtual std::vector<ulong> get_heaps()=0;
     virtual void parser_heaps()=0;
     virtual void print_heaps()=0;
+    virtual void print_system_heap_pool()=0;
     virtual void print_heap(std::string name)=0;
     void cmd_main(void) override;
 };
