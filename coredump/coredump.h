@@ -30,6 +30,7 @@
 class Coredump : public PaserPlugin {
 private:
     std::shared_ptr<Core> core_ptr;
+    std::shared_ptr<Core> compat_core_ptr;
     std::shared_ptr<Swapinfo> swap_ptr;
     bool is_compat = false;
     bool debug = false;
@@ -39,6 +40,8 @@ public:
     Coredump(std::shared_ptr<Swapinfo> swap);
     void init_command();
     void cmd_main(void) override;
+    void print_proc_mapping(int pid);
+    void generate_coredump(int pid);
     DEFINE_PLUGIN_INSTANCE(Coredump)
 };
 

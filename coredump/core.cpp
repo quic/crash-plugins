@@ -128,7 +128,6 @@ void Core::parser_core_dump(void) {
     parser_auvx();
     parser_thread_core_info();
     write_core_file();
-
 }
 
 void Core::write_core_file(void) {
@@ -360,6 +359,32 @@ bool Core::parser_user_regset_view(void) {
     return true;
 }
 
+std::string Core::vma_flags_to_str(unsigned long flags) {
+    std::string str(4, '-');
+    if (flags & VM_READ) str[0] = 'r';
+    if (flags & VM_WRITE) str[1] = 'w';
+    if (flags & VM_EXEC) str[2] = 'x';
+    if (flags & VM_SHARED) str[3] = 's';
+    else str[3] = 'p';
+    return str;
+}
+
+void Core::print_proc_mapping(){
+    tc = pid_to_context(core_pid);
+    parser_vma_list(tc->task);
+    for (auto &vma_ptr : vma_list){
+        std::ostringstream oss;
+        oss << std::left << "VMA:" << std::hex << vma_ptr->addr << " ["
+            << std::hex << vma_ptr->vm_start
+            << "-"
+            << std::hex << vma_ptr->vm_end << "] "
+            << vma_flags_to_str(vma_ptr->vm_flags) << " "
+            << std::right << std::hex << std::setw(8) << std::setfill('0') << vma_ptr->vm_pgoff << " "
+            << vma_ptr->name;
+        fprintf(fp, "%s \n",oss.str().c_str());
+    }
+}
+
 void Core::parser_vma_list(ulong task_addr){
     char buf[BUFSIZE];
     int ANON_BUFSIZE = 1024;
@@ -417,8 +442,15 @@ void Core::parser_vma_list(ulong task_addr){
                 }else{
                     read_cstring(vma_ptr->anon_name,ANON_BUFSIZE,"anon_name");
                 }
-            }else{
-                ;
+            }else if (is_uvaddr(vma_ptr->anon_name,tc) && swap_ptr.get() != nullptr){
+#if defined(__LP64__)
+                vma_ptr->anon_name &= (USERSPACE_TOP - 1);
+#endif
+                char* name_buf = swap_ptr->uread_memory(tc->task,vma_ptr->anon_name, ANON_BUFSIZE, "anon_name");
+                if (name_buf != nullptr){
+                    vma_ptr->name = name_buf;
+                    std::free(name_buf);
+                }
             }
         } else {
             if (vma_ptr->vm_end > mm.start_brk && vma_ptr->vm_start < mm.brk){

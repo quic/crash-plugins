@@ -217,6 +217,8 @@ public:
     void write_core_file(void);
     bool parser_mm_struct(int pid);
     bool parser_user_regset_view(void);
+    std::string vma_flags_to_str(unsigned long flags);
+    void print_proc_mapping();
     int task_pid_nr_ns(ulong task_addr, long type, ulong ns_addr = 0);
     int pid_nr_ns(ulong pids_addr, ulong pid_ns_addr);
     int pid_alive(ulong task_addr);

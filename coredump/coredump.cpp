@@ -27,12 +27,22 @@ void Coredump::cmd_main(void) {
     int pid;
     std::string cppString, file_path;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "p:")) != EOF) {
+    while ((c = getopt(argcnt, args, "p:m:")) != EOF) {
         switch(c) {
             case 'p':
                 cppString.assign(optarg);
                 try {
                     pid = std::stoi(cppString);
+                    generate_coredump(pid);
+                } catch (...) {
+                    fprintf(fp, "invaild pid arg %s\n",cppString.c_str());
+                }
+                break;
+            case 'm':
+                cppString.assign(optarg);
+                try {
+                    pid = std::stoi(cppString);
+                    print_proc_mapping(pid);
                 } catch (...) {
                     fprintf(fp, "invaild pid arg %s\n",cppString.c_str());
                 }
@@ -42,12 +52,47 @@ void Coredump::cmd_main(void) {
                 break;
         }
     }
-
     if (argerrs){
         cmd_usage(pc->curcmd, SYNOPSIS);
         return;
     }
+}
 
+void Coredump::print_proc_mapping(int pid){
+    struct task_context *tc = pid_to_context(pid);
+    if (!tc) {
+        fprintf(fp, "No such pid: %d\n", pid);
+        return;
+    }
+    set_context(tc->task, NO_PID, TRUE);
+    ulong task_flags = read_structure_field(tc->task,"task_struct","flags");
+    if (task_flags & PF_KTHREAD) {
+        fprintf(fp, "pid %d is kernel thread,no vm.\n", pid);
+        return;
+    }
+    if (!tc->mm_struct) {
+        fprintf(fp, "pid %d have no virtual memory space.\n", pid);
+        return;
+    }
+    std::shared_ptr<Core> core_parser = core_ptr;
+    if (BITS64()){
+        fill_thread_info(tc->thread_info);
+        if (field_offset(thread_info, flags) != -1){
+            ulong thread_flags = read_ulong(tc->task + field_offset(task_struct, thread_info) + field_offset(thread_info, flags), "coredump task_struct thread_info flags");
+            if(thread_flags & (1 << 22)){
+                is_compat = true;
+                core_parser = compat_core_ptr;
+                if(debug){
+                    fprintf(fp, "is_compat: %d\n", is_compat);
+                }
+            }
+        }
+    }
+    core_parser->set_core_pid(pid);
+    core_parser->print_proc_mapping();
+}
+
+void Coredump::generate_coredump(int pid){
     struct task_context *tc = pid_to_context(pid);
     if (!tc) {
         fprintf(fp, "No such pid: %d\n", pid);
@@ -59,48 +104,26 @@ void Coredump::cmd_main(void) {
         fprintf(fp, "pid %d is kernel thread,not support coredump.\n", pid);
         return;
     }
-
     if (!tc->mm_struct) {
         fprintf(fp, "pid %d have no virtual memory space.\n", pid);
         return;
     }
-
-    fill_thread_info(tc->thread_info);
-
-#if defined(ARM64)
-    if (field_offset(thread_info, flags) != -1){
-        ulong thread_flags = read_ulong(tc->task + field_offset(task_struct, thread_info) + field_offset(thread_info, flags), "coredump task_struct thread_info flags");
-        if(thread_flags & (1 << 22)){
-            is_compat = true;
-            if(debug){
-                fprintf(fp, "is_compat: %d\n", is_compat);
+    std::shared_ptr<Core> core_parser = core_ptr;
+    if (BITS64()){
+        fill_thread_info(tc->thread_info);
+        if (field_offset(thread_info, flags) != -1){
+            ulong thread_flags = read_ulong(tc->task + field_offset(task_struct, thread_info) + field_offset(thread_info, flags), "coredump task_struct thread_info flags");
+            if(thread_flags & (1 << 22)){
+                is_compat = true;
+                core_parser = compat_core_ptr;
+                if(debug){
+                    fprintf(fp, "is_compat: %d\n", is_compat);
+                }
             }
         }
     }
-
-    if (machine_type(TO_CONST_STRING("ARM64"))){
-        if(is_compat){
-            core_ptr = std::make_shared<Compat>(swap_ptr);
-        } else {
-            core_ptr = std::make_shared<Arm64>(swap_ptr);
-        }
-    } else {
-        fprintf(fp, "Not support this platform \n");
-    }
-#endif
-
-#if defined(ARM)
-    if (machine_type(TO_CONST_STRING("ARM"))){
-        core_ptr = std::make_shared<Arm>(swap_ptr);
-    } else {
-        fprintf(fp, "Not support this platform \n");
-    }
-#endif
-
-    core_ptr->set_core_pid(pid);
-
-    core_ptr->parser_core_dump();
-
+    core_parser->set_core_pid(pid);
+    core_parser->parser_core_dump();
     fprintf(fp, "Coredump is Done \n");
 }
 
@@ -127,6 +150,22 @@ void Coredump::init_command(){
         "\n",
     };
     initialize();
+
+#if defined(ARM64)
+    if (machine_type(TO_CONST_STRING("ARM64"))){
+        compat_core_ptr = std::make_shared<Compat>(swap_ptr);
+        core_ptr = std::make_shared<Arm64>(swap_ptr);
+    } else {
+        fprintf(fp, "Not support this platform \n");
+    }
+#endif
+#if defined(ARM)
+    if (machine_type(TO_CONST_STRING("ARM"))){
+        core_ptr = std::make_shared<Arm>(swap_ptr);
+    } else {
+        fprintf(fp, "Not support this platform \n");
+    }
+#endif
 }
 
 #pragma GCC diagnostic pop
