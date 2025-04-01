@@ -54,7 +54,7 @@ struct user_pac_mask {
     uint64_t insn_mask;
 };
 
-#ifdef __x86_64__
+#ifndef IS_ARM
 struct elf_siginfo {
     int si_signo;
     int si_errno;

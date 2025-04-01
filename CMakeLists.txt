@@ -29,6 +29,10 @@ elseif(CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
 set(CMAKE_LIBRARY_ARCHITECTURE i386-linux-gnu)
 endif()
 
+if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm" OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64")
+add_compile_definitions(IS_ARM)
+endif()
+
 find_package(PkgConfig REQUIRED)
 # sudo apt-get install liblzo2-dev liblzo2-dev:i386
 pkg_check_modules(LZO2 REQUIRED lzo2)
