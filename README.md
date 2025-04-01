@@ -91,6 +91,7 @@ Supprot command:
 | logcat     | √                   | √                   |                     |
 
 ## usage
+See [USAGE.md](USAGE.md)
 ```
 crash> help binder
 

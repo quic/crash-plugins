@@ -353,11 +353,16 @@ void Vmalloc::print_summary_caller(){
     for (const auto& info : callers) {
         max_len = std::max(max_len,info.func.size());
     }
+    std::ostringstream oss_hd;
+    oss_hd << std::left << std::setw(max_len + 2) << "Func Name" << " "
+            << std::left << std::setw(15) << "virt" << " "
+            << std::left << std::setw(15) << "phys";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for(const auto& info: callers){
         std::ostringstream oss;
-        oss << "[" << std::left << std::setw(max_len) << info.func << "]"
-            << "virt_size:" << std::setw(9) << csize(info.virt_size) << " "
-            << "phys_size:" << csize(info.page_cnt*page_size);
+        oss << std::left << std::setw(max_len + 2) << info.func << " "
+            << std::left << std::setw(15) << csize(info.virt_size) << " "
+            << std::left << std::setw(15) << csize(info.page_cnt*page_size);
         fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
@@ -395,11 +400,16 @@ void Vmalloc::print_summary_type(){
     for (const auto& info : types) {
         max_len = std::max(max_len,info.func.size());
     }
+    std::ostringstream oss_hd;
+    oss_hd << std::left << std::setw(max_len + 2) << "Type" << " "
+            << std::left << std::setw(15) << "virt" << " "
+            << std::left << std::setw(15) << "phys";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for(const auto& info: types){
         std::ostringstream oss;
-        oss << "[" << std::left << std::setw(max_len) << info.func << "]"
-            << "virt_size:" << std::setw(9) << csize(info.virt_size) << " "
-            << "phys_size:" << csize(info.page_cnt*page_size);
+        oss << std::left << std::setw(max_len + 2) << info.func << " "
+            << std::left << std::setw(15) << csize(info.virt_size) << " "
+            << std::left << std::setw(15) << csize(info.page_cnt*page_size);
         fprintf(fp, "%s \n",oss.str().c_str());
     }
 }

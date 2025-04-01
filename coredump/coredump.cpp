@@ -144,9 +144,24 @@ void Coredump::init_command(){
     PaserPlugin::cmd_name = "coredump";
     help_str_list={
         "coredump",                            /* command name */
-        "dump coredump information",        /* short description */
-        "coredump -p <pid\n"
-            "  This command dumps the coredump info.",
+        "generate process coredump",        /* short description */
+        "-p <pid>\n"
+            "  coredump -m <pid>\n"
+            "  This command generate process coredump.",
+        "\n",
+        "EXAMPLES",
+        "  Generate process coredump:",
+        "    %s> coredump -p 323",
+        "\n",
+        "  Show process maps:",
+        "    %s> coredump -m 323",
+        "      VMA:f0ff4198 [fb0e000-fb13000] r--p 00000000 /system/bin/logd",
+        "      VMA:f0ff4ee0 [fb13000-fb2c000] r-xp 00000004 /system/bin/logd",
+        "      VMA:f0ff4bb0 [fb2c000-fb2d000] r--p 0000001c /system/bin/logd",
+        "      VMA:f0ff4880 [fb2d000-fb2e000] rw-p 0000001c /system/bin/logd",
+        "      VMA:e8514ee0 [a6d28000-a70fb000] rw-p 000a6d28 libc_malloc",
+        "      VMA:f0ff9cc0 [a70fb000-a70fc000] ---p 000a70fb",
+        "      VMA:f0cf6770 [a70fc000-a71fb000] rw-p 000a70fc stack_and_tls:356",
         "\n",
     };
     initialize();
