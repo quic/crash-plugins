@@ -90,20 +90,20 @@ CpuInfo::CpuInfo(){
 
 void CpuInfo::print_cpu_policy(){
     std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(3) << "CPU" << " "
-        << std::left << std::setw(20) << "cpufreq_policy" << " "
-        << std::left << std::setw(7) << "cluster" << " "
-        << std::left << std::setw(10) << "cur_freq" << " "
-        << std::left << std::setw(10) << "min_freq" << " "
-        << std::left << std::setw(10) << "max_freq" << " "
-        << std::left << std::setw(10) << "governor" << " ";
+    oss_hd  << std::left << std::setw(3)  << "CPU" << " "
+            << std::left << std::setw(20) << "cpufreq_policy" << " "
+            << std::left << std::setw(7)  << "cluster" << " "
+            << std::left << std::setw(10) << "cur_freq" << " "
+            << std::left << std::setw(10) << "min_freq" << " "
+            << std::left << std::setw(10) << "max_freq" << " "
+            << std::left << std::setw(10) << "governor" << " ";
     fprintf(fp, "%s \n",oss_hd.str().c_str());
     int index = 0;
     for (const auto& cpu_ptr : cpu_infos) {
         std::ostringstream oss;
-        oss << std::left << std::setw(3) << index << " "
+        oss << std::left << std::setw(3)  << index << " "
             << std::left << std::setw(20) << std::hex << cpu_ptr->addr << " "
-            << std::left << std::setw(7) << std::dec << cpu_ptr->cluster << " "
+            << std::left << std::setw(7)  << std::dec << cpu_ptr->cluster << " "
             << std::left << std::setw(10) << std::dec << cpu_ptr->cur << " "
             << std::left << std::setw(10) << std::dec << cpu_ptr->min << " "
             << std::left << std::setw(10) << std::dec << cpu_ptr->max << " "

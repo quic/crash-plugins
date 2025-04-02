@@ -148,10 +148,10 @@ void DmaHeap::parser_dynamic_page_pool(ulong addr){
     // std::vector<ulong> low_page_list = for_each_list(low_items_head,offset);
     std::ostringstream oss;
     oss << std::left  << std::hex << std::setw(VADDR_PRLEN + 2) << addr << " "
-        << std::left << std::setw(5)  << order << " "
-        << std::left << std::setw(10) << csize(high_count) << " "
-        << std::left << std::setw(10) << csize(low_count) << " "
-        << std::left << std::setw(10) << csize(count);
+        << std::left  << std::setw(5)  << order << " "
+        << std::left  << std::setw(10) << csize(high_count) << " "
+        << std::left  << std::setw(10) << csize(low_count) << " "
+        << std::left  << std::setw(10) << csize(count);
     fprintf(fp, "   %s \n",oss.str().c_str());
 }
 

@@ -490,77 +490,23 @@ void Zram::print_zram_full_info(std::string zram_addr){
 void Zram::print_zrams(){
     fprintf(fp, "========================================================================\n");
     for (const auto& zram_ptr : zram_list) {
-        std::ostringstream oss;
-        oss << std::left << std::setw(20) << "zram" << ": "
-            << std::hex << zram_ptr->addr;
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "name" << ": "
-            << zram_ptr->disk_name;
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "compressor" << ": "
-            << zram_ptr->compressor;
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "total_size" << ": "
-            << csize(zram_ptr->disksize);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "zs_pool" << ": "
-            << std::hex << zram_ptr->mem_pool->addr;
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "orig_data_size" << ": "
-            << csize(zram_ptr->stats.pages_stored * page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "compr_data_size" << ": "
-            << csize(zram_ptr->stats.compr_data_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
         double ratio = (double)zram_ptr->stats.compr_data_size / (double)(zram_ptr->stats.pages_stored * page_size);
-        oss << std::left << std::setw(20) << "compress ratio" << ": "
-            << std::fixed << std::setprecision(2) << ratio * 100 << "%";
+        std::ostringstream oss;
+        oss << std::left << std::setw(20) << "zram"             << ": " << std::hex << zram_ptr->addr << "\n"
+            << std::left << std::setw(20) << "name"             << ": " << zram_ptr->disk_name << "\n"
+            << std::left << std::setw(20) << "compressor"       << ": " << zram_ptr->compressor << "\n"
+            << std::left << std::setw(20) << "total_size"       << ": " << csize(zram_ptr->disksize) << "\n"
+            << std::left << std::setw(20) << "zs_pool"          << ": " << std::hex << zram_ptr->mem_pool->addr << "\n"
+            << std::left << std::setw(20) << "orig_data_size"   << ": " << csize(zram_ptr->stats.pages_stored * page_size) << "\n"
+            << std::left << std::setw(20) << "compr_data_size"  << ": " << csize(zram_ptr->stats.compr_data_size) << "\n"
+            << std::left << std::setw(20) << "compress ratio"   << ": " << std::fixed << std::setprecision(2) << ratio * 100 << "%" << "\n"
+            << std::left << std::setw(20) << "mem_used_max"     << ": " << csize(zram_ptr->stats.max_used_pages * page_size) << "\n"
+            << std::left << std::setw(20) << "mem_used_total"   << ": " << csize(zram_ptr->mem_pool->pages_allocated * page_size) << "\n"
+            << std::left << std::setw(20) << "mem_limit"        << ": " << csize(zram_ptr->limit_pages * page_size) << "\n"
+            << std::left << std::setw(20) << "same_pages"       << ": " << csize(zram_ptr->stats.same_pages * page_size) << "\n"
+            << std::left << std::setw(20) << "huge_pages"       << ": " << csize(zram_ptr->stats.huge_pages * page_size) << "\n"
+            << std::left << std::setw(20) << "compacted_pages"  << ": " << csize(zram_ptr->mem_pool->stats.pages_compacted.counter * page_size) << "\n";
         fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "mem_used_max" << ": "
-            << csize(zram_ptr->stats.max_used_pages * page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "mem_used_total" << ": "
-            << csize(zram_ptr->mem_pool->pages_allocated * page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "mem_limit" << ": "
-            << csize(zram_ptr->limit_pages * page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "same_pages" << ": "
-            << csize(zram_ptr->stats.same_pages * page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "huge_pages" << ": "
-            << csize(zram_ptr->stats.huge_pages * page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
-
-        oss << std::left << std::setw(20) << "compacted_pages" << ": "
-            << csize(zram_ptr->mem_pool->stats.pages_compacted.counter * page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
-        oss.str("");
     }
     fprintf(fp, "========================================================================\n");
 }

@@ -160,8 +160,7 @@ void Vmalloc::parser_vmap_area_list(){
         return;
     }
     int offset = field_offset(vmap_area,list);
-    std::vector<ulong> vmap_list = for_each_list(area_list_addr,offset);
-    for (const auto& area_addr : vmap_list) {
+    for (const auto& area_addr : for_each_list(area_list_addr,offset)) {
         void *vmap_buf = read_struct(area_addr,"vmap_area");
         if (!vmap_buf) {
             fprintf(fp, "Failed to read vmap_area structure at address %lx\n", area_addr);
@@ -174,8 +173,7 @@ void Vmalloc::parser_vmap_area_list(){
         area_list.push_back(area_ptr);
         ulong vm_addr = ULONG(vmap_buf + field_offset(vmap_area,vm));
         FREEBUF(vmap_buf);
-        while (vm_addr > 0)
-        {
+        while (is_kvaddr(vm_addr)){
             void *vm_buf = read_struct(vm_addr,"vm_struct");
             if (!vm_buf) {
                 fprintf(fp, "Failed to read vm_struct structure at address %lx\n", vm_addr);

@@ -56,39 +56,39 @@ To load the module's commands to a running crash-8.0.6+ session, enter:
 crash> extend <path-to>/output/arm64/plugins.so or extend <path-to>/output/arm64/${module}.so
 ```
 
-Supprot command:
+Supprot module:
 
-|  command   |    arm64  |    arm    |    comment                                           |
-|  --------  | --------  | --------  |    --------                                          |
-| binder     | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
-| slub info  | √         | √         | parser slub detail memory info                       |
-| slub poison| √         | √         | check slub object memory poison                      |
-| slub trace | √         | √         | parser slub object trace                             |
-| procrank   | √         | √         | parser vss/rss/pss/uss of process                    |
-| cma        | √         | √         | parser cma info                                      |
-| dts        | √         | √         | parser device tree                                   |
-| memblock   | √         | √         | parser memblock info                                 |
-| dd         | √         | √         | parser device driver info                            |
-| dmabuf     | √         | √         | parser dma-buf info                                  |
-| workqueue  | √         | √         | parser workqueue info                                |
-| reserved   | √         | √         | parser reserved memory info                          |
-| iomem      | √         | √         | parser memory layout info                            |
-| vmalloc    | √         | √         | parser vmalloc info                                  |
-| partition  | √         | √         | parser partition info                                |
-| pageowner  | √         | √         | parser pageowner info                                |
-| buddy      | √         | √         | parser memory node/zone/buddy info                   |
-| zram       | √         | √         | parser zram detail info                              |
-| swap       | √         | √         | parser swap info and provider API to userspace parser|
-| rtb        | √         | √         | parser rtb log                                       |
-| cpu        | √         | √         | parser cpu freq and policy info                      |
-| coredump   | √         | √         | dump the coredump info                               |
-| thermal    | √         | √         | parser all thermal zone temperature info             |
-| meminfo    | √         | √         | parser meminfo                                       |
+|  module       |    arm64  |    arm    |    comment                                           |
+|  --------     | --------  | --------  |    --------                                          |
+| binder        | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
+| slub info     | √         | √         | parser slub detail memory info                       |
+| slub poison   | √         | √         | check slub object memory poison                      |
+| slub trace    | √         | √         | parser slub object trace                             |
+| procrank      | √         | √         | parser vss/rss/pss/uss of process                    |
+| cma           | √         | √         | parser cma info                                      |
+| device tree   | √         | √         | parser device tree                                   |
+| memblock      | √         | √         | parser memblock info                                 |
+| device driver | √         | √         | parser device driver info                            |
+| dmabuf        | √         | √         | parser dma-buf info                                  |
+| workqueue     | √         | √         | parser workqueue info                                |
+| reserved mem  | √         | √         | parser reserved memory info                          |
+| iomem         | √         | √         | parser memory layout info                            |
+| vmalloc       | √         | √         | parser vmalloc info                                  |
+| partition     | √         | √         | parser partition info                                |
+| pageowner     | √         | √         | parser pageowner info                                |
+| buddy         | √         | √         | parser memory node/zone/buddy info                   |
+| zram          | √         | √         | parser zram detail info                              |
+| swap          | √         | √         | parser swap info and provider API to userspace parser|
+| rtb           | √         | √         | parser rtb log                                       |
+| cpu           | √         | √         | parser cpu freq and policy info                      |
+| coredump      | √         | √         | dump the coredump info                               |
+| thermal       | √         | √         | parser all thermal zone temperature info             |
+| meminfo       | √         | √         | parser meminfo                                       |
 
-|  command   |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |
-|  --------  | ------------------- | ------------------- | ------------------- |
-| property   | √                   | √                   |                     |
-| logcat     | √                   | √                   |                     |
+|  module       |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |       comment         |
+|  --------     | ------------------- | ------------------- | ------------------- | -----------------     |
+| property      | √                   | √                   |                     | parser property info  |
+| logcat        | √                   | √                   |                     | parser logcat log     |
 
 ## usage
 See [USAGE.md](USAGE.md)

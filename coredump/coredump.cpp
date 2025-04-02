@@ -132,8 +132,8 @@ Coredump::Coredump(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
 }
 
 Coredump::Coredump(){
-    init_command();
     swap_ptr = std::make_shared<Swapinfo>();
+    init_command();
     //print_table();
 }
 

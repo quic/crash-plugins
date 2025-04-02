@@ -45,7 +45,6 @@ Devicetree::Devicetree(){
         return;
     }
     root_addr = read_pointer(of_root_addr,"of_root");
-    root_node = read_node("", root_addr);
 }
 
 void Devicetree::cmd_main(void) {
@@ -53,6 +52,9 @@ void Devicetree::cmd_main(void) {
 }
 
 std::shared_ptr<Property> Devicetree::getprop(ulong node_addr,const std::string& name){
+    if (root_node == nullptr){
+        root_node = read_node("", root_addr);
+    }
     std::shared_ptr<device_node> node_ptr = find_node_by_addr(node_addr);
     if(node_ptr == nullptr) return nullptr;
     for (auto it = node_ptr->props.begin(); it != node_ptr->props.end(); ++it) {
@@ -108,8 +110,7 @@ std::shared_ptr<device_node> Devicetree::read_node(const std::string& path, ulon
 
 std::vector<std::shared_ptr<Property>> Devicetree::read_propertys(ulong addr){
     std::vector<std::shared_ptr<Property>> res;
-    while (is_kvaddr(addr))
-    {
+    while (is_kvaddr(addr)){
         std::shared_ptr<Property> prop = std::make_shared<Property>();
         prop->addr = addr;
         void *prop_buf = read_struct(addr,"property");
@@ -133,6 +134,9 @@ std::vector<std::shared_ptr<Property>> Devicetree::read_propertys(ulong addr){
 }
 
 std::vector<DdrRange> Devicetree::get_ddr_size(){
+    if (root_node == nullptr){
+        root_node = read_node("", root_addr);
+    }
     std::vector<DdrRange> res;
     std::vector<std::shared_ptr<device_node>> nodes = find_node_by_name("memory");
     if (nodes.size() == 0)
@@ -177,6 +181,9 @@ std::vector<std::shared_ptr<device_node>> Devicetree::find_node_by_name(const st
     std::string node_path;
     std::shared_ptr<device_node> node_ptr;
     std::vector<std::shared_ptr<device_node>> res;
+    if (root_node == nullptr){
+        root_node = read_node("", root_addr);
+    }
     for (const auto& node_item : node_path_maps) {
         node_path = node_item.first;
         node_ptr = node_item.second;
@@ -190,6 +197,9 @@ std::vector<std::shared_ptr<device_node>> Devicetree::find_node_by_name(const st
 }
 
 std::shared_ptr<device_node> Devicetree::find_node_by_addr(ulong addr){
+    if (root_node == nullptr){
+        root_node = read_node("", root_addr);
+    }
     for (const auto& node_item : node_addr_maps) {
         if(node_item.first == addr){
             return node_item.second;

@@ -157,27 +157,34 @@ void Cma::parser_cma_areas(){
 void Cma::print_cma_areas(){
     ulong totalcma_pages = 0;
     ulong total_use = 0;
-    fprintf(fp, "==============================================================================================================\n");
+    fprintf(fp, "=====================================================================================================\n");
     int index = 1;
     size_t max_len = 0;
     for (const auto& cma : mem_list) {
         max_len = std::max(max_len,cma->name.size());
     }
+    std::ostringstream oss_hd;
+    oss_hd  << std::left << std::setw(max_len)              << "Name" << " "
+            << std::left << std::setw(VADDR_PRLEN)          << "cma" << " "
+            << std::left << std::setw(VADDR_PRLEN + 3)      << "Range" << " "
+            << std::left << std::setw(10)                   << "Size" << " "
+            << std::left << std::setw(10)                   << "Used" << " "
+            << std::left << "Order";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for (const auto& cma : mem_list) {
         totalcma_pages += cma->count;
         total_use += cma->allocated_size;
         std::ostringstream oss;
-        oss << "[" << std::setw(2) << std::setfill('0') << index << "]"
-            << std::left << std::setw(max_len + 1) <<  std::setfill(' ') << cma->name << " "
-            << "cma:" << std::hex << cma->addr << " "
-            << "range:[" << std::hex << (cma->base_pfn << 12) << "~" << std::hex << ((cma->base_pfn + cma->count) << 12) << "]" << " "
-            << "size:" << std::setw(8) << csize(cma->count * page_size) << " "
-            << "used:" << std::setw(8) << csize(cma->allocated_size) << " "
-            << "order:" << cma->order_per_bit;
+        oss << std::left << std::setw(max_len)  << cma->name << " "
+            << std::left << std::hex  << std::setw(VADDR_PRLEN)   << cma->addr << " "
+            << std::left << "[" << std::hex  << (cma->base_pfn << 12) << "~" << std::left << std::hex  << ((cma->base_pfn + cma->count) << 12) << "]" << " "
+            << std::left << std::setw(10) << csize(cma->count * page_size) << " "
+            << std::left << std::setw(10) << csize(cma->allocated_size) << " "
+            << cma->order_per_bit;
         fprintf(fp, "%s \n",oss.str().c_str());
         index += 1;
     }
-    fprintf(fp, "==============================================================================================================\n");
+    fprintf(fp, "=====================================================================================================\n");
     fprintf(fp, "Total:%s ",csize(totalcma_pages * page_size).c_str());
     fprintf(fp, "allocated:%s\n",csize(total_use).c_str());
 }
@@ -204,31 +211,13 @@ void Cma::print_cma_page_status(std::string name,bool alloc){
         if (cma->name.find(name) != std::string::npos) {
             fprintf(fp, "\n========================================================================\n");
             std::ostringstream oss;
-            oss << std::left << std::setw(10) << "Name" << ": "
-                << cma->name;
+            oss << std::left << std::setw(10) << "Name"     << ": " << cma->name << "\n"
+                << std::left << std::setw(10) << "Base_pfn" << ": " << std::hex << cma->base_pfn << "\n"
+                << std::left << std::setw(10) << "End_pfn"  << ": " << std::hex << (cma->base_pfn + cma->count) << "\n"
+                << std::left << std::setw(10) << "Count"    << ": " << std::dec << cma->count << "\n"
+                << std::left << std::setw(10) << "Size"     << ": " << csize(cma->count * page_size);
             fprintf(fp, "%s \n",oss.str().c_str());
             oss.str("");
-
-            oss << std::left << std::setw(10) << "Base_pfn" << ": "
-                << std::hex << cma->base_pfn;
-            fprintf(fp, "%s \n",oss.str().c_str());
-            oss.str("");
-
-            oss << std::left << std::setw(10) << "End_pfn" << ": "
-                << std::hex << (cma->base_pfn + cma->count);
-            fprintf(fp, "%s \n",oss.str().c_str());
-            oss.str("");
-
-            oss << std::left << std::setw(10) << "Count" << ": "
-                << std::dec << cma->count;
-            fprintf(fp, "%s \n",oss.str().c_str());
-            oss.str("");
-
-            oss << std::left << std::setw(10) << "Size" << ": "
-                << csize(cma->count * page_size);
-            fprintf(fp, "%s \n",oss.str().c_str());
-            oss.str("");
-
             // calc how many byte of bitmap
             int nr_byte = (cma->count >> cma->order_per_bit) / 8;
             oss << std::left << std::setw(10) << "Bitmap" << ": "
@@ -254,18 +243,12 @@ void Cma::print_cma_page_status(std::string name,bool alloc){
                         ulong page = 0;
                         if (phys_to_page(paddr, &page) && bit_value == alloc) {
                             std::ostringstream oss_p;
-                            oss_p << "["
-                                << std::setw(5) << std::setfill('0') << index
-                                << "]Pfn:"
-                                << std::setfill(' ') << std::hex << pfn
-                                << " Page:"
-                                << std::hex << (ulonglong)page
-                                << " paddr:"
-                                << std::hex << (ulonglong)paddr
-                                << " "
+                            oss_p << "[" << std::setw(5) << std::setfill('0') << index << "]"
+                                << "Pfn:"   << std::setfill(' ') << std::hex << pfn << " "
+                                << "Page:"  << std::hex << (ulonglong)page << " "
+                                << "paddr:" << std::hex << (ulonglong)paddr << " "
                                 << (bit_value ? "allocted":"free");
                             fprintf(fp, "%s \n",oss_p.str().c_str());
-                            oss_p.str("");
                             index += 1;
                         }
                     }

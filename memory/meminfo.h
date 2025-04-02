@@ -19,7 +19,7 @@
 #include <map>
 #include <cmath>
 #include "plugin.h"
-#include "buddy.h"
+#include "devicetree/devicetree.h"
 
 class Meminfo : public PaserPlugin {
 private:
@@ -27,6 +27,7 @@ private:
     std::vector<ulong> zone_page_state;
     std::map<std::string, ulong> enums;
     std::map<std::string, ulong> g_param;
+    std::shared_ptr<Devicetree> dts;
 
     void parse_meminfo(void);
     ulong get_wmark_low(void);
@@ -35,6 +36,15 @@ private:
     ulong get_to_be_unused_nr_pages(void);
     ulong get_vm_commit_pages(ulong);
     ulong get_mm_committed_pages(void);
+    size_t get_cma_size();
+    size_t get_struct_page_size();
+    size_t get_memory_size();
+    size_t get_nomap_size();
+    size_t get_dmabuf_size();
+    size_t get_vmalloc_size();
+    size_t get_dentry_cache_size();
+    size_t get_inode_cache_size();
+    void print_mem_breakdown(void);
     ulong get_vmalloc_total(void);
 
 public:

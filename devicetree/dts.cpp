@@ -27,6 +27,9 @@ void Dts::cmd_main(void) {
     int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (root_node == nullptr){
+        root_node = read_node("", root_addr);
+    }
     while ((c = getopt(argcnt, args, "afb:n:m")) != EOF) {
         switch(c) {
             case 'a': //print dts info

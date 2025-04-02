@@ -94,17 +94,17 @@ void Reserved::parser_reserved_mem(){
         mem_ptr->addr = reserved_addr;
         mem_ptr->name = name;
         std::vector<std::shared_ptr<device_node>> nodes = dts->find_node_by_name(name);
-        if (nodes.size() == 0){
-            continue;
-        }
-        mem_ptr->type = Type::UNKNOW;
-        std::shared_ptr<Property> prop = dts->getprop(nodes[0]->addr,"no-map");
-        if (prop.get() != nullptr){
-            mem_ptr->type = Type::NO_MAP;
-        }
-        prop = dts->getprop(nodes[0]->addr,"reusable");
-        if (prop.get() != nullptr){
-            mem_ptr->type = Type::REUSABLE;
+        if (nodes.size() == 0)continue;
+        for (const auto& node : nodes) {
+            mem_ptr->type = Type::UNKNOW;
+            std::shared_ptr<Property> prop = dts->getprop(node->addr,"no-map");
+            if (prop.get() != nullptr){
+                mem_ptr->type = Type::NO_MAP;
+            }
+            prop = dts->getprop(node->addr,"reusable");
+            if (prop.get() != nullptr){
+                mem_ptr->type = Type::REUSABLE;
+            }
         }
         if(get_config_val("CONFIG_PHYS_ADDR_T_64BIT") == "y"){
             mem_ptr->base = ULONGLONG(reserved_mem_buf + field_offset(reserved_mem,base));
@@ -124,7 +124,7 @@ void Reserved::print_reserved_mem(){
     ulong reusable_size = 0;
     ulong other_size = 0;
     int index = 0;
-    fprintf(fp, "==============================================================================================================\n");
+    fprintf(fp, "========================================================================================================\n");
     std::sort(mem_list.begin(), mem_list.end(),[&](const std::shared_ptr<reserved_mem>& a, const std::shared_ptr<reserved_mem>& b){
         return a->base < b->base;
     });
@@ -132,30 +132,35 @@ void Reserved::print_reserved_mem(){
     for (const auto& mem : mem_list) {
         max_name_len = std::max(max_name_len,mem->name.size());
     }
+    std::ostringstream oss_hd;
+    oss_hd  << std::left << std::setw(max_name_len)         << "Name" << " "
+            << std::left << std::setw(VADDR_PRLEN + 2)      << "reserved_mem" << " "
+            << std::left << std::setw(VADDR_PRLEN + 3)      << "Range" << " "
+            << std::left << std::setw(10)                   << "Size" << " "
+            << std::left << "Flag";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for (const auto& mem : mem_list) {
         total_size += mem->size;
         std::ostringstream oss;
-        oss << "[" << std::setw(3) << std::setfill('0') << index << "]"
-            << std::left << std::setw(max_name_len + 1) <<  std::setfill(' ') << mem->name << " "
-            << "reserved_mem:" << std::hex << mem->addr << " "
-            << "range:[" << std::hex << mem->base << "~" << std::hex << (mem->base + mem->size) << "]" << " "
-            << "size:" << std::setw(8) << csize(mem->size) << " "
-            << "[";
+        oss << std::left << std::setw(max_name_len) << mem->name << " "
+            << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << mem->addr << " ["
+            << std::left << std::hex << mem->base << "~" << std::hex << (mem->base + mem->size) << "]" << " "
+            << std::left << std::setw(10) << csize(mem->size) << " [";
         if (mem->type == Type::NO_MAP){
-            oss << std::setw(8) << "no-map";
+            oss << "no-map";
             nomap_size += mem->size;
         }else if (mem->type == Type::REUSABLE){
-            oss << std::setw(8) <<"reusable";
+            oss <<"reusable";
             reusable_size += mem->size;
         }else{
-            oss << std::setw(8) << "unknow";
+            oss << "unknow";
             other_size += mem->size;
         }
         oss << "]";
         fprintf(fp, "%s \n",oss.str().c_str());
         index += 1;
     }
-    fprintf(fp, "==============================================================================================================\n");
+    fprintf(fp, "========================================================================================================\n");
     std::ostringstream oss_t;
     oss_t << "Total:" << csize(total_size) << " ";
     if (nomap_size > 0){
