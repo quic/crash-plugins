@@ -2,36 +2,36 @@
 
 Supprot command:
 
-|  command      | kernel 5.4  | kernel 5.15  |  kernel 6.1  | kernel 6.6   |       comment            |
-|  --------     | --------    | --------     |  --------    |   --------   | -----------------        |
-| dts           | √           | √            | √            | √            |  show device tree        |
-| cma           | √           | √            | √            | √            |  show cma memory         |
-| reserved      | √           | √            | √            | √            |  show reserved memory    |
-| vmalloc       | √           | √            | √            | √            |  show vmalloc memory     |
-| memblock      | √           | √            | √            | √            |  show memblock memory    |
-| dmabuf        | √           | √            | √            | √            |  show dmabuf memory      |
-| iomem         | √           | √            | √            | √            |  show iomem memory       |
-| buddy         | √           | √            | √            | √            |  show buddy info         |
-| zram          | √           | √            |              |              |  show zram memory        |
-| meminfo       | √           | √            | √            | √            |  show process memory     |
-| procrank      | √           | √            | √            | √            |  show process memory     |
-| binder        | √           | √            |              |              |  show binder info        |
-| slub          | √           | √            |              |              |  show slub memory        |
-| dd            | √           | √            | √            | √            |  show device driver info |
-| wq            | √           | √            | √            | x            |  show workqueue          |
-| df            | √           | √            | √            | √            |  show mount info         |
-| pageowner     | √           | √            |              |              |  show pageowner          |
-| swap          | √           | √            |              |              |  show swap info          |
-| rtb           | √           | √            | x            | x            |  show rtb log            |
-| cpu           | √           | √            | √            | √            |  show cpu frequency      |
-| coredump      | √           | √            |              |              |  generate coredump       |
-| tm            | √           | √            | √            | √            |  show thermal info       |
+|  command                 | kernel 5.4  | kernel 5.15  |  kernel 6.1  | kernel 6.6   |       comment            |
+|  --------                | --------    | --------     |  --------    |   --------   | -----------------        |
+| [dts](#dts)              | √           | √            | √            | √            |  show device tree        |
+| [cma](#cma)              | √           | √            | √            | √            |  show cma memory         |
+| [reserved](#reserved)    | √           | √            | √            | √            |  show reserved memory    |
+| [vmalloc](#vmalloc)      | √           | √            | √            | √            |  show vmalloc memory     |
+| [memblock](#memblock)    | √           | √            | √            | √            |  show memblock memory    |
+| [dmabuf](#dmabuf)        | √           | √            | √            | √            |  show dmabuf memory      |
+| [iomem](#iomem)          | √           | √            | √            | √            |  show iomem memory       |
+| [buddy](#buddy)          | √           | √            | √            | √            |  show buddy info         |
+| [zram](#zram)            | √           | √            |              |              |  show zram memory        |
+| [meminfo](#meminfo)      | √           | √            | √            | √            |  show process memory     |
+| [procrank](#procrank)    | √           | √            | √            | √            |  show process memory     |
+| [binder](#binder)        | √           | √            |              |              |  show binder info        |
+| [slub](#slub)            | √           | √            |              |              |  show slub memory        |
+| [dd](#dd)                | √           | √            | √            | √            |  show device driver info |
+| [wq](#wq)                | √           | √            | √            | x            |  show workqueue          |
+| [df](#df)                | √           | √            | √            | √            |  show mount info         |
+| [pageowner](#pageowner)  | √           | √            |              |              |  show pageowner          |
+| [swap](#swap)            | √           | √            |              |              |  show swap info          |
+| [rtb](#rtb)              | √           | √            | x            | x            |  show rtb log            |
+| [cpu](#cpu)              | √           | √            | √            | √            |  show cpu frequency      |
+| [coredump](#coredump)    | √           | √            |              |              |  generate coredump       |
+| [tm](#tm)                | √           | √            | √            | √            |  show thermal info       |
 
 
-|  command      |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
-|  --------     | ----------------  | --------------- | --------------- | -----------------     |
-| prop          | √                 | √               |                 | show property         |
-| logcat        | √                 | √               |                 | show logcat log       |
+|  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
+|  --------                | ----------------  | --------------- | --------------- | -----------------     |
+| [prop](#prop)            | √                 | √               |                 | show property         |
+| [logcat](#logcat)        | √                 | √               |                 | show logcat log       |
 
 
 ## memblock
@@ -459,6 +459,7 @@ crash> iomem -a
 This command dumps the memory information.
 
 ### meminfo -a
+Display whole memory info.
 ```
 crash> meminfo -a
 MemTotal:         1849960 KB
@@ -498,6 +499,35 @@ VmallocChunk:           0 KB
 Percpu:              2784 KB
 CmaTotal:          102400 KB
 CmaFree:                0 KB
+```
+### meminfo -b
+Breakdown memory info.
+```
+crash> meminfo -b
+RAM                :     11.28GB
+   MemTotal        :     10.98GB
+   MemFree         :      5.30GB
+   Buffers         :      9.59MB
+   Cached          :      2.06GB
+   SwapCached      :          0B
+   AonPage         :      1.20GB
+   FilePage        :      1.93GB
+   Slab            :    962.71MB
+   KernelStack     :     56.22MB
+   PageTables      :    123.91MB
+   Shmem           :     35.79MB
+   Cma             :       604MB
+   Dmabuf          :    143.18MB
+   Vmalloc         :    171.66MB
+   Other           :      1.08GB
+
+   Struct Page     :    671.64MB
+   Kernel Code     :     29.44MB
+   Kernel Data     :     14.50MB
+   Dentry Cache    :        16MB
+   Inode  Cache    :        32KB
+
+   NON_HLOS        :    481.45MB
 ```
 ## zram
 This command dumps the zram info.
