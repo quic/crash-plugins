@@ -179,13 +179,18 @@ void Vmalloc::parser_vmap_area_list(){
                 fprintf(fp, "Failed to read vm_struct structure at address %lx\n", vm_addr);
                 continue;
             }
+            size_t vm_size = ULONG(vm_buf + field_offset(vm_struct,size));
+            int nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
+            if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
+                FREEBUF(vm_buf);
+                break;
+            }
             std::shared_ptr<vm_struct> vm_ptr = std::make_shared<vm_struct>();
             vm_ptr->addr = vm_addr;
             vm_ptr->kaddr = ULONG(vm_buf + field_offset(vm_struct,addr));
-            vm_ptr->size = ULONG(vm_buf + field_offset(vm_struct,size));
-            vm_ptr->nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
+            vm_ptr->size = vm_size;
+            vm_ptr->nr_pages = nr_pages;
             vm_ptr->phys_addr = ULONG(vm_buf + field_offset(vm_struct,phys_addr));
-
             ulong caller = ULONG(vm_buf + field_offset(vm_struct,caller));
             ulong next = ULONG(vm_buf + field_offset(vm_struct,next));
             ulong pages = ULONG(vm_buf + field_offset(vm_struct,pages));
@@ -217,17 +222,16 @@ void Vmalloc::parser_vmap_area_list(){
                 if (offset)
                     vm_ptr->caller.append("+").append(std::to_string(offset));
             }
-            for (int j = 0; j < vm_ptr->nr_pages; ++j) {
-                ulong addr = pages + j * sizeof(void *);
-                ulong page_addr = read_pointer(addr,"vm_struct pages");
-                if (!is_kvaddr(page_addr)) {
-                    continue;
+            if (is_kvaddr(pages)) {
+                for (int j = 0; j < vm_ptr->nr_pages; ++j) {
+                    ulong addr = pages + j * sizeof(void *);
+                    if (!is_kvaddr(addr)) break;
+                    ulong page_addr = read_pointer(addr,"vm_struct pages");
+                    if (!is_kvaddr(page_addr)) continue;
+                    physaddr_t paddr = page_to_phy(page_addr);
+                    if (paddr <= 0) continue;
+                    vm_ptr->page_list.push_back(page_addr);
                 }
-                physaddr_t paddr = page_to_phy(page_addr);
-                if (paddr <= 0){
-                    continue;
-                }
-                vm_ptr->page_list.push_back(page_addr);
             }
             area_ptr->vm_list.push_back(vm_ptr);
             vm_addr = next;

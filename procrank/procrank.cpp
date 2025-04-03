@@ -72,6 +72,9 @@ void Procrank::init_command(){
 }
 
 void Procrank::parser_process_memory() {
+    if (!swap_ptr->is_zram_enable()){
+        return;
+    }
     if (procrank_list.size() == 0){
         for(ulong task_addr: for_each_process()){
             auto procrank_result = std::make_shared<procrank>();

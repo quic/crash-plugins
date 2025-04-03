@@ -161,7 +161,7 @@ void Thermal::parser_thrermal_zone(){
         zone_ptr->governor = read_cstring(governor_addr,20, "governor name");
         int trip_cnt = 0;
         ulong trip_addr = 0;
-        if (field_offset(thermal_zone_device,num_trips) != -1){
+        if (field_offset(thermal_zone_device,trips) != -1){
             trip_cnt = INT(dev_buf + field_offset(thermal_zone_device,num_trips));
             trip_addr = ULONG(dev_buf + field_offset(thermal_zone_device,trips));
         }else{
@@ -182,25 +182,32 @@ void Thermal::parser_thrermal_zone(){
                 zone_ptr->trip_list.push_back(trip_ptr);
             }
         }
-        int node_offset = field_offset(thermal_instance, tz_node);
-        ulong head_addr = addr + field_offset(thermal_zone_device,thermal_instances);
-        for (const auto& ins_addr : for_each_list(head_addr,node_offset)) {
-            void *ins_buf = read_struct(ins_addr,"thermal_instance");
-            int trip = INT(ins_buf + field_offset(thermal_instance,trip));
-            if (trip > zone_ptr->trip_list.size()) {
-                continue;
+        if (zone_ptr->trip_list.size() > 0){
+            int node_offset = field_offset(thermal_instance, tz_node);
+            ulong head_addr = addr + field_offset(thermal_zone_device,thermal_instances);
+            for (const auto& ins_addr : for_each_list(head_addr,node_offset)) {
+                void *ins_buf = read_struct(ins_addr,"thermal_instance");
+                int trip = INT(ins_buf + field_offset(thermal_instance,trip));
+                if (trip > zone_ptr->trip_list.size()) {
+                    continue;
+                }
+                ulong cdev = ULONG(ins_buf + field_offset(thermal_instance,cdev));
+                FREEBUF(ins_buf);
+                if (!is_kvaddr(cdev)) {
+                    continue;
+                }
+                std::shared_ptr<cool_dev> cdev_ptr = std::make_shared<cool_dev>();
+                cdev_ptr->addr = cdev;
+                ulong type_addr = read_pointer(cdev + field_offset(thermal_cooling_device,type),"type addr");
+                if (is_kvaddr(type_addr)){
+                    cdev_ptr->name = read_cstring(type_addr,64, "type");
+                }else{
+                    cdev_ptr->name = "";
+                }
+                cdev_ptr->id = read_int(cdev + field_offset(thermal_cooling_device,id), "id");
+                // fprintf(fp, "trip:%d cdev name:%s\n",trip,cdev_ptr->name.c_str());
+                zone_ptr->trip_list[trip]->cool_list.push_back(cdev_ptr);
             }
-            ulong cdev = ULONG(ins_buf + field_offset(thermal_instance,cdev));
-            FREEBUF(ins_buf);
-            if (!is_kvaddr(cdev)) {
-                continue;
-            }
-            std::shared_ptr<cool_dev> cdev_ptr = std::make_shared<cool_dev>();
-            cdev_ptr->addr = cdev;
-            cdev_ptr->name = read_cstring(cdev + field_offset(thermal_cooling_device,type),20, "type");
-            cdev_ptr->id = read_int(cdev + field_offset(thermal_cooling_device,id), "id");
-            // fprintf(fp, "trip:%d cdev name:%s\n",trip,cdev_ptr->name.c_str());
-            zone_ptr->trip_list[trip]->cool_list.push_back(cdev_ptr);
         }
         FREEBUF(dev_buf);
         zone_list.push_back(zone_ptr);

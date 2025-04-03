@@ -43,6 +43,7 @@ protected:
     std::unordered_map<size_t, char*> zram_page_cahe;   //<PTE, buf>
 public:
     Swapinfo();
+    bool is_zram_enable();
     Swapinfo(std::shared_ptr<Zraminfo> zram);
     ~Swapinfo();
     void init_command();

@@ -160,15 +160,19 @@ void Cma::print_cma_areas(){
     fprintf(fp, "=====================================================================================================\n");
     int index = 1;
     size_t max_len = 0;
+    size_t addr_len = 0;
     for (const auto& cma : mem_list) {
         max_len = std::max(max_len,cma->name.size());
+        std::stringstream tmp;
+        tmp << std::hex << (cma->base_pfn << 12);
+        addr_len = std::max(addr_len,tmp.str().length());
     }
     std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(max_len)              << "Name" << " "
-            << std::left << std::setw(VADDR_PRLEN)          << "cma" << " "
-            << std::left << std::setw(VADDR_PRLEN + 3)      << "Range" << " "
-            << std::left << std::setw(10)                   << "Size" << " "
-            << std::left << std::setw(10)                   << "Used" << " "
+    oss_hd  << std::left << std::setw(max_len)                   << "Name" << " "
+            << std::left << std::setw(VADDR_PRLEN)               << "cma" << " "
+            << std::left << std::setw(addr_len *2 + 3) << "Range" << " "
+            << std::left << std::setw(10)                        << "Size" << " "
+            << std::left << std::setw(10)                        << "Used" << " "
             << std::left << "Order";
     fprintf(fp, "%s \n",oss_hd.str().c_str());
     for (const auto& cma : mem_list) {
@@ -177,8 +181,10 @@ void Cma::print_cma_areas(){
         std::ostringstream oss;
         oss << std::left << std::setw(max_len)  << cma->name << " "
             << std::left << std::hex  << std::setw(VADDR_PRLEN)   << cma->addr << " "
-            << std::left << "[" << std::hex  << (cma->base_pfn << 12) << "~" << std::left << std::hex  << ((cma->base_pfn + cma->count) << 12) << "]" << " "
-            << std::left << std::setw(10) << csize(cma->count * page_size) << " "
+            << std::right << "[" << std::hex  << std::setw(addr_len) << std::setfill('0') << (cma->base_pfn << 12)
+            << "~"
+            << std::right << std::hex  << std::setw(addr_len) << std::setfill('0') << ((cma->base_pfn + cma->count) << 12) << "]" << " "
+            << std::left << std::setw(10) << std::setfill(' ') << csize(cma->count * page_size) << " "
             << std::left << std::setw(10) << csize(cma->allocated_size) << " "
             << cma->order_per_bit;
         fprintf(fp, "%s \n",oss.str().c_str());

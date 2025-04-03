@@ -81,7 +81,6 @@ Rtb::Rtb(){
         "dump rtb log",        /* short description */
         "-a \n"
             "  rtb -c <cpu>\n"
-            "  rtb -i\n"
             "  This command dumps the rtb log.",
         "\n",
         "EXAMPLES",

@@ -304,6 +304,9 @@ std::vector<std::shared_ptr<attachment>> Dmabuf::parser_attachments(ulong list_h
 void Dmabuf::print_dma_buf_list(){
     int index = 1;
     int total_size = 0;
+    if (buf_list.size() == 0){
+        return;
+    }
     std::sort(buf_list.begin(), buf_list.end(),[&](const std::shared_ptr<dma_buf>& a, const std::shared_ptr<dma_buf>& b){
         return a->size > b->size;
     });

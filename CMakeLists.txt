@@ -277,6 +277,7 @@ set_target_properties(tm PROPERTIES PREFIX "")
 # =================== build meminfo ===================
 add_library(meminfo SHARED
             ${PLUGIN_SOURCES}
+            devicetree/devicetree.cpp
             memory/meminfo.cpp)
 set_target_properties(meminfo PROPERTIES PREFIX "")
 

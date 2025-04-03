@@ -27,9 +27,13 @@ Swapinfo::Swapinfo(std::shared_ptr<Zraminfo> zram): zram_ptr(zram){
 }
 
 Swapinfo::Swapinfo(){
-    init_command();
     zram_ptr = std::make_shared<Zraminfo>();
+    init_command();
     //print_table();
+}
+
+bool Swapinfo::is_zram_enable(){
+    return zram_ptr->is_zram_enable();
 }
 
 void Swapinfo::init_command(){

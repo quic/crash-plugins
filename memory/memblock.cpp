@@ -182,14 +182,20 @@ void Memblock::print_memblock(){
 }
 
 void Memblock::print_memblock_type(memblock_type* type){
+    size_t addr_len = 0;
+    for (int i = 0; i < type->cnt; ++i) {
+        std::stringstream tmp;
+        tmp << std::hex << (type->regions[i]->base + type->regions[i]->size);
+        addr_len = std::max(addr_len,tmp.str().length());
+    }
     for (int i = 0; i < type->cnt; ++i) {
         std::ostringstream oss;
         oss << "  ["
             << std::setw(5) << std::setfill('0') << i << "]"
             << "memblock_region:" << std::hex << std::setfill(' ') << type->regions[i]->addr
-            << " range:[" << std::hex << type->regions[i]->base
-            << "~" << std::hex << (type->regions[i]->base + type->regions[i]->size) << "]"
-            << " size:" << std::left << std::setw(10) << csize(type->regions[i]->size)
+            << " range:[" << std::right << std::hex << std::setw(addr_len) << std::setfill('0') << type->regions[i]->base
+            << "~" << std::right << std::hex << std::setw(addr_len) << std::setfill('0') << (type->regions[i]->base + type->regions[i]->size) << "]"
+            << " size:" << std::left << std::setw(10) << std::setfill(' ') << csize(type->regions[i]->size)
             << " flags:" << flags_str[type->regions[i]->flags];
         fprintf(fp, "%s \n",oss.str().c_str());
     }

@@ -129,13 +129,17 @@ void Reserved::print_reserved_mem(){
         return a->base < b->base;
     });
     size_t max_name_len = 0;
+    size_t addr_len = 0;
     for (const auto& mem : mem_list) {
         max_name_len = std::max(max_name_len,mem->name.size());
+        std::stringstream tmp;
+        tmp << std::hex << mem->base;
+        addr_len = std::max(addr_len,tmp.str().length());
     }
     std::ostringstream oss_hd;
     oss_hd  << std::left << std::setw(max_name_len)         << "Name" << " "
-            << std::left << std::setw(VADDR_PRLEN + 2)      << "reserved_mem" << " "
-            << std::left << std::setw(VADDR_PRLEN + 3)      << "Range" << " "
+            << std::left << std::setw(VADDR_PRLEN + 5)      << "reserved_mem" << " "
+            << std::left << std::setw(2 * addr_len + 3)     << "Range" << " "
             << std::left << std::setw(10)                   << "Size" << " "
             << std::left << "Flag";
     fprintf(fp, "%s \n",oss_hd.str().c_str());
@@ -143,9 +147,11 @@ void Reserved::print_reserved_mem(){
         total_size += mem->size;
         std::ostringstream oss;
         oss << std::left << std::setw(max_name_len) << mem->name << " "
-            << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << mem->addr << " ["
-            << std::left << std::hex << mem->base << "~" << std::hex << (mem->base + mem->size) << "]" << " "
-            << std::left << std::setw(10) << csize(mem->size) << " [";
+            << std::left << std::hex << std::setw(VADDR_PRLEN + 5) << mem->addr << " ["
+            << std::right << std::hex  << std::setw(addr_len) << std::setfill('0') << mem->base
+            << "~"
+            << std::right << std::hex  << std::setw(addr_len) << std::setfill('0') << (mem->base + mem->size) << "]" << " "
+            << std::left << std::setw(10) << std::setfill(' ') << csize(mem->size) << " [";
         if (mem->type == Type::NO_MAP){
             oss << "no-map";
             nomap_size += mem->size;

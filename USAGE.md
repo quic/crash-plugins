@@ -4,28 +4,28 @@ Supprot command:
 
 |  command      | kernel 5.4  | kernel 5.15  |  kernel 6.1  | kernel 6.6   |       comment            |
 |  --------     | --------    | --------     |  --------    |   --------   | -----------------        |
-| dts           | √           | √            |              |              |  show device tree        |
-| cma           | √           | √            |              |              |  show cma memory         |
-| reserved      | √           | √            |              |              |  show reserved memory    |
-| vmalloc       | √           | √            |              |              |  show vmalloc memory     |
-| memblock      | √           | √            |              |              |  show memblock memory    |
-| dmabuf        | √           | √            |              |              |  show dmabuf memory      |
-| iomem         | √           | √            |              |              |  show iomem memory       |
-| buddy         | √           | √            |              |              |  show buddy info         |
+| dts           | √           | √            | √            | √            |  show device tree        |
+| cma           | √           | √            | √            | √            |  show cma memory         |
+| reserved      | √           | √            | √            | √            |  show reserved memory    |
+| vmalloc       | √           | √            | √            | √            |  show vmalloc memory     |
+| memblock      | √           | √            | √            | √            |  show memblock memory    |
+| dmabuf        | √           | √            | √            | √            |  show dmabuf memory      |
+| iomem         | √           | √            | √            | √            |  show iomem memory       |
+| buddy         | √           | √            | √            | √            |  show buddy info         |
 | zram          | √           | √            |              |              |  show zram memory        |
-| meminfo       | √           | √            |              |              |  show process memory     |
-| procrank      | √           | √            |              |              |  show process memory     |
+| meminfo       | √           | √            | √            | √            |  show process memory     |
+| procrank      | √           | √            | √            | √            |  show process memory     |
 | binder        | √           | √            |              |              |  show binder info        |
 | slub          | √           | √            |              |              |  show slub memory        |
-| dd            | √           | √            |              |              |  show device driver info |
-| wq            | √           | √            |              |              |  show workqueue          |
-| df            | √           | √            |              |              |  show mount info         |
+| dd            | √           | √            | √            | √            |  show device driver info |
+| wq            | √           | √            | √            | x            |  show workqueue          |
+| df            | √           | √            | √            | √            |  show mount info         |
 | pageowner     | √           | √            |              |              |  show pageowner          |
 | swap          | √           | √            |              |              |  show swap info          |
-| rtb           | √           | √            |              |              |  show rtb log            |
-| cpu           | √           | √            |              |              |  show cpu frequency      |
+| rtb           | √           | √            | x            | x            |  show rtb log            |
+| cpu           | √           | √            | √            | √            |  show cpu frequency      |
 | coredump      | √           | √            |              |              |  generate coredump       |
-| tm            | √           | √            |              |              |  show thermal info       |
+| tm            | √           | √            | √            | √            |  show thermal info       |
 
 
 |  command      |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
