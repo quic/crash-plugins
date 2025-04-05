@@ -354,7 +354,7 @@ char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
             return memory_page_cahe[paddr];
         }
         if(debug)fprintf(fp, "read %llx from page_vaddr:%llx, page_paddr:%llx\n\n",uvaddr,page_start,(ulonglong)paddr);
-        void* buf = (char*)read_phys_memory(paddr, page_size, "do_swap_page");
+        void* buf = (char*)read_memory(paddr, page_size, "do_swap_page",false);
         if (buf == nullptr){
             if(debug)fprintf(fp, "read %llx from memory failed \n",uvaddr);
             return nullptr;
@@ -384,7 +384,7 @@ char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
             if (is_kvaddr(swap_page)){
                 ulong page_paddr = page_to_phy(swap_page);
                 if(debug)fprintf(fp, "read %llx from swapcache page_vaddr:%lx, page_paddr:%lx\n\n",uvaddr,swap_page,page_paddr);
-                void* buf = read_phys_memory(page_paddr, page_size, "do_swap_page");
+                void* buf = read_memory(page_paddr, page_size, "do_swap_page",false);
                 if (buf == nullptr){
                     if(debug)fprintf(fp, "read swap page %llx from memory failed \n",uvaddr);
                     return nullptr;

@@ -363,14 +363,14 @@ std::vector<ulong> PaserPlugin::for_each_vma(ulong& task_addr){
     return vma_list;
 }
 
-ulonglong PaserPlugin::read_structure_field(ulong kvaddr,const std::string& type,const std::string& field){
+ulonglong PaserPlugin::read_structure_field(ulong addr,const std::string& type,const std::string& field,bool virt){
     int offset = type_offset(type,field);
     int size = type_size(type,field);
     std::string note = type + "_" + field;
-    ulong addr = kvaddr + offset;
+    addr += offset;
     ulonglong result = 0;
     void *buf = (void *)GETBUF(size);
-    if (!readmem(addr, KVADDR, buf, size, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
+    if (!readmem(addr, (virt ? KVADDR : PHYSADDR), buf, size, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
         FREEBUF(buf);
         return 0;
@@ -395,17 +395,17 @@ ulonglong PaserPlugin::read_structure_field(ulong kvaddr,const std::string& type
     return result;
 }
 
-std::string PaserPlugin::read_cstring(ulong kvaddr,int len, const std::string& note){
+std::string PaserPlugin::read_cstring(ulong addr,int len, const std::string& note,bool virt){
     char res[len];
-    if (!readmem(kvaddr, KVADDR, res, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
+    if (!readmem(addr, (virt ? KVADDR : PHYSADDR), res, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
         return nullptr;
     }
     return std::string(res);
 }
 
-bool PaserPlugin::read_bool(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(bool),note);
+bool PaserPlugin::read_bool(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(bool),note,virt);
     if(buf == nullptr){
         return false;
     }
@@ -414,8 +414,8 @@ bool PaserPlugin::read_bool(ulong kvaddr,const std::string& note){
     return res;
 }
 
-int PaserPlugin::read_int(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(int),note);
+int PaserPlugin::read_int(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(int),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -424,8 +424,8 @@ int PaserPlugin::read_int(ulong kvaddr,const std::string& note){
     return res;
 }
 
-uint PaserPlugin::read_uint(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(uint),note);
+uint PaserPlugin::read_uint(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(uint),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -434,8 +434,8 @@ uint PaserPlugin::read_uint(ulong kvaddr,const std::string& note){
     return res;
 }
 
-long PaserPlugin::read_long(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(long),note);
+long PaserPlugin::read_long(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(long),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -444,8 +444,8 @@ long PaserPlugin::read_long(ulong kvaddr,const std::string& note){
     return res;
 }
 
-ulong PaserPlugin::read_ulong(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(ulong),note);
+ulong PaserPlugin::read_ulong(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(ulong),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -454,8 +454,8 @@ ulong PaserPlugin::read_ulong(ulong kvaddr,const std::string& note){
     return res;
 }
 
-ulonglong PaserPlugin::read_ulonglong(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(ulonglong),note);
+ulonglong PaserPlugin::read_ulonglong(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(ulonglong),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -464,8 +464,8 @@ ulonglong PaserPlugin::read_ulonglong(ulong kvaddr,const std::string& note){
     return res;
 }
 
-ushort PaserPlugin::read_ushort(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(ushort),note);
+ushort PaserPlugin::read_ushort(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(ushort),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -474,8 +474,8 @@ ushort PaserPlugin::read_ushort(ulong kvaddr,const std::string& note){
     return res;
 }
 
-short PaserPlugin::read_short(ulong kvaddr,const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(short),note);
+short PaserPlugin::read_short(ulong addr,const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(short),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -484,47 +484,37 @@ short PaserPlugin::read_short(ulong kvaddr,const std::string& note){
     return res;
 }
 
-void* PaserPlugin::read_memory(ulong kvaddr,int len, const std::string& note){
+void* PaserPlugin::read_memory(ulong addr,int len, const std::string& note, bool virt){
     void* buf = (void *)GETBUF(len);
-    if (!readmem(kvaddr, KVADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
+    if (!readmem(addr, (virt ? KVADDR : PHYSADDR), buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
         FREEBUF(buf);
         return nullptr;
     }
     return buf;
 }
 
-void* PaserPlugin::read_phys_memory(ulong paddr, int len, const std::string& note){
-    void* buf = (void *)GETBUF(len);
-    if (!readmem(paddr, PHYSADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR)){
-        fprintf(fp, "Can't read %s at %lx\n", TO_CONST_STRING(note.c_str()), paddr);
-        FREEBUF(buf);
-        return nullptr;
-    }
-    return buf;
-}
-
-void* PaserPlugin::read_struct(ulong kvaddr,const std::string& type){
+void* PaserPlugin::read_struct(ulong addr,const std::string& type,bool virt){
     int size = type_size(type);
     void* buf = (void *)GETBUF(size);
-    if (!readmem(kvaddr, KVADDR, buf, size, TO_CONST_STRING(type.c_str()), RETURN_ON_ERROR|QUIET)) {
-        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(type.c_str()),kvaddr);
+    if (!readmem(addr, (virt ? KVADDR : PHYSADDR), buf, size, TO_CONST_STRING(type.c_str()), RETURN_ON_ERROR|QUIET)) {
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(type.c_str()),addr);
         FREEBUF(buf);
         return nullptr;
     }
     return buf;
 }
 
-bool PaserPlugin::read_struct(ulong kvaddr,void* buf, int len, const std::string& note){
-    if (!readmem(kvaddr, KVADDR, buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()),kvaddr);
+bool PaserPlugin::read_struct(ulong addr,void* buf, int len, const std::string& note,bool virt){
+    if (!readmem(addr, (virt ? KVADDR : PHYSADDR), buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()),addr);
         return false;
     }
     return true;
 }
 
-ulong PaserPlugin::read_pointer(ulong kvaddr, const std::string& note){
-    void *buf = read_memory(kvaddr,sizeof(void *),note);
+ulong PaserPlugin::read_pointer(ulong addr, const std::string& note,bool virt){
+    void *buf = read_memory(addr,sizeof(void *),note,virt);
     if(buf == nullptr){
         return 0;
     }
@@ -533,10 +523,10 @@ ulong PaserPlugin::read_pointer(ulong kvaddr, const std::string& note){
     return res;
 }
 
-unsigned char PaserPlugin::read_byte(ulong kvaddr, const std::string& note){
+unsigned char PaserPlugin::read_byte(ulong addr, const std::string& note,bool virt){
     unsigned char val;
-    if (!readmem(kvaddr, KVADDR, &val, 1, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
-        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), kvaddr);
+    if (!readmem(addr, (virt ? KVADDR : PHYSADDR), &val, 1, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
+        fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
         return -1;
     }
     return val;

@@ -414,7 +414,7 @@ void Dmabuf::save_dma_buf(std::string addr){
                 ulong page = sgl_ptr->page_link  & ~ 0x3;
                 physaddr_t paddr = page_to_phy(page) + sgl_ptr->offset;
                 size_t len = sgl_ptr->length;
-                void* buf = read_phys_memory(paddr, len, "dmabuf");
+                void* buf = read_memory(paddr, len, "dmabuf",false);
                 fwrite(buf, len, 1, dma_file);
                 FREEBUF(buf);
             }

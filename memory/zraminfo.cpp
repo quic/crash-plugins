@@ -218,7 +218,7 @@ char* Zraminfo::read_object(std::shared_ptr<zram> zram_ptr,struct zram_table_ent
             return nullptr;
         }
         if(debug)fprintf(fp, "obj:0x%llx~0x%llx\n",(ulonglong)(paddr + offset),(ulonglong)(paddr + offset + obj_size));
-        tmpbuf = read_phys_memory(paddr + offset,obj_size,"zram obj");
+        tmpbuf = read_memory(paddr + offset,obj_size,"zram obj",false);
         memcpy(obj_buf, tmpbuf, obj_size);
         FREEBUF(tmpbuf);
     }else{ //this object is in two pages
@@ -237,7 +237,7 @@ char* Zraminfo::read_object(std::shared_ptr<zram> zram_ptr,struct zram_table_ent
             return nullptr;
         }
         if(debug)fprintf(fp, "obj:0x%llx~0x%llx\n",(ulonglong)(paddr + offset),(ulonglong)(paddr + offset + sizes[0]));
-        tmpbuf = read_phys_memory(paddr + offset,sizes[0],"zram obj part0");
+        tmpbuf = read_memory(paddr + offset,sizes[0],"zram obj part0",false);
         memcpy(obj_buf, tmpbuf, sizes[0]);
         FREEBUF(tmpbuf);
 
@@ -247,7 +247,7 @@ char* Zraminfo::read_object(std::shared_ptr<zram> zram_ptr,struct zram_table_ent
             return nullptr;
         }
         if(debug)fprintf(fp, "obj:0x%llx~0x%llx\n",(ulonglong)paddr,(ulonglong)(paddr + sizes[1]));
-        tmpbuf = read_phys_memory(paddr,sizes[1],"zram obj part1");
+        tmpbuf = read_memory(paddr,sizes[1],"zram obj part1",false);
         memcpy(obj_buf + sizes[0], tmpbuf, sizes[1]);
         FREEBUF(tmpbuf);
     }
@@ -412,7 +412,7 @@ void Zraminfo::parser_obj(ulong page_addr,std::shared_ptr<size_class> class_ptr,
         physaddr_t obj_start = page_start + offset;
         physaddr_t obj_end = obj_start + class_ptr->size;
         while (obj_end < page_end){
-            buf = read_phys_memory(obj_start + field_offset(link_free,handle),sizeof(unsigned long),"link_free handle");
+            buf = read_memory(obj_start + field_offset(link_free,handle),sizeof(unsigned long),"link_free handle",false);
             handle_addr = ULONG(buf);
             FREEBUF(buf);
             std::shared_ptr<zobj> zsobj = parser_obj(zspage_ptr->obj_index,handle_addr,obj_start,obj_end);
@@ -423,7 +423,7 @@ void Zraminfo::parser_obj(ulong page_addr,std::shared_ptr<size_class> class_ptr,
         }
         // part of last obj in one page
         obj_end = page_end;
-        buf = read_phys_memory(obj_start + field_offset(link_free,handle),sizeof(unsigned long),"link_free handle");
+        buf = read_memory(obj_start + field_offset(link_free,handle),sizeof(unsigned long),"link_free handle",false);
         handle_addr = ULONG(buf);
         FREEBUF(buf);
         std::shared_ptr<zobj> zsobj = parser_obj(zspage_ptr->obj_index,handle_addr,obj_start,obj_end);
