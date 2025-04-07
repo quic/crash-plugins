@@ -26,6 +26,7 @@ Supprot command:
 | [cpu](#cpu)              | √           | √            | √            | √            |  show cpu frequency      |
 | [coredump](#coredump)    | √           | √            |              |              |  generate coredump       |
 | [tm](#tm)                | √           | √            | √            | √            |  show thermal info       |
+| [wdt](#wdt)              | √           | √            | √            | √            |  show watchdog info      |
 
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
@@ -1077,6 +1078,51 @@ crash> rtb -a
 [234.501799] [12532248689] <0>: LOGK_CTXID ctxid:4284 called from addr ffffffd4d628a684 __schedule Line 220 of "include/trace/events/sched.h"
 [234.501829] [12532249254] <0>: LOGK_CTXID ctxid:1621 called from addr ffffffd4d628a684 __schedule Line 220 of "include/trace/events/sched.h"
 [234.501836] [12532249398] <0>: LOGK_IRQ interrupt:1 handled from addr ffffffd4d627c7b4 ipi_handler.04f2cb5359f849bb5e8105832b6bf932.cfi_jt Line 888 of "arch/arm64/ke            rnel/entry.S"
+```
+
+## wdt
+This command is used to view watchdog info.
+
+### wdt -a
+Display watchdog info.
+```
+crash> wdt -a
+enabled               : True
+wdt_base              : c5a66000
+user_pet_enabled      : False
+pet_time              : 9.36s
+bark_time             : 15s
+bite_time             : 18s
+bark_irq              : 25
+user_pet_complete     : True
+wakeup_irq_enable     : True
+in_panic              : True
+irq_ppi               : False
+freeze_in_progress    : False
+
+pet_timer:
+  jiffies             : 4299314482
+  expires             : 4348153
+  timer_expired       : False
+  timer_fired         : 14784480161054
+  last_jiffies_update : 14790618520938
+  tick_next_period    : 14790621854271
+  tick_do_timer_cpu   : 3
+
+watchdog_thread:
+  watchdog_task       : eb1d5c80
+  pid                 : 40
+  cpu                 : 0
+  task_state          : IN
+  last_run            : 14784480389231
+  thread_start        : 14784480630012
+  last_pet            : 14784480640950
+  do_ipi_ping         : True
+  ping cpu[0]         : 1203198795~1203203274(4479ns)
+  ping cpu[1]         : 0~0(0ns)
+  ping cpu[2]         : 0~0(0ns)
+  ping cpu[3]         : 0~0(0ns)
+
 ```
 
 ### rtb -c 'cpu'

@@ -97,7 +97,8 @@ list(APPEND PLUGIN_SOURCES
     coredump/coredump.cpp
     coredump/core.cpp
     thermal/thermal.cpp
-    memory/meminfo.cpp)
+    memory/meminfo.cpp
+    watchdog/wdt.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -280,5 +281,11 @@ add_library(meminfo SHARED
             devicetree/devicetree.cpp
             memory/meminfo.cpp)
 set_target_properties(meminfo PROPERTIES PREFIX "")
+
+# =================== build watchdog ===================
+add_library(wdt SHARED
+            ${PLUGIN_SOURCES}
+            watchdog/wdt.cpp)
+set_target_properties(wdt PROPERTIES PREFIX "")
 
 endif()

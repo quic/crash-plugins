@@ -84,6 +84,7 @@ Supprot module:
 | coredump      | √         | √         | dump the coredump info                               |
 | thermal       | √         | √         | parser all thermal zone temperature info             |
 | meminfo       | √         | √         | parser meminfo                                       |
+| watchdog      | √         | √         | parser watchdog info                                 |
 
 |  module       |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |       comment         |
 |  --------     | ------------------- | ------------------- | ------------------- | -----------------     |

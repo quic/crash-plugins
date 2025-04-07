@@ -37,6 +37,7 @@
 #include "coredump/coredump.h"
 #include "thermal/thermal.h"
 #include "memory/meminfo.h"
+#include "watchdog/wdt.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
@@ -68,6 +69,7 @@ std::shared_ptr<CpuInfo>    CpuInfo::instance = nullptr;
 std::shared_ptr<Coredump>   Coredump::instance = nullptr;
 std::shared_ptr<Thermal>    Thermal::instance = nullptr;
 std::shared_ptr<Meminfo>    Meminfo::instance = nullptr;
+std::shared_ptr<Watchdog>   Watchdog::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -95,6 +97,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Coredump::instance = std::make_shared<Coredump>(Swap::instance);
     Thermal::instance = std::make_shared<Thermal>();
     Meminfo::instance = std::make_shared<Meminfo>();
+    Watchdog::instance = std::make_shared<Watchdog>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -121,6 +124,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Coredump::instance->cmd_name[0], &Coredump::wrapper_func, Coredump::instance->cmd_help, 0 },
         { &Thermal::instance->cmd_name[0], &Thermal::wrapper_func, Thermal::instance->cmd_help, 0 },
         { &Meminfo::instance->cmd_name[0], &Meminfo::wrapper_func, Meminfo::instance->cmd_help, 0 },
+        { &Watchdog::instance->cmd_name[0], &Watchdog::wrapper_func, Watchdog::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -152,6 +156,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Coredump::instance.reset();
     Thermal::instance.reset();
     Meminfo::instance.reset();
+    Watchdog::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
