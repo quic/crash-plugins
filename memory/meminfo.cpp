@@ -154,7 +154,9 @@ void Meminfo::parse_meminfo(void){
         "NR_WRITEBACK_TEMP",
         "NR_KERNEL_STACK_KB",
         "NR_KERNEL_SCS_KB",
+        "NR_SLAB_RECLAIMABLE",
         "NR_SLAB_RECLAIMABLE_B",
+        "NR_SLAB_UNRECLAIMABLE",
         "NR_SLAB_UNRECLAIMABLE_B",
         "NR_KERNEL_MISC_RECLAIMABLE",
         "NR_ANON_THPS",
@@ -242,6 +244,7 @@ void Meminfo::parse_meminfo(void){
     }
     zone_page_state.resize(enums["NR_VM_ZONE_STAT_ITEMS"]);
     std::copy(zone_page_list, zone_page_list + enums["NR_VM_ZONE_STAT_ITEMS"], zone_page_state.begin());
+
     FREEBUF(node_page_list);
     FREEBUF(zone_page_list);
 }
@@ -270,12 +273,13 @@ ulong Meminfo::get_available(ulong freeram)
     ulong totalreserveram = read_ulong(g_param["totalreserve_pages"], "read from totalreserve_pages");
     long available = freeram - totalreserveram;
 
-    ulong pagecache = node_page_state[enums["NR_SHMEM"] + enums["LRU_ACTIVE_FILE"]]
-         + node_page_state[enums["NR_SHMEM"] + enums["LRU_INACTIVE_FILE"]];
-	pagecache -= min(pagecache / 2, wmark_low);
+    ulong pagecache = node_page_state[enums["NR_LRU_BASE"] + enums["LRU_ACTIVE_FILE"]]
+         + node_page_state[enums["NR_LRU_BASE"] + enums["LRU_INACTIVE_FILE"]];
+    pagecache -= min(pagecache / 2, wmark_low);
 	available += pagecache;
 
-    ulong reclaimable = node_page_state[enums["NR_SLAB_RECLAIMABLE_B"]] + node_page_state[enums["NR_KERNEL_MISC_RECLAIMABLE"]];
+    ulong reclaimable = node_page_state[enums["NR_KERNEL_MISC_RECLAIMABLE"]]
+        + node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_RECLAIMABLE_B":"NR_SLAB_RECLAIMABLE"]];
     available += reclaimable - min(reclaimable / 2, wmark_low);
 
     return (available < 0)?0:available;;
@@ -307,7 +311,7 @@ ulong Meminfo::get_to_be_unused_nr_pages(void){
 
 ulong Meminfo::get_vm_commit_pages(ulong totalram_pg){
     long allowed = 0;
-    ulong overcommit = read_uint(g_param["sysctl_overcommit_kbytes"], "read from sysctl_overcommit_kbytes");
+    ulong overcommit = read_ulong(g_param["sysctl_overcommit_kbytes"], "read from sysctl_overcommit_kbytes");
     if (overcommit){
         allowed = overcommit >> (PAGESHIFT() - 10);
     } else{
@@ -323,7 +327,7 @@ ulong Meminfo::get_vm_commit_pages(ulong totalram_pg){
         }
         allowed = (totalram_pg - hugetlb_pg) * read_int(g_param["sysctl_overcommit_ratio"], "") / 100;
     }
-    allowed += read_ulong(g_param["nr_swap_pages"], "read nr_swap_pages");
+    allowed += read_long(g_param["nr_swap_pages"], "read nr_swap_pages");
     return allowed;
 }
 
@@ -489,11 +493,13 @@ void Meminfo::print_mem_breakdown(void){
     ulong aon_pg = active_aon_pg + inactive_aon_pg;
     ulong file_pg = active_file_pg + inactive_file_pg;
     ulong sharedram_pg = node_page_state[enums["NR_SHMEM"]];
-    ulong slab_reclaimable_pg = node_page_state[enums["NR_SLAB_RECLAIMABLE_B"]];
-    ulong slab_unreclaim_pg = node_page_state[enums["NR_SLAB_UNRECLAIMABLE_B"]];
+    ulong slab_reclaimable_pg = node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_RECLAIMABLE_B":"NR_SLAB_RECLAIMABLE"]];
+    ulong slab_unreclaim_pg = node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_UNRECLAIMABLE_B":"NR_SLAB_UNRECLAIMABLE"]];
     ulong slab_pg = slab_unreclaim_pg + slab_reclaimable_pg;
-    ulong kernelstack_bytes = node_page_state[enums["NR_KERNEL_STACK_KB"]] * 1024;
-    ulong pagetables_pg = node_page_state[enums["NR_PAGETABLE"]];
+    ulong nr_ks = enums["NR_KERNEL_STACK_KB"];
+    ulong kernelstack_bytes = ((THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?node_page_state[nr_ks]:zone_page_state[nr_ks]) * 1024;
+    ulong nr_pt = enums["NR_PAGETABLE"];
+    ulong pagetables_pg = (THIS_KERNEL_VERSION >= LINUX(5, 11, 0))?node_page_state[nr_pt]:zone_page_state[nr_pt];
     ulong struct_page = get_struct_page_size();
     ulong dentry_cache = get_dentry_cache_size();
     ulong inode_cache = get_inode_cache_size();
@@ -539,7 +545,7 @@ ulong Meminfo::get_vmalloc_total(void){
 
         ulong modules_vaddr = -(1UL << ((arm64_va_bits > 48 ? 48 : arm64_va_bits) - 1));
         // SZ_2G: 0x80000000,  SZ_128M: 0x80000000
-        ulong modules_vsize = (THIS_KERNEL_VERSION < LINUX(6, 6, 0))?0x80000000:0x08000000;
+        ulong modules_vsize = (THIS_KERNEL_VERSION >= LINUX(6, 5, 0))?0x80000000:0x08000000;
         ulong vmalloc_start = modules_vaddr + modules_vsize;
 
         return (vmalloc_end - vmalloc_start);
@@ -570,16 +576,18 @@ void Meminfo::print_meminfo(void){
     ulong anon_pg = node_page_state[enums["NR_ANON_MAPPED"]];
     ulong mapped_pg = node_page_state[enums["NR_FILE_MAPPED"]];
     ulong sharedram_pg = node_page_state[enums["NR_SHMEM"]];
-    ulong slab_reclaimable_pg = node_page_state[enums["NR_SLAB_RECLAIMABLE_B"]];
-    ulong slab_unreclaim_pg = node_page_state[enums["NR_SLAB_UNRECLAIMABLE_B"]];
+    ulong slab_reclaimable_pg = node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_RECLAIMABLE_B":"NR_SLAB_RECLAIMABLE"]];
+    ulong slab_unreclaim_pg = node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_UNRECLAIMABLE_B":"NR_SLAB_UNRECLAIMABLE"]];
     ulong kreclaimable_pg = slab_reclaimable_pg + node_page_state[enums["NR_KERNEL_MISC_RECLAIMABLE"]];
     ulong slab_pg = slab_unreclaim_pg + slab_reclaimable_pg;
-    ulong kernelstack_bytes = node_page_state[enums["NR_KERNEL_STACK_KB"]] * 1024;
+    ulong nr_ks = enums["NR_KERNEL_STACK_KB"];
+    ulong kernelstack_bytes = ((THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?node_page_state[nr_ks]:zone_page_state[nr_ks]) * 1024;
+    ulong nr_pt = enums["NR_PAGETABLE"];
+    ulong pagetables_pg = (THIS_KERNEL_VERSION >= LINUX(5, 11, 0))?node_page_state[nr_pt]:zone_page_state[nr_pt];
     ulong shadowstack_bytes = 0;
     if (get_config_val("CONFIG_SHADOW_CALL_STACK") == "y") {
         shadowstack_bytes = node_page_state[enums["NR_KERNEL_SCS_KB"]] * 1024;
     }
-    ulong pagetables_pg = node_page_state[enums["NR_PAGETABLE"]];
     ulong bounce_pg = zone_page_state[enums["NR_BOUNCE"]];
 
     ulong writebacktmp_pg = node_page_state[enums["NR_WRITEBACK_TEMP"]];
