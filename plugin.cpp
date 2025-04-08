@@ -230,6 +230,7 @@ std::vector<ulong> PaserPlugin::for_each_mptree(ulong maptree_addr){
 
 std::vector<ulong> PaserPlugin::for_each_xarray(ulong xarray_addr){
     std::vector<ulong> res;
+    if (!is_kvaddr(xarray_addr))return res;
     size_t entry_num = do_xarray(xarray_addr, XARRAY_COUNT, NULL);
     struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
     entry_list[0].index = entry_num;
@@ -244,6 +245,7 @@ std::vector<ulong> PaserPlugin::for_each_xarray(ulong xarray_addr){
 
 std::vector<ulong> PaserPlugin::for_each_rbtree(ulong rb_root,int offset){
     std::vector<ulong> res;
+    if (!is_kvaddr(rb_root))return res;
     ulong *treeList;
     struct tree_data td;
     int cnt = 0;
@@ -270,6 +272,8 @@ std::vector<ulong> PaserPlugin::for_each_rbtree(ulong rb_root,int offset){
 
 std::vector<ulong> PaserPlugin::for_each_list(ulong list_head,int offset){
     std::vector<ulong> res;
+    fprintf(fp, "for_each_list \n");
+    if (!is_kvaddr(list_head))return res;
     void *buf = read_struct(list_head,"list_head");
     if(buf == nullptr) return res;
     ulong next = ULONG(buf + field_offset(list_head,next));
@@ -300,6 +304,7 @@ std::vector<ulong> PaserPlugin::for_each_list(ulong list_head,int offset){
 std::vector<ulong> PaserPlugin::for_each_hlist(ulong hlist_head,int offset){
     std::vector<ulong> res;
     ulong first = read_pointer(hlist_head,"hlist_head");
+    if (!is_kvaddr(first))return res;
     struct list_data ld;
     BZERO(&ld, sizeof(struct list_data));
     ld.flags |= LIST_ALLOCATE;
@@ -871,14 +876,14 @@ bool PaserPlugin::load_symbols(std::string& path, std::string name){
         if (buf){
             std::string retbuf(buf);
             if (is_elf_file(TO_CONST_STRING(retbuf.c_str())) && add_symbol_file(retbuf)){
-                fprintf(fp, "Add symbol:%s succ \n",retbuf.c_str());
+                // fprintf(fp, "Add symbol:%s succ \n",retbuf.c_str());
                 path = retbuf;
                 return true;
             }
         }
     }else if (file_exists(TO_CONST_STRING(path.c_str()), NULL) && is_elf_file(TO_CONST_STRING(path.c_str()))){
         if (add_symbol_file(path)){
-            fprintf(fp, "Add symbol:%s succ \n",path.c_str());
+            // fprintf(fp, "Add symbol:%s succ \n",path.c_str());
             return true;
         }
     }
