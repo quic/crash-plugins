@@ -707,7 +707,7 @@ long PaserPlugin::read_enum_val(const std::string& enum_name){
 }
 
 std::map<std::string, ulong> PaserPlugin::read_enum_list(const std::string& enum_list_name){
-    char cmd_buf[BUFSIZE], ret_buf[BUFSIZE];
+    char cmd_buf[BUFSIZE], ret_buf[BUFSIZE*5];
     FILE *tmp_fp = fmemopen(ret_buf, sizeof(ret_buf), "w");
     sprintf(cmd_buf, "ptype enum %s", enum_list_name.c_str());
     gdb_pass_through(cmd_buf, tmp_fp, GNU_RETURN_ON_ERROR);
