@@ -38,6 +38,7 @@
 #include "struct_info.h"
 #include <sstream>
 #include <gelf.h>
+#include <map>
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -103,8 +104,8 @@ public:
 
     virtual void cmd_main(void)=0;
     void initialize(void);
-    std::string csize(size_t size);
-    std::string csize(size_t size, int unit, int precision);
+    std::string csize(int64_t size);
+    std::string csize(int64_t size, int unit, int precision);
     void print_table();
     void type_init(const std::string& type);
     void type_init(const std::string& type,const std::string& field);
@@ -164,6 +165,7 @@ public:
     std::string extract_string(const char *input);
     int is_bigendian(void);
     long read_enum_val(const std::string& enum_name);
+    std::map<std::string, ulong> read_enum_list(const std::string& enum_list_name);
     char get_printable(uint8_t d);
     std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
     std::string hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian = true);

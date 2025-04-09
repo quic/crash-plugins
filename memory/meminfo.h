@@ -25,8 +25,10 @@ class Meminfo : public PaserPlugin {
 private:
     std::vector<ulong> node_page_state;
     std::vector<ulong> zone_page_state;
+    std::vector<std::vector<ulong>> vm_event_page_state;
     std::map<std::string, ulong> enums;
     std::map<std::string, ulong> g_param;
+    std::map<std::string, std::map<std::string, ulong>> enum_dict;
     std::shared_ptr<Devicetree> dts;
 
     void parse_meminfo(void);
@@ -44,12 +46,13 @@ private:
     size_t get_vmalloc_size();
     size_t get_dentry_cache_size();
     size_t get_inode_cache_size();
-    void print_mem_breakdown(void);
     ulong get_vmalloc_total(void);
 
 public:
     Meminfo();
     void cmd_main(void) override;
+    void print_vmstat(void);
+    void print_mem_breakdown(void);
     void print_meminfo(void);
     DEFINE_PLUGIN_INSTANCE(Meminfo)
 };

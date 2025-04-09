@@ -29,13 +29,16 @@ void Meminfo::cmd_main(void) {
     if (node_page_state.empty() or zone_page_state.empty()){
         parse_meminfo();
     }
-    while ((c = getopt(argcnt, args, "ab")) != EOF) {
+    while ((c = getopt(argcnt, args, "abv")) != EOF) {
         switch(c) {
             case 'a':
                 print_meminfo();
                 break;
             case 'b':
                 print_mem_breakdown();
+                break;
+            case 'v':
+                print_vmstat();
                 break;
             default:
                 argerrs++;
@@ -49,8 +52,15 @@ void Meminfo::cmd_main(void) {
 Meminfo::Meminfo(){
     struct_init(page);
     struct_init(zone);
+    field_init(zone, watermark);
     field_init(zone, _watermark);
     field_init(zone, watermark_boost);
+    field_init(zone, present_pages);
+    field_init(zone, spanned_pages);
+    field_init(zone, managed_pages);
+    field_init(zone, cma_pages);
+    field_init(zone, vm_stat);
+    field_init(zone, name);
     field_init(pglist_data, node_zones);
     field_init(super_block, s_inodes);
     field_init(inode, i_mapping);
@@ -86,6 +96,7 @@ Meminfo::Meminfo(){
         "dump meminfo information",        /* short description */
         "-a \n"
             "  meminfo -b \n"
+            "  meminfo -v \n"
             "  This command dumps the meminfo info.",
         "\n",
         "EXAMPLES",
@@ -126,49 +137,35 @@ Meminfo::Meminfo(){
         "",
         "       NON_HLOS        :    308.34MB",
         "\n",
+        "  Breakdown vmstat info:",
+        "    %s> meminfo -v",
+        "    Zone Normal",
+        "    present_pages                 :     148440        579MB",
+        "    spanned_pages                 :     183296        716MB",
+        "    managed_pages                 :     135130        527MB",
+        "    WMARK_MIN                     :        722          2MB",
+        "    WMARK_LOW                     :       1185          4MB",
+        "    WMARK_HIGH                    :       1365          5MB",
+        "    NR_FREE_PAGES                 :       1846          7MB",
+        "    NR_ZONE_LRU_BASE              :       1846          7MB",
+        "    ... ...",
+        "\n",
     };
     initialize();
 }
 
 void Meminfo::parse_meminfo(void){
     const char* enum_names[] = {
-        "LRU_UNEVICTABLE",
-        "LRU_ACTIVE_ANON",
-        "LRU_ACTIVE_FILE",
-        "LRU_INACTIVE_ANON",
-        "LRU_INACTIVE_FILE",
-        "NR_MLOCK",
-        "NR_SHMEM",
-        "NR_BOUNCE",
-        "NR_LRU_BASE",
-        "NR_LRU_LISTS",
-        "NR_PAGETABLE",
-        "NR_SWAPCACHE",
-        "NR_WRITEBACK",
-        "NR_FILE_DIRTY",
-        "NR_FILE_PAGES",
-        "NR_FREE_PAGES",
-        "NR_ANON_MAPPED",
-        "NR_FILE_MAPPED",
-        "NR_FREE_CMA_PAGES",
-        "NR_WRITEBACK_TEMP",
-        "NR_KERNEL_STACK_KB",
-        "NR_KERNEL_SCS_KB",
-        "NR_SLAB_RECLAIMABLE",
-        "NR_SLAB_RECLAIMABLE_B",
-        "NR_SLAB_UNRECLAIMABLE",
-        "NR_SLAB_UNRECLAIMABLE_B",
-        "NR_KERNEL_MISC_RECLAIMABLE",
-        "NR_ANON_THPS",
-        "NR_SHMEM_THPS",
-        "NR_SHMEM_PMDMAPPED",
-        "NR_FILE_THPS",
-        "NR_FILE_PMDMAPPED",
-        "NR_VM_NODE_STAT_ITEMS",
-        "NR_VM_ZONE_STAT_ITEMS",
-        "WMARK_LOW",
         "SWP_USED",
         "SWP_WRITEOK"
+    };
+    std::vector<std::string> enum_list = {
+        "lru_list",
+        "zone_type",
+        "vm_event_item",
+        "zone_stat_item",
+        "node_stat_item",
+        "zone_watermarks",
     };
 
     for (size_t i = 0; i < sizeof(enum_names) / sizeof(enum_names[0]); ++i) {
@@ -176,17 +173,17 @@ void Meminfo::parse_meminfo(void){
         enumerator_value(const_cast<char*>(enum_names[i]), &numa_cnt);
         enums.insert(std::make_pair(enum_names[i], numa_cnt));
     }
-
-    for (const auto& pair : enums) {
-        if (pair.second < 0){
-            fprintf(fp, "Cannot iter enums[%s]!\n", pair.first.c_str());
-        }
-        // fprintf(fp, "enums[%s] = %ld\n", pair.first.c_str(), pair.second);
+    for (const auto& enum_name : enum_list) {
+        std::map<std::string, ulong> temp = read_enum_list(enum_name);
+        enum_dict.insert(std::make_pair(enum_name, temp));
+        enums.insert(temp.begin(), temp.end());
     }
 
     std::vector<std::string> param_names = {
+        "vm_stat",  // For kernel which before 4.9
         "vm_node_stat",
         "vm_zone_stat",
+        "vm_event_states",
         "vm_committed_as",
         "nr_cpu_ids",
         "nr_swapfiles",
@@ -202,6 +199,7 @@ void Meminfo::parse_meminfo(void){
         "blockdev_superblock",
         "sysctl_overcommit_kbytes",
         "sysctl_overcommit_ratio",
+        "contig_page_data",
         "__cpu_online_mask",
         "__cpu_dying_mask",
         "__per_cpu_offset"
@@ -220,33 +218,41 @@ void Meminfo::parse_meminfo(void){
         g_param.insert(std::make_pair(name.c_str(), param_addr));
     }
 
-    for (const auto& pair : g_param){
-        if (pair.second == 0x0){
-            fprintf(fp, "Cannot iter g_param[%s]!\n", pair.first.c_str());
-        }
-        // fprintf(fp, "g_param[%s] = 0x%lx\n", pair.first.c_str(), pair.second);
-    }
-
+    // Read full list from vm_node_stat
     long* node_page_list = (long *)read_memory(g_param["vm_node_stat"], sizeof(ulong) * enums["NR_VM_NODE_STAT_ITEMS"], "");
     if (get_config_val("CONFIG_SMP") == "y"){
         for (size_t i = 0; i < enums["NR_VM_NODE_STAT_ITEMS"]; ++i){
             node_page_list[i] = node_page_list[i]<0?0:node_page_list[i];
+            node_page_state.push_back(node_page_list[i]);
         }
     }
-    node_page_state.resize(enums["NR_VM_NODE_STAT_ITEMS"]);
-    std::copy(node_page_list, node_page_list + enums["NR_VM_NODE_STAT_ITEMS"], node_page_state.begin());
+    FREEBUF(node_page_list);
 
-    long* zone_page_list = (long *)read_memory(g_param["vm_zone_stat"], sizeof(ulong) * enums["NR_VM_ZONE_STAT_ITEMS"], "");
+    // Read full list from vm_zone_stat/vm_stat
+    ulong vm_stat_addr = (THIS_KERNEL_VERSION < LINUX(4, 9, 0))?g_param["vm_stat"]:g_param["vm_zone_stat"];
+    long* zone_page_list = (long *)read_memory(vm_stat_addr, sizeof(ulong) * enums["NR_VM_ZONE_STAT_ITEMS"], "");
     if (get_config_val("CONFIG_SMP") == "y"){
         for (size_t i = 0; i < enums["NR_VM_ZONE_STAT_ITEMS"]; ++i){
             zone_page_list[i] = zone_page_list[i]<0?0:zone_page_list[i];
+            zone_page_state.push_back(zone_page_list[i]);
         }
     }
-    zone_page_state.resize(enums["NR_VM_ZONE_STAT_ITEMS"]);
-    std::copy(zone_page_list, zone_page_list + enums["NR_VM_ZONE_STAT_ITEMS"], zone_page_state.begin());
-
-    FREEBUF(node_page_list);
     FREEBUF(zone_page_list);
+
+    // Read full list from vm_event_states
+    for (int cpu = 0; cpu < read_uint(g_param["nr_cpu_ids"], ""); ++cpu) {
+        std::vector<ulong> per_cpu_vm_event_page_state;
+        ulong per_cpu_offset = read_ulong(g_param["__per_cpu_offset"] + sizeof(ulong)*cpu, "get __per_cpu_offset[cpu]");
+        long* vm_event_page_list = (long *)read_memory(g_param["vm_event_states"] + per_cpu_offset, sizeof(ulong) * enums["NR_VM_EVENT_ITEMS"], "");
+        if (get_config_val("CONFIG_SMP") == "y"){
+            for (size_t i = 0; i < enums["NR_VM_EVENT_ITEMS"]; ++i){
+                vm_event_page_list[i] = vm_event_page_list[i]<0?0:vm_event_page_list[i];
+                per_cpu_vm_event_page_state.push_back(vm_event_page_list[i]);
+            }
+        }
+        vm_event_page_state.push_back(per_cpu_vm_event_page_state);
+        FREEBUF(vm_event_page_list);
+    }
 }
 
 ulong Meminfo::get_wmark_low(void){
@@ -269,14 +275,14 @@ ulong Meminfo::get_wmark_low(void){
 
 ulong Meminfo::get_available(ulong freeram)
 {
-	ulong wmark_low = get_wmark_low();
+    ulong wmark_low = get_wmark_low();
     ulong totalreserveram = read_ulong(g_param["totalreserve_pages"], "read from totalreserve_pages");
     long available = freeram - totalreserveram;
 
     ulong pagecache = node_page_state[enums["NR_LRU_BASE"] + enums["LRU_ACTIVE_FILE"]]
          + node_page_state[enums["NR_LRU_BASE"] + enums["LRU_INACTIVE_FILE"]];
     pagecache -= min(pagecache / 2, wmark_low);
-	available += pagecache;
+    available += pagecache;
 
     ulong reclaimable = node_page_state[enums["NR_KERNEL_MISC_RECLAIMABLE"]]
         + node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_RECLAIMABLE_B":"NR_SLAB_RECLAIMABLE"]];
@@ -475,6 +481,103 @@ size_t Meminfo::get_inode_cache_size(){
     return struct_size(hlist_head) << i_hash_shift;
 }
 
+ulong Meminfo::get_vmalloc_total(void){
+    if (get_config_val("CONFIG_MMU") == "y") {
+        std::string config_arm64_va_bits = get_config_val("CONFIG_ARM64_VA_BITS");
+        ulong arm64_va_bits = isNumber(config_arm64_va_bits)?std::stoi(config_arm64_va_bits):39;   // Default:39
+        ulong struct_page_max_shift = static_cast<ulong>(std::ceil(std::log2(struct_size(page))));
+        ulong vmemmap_shift = PAGESHIFT() - struct_page_max_shift;
+        ulong vmemmap_start = -(1UL << (arm64_va_bits - vmemmap_shift));
+        ulong vmalloc_end = vmemmap_start - 0x10000000;     // SZ_256M
+
+        ulong modules_vaddr = -(1UL << ((arm64_va_bits > 48 ? 48 : arm64_va_bits) - 1));
+        // SZ_2G: 0x80000000,  SZ_128M: 0x80000000
+        ulong modules_vsize = (THIS_KERNEL_VERSION >= LINUX(6, 5, 0))?0x80000000:0x08000000;
+        ulong vmalloc_start = modules_vaddr + modules_vsize;
+
+        return (vmalloc_end - vmalloc_start);
+    } else {
+        return 0;
+    }
+}
+
+void Meminfo::print_vmstat(void){
+    std::ostringstream oss;
+
+    std::map<std::string, ulong> vm_event_enum_list = read_enum_list("vm_event_item");
+
+    for (size_t i = 0; i < enums["__MAX_NR_ZONES"]; i++) {
+        ulong zone_addr = g_param["contig_page_data"] + field_offset(pglist_data, node_zones) + i * struct_size(zone);
+        //fprintf(fp, "zone[%d]: zone_addr: 0x%lx\n", i, zone_addr);
+        ulong present_pg = read_ulong(zone_addr + field_offset(zone, present_pages), "read from present_pages");
+        //fprintf(fp, "zone[%d]: present_pg: %ld\n", i, present_pg);
+        if (present_pg > 0) {
+            char* zone_name = (char *)read_memory(read_ulong(zone_addr + field_offset(zone, name), ""), 12, "");
+            //fprintf(fp, "zone[%d]: zone_name : %s, len:%d\n", i, zone_name, strlen(zone_name));
+            ulong spanned_pg = read_ulong(zone_addr + field_offset(zone, spanned_pages), "read from spanned_pages");
+            ulong managed_pg = read_ulong(zone_addr + field_offset(zone, managed_pages), "read from managed_pages");
+            ulong cma_pg = read_ulong(zone_addr + field_offset(zone, cma_pages), "read from cma_pages");
+
+            oss << std::left << "Zone (" << zone_name << ")" << std::setw(29 - strlen(zone_name)) << std::right << " Pages |"
+                << std::setw(12) << std::right << "Size\n"
+                << std::left << "present_pages:        " << std::setw(12) << std::right << present_pg << " |"
+                << std::setw(12) << std::right << csize((int64_t)(int64_t)present_pg*page_size, MB, 1) << "\n"
+                << std::left << "spanned_pages:        " << std::setw(12) << std::right << spanned_pg << " |"
+                << std::setw(12) << std::right << csize((int64_t)(int64_t)spanned_pg*page_size, MB, 1) << "\n"
+                << std::left << "managed_pages:        " << std::setw(12) << std::right << managed_pg << " |"
+                << std::setw(12) << std::right << csize((int64_t)(int64_t)managed_pg*page_size, MB, 1) << "\n"
+                << std::left << "cma_pages:            " << std::setw(12) << std::right << cma_pg << " |"
+                << std::setw(12) << std::right << csize((int64_t)(int64_t)cma_pg*page_size, MB, 1) << "\n";
+            FREEBUF(zone_name);
+
+            ulong wtmark_offset = (THIS_KERNEL_VERSION < LINUX(4, 19, 0))?field_offset(zone, watermark):field_offset(zone, _watermark);
+            for (const auto& pair : enum_dict["zone_watermarks"]) {
+                if (pair.second == enums["NR_WMARK"])   continue;
+                ulong wt_pg = read_ulong(zone_addr + wtmark_offset + sizeof(ulong)*pair.second, "read from watermark pages");
+                oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << wt_pg << " |"
+                    << std::setw(12) << std::right << csize((int64_t)(int64_t)wt_pg*page_size, MB, 1) << "\n";
+            }
+
+            for (const auto& pair : enum_dict["zone_stat_item"]) {
+                if (pair.second == enums["NR_VM_ZONE_STAT_ITEMS"])   continue;
+                ulong zone_item_pg = read_ulong(zone_addr + field_offset(zone, vm_stat) + sizeof(ulong)*pair.second, "read from vm_stat");
+                oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << zone_item_pg << " |"
+                    << std::setw(12) << std::right << csize((int64_t)(int64_t)zone_item_pg*page_size, MB, 1) << "\n";
+            }
+            oss << "\n";
+        }
+    }
+
+    oss << std::left << "Global Stats" << std::setw(24) << std::right << " Pages |" << std::setw(12) << std::right << "Size\n";
+    for (const auto& pair : enum_dict["zone_stat_item"]) {
+        if (pair.second == enums["NR_VM_ZONE_STAT_ITEMS"])   continue;
+        ulong zone_item_pg = zone_page_state[enums[pair.first]];
+        oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << zone_item_pg << " |"
+            << std::setw(12) << std::right << csize((int64_t)(int64_t)zone_item_pg*page_size, MB, 1) << "\n";
+    }
+    oss << "\n";
+    oss << std::left << "Node Stats" << std::setw(26) << std::right << " Pages |" << std::setw(12) << std::right << "Size\n";
+    for (const auto& pair : enum_dict["node_stat_item"]) {
+        if (pair.second == enums["NR_VM_NODE_STAT_ITEMS"])   continue;
+        ulong node_item_pg = node_page_state[enums[pair.first]];
+        oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << node_item_pg << " |"
+            << std::setw(12) << std::right << csize((int64_t)(int64_t)node_item_pg*page_size, MB, 1) << "\n";
+    }
+    oss << "\n";
+    oss << std::left << "VM EVENT Stats" << std::setw(22) << std::right << " Pages |" << std::setw(12) << std::right << "Size\n";
+    for (const auto& pair : enum_dict["vm_event_item"]) {
+        if (pair.second == enums["NR_VM_EVENT_ITEMS"])   continue;
+        ulong vm_event_item_pg = 0;
+        for (int cpu = 0; cpu < read_uint(g_param["nr_cpu_ids"], ""); ++cpu) {
+            vm_event_item_pg += vm_event_page_state[cpu][enums[pair.first]];
+        }
+        oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << vm_event_item_pg << " |"
+            << std::setw(12) << std::right << csize((int64_t)(int64_t)vm_event_item_pg*page_size, MB, 1) << "\n";
+    }
+    oss << "\n";
+    fprintf(fp, "%s \n",oss.str().c_str());
+}
+
 void Meminfo::print_mem_breakdown(void){
     ulong totalram_pg = read_ulong(g_param["_totalram_pages"], "read from _totalram_pages");
     ulong freeram_pg = zone_page_state[enums["NR_FREE_PAGES"]];
@@ -509,49 +612,29 @@ void Meminfo::print_mem_breakdown(void){
         - (slab_pg * page_size + vmalloc + sharedram_pg * page_size + pagetables_pg * page_size + kernelstack_bytes)
         - aon_pg * page_size;
     std::ostringstream oss;
-    oss << std::left << "RAM                :" << std::setw(12) << std::right << csize(totalmm_pg)                  << "\n"
-        << std::left << "   MemTotal        :" << std::setw(12) << std::right << csize(totalram_pg * page_size)     << "\n"
-        << std::left << "   MemFree         :" << std::setw(12) << std::right << csize(freeram_pg * page_size)      << "\n"
-        << std::left << "   Buffers         :" << std::setw(12) << std::right << csize(blockdev_pg * page_size)     << "\n"
-        << std::left << "   Cached          :" << std::setw(12) << std::right << csize(cached_pg * page_size)       << "\n"
-        << std::left << "   SwapCached      :" << std::setw(12) << std::right << csize(swap_cached_pg * page_size)  << "\n"
-        << std::left << "   AonPage         :" << std::setw(12) << std::right << csize(aon_pg * page_size)          << "\n"
-        << std::left << "   FilePage        :" << std::setw(12) << std::right << csize(file_pg * page_size)         << "\n"
-        << std::left << "   Slab            :" << std::setw(12) << std::right << csize(slab_pg * page_size)         << "\n"
-        << std::left << "   KernelStack     :" << std::setw(12) << std::right << csize(kernelstack_bytes)           << "\n"
-        << std::left << "   PageTables      :" << std::setw(12) << std::right << csize(pagetables_pg * page_size)   << "\n"
-        << std::left << "   Shmem           :" << std::setw(12) << std::right << csize(sharedram_pg * page_size)    << "\n"
-        << std::left << "   Cma             :" << std::setw(12) << std::right << csize(get_cma_size())              << "\n"
-        << std::left << "   Dmabuf          :" << std::setw(12) << std::right << csize(dmabuf)                      << "\n"
-        << std::left << "   Vmalloc         :" << std::setw(12) << std::right << csize(vmalloc)                     << "\n"
-        << std::left << "   Other           :" << std::setw(12) << std::right << csize(other_size)                  << "\n\n"
-        << std::left << "   Struct Page     :" << std::setw(12) << std::right << csize(struct_page)                 << "\n"
-        << std::left << "   Kernel Code     :" << std::setw(12) << std::right << csize(kernel_code)                 << "\n"
-        << std::left << "   Kernel Data     :" << std::setw(12) << std::right << csize(kernel_data)                 << "\n"
-        << std::left << "   Dentry Cache    :" << std::setw(12) << std::right << csize(dentry_cache)                << "\n"
-        << std::left << "   Inode  Cache    :" << std::setw(12) << std::right << csize(inode_cache)                 << "\n\n"
-        << std::left << "   NON_HLOS        :" << std::setw(12) << std::right << csize(no_hlos)                     << "\n";
+    oss << std::left << "RAM                :" << std::setw(12) << std::right << csize((int64_t)totalmm_pg)                  << "\n"
+        << std::left << "   MemTotal        :" << std::setw(12) << std::right << csize((int64_t)totalram_pg * page_size)     << "\n"
+        << std::left << "   MemFree         :" << std::setw(12) << std::right << csize((int64_t)freeram_pg * page_size)      << "\n"
+        << std::left << "   Buffers         :" << std::setw(12) << std::right << csize((int64_t)blockdev_pg * page_size)     << "\n"
+        << std::left << "   Cached          :" << std::setw(12) << std::right << csize((int64_t)cached_pg * page_size)       << "\n"
+        << std::left << "   SwapCached      :" << std::setw(12) << std::right << csize((int64_t)swap_cached_pg * page_size)  << "\n"
+        << std::left << "   AonPage         :" << std::setw(12) << std::right << csize((int64_t)aon_pg * page_size)          << "\n"
+        << std::left << "   FilePage        :" << std::setw(12) << std::right << csize((int64_t)file_pg * page_size)         << "\n"
+        << std::left << "   Slab            :" << std::setw(12) << std::right << csize((int64_t)slab_pg * page_size)         << "\n"
+        << std::left << "   KernelStack     :" << std::setw(12) << std::right << csize((int64_t)kernelstack_bytes)           << "\n"
+        << std::left << "   PageTables      :" << std::setw(12) << std::right << csize((int64_t)pagetables_pg * page_size)   << "\n"
+        << std::left << "   Shmem           :" << std::setw(12) << std::right << csize((int64_t)sharedram_pg * page_size)    << "\n"
+        << std::left << "   Cma             :" << std::setw(12) << std::right << csize((int64_t)get_cma_size())              << "\n"
+        << std::left << "   Dmabuf          :" << std::setw(12) << std::right << csize((int64_t)dmabuf)                      << "\n"
+        << std::left << "   Vmalloc         :" << std::setw(12) << std::right << csize((int64_t)vmalloc)                     << "\n"
+        << std::left << "   Other           :" << std::setw(12) << std::right << csize((int64_t)other_size)                  << "\n\n"
+        << std::left << "   Struct Page     :" << std::setw(12) << std::right << csize((int64_t)struct_page)                 << "\n"
+        << std::left << "   Kernel Code     :" << std::setw(12) << std::right << csize((int64_t)kernel_code)                 << "\n"
+        << std::left << "   Kernel Data     :" << std::setw(12) << std::right << csize((int64_t)kernel_data)                 << "\n"
+        << std::left << "   Dentry Cache    :" << std::setw(12) << std::right << csize((int64_t)dentry_cache)                << "\n"
+        << std::left << "   Inode  Cache    :" << std::setw(12) << std::right << csize((int64_t)inode_cache)                 << "\n\n"
+        << std::left << "   NON_HLOS        :" << std::setw(12) << std::right << csize((int64_t)no_hlos)                     << "\n";
     fprintf(fp, "%s \n",oss.str().c_str());
-}
-
-ulong Meminfo::get_vmalloc_total(void){
-    if (get_config_val("CONFIG_MMU") == "y") {
-        std::string config_arm64_va_bits = get_config_val("CONFIG_ARM64_VA_BITS");
-        ulong arm64_va_bits = isNumber(config_arm64_va_bits)?std::stoi(config_arm64_va_bits):39;   // Default:39
-        ulong struct_page_max_shift = static_cast<ulong>(std::ceil(std::log2(struct_size(page))));
-        ulong vmemmap_shift = PAGESHIFT() - struct_page_max_shift;
-        ulong vmemmap_start = -(1UL << (arm64_va_bits - vmemmap_shift));
-        ulong vmalloc_end = vmemmap_start - 0x10000000;     // SZ_256M
-
-        ulong modules_vaddr = -(1UL << ((arm64_va_bits > 48 ? 48 : arm64_va_bits) - 1));
-        // SZ_2G: 0x80000000,  SZ_128M: 0x80000000
-        ulong modules_vsize = (THIS_KERNEL_VERSION >= LINUX(6, 5, 0))?0x80000000:0x08000000;
-        ulong vmalloc_start = modules_vaddr + modules_vsize;
-
-        return (vmalloc_end - vmalloc_start);
-    } else {
-        return 0;
-    }
 }
 
 void Meminfo::print_meminfo(void){
@@ -611,54 +694,54 @@ void Meminfo::print_meminfo(void){
     }
 
     std::ostringstream oss;
-    oss << std::left << "MemTotal:       " << std::setw(12) << std::right << csize(totalram_pg * page_size, KB, 0) << "\n"
-        << std::left << "MemFree:        " << std::setw(12) << std::right << csize(freeram_pg * page_size, KB, 0) << "\n"
-        << std::left << "MemAvailable:   " << std::setw(12) << std::right << csize(available_pg * page_size, KB, 0) << "\n"
-        << std::left << "Buffers:        " << std::setw(12) << std::right << csize(blockdev_pg * page_size, KB, 0) << "\n"
-        << std::left << "Cached:         " << std::setw(12) << std::right << csize(cached_pg * page_size, KB, 0) << "\n"
-        << std::left << "SwapCached:     " << std::setw(12) << std::right << csize(swap_cached_pg * page_size, KB, 0) << "\n"
-        << std::left << "Active:         " << std::setw(12) << std::right << csize(active_pg * page_size, KB, 0) << "\n"
-        << std::left << "Inactive:       " << std::setw(12) << std::right << csize(inactive_pg * page_size, KB, 0) << "\n"
-        << std::left << "Active(anon):   " << std::setw(12) << std::right << csize(active_aon_pg * page_size, KB, 0) << "\n"
-        << std::left << "Inactive(anon): " << std::setw(12) << std::right << csize(inactive_aon_pg * page_size, KB, 0) << "\n"
-        << std::left << "Active(file):   " << std::setw(12) << std::right << csize(active_file_pg * page_size, KB, 0) << "\n"
-        << std::left << "Inactive(file): " << std::setw(12) << std::right << csize(inactive_file_pg * page_size, KB, 0) << "\n"
-        << std::left << "Unevictable:    " << std::setw(12) << std::right << csize(unevictable_pg * page_size, KB, 0) << "\n"
-        << std::left << "Mlocked:        " << std::setw(12) << std::right << csize(mlocked_pg * page_size, KB, 0) << "\n"
-        << std::left << "SwapTotal:      " << std::setw(12) << std::right << csize(totalswap_pg * page_size, KB, 0) << "\n"
-        << std::left << "SwapFree:       " << std::setw(12) << std::right << csize(freeswap_pg * page_size, KB, 0) << "\n"
-        << std::left << "Dirty:          " << std::setw(12) << std::right << csize(dirty_pg * page_size, KB, 0) << "\n"
-        << std::left << "Writeback:      " << std::setw(12) << std::right << csize(writeback_pg * page_size, KB, 0) << "\n"
-        << std::left << "AnonPages:      " << std::setw(12) << std::right << csize(anon_pg * page_size, KB, 0) << "\n"
-        << std::left << "Mapped:         " << std::setw(12) << std::right << csize(mapped_pg * page_size, KB, 0) << "\n"
-        << std::left << "Shmem:          " << std::setw(12) << std::right << csize(sharedram_pg * page_size, KB, 0) << "\n"
-        << std::left << "KReclaimable:   " << std::setw(12) << std::right << csize(kreclaimable_pg * page_size, KB, 0) << "\n"
-        << std::left << "Slab:           " << std::setw(12) << std::right << csize(slab_pg * page_size, KB, 0) << "\n"
-        << std::left << "SReclaimable:   " << std::setw(12) << std::right << csize(slab_reclaimable_pg * page_size, KB, 0) << "\n"
-        << std::left << "SUnreclaim:     " << std::setw(12) << std::right << csize(slab_unreclaim_pg * page_size, KB, 0) << "\n"
-        << std::left << "KernelStack:    " << std::setw(12) << std::right << csize(kernelstack_bytes, KB, 0) << "\n";
+    oss << std::left << "MemTotal:       " << std::setw(12) << std::right << csize((int64_t)totalram_pg * page_size, KB, 0) << "\n"
+        << std::left << "MemFree:        " << std::setw(12) << std::right << csize((int64_t)freeram_pg * page_size, KB, 0) << "\n"
+        << std::left << "MemAvailable:   " << std::setw(12) << std::right << csize((int64_t)available_pg * page_size, KB, 0) << "\n"
+        << std::left << "Buffers:        " << std::setw(12) << std::right << csize((int64_t)blockdev_pg * page_size, KB, 0) << "\n"
+        << std::left << "Cached:         " << std::setw(12) << std::right << csize((int64_t)cached_pg * page_size, KB, 0) << "\n"
+        << std::left << "SwapCached:     " << std::setw(12) << std::right << csize((int64_t)swap_cached_pg * page_size, KB, 0) << "\n"
+        << std::left << "Active:         " << std::setw(12) << std::right << csize((int64_t)active_pg * page_size, KB, 0) << "\n"
+        << std::left << "Inactive:       " << std::setw(12) << std::right << csize((int64_t)inactive_pg * page_size, KB, 0) << "\n"
+        << std::left << "Active(anon):   " << std::setw(12) << std::right << csize((int64_t)active_aon_pg * page_size, KB, 0) << "\n"
+        << std::left << "Inactive(anon): " << std::setw(12) << std::right << csize((int64_t)inactive_aon_pg * page_size, KB, 0) << "\n"
+        << std::left << "Active(file):   " << std::setw(12) << std::right << csize((int64_t)active_file_pg * page_size, KB, 0) << "\n"
+        << std::left << "Inactive(file): " << std::setw(12) << std::right << csize((int64_t)inactive_file_pg * page_size, KB, 0) << "\n"
+        << std::left << "Unevictable:    " << std::setw(12) << std::right << csize((int64_t)unevictable_pg * page_size, KB, 0) << "\n"
+        << std::left << "Mlocked:        " << std::setw(12) << std::right << csize((int64_t)mlocked_pg * page_size, KB, 0) << "\n"
+        << std::left << "SwapTotal:      " << std::setw(12) << std::right << csize((int64_t)totalswap_pg * page_size, KB, 0) << "\n"
+        << std::left << "SwapFree:       " << std::setw(12) << std::right << csize((int64_t)freeswap_pg * page_size, KB, 0) << "\n"
+        << std::left << "Dirty:          " << std::setw(12) << std::right << csize((int64_t)dirty_pg * page_size, KB, 0) << "\n"
+        << std::left << "Writeback:      " << std::setw(12) << std::right << csize((int64_t)writeback_pg * page_size, KB, 0) << "\n"
+        << std::left << "AnonPages:      " << std::setw(12) << std::right << csize((int64_t)anon_pg * page_size, KB, 0) << "\n"
+        << std::left << "Mapped:         " << std::setw(12) << std::right << csize((int64_t)mapped_pg * page_size, KB, 0) << "\n"
+        << std::left << "Shmem:          " << std::setw(12) << std::right << csize((int64_t)sharedram_pg * page_size, KB, 0) << "\n"
+        << std::left << "KReclaimable:   " << std::setw(12) << std::right << csize((int64_t)kreclaimable_pg * page_size, KB, 0) << "\n"
+        << std::left << "Slab:           " << std::setw(12) << std::right << csize((int64_t)slab_pg * page_size, KB, 0) << "\n"
+        << std::left << "SReclaimable:   " << std::setw(12) << std::right << csize((int64_t)slab_reclaimable_pg * page_size, KB, 0) << "\n"
+        << std::left << "SUnreclaim:     " << std::setw(12) << std::right << csize((int64_t)slab_unreclaim_pg * page_size, KB, 0) << "\n"
+        << std::left << "KernelStack:    " << std::setw(12) << std::right << csize((int64_t)kernelstack_bytes, KB, 0) << "\n";
     if (get_config_val("CONFIG_SHADOW_CALL_STACK") == "y") {
-        oss << std::left << "ShadowCallStack:" << std::setw(12) << std::right << csize(shadowstack_bytes, KB, 0) << "\n";
+        oss << std::left << "ShadowCallStack:" << std::setw(12) << std::right << csize((int64_t)shadowstack_bytes, KB, 0) << "\n";
     }
-    oss << std::left << "PageTables:     " << std::setw(12) << std::right << csize(pagetables_pg * page_size, KB, 0) << "\n"
-        << std::left << "NFS_Unstable:   " << std::setw(12) << std::right << csize(0, KB, 0) << "\n"
-        << std::left << "Bounce:         " << std::setw(12) << std::right << csize(bounce_pg * page_size, KB, 0) << "\n"
-        << std::left << "WritebackTmp:   " << std::setw(12) << std::right << csize(writebacktmp_pg * page_size, KB, 0) << "\n"
-        << std::left << "CommitLimit:    " << std::setw(12) << std::right << csize(vm_commit_pg * page_size, KB, 0) << "\n"
-        << std::left << "VmallocTotal:   " << std::setw(12) << std::right << csize(vmalloc_total_bytes, KB, 0) << "\n"
-        << std::left << "VmallocUsed:    " << std::setw(12) << std::right << csize(vmalloc_used_pg * page_size, KB, 0) << "\n"
-        << std::left << "VmallocChunk:   " << std::setw(12) << std::right << csize(0, KB, 0) << "\n"
-        << std::left << "Percpu:         " << std::setw(12) << std::right << csize(pcpu_nr_pg * page_size, KB, 0) << "\n";
+    oss << std::left << "PageTables:     " << std::setw(12) << std::right << csize((int64_t)pagetables_pg * page_size, KB, 0) << "\n"
+        << std::left << "NFS_Unstable:   " << std::setw(12) << std::right << csize((int64_t)0, KB, 0) << "\n"
+        << std::left << "Bounce:         " << std::setw(12) << std::right << csize((int64_t)bounce_pg * page_size, KB, 0) << "\n"
+        << std::left << "WritebackTmp:   " << std::setw(12) << std::right << csize((int64_t)writebacktmp_pg * page_size, KB, 0) << "\n"
+        << std::left << "CommitLimit:    " << std::setw(12) << std::right << csize((int64_t)vm_commit_pg * page_size, KB, 0) << "\n"
+        << std::left << "VmallocTotal:   " << std::setw(12) << std::right << csize((int64_t)vmalloc_total_bytes, KB, 0) << "\n"
+        << std::left << "VmallocUsed:    " << std::setw(12) << std::right << csize((int64_t)vmalloc_used_pg * page_size, KB, 0) << "\n"
+        << std::left << "VmallocChunk:   " << std::setw(12) << std::right << csize((int64_t)0, KB, 0) << "\n"
+        << std::left << "Percpu:         " << std::setw(12) << std::right << csize((int64_t)pcpu_nr_pg * page_size, KB, 0) << "\n";
     if (get_config_val("CONFIG_TRANSPARENT_HUGEPAGE") == "y") {
-        oss << std::left << "AnonHugePages:  " << std::setw(12) << std::right << csize(anon_huge_pg * page_size, KB, 0) << "\n"
-            << std::left << "ShmemHugePages: " << std::setw(12) << std::right << csize(shmem_huge_pg * page_size, KB, 0) << "\n"
-            << std::left << "ShmemPmdMapped: " << std::setw(12) << std::right << csize(shmem_pmd_mapped_pg * page_size, KB, 0) << "\n"
-            << std::left << "FileHugePages:  " << std::setw(12) << std::right << csize(file_huge_pg * page_size, KB, 0) << "\n"
-            << std::left << "FilePmdMapped:  " << std::setw(12) << std::right << csize(file_pmd_mapped_pg * page_size, KB, 0) << "\n";
+        oss << std::left << "AnonHugePages:  " << std::setw(12) << std::right << csize((int64_t)anon_huge_pg * page_size, KB, 0) << "\n"
+            << std::left << "ShmemHugePages: " << std::setw(12) << std::right << csize((int64_t)shmem_huge_pg * page_size, KB, 0) << "\n"
+            << std::left << "ShmemPmdMapped: " << std::setw(12) << std::right << csize((int64_t)shmem_pmd_mapped_pg * page_size, KB, 0) << "\n"
+            << std::left << "FileHugePages:  " << std::setw(12) << std::right << csize((int64_t)file_huge_pg * page_size, KB, 0) << "\n"
+            << std::left << "FilePmdMapped:  " << std::setw(12) << std::right << csize((int64_t)file_pmd_mapped_pg * page_size, KB, 0) << "\n";
     }
     if (get_config_val("CONFIG_CMA") == "y") {
-        oss << std::left << "CmaTotal:       " << std::setw(12) << std::right << csize(cma_total_pg * page_size, KB, 0) << "\n"
-            << std::left << "CmaFree:        " << std::setw(12) << std::right << csize(cma_free_pg * page_size, KB, 0) << "\n";
+        oss << std::left << "CmaTotal:       " << std::setw(12) << std::right << csize((int64_t)cma_total_pg * page_size, KB, 0) << "\n"
+            << std::left << "CmaFree:        " << std::setw(12) << std::right << csize((int64_t)cma_free_pg * page_size, KB, 0) << "\n";
     }
     fprintf(fp, "%s \n",oss.str().c_str());
 }
