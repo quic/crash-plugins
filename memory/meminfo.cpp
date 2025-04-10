@@ -507,7 +507,9 @@ void Meminfo::print_vmstat(void){
     std::map<std::string, ulong> vm_event_enum_list = read_enum_list("vm_event_item");
 
     for (size_t i = 0; i < enums["__MAX_NR_ZONES"]; i++) {
+        if (g_param["contig_page_data"] == 0x0) break;
         ulong zone_addr = g_param["contig_page_data"] + field_offset(pglist_data, node_zones) + i * struct_size(zone);
+        if (zone_addr == 0x0)   continue;
         //fprintf(fp, "zone[%d]: zone_addr: 0x%lx\n", i, zone_addr);
         ulong present_pg = read_ulong(zone_addr + field_offset(zone, present_pages), "read from present_pages");
         //fprintf(fp, "zone[%d]: present_pg: %ld\n", i, present_pg);
