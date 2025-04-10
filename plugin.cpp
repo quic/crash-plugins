@@ -66,7 +66,7 @@ PaserPlugin::PaserPlugin(){
 bool PaserPlugin::isNumber(const std::string& str) {
     regex_t decimal, hex;
     bool result = false;
-    if (regcomp(&decimal, "^-?\\d+$", REG_EXTENDED)) {
+    if (regcomp(&decimal, "^-?[0-9]+$", REG_EXTENDED)) {
         fprintf(fp, "Could not compile decimal regex\n");
         return false;
     }
@@ -83,28 +83,28 @@ bool PaserPlugin::isNumber(const std::string& str) {
     return result;
 }
 
-std::string PaserPlugin::csize(size_t size){
+std::string PaserPlugin::csize(int64_t size){
     std::ostringstream oss;
     if (size < KB) {
         oss << size << "B";
     } else if (size < MB) {
         double sizeInKB = static_cast<double>(size) / KB;
-        if (sizeInKB == static_cast<size_t>(sizeInKB)) {
-            oss << static_cast<size_t>(sizeInKB) << "KB";
+        if (sizeInKB == static_cast<int64_t>(sizeInKB)) {
+            oss << static_cast<int64_t>(sizeInKB) << "KB";
         } else {
             oss << std::fixed << std::setprecision(2) << sizeInKB << "KB";
         }
     } else if (size < GB) {
         double sizeInMB = static_cast<double>(size) / MB;
-        if (sizeInMB == static_cast<size_t>(sizeInMB)) {
-            oss << static_cast<size_t>(sizeInMB) << "MB";
+        if (sizeInMB == static_cast<int64_t>(sizeInMB)) {
+            oss << static_cast<int64_t>(sizeInMB) << "MB";
         } else {
             oss << std::fixed << std::setprecision(2) << sizeInMB << "MB";
         }
     } else {
         double sizeInGB = static_cast<double>(size) / GB;
-        if (sizeInGB == static_cast<size_t>(sizeInGB)) {
-            oss << static_cast<size_t>(sizeInGB) << "GB";
+        if (sizeInGB == static_cast<int64_t>(sizeInGB)) {
+            oss << static_cast<int64_t>(sizeInGB) << "GB";
         } else {
             oss << std::fixed << std::setprecision(2) << sizeInGB << "GB";
         }
@@ -112,7 +112,7 @@ std::string PaserPlugin::csize(size_t size){
     return oss.str();
 }
 
-std::string PaserPlugin::csize(size_t size, int unit, int precision){
+std::string PaserPlugin::csize(int64_t size, int unit, int precision){
     std::ostringstream oss;
     if (unit == KB) {
         oss << std::fixed << std::setprecision(precision) << (size / KB) << " KB";
@@ -704,6 +704,31 @@ long PaserPlugin::read_enum_val(const std::string& enum_name){
      long enum_val = 0;
      enumerator_value(TO_CONST_STRING(enum_name.c_str()), &enum_val);
      return enum_val;
+}
+
+std::map<std::string, ulong> PaserPlugin::read_enum_list(const std::string& enum_list_name){
+    char cmd_buf[BUFSIZE], ret_buf[BUFSIZE*5];
+    FILE *tmp_fp = fmemopen(ret_buf, sizeof(ret_buf), "w");
+    sprintf(cmd_buf, "ptype enum %s", enum_list_name.c_str());
+    gdb_pass_through(cmd_buf, tmp_fp, GNU_RETURN_ON_ERROR);
+    fclose(tmp_fp);
+    std::string input(ret_buf);
+    std::string content = input.substr(input.find('{') + 1, input.find('}') - input.find('{')-1);
+
+    std::map<std::string, ulong> enum_list;
+    std::istringstream ss(content);
+    std::string item;
+    int currentValue = 0;
+    while (std::getline(ss, item, ',')) {
+        size_t equalPos = item.find('=');
+        std::string key = (equalPos != std::string::npos)?item.substr(0, equalPos):item;
+        int value = (equalPos != std::string::npos)?std::stoi(item.substr(equalPos+1)):currentValue++;
+        key.erase(0, key.find_first_not_of(" \t\n\r"));
+        key.erase(key.find_last_not_of(" \t\n\r") + 1);
+        enum_list.insert(std::make_pair(key, value));
+    }
+
+    return enum_list;
 }
 
 char PaserPlugin::get_printable(uint8_t d) {
