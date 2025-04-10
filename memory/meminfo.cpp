@@ -199,6 +199,7 @@ void Meminfo::parse_meminfo(void){
         "blockdev_superblock",
         "sysctl_overcommit_kbytes",
         "sysctl_overcommit_ratio",
+        "node_data",
         "contig_page_data",
         "__cpu_online_mask",
         "__cpu_dying_mask",
@@ -503,12 +504,12 @@ ulong Meminfo::get_vmalloc_total(void){
 
 void Meminfo::print_vmstat(void){
     std::ostringstream oss;
-
     std::map<std::string, ulong> vm_event_enum_list = read_enum_list("vm_event_item");
+    ulong nr_zone_base = (get_config_val("CONFIG_NUMA") == "y")?read_ulong(g_param["node_data"],""):g_param["contig_page_data"];
 
     for (size_t i = 0; i < enums["__MAX_NR_ZONES"]; i++) {
-        if (g_param["contig_page_data"] == 0x0) break;
-        ulong zone_addr = g_param["contig_page_data"] + field_offset(pglist_data, node_zones) + i * struct_size(zone);
+        if (nr_zone_base == 0x0) break;
+        ulong zone_addr = nr_zone_base + field_offset(pglist_data, node_zones) + i * struct_size(zone);
         if (zone_addr == 0x0)   continue;
         //fprintf(fp, "zone[%d]: zone_addr: 0x%lx\n", i, zone_addr);
         ulong present_pg = read_ulong(zone_addr + field_offset(zone, present_pages), "read from present_pages");
@@ -523,13 +524,13 @@ void Meminfo::print_vmstat(void){
             oss << std::left << "Zone (" << zone_name << ")" << std::setw(29 - strlen(zone_name)) << std::right << " Pages |"
                 << std::setw(12) << std::right << "Size\n"
                 << std::left << "present_pages:        " << std::setw(12) << std::right << present_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)(int64_t)present_pg*page_size, MB, 1) << "\n"
+                << std::setw(12) << std::right << csize((int64_t)present_pg*page_size, MB, 1) << "\n"
                 << std::left << "spanned_pages:        " << std::setw(12) << std::right << spanned_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)(int64_t)spanned_pg*page_size, MB, 1) << "\n"
+                << std::setw(12) << std::right << csize((int64_t)spanned_pg*page_size, MB, 1) << "\n"
                 << std::left << "managed_pages:        " << std::setw(12) << std::right << managed_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)(int64_t)managed_pg*page_size, MB, 1) << "\n"
+                << std::setw(12) << std::right << csize((int64_t)managed_pg*page_size, MB, 1) << "\n"
                 << std::left << "cma_pages:            " << std::setw(12) << std::right << cma_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)(int64_t)cma_pg*page_size, MB, 1) << "\n";
+                << std::setw(12) << std::right << csize((int64_t)cma_pg*page_size, MB, 1) << "\n";
             FREEBUF(zone_name);
 
             ulong wtmark_offset = (THIS_KERNEL_VERSION < LINUX(4, 19, 0))?field_offset(zone, watermark):field_offset(zone, _watermark);
@@ -537,14 +538,14 @@ void Meminfo::print_vmstat(void){
                 if (pair.second == enums["NR_WMARK"])   continue;
                 ulong wt_pg = read_ulong(zone_addr + wtmark_offset + sizeof(ulong)*pair.second, "read from watermark pages");
                 oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << wt_pg << " |"
-                    << std::setw(12) << std::right << csize((int64_t)(int64_t)wt_pg*page_size, MB, 1) << "\n";
+                    << std::setw(12) << std::right << csize((int64_t)wt_pg*page_size, MB, 1) << "\n";
             }
 
             for (const auto& pair : enum_dict["zone_stat_item"]) {
                 if (pair.second == enums["NR_VM_ZONE_STAT_ITEMS"])   continue;
                 ulong zone_item_pg = read_ulong(zone_addr + field_offset(zone, vm_stat) + sizeof(ulong)*pair.second, "read from vm_stat");
                 oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << zone_item_pg << " |"
-                    << std::setw(12) << std::right << csize((int64_t)(int64_t)zone_item_pg*page_size, MB, 1) << "\n";
+                    << std::setw(12) << std::right << csize((int64_t)zone_item_pg*page_size, MB, 1) << "\n";
             }
             oss << "\n";
         }
@@ -555,7 +556,7 @@ void Meminfo::print_vmstat(void){
         if (pair.second == enums["NR_VM_ZONE_STAT_ITEMS"])   continue;
         ulong zone_item_pg = zone_page_state[enums[pair.first]];
         oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << zone_item_pg << " |"
-            << std::setw(12) << std::right << csize((int64_t)(int64_t)zone_item_pg*page_size, MB, 1) << "\n";
+            << std::setw(12) << std::right << csize((int64_t)zone_item_pg*page_size, MB, 1) << "\n";
     }
     oss << "\n";
     oss << std::left << "Node Stats" << std::setw(26) << std::right << " Pages |" << std::setw(12) << std::right << "Size\n";
@@ -563,7 +564,7 @@ void Meminfo::print_vmstat(void){
         if (pair.second == enums["NR_VM_NODE_STAT_ITEMS"])   continue;
         ulong node_item_pg = node_page_state[enums[pair.first]];
         oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << node_item_pg << " |"
-            << std::setw(12) << std::right << csize((int64_t)(int64_t)node_item_pg*page_size, MB, 1) << "\n";
+            << std::setw(12) << std::right << csize((int64_t)node_item_pg*page_size, MB, 1) << "\n";
     }
     oss << "\n";
     oss << std::left << "VM EVENT Stats" << std::setw(22) << std::right << " Pages |" << std::setw(12) << std::right << "Size\n";
@@ -574,7 +575,7 @@ void Meminfo::print_vmstat(void){
             vm_event_item_pg += vm_event_page_state[cpu][enums[pair.first]];
         }
         oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << vm_event_item_pg << " |"
-            << std::setw(12) << std::right << csize((int64_t)(int64_t)vm_event_item_pg*page_size, MB, 1) << "\n";
+            << std::setw(12) << std::right << csize((int64_t)vm_event_item_pg*page_size, MB, 1) << "\n";
     }
     oss << "\n";
     fprintf(fp, "%s \n",oss.str().c_str());

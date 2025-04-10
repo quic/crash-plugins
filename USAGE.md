@@ -530,6 +530,62 @@ RAM                :     11.28GB
 
    NON_HLOS        :    481.45MB
 ```
+### meminfo -v
+Breakdown vmstat info.
+```
+crash> meminfo -v
+Zone (DMA)                   Pages |       Size
+present_pages:              524288 |   2048.0 MB
+spanned_pages:              524288 |   2048.0 MB
+managed_pages:              437462 |   1708.8 MB
+cma_pages:                    8192 |     32.0 MB
+... ...
+WMARK_HIGH:                   3762 |     14.7 MB
+WMARK_LOW:                    3135 |     12.2 MB
+WMARK_MIN:                    2508 |      9.8 MB
+WMARK_PROMO:                  4389 |     17.1 MB
+NR_ZSPAGES:                      0 |      0.0 MB
+
+Zone (Normal)                Pages |       Size
+present_pages:             1554432 |   6072.0 MB
+spanned_pages:             1554432 |   6072.0 MB
+managed_pages:             1513233 |   5911.1 MB
+cma_pages:                       0 |      0.0 MB
+... ...
+WMARK_HIGH:                  13131 |     51.3 MB
+WMARK_LOW:                   10943 |     42.7 MB
+WMARK_MIN:                    8755 |     34.2 MB
+WMARK_PROMO:                 15319 |     59.8 MB
+NR_ZSPAGES:                      3 |      0.0 MB
+
+Global Stats                 Pages |       Size
+NR_BOUNCE:                       0 |      0.0 MB
+NR_FREE_CMA_PAGES:            7424 |     29.0 MB
+NR_FREE_PAGES:             1776755 |   6940.4 MB
+... ...
+NR_ZSPAGES:                      3 |      0.0 MB
+
+Node Stats                   Pages |       Size
+NR_ACTIVE_ANON:                252 |      1.0 MB
+NR_ACTIVE_FILE:              10066 |     39.3 MB
+NR_ANON_MAPPED:              23535 |     91.9 MB
+NR_ANON_THPS:                 9728 |     38.0 MB
+... ...
+NR_SLAB_RECLAIMABLE_B:       22097 |     86.3 MB
+NR_SLAB_UNRECLAIMABLE_B:     29234 |    114.2 MB
+
+
+VM EVENT Stats               Pages |       Size
+PGACTIVATE:                  10054 |     39.3 MB
+PGALLOC_NORMAL:             650263 |   2540.1 MB
+PGFAULT:                    423976 |   1656.2 MB
+PGFREE:                    2433164 |   9504.5 MB
+... ...
+PGMIGRATE_SUCCESS:               0 |      0.0 MB
+PGPGIN:                     353158 |   1379.5 MB
+UNEVICTABLE_PGCULLED:         9094 |     35.5 MB
+
+```
 ## zram
 This command dumps the zram info.
 
