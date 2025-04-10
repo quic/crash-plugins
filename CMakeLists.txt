@@ -98,7 +98,8 @@ list(APPEND PLUGIN_SOURCES
     coredump/core.cpp
     thermal/thermal.cpp
     memory/meminfo.cpp
-    watchdog/wdt.cpp)
+    watchdog/wdt.cpp
+    pagecache/pageinfo.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp

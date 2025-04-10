@@ -39,6 +39,7 @@ public:
     void print_file_pages();
     void init_offset();
     void cmd_main(void) override;
+    void print_anon_pages();
     DEFINE_PLUGIN_INSTANCE(Pageinfo)
 };
 

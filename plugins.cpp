@@ -38,6 +38,7 @@
 #include "thermal/thermal.h"
 #include "memory/meminfo.h"
 #include "watchdog/wdt.h"
+#include "pagecache/pageinfo.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
@@ -70,6 +71,7 @@ std::shared_ptr<Coredump>   Coredump::instance = nullptr;
 std::shared_ptr<Thermal>    Thermal::instance = nullptr;
 std::shared_ptr<Meminfo>    Meminfo::instance = nullptr;
 std::shared_ptr<Watchdog>   Watchdog::instance = nullptr;
+std::shared_ptr<Pageinfo>   Pageinfo::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -98,6 +100,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     Thermal::instance = std::make_shared<Thermal>();
     Meminfo::instance = std::make_shared<Meminfo>();
     Watchdog::instance = std::make_shared<Watchdog>();
+    Pageinfo::instance = std::make_shared<Pageinfo>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -125,6 +128,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &Thermal::instance->cmd_name[0], &Thermal::wrapper_func, Thermal::instance->cmd_help, 0 },
         { &Meminfo::instance->cmd_name[0], &Meminfo::wrapper_func, Meminfo::instance->cmd_help, 0 },
         { &Watchdog::instance->cmd_name[0], &Watchdog::wrapper_func, Watchdog::instance->cmd_help, 0 },
+        { &Pageinfo::instance->cmd_name[0], &Pageinfo::wrapper_func, Pageinfo::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -157,6 +161,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     Thermal::instance.reset();
     Meminfo::instance.reset();
     Watchdog::instance.reset();
+    Pageinfo::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
