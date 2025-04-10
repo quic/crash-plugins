@@ -307,15 +307,15 @@ void Buddy::print_buddy_info(){
             if (free_list_cnt > migratetype_names.size()){
                 free_list_cnt = migratetype_names.size();
             }
-            size_t total_size = 0;
-            size_t total_by_order[vt->nr_free_areas] = {0};
+            int64_t total_size = 0;
+            int64_t total_by_order[vt->nr_free_areas] = {0};
             for (int m = 0; m < free_list_cnt; m++) { //migrate type
                 fprintf(fp, "%12s ", migratetype_names[m].c_str());
-                size_t total_per_type = 0;
+                int64_t total_per_type = 0;
                 for (int o = 0; o < vt->nr_free_areas; o++) { //order
                     int free_cnt = zone_ptr->free_areas[o]->free_list[m].size();
                     fprintf(fp, "%8d ", free_cnt);
-                    size_t per_size = power(2, o) * page_size;
+                    int64_t per_size = power(2, o) * page_size;
                     total_per_type +=  (per_size * free_cnt);
                     total_by_order[o] += (per_size * free_cnt);
                 }
@@ -335,9 +335,9 @@ void Buddy::print_buddy_info(){
 
 void Buddy::print_node_info(std::shared_ptr<pglist_data> node_ptr){
     int len = 15;
-    ulong spanned_size = node_ptr->spanned_pages*page_size;
-    ulong present_size = node_ptr->present_pages*page_size;
-    ulong hole_size = spanned_size - present_size;
+    int64_t spanned_size = node_ptr->spanned_pages*page_size;
+    int64_t present_size = node_ptr->present_pages*page_size;
+    int64_t hole_size = spanned_size - present_size;
     std::ostringstream oss;
     oss << std::left << "pglist_data(" << node_ptr->id << ")" << ": " << std::hex << node_ptr->addr << "\n"
         << std::left << std::setw(20) << "  spanned     : " << std::dec << node_ptr->spanned_pages << "(" << csize(spanned_size) << ") \n"
@@ -352,22 +352,22 @@ void Buddy::print_node_info(std::shared_ptr<pglist_data> node_ptr){
 void Buddy::print_zone_info(std::shared_ptr<zone> zone_ptr){
     std::ostringstream oss;
     oss << std::left << "  " << zone_ptr->name << " zone:" << std::hex << zone_ptr->addr << "\n"
-        << std::left << std::setw(20) << "    spanned   : " << std::dec << zone_ptr->spanned_pages << "(" << csize(zone_ptr->spanned_pages*page_size) << ") \n"
-        << std::left << std::setw(20) << "    present   : " << std::dec << zone_ptr->present_pages << "(" << csize(zone_ptr->present_pages*page_size) << ") \n"
-        << std::left << std::setw(20) << "    hole      : " << std::dec << zone_ptr->spanned_pages - zone_ptr->present_pages << "(" << csize((zone_ptr->spanned_pages - zone_ptr->present_pages)*page_size) << ") \n"
+        << std::left << std::setw(20) << "    spanned   : " << std::dec << zone_ptr->spanned_pages << "(" << csize((int64_t)zone_ptr->spanned_pages*page_size) << ") \n"
+        << std::left << std::setw(20) << "    present   : " << std::dec << zone_ptr->present_pages << "(" << csize((int64_t)zone_ptr->present_pages*page_size) << ") \n"
+        << std::left << std::setw(20) << "    hole      : " << std::dec << zone_ptr->spanned_pages - zone_ptr->present_pages << "(" << csize((int64_t)(zone_ptr->spanned_pages - zone_ptr->present_pages)*page_size) << ") \n"
         << std::left << std::setw(20) << "    managed   : " << std::dec << zone_ptr->managed_pages << "(" << csize(zone_ptr->managed_pages*page_size) << ") \n"
-        << std::left << std::setw(20) << "    reserved  : " << std::dec << (zone_ptr->present_pages - zone_ptr->managed_pages) << "(" << csize((zone_ptr->present_pages - zone_ptr->managed_pages)*page_size) << ") \n";
+        << std::left << std::setw(20) << "    reserved  : " << std::dec << (zone_ptr->present_pages - zone_ptr->managed_pages) << "(" << csize((int64_t)(zone_ptr->present_pages - zone_ptr->managed_pages)*page_size) << ") \n";
     if (field_offset(zone,cma_pages) > 0){
-        oss << std::left << std::setw(20) << "    cma_pages  : " << std::dec << zone_ptr->cma_pages << "(" << csize(zone_ptr->cma_pages*page_size) << ") \n";
+        oss << std::left << std::setw(20) << "    cma_pages  : " << std::dec << zone_ptr->cma_pages << "(" << csize((int64_t)zone_ptr->cma_pages*page_size) << ") \n";
     }
     oss << std::left << std::setw(20) << "    start_pfn  : " << std::hex << zone_ptr->start_pfn << "\n"
         << std::left << std::setw(20) << "    start_paddr: " << std::hex << (zone_ptr->start_pfn << 12) << "\n";
     if (field_offset(zone,watermark_boost) > 0){
         oss << std::left << std::setw(20) << "    watermark_boost: " << std::dec << zone_ptr->watermark_boost << "\n";
     }
-    oss << std::left << std::setw(20) << "    WMARK_HIGH: " << std::dec << zone_ptr->_watermark[zone_watermarks::WMARK_HIGH] << "(" << csize(zone_ptr->_watermark[zone_watermarks::WMARK_HIGH]*page_size) << ") \n"
-        << std::left << std::setw(20) << "    WMARK_LOW : " << std::dec << zone_ptr->_watermark[zone_watermarks::WMARK_LOW] << "(" << csize(zone_ptr->_watermark[zone_watermarks::WMARK_LOW]*page_size) << ") \n"
-        << std::left << std::setw(20) << "    WMARK_MIN : " << std::dec << zone_ptr->_watermark[zone_watermarks::WMARK_MIN] << "(" << csize(zone_ptr->_watermark[zone_watermarks::WMARK_MIN]*page_size) << ")";
+    oss << std::left << std::setw(20) << "    WMARK_HIGH: " << std::dec << zone_ptr->_watermark[zone_watermarks::WMARK_HIGH] << "(" << csize((int64_t)zone_ptr->_watermark[zone_watermarks::WMARK_HIGH]*page_size) << ") \n"
+        << std::left << std::setw(20) << "    WMARK_LOW : " << std::dec << zone_ptr->_watermark[zone_watermarks::WMARK_LOW] << "(" << csize((int64_t)zone_ptr->_watermark[zone_watermarks::WMARK_LOW]*page_size) << ") \n"
+        << std::left << std::setw(20) << "    WMARK_MIN : " << std::dec << zone_ptr->_watermark[zone_watermarks::WMARK_MIN] << "(" << csize((int64_t)zone_ptr->_watermark[zone_watermarks::WMARK_MIN]*page_size) << ")";
     fprintf(fp, "%s \n",oss.str().c_str());
 
 }

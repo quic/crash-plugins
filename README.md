@@ -56,7 +56,7 @@ To load the module's commands to a running crash-8.0.6+ session, enter:
 crash> extend <path-to>/output/arm64/plugins.so or extend <path-to>/output/arm64/${module}.so
 ```
 
-Supprot module:
+Support module:
 
 |  module       |    arm64  |    arm    |    comment                                           |
 |  --------     | --------  | --------  |    --------                                          |
@@ -85,6 +85,8 @@ Supprot module:
 | thermal       | √         | √         | parser all thermal zone temperature info             |
 | meminfo       | √         | √         | parser meminfo                                       |
 | watchdog      | √         | √         | parser watchdog info                                 |
+| pagecache     | √         | √         | parser pagecache for every file                      |
+| debugimage    | √         | √         | parser debug image info                              |
 
 |  module       |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |       comment         |
 |  --------     | ------------------- | ------------------- | ------------------- | -----------------     |

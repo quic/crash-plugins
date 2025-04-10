@@ -272,7 +272,6 @@ std::vector<ulong> PaserPlugin::for_each_rbtree(ulong rb_root,int offset){
 
 std::vector<ulong> PaserPlugin::for_each_list(ulong list_head,int offset){
     std::vector<ulong> res;
-    fprintf(fp, "for_each_list \n");
     if (!is_kvaddr(list_head))return res;
     void *buf = read_struct(list_head,"list_head");
     if(buf == nullptr) return res;

@@ -26,10 +26,13 @@ void Pageinfo::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "f")) != EOF) {
+    while ((c = getopt(argcnt, args, "af")) != EOF) {
         switch(c) {
             case 'f':
                 print_file_pages();
+                break;
+            case 'a':
+                print_anon_pages();
                 break;
             default:
                 argerrs++;
@@ -38,6 +41,27 @@ void Pageinfo::cmd_main(void) {
     }
     if (argerrs)
         cmd_usage(pc->curcmd, SYNOPSIS);
+}
+
+void Pageinfo::print_anon_pages(){
+    for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
+        ulong page = pfn_to_page(pfn);
+        if (!is_kvaddr(page)){
+            continue;
+        }
+        if(page_buddy(page) || page_count(page) == 0){
+            continue;
+        }
+        ulong mapping = read_pointer(page + field_offset(page,mapping),"mapping");
+        if (!is_kvaddr(mapping)){
+            continue;
+        }
+        if(mapping & 0x1 == 0){ // skip file page
+            continue;
+        }
+        physaddr_t paddr = page_to_phy(page);
+        fprintf(fp, "page:%#lx  paddr:%#llx \n",page,(ulonglong)paddr);
+    }
 }
 
 void Pageinfo::parser_file_pages(){
@@ -184,6 +208,23 @@ Pageinfo::Pageinfo(){
         "    ffffff805c4e6128 ffffff805c4e62f0 8768     34.25MB    /priv-app/Settings/Settings.apk",
         "    ffffff8032903848 ffffff8032903a10 8590     33.55MB    /system/framework/framework.jar",
         "    ffffff803d3daaa8 ffffff803d3dac70 4209     16.44MB    /system/framework/services.jar",
+        "\n",
+        "  Display page cache of inode:",
+        "    %s> files -p ffffff805c413178",
+        "           INODE        NRPAGES",
+        "    ffffff805c413178    16220",
+        "    ",
+        "          PAGE       PHYSICAL      MAPPING       INDEX CNT FLAGS",
+        "    fffffffe00bd2000 6f480000 ffffff805c413340        0  3 10000000020014 uptodate,lru,mappedtodisk",
+        "    fffffffe00630ec0 58c3b000 ffffff805c413340        2  3 10000000020014 uptodate,lru,mappedtodisk",
+        "    fffffffe00bc6d80 6f1b6000 ffffff805c413340        3  3 10000000020014 uptodate,lru,mappedtodisk",
+        "    fffffffe012b4cc0 8ad33000 ffffff805c413340        4  3 10000000020014 uptodate,lru,mappedtodisk",
+        "\n",
+        "  Display anon pages:",
+        "    %s> cache -a",
+        "    page:0xfffffffe0007f300  paddr:0x41fcc000",
+        "    page:0xfffffffe0007f440  paddr:0x41fd1000",
+        "    page:0xfffffffe0007f4c0  paddr:0x41fd3000",
         "\n",
     };
     initialize();

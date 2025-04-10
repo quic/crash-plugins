@@ -98,7 +98,9 @@ list(APPEND PLUGIN_SOURCES
     coredump/core.cpp
     thermal/thermal.cpp
     memory/meminfo.cpp
-    watchdog/wdt.cpp)
+    watchdog/wdt.cpp
+    pagecache/pageinfo.cpp
+    debugimage/debugimage.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -288,4 +290,9 @@ add_library(wdt SHARED
             watchdog/wdt.cpp)
 set_target_properties(wdt PROPERTIES PREFIX "")
 
+# =================== build debugimage ===================
+add_library(dbi SHARED
+            ${PLUGIN_SOURCES}
+            debugimage/debugimage.cpp)
+set_target_properties(dbi PROPERTIES PREFIX "")
 endif()
