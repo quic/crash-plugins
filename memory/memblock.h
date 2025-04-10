@@ -37,7 +37,7 @@ struct memblock_type {
     ulong addr;
     unsigned long cnt;
     unsigned long max;
-    unsigned long total_size;
+    uint64_t total_size;
     std::vector<std::shared_ptr<memblock_region>> regions;
     std::string name;
 };

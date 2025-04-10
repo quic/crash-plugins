@@ -1,6 +1,6 @@
 # How to use
 
-Supprot command:
+Support command:
 
 |  command                 | kernel 5.4  | kernel 5.15  |  kernel 6.1  | kernel 6.6   |       comment            |
 |  --------                | --------    | --------     |  --------    |   --------   | -----------------        |
@@ -27,7 +27,8 @@ Supprot command:
 | [coredump](#coredump)    | √           | √            |              |              |  generate coredump       |
 | [tm](#tm)                | √           | √            | √            | √            |  show thermal info       |
 | [wdt](#wdt)              | √           | √            | √            | √            |  show watchdog info      |
-
+| [cache](#cache)          | √           | √            | √            | √            |  show pagecache info     |
+| [dbi](#dbi)              | √           | √            | √            | √            |  show debug iamge info   |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -1588,6 +1589,28 @@ Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'and
 ## coredump
 This command generate process coredump.
 
+### coredump -p 'pid'
+Generate process coredump.
+```
+crash> coredump -p 323
+```
+
+### coredump -m 'pid'
+Show process maps.
+```
+crash> coredump -m 437
+VMA:ffffff801d43e870 [459a000-45a5000] r--p 00000000 /system/bin/logd
+VMA:ffffff801d43ea50 [45a6000-4617000] r-xp 0000000b /system/bin/logd
+VMA:ffffff801d43ed20 [4617000-461a000] r--p 0000007b /system/bin/logd
+VMA:ffffff801d43e960 [461a000-461b000] rw-p 0000007d /system/bin/logd
+VMA:ffffff804c6f9870 [f61fb000-f61fc000] ---p 000f61fb
+VMA:ffffff80498e50f0 [f61fc000-f62fb000] rw-p 000f61fc
+VMA:ffffff8063974e10 [f62fb000-f62fd000] ---p 000f62fb
+```
+
+## tm
+This command dumps the thermal info.
+
 ### tm -d
 Display all thermal zone info.
 ```
@@ -1599,4 +1622,59 @@ ID    ADDR       Name               governor     cur_temp   last_temp
 3     e9ad7000   pm5100-bcl-lvl0    step_wise    0          0
 4     e9ae2800   pm5100-bcl-lvl1    step_wise    0          0
 5     e9ae7000   pm5100-bcl-lvl2    step_wise    0          0
+```
+### tm -D 'zone name'
+Display the temperature gear and cooling action of specified thermal zone.
+```
+crash> tm -D pm5100-tz
+pm5100-tz:
+   temperature:95000
+      [0]thermal_cooling_device:0xffffff8009240800 --> cpufreq-cpu0
+      [7]thermal_cooling_device:0xffffff801e78d800 --> thermal-pause-4
+      [9]thermal_cooling_device:0xffffff801eafc800 --> thermal-pause-8
+   temperature:115000
+   temperature:145000
+```
+
+## cache
+This command dumps the page cache info.
+
+### cache -f
+Display all file info.
+```
+crash> cache -f
+Total File cache size: 704.48MB
+===============================================
+inode            address_space    nrpages  size       Path
+ffffff8030288f68 ffffff8030289130 8901     34.77MB    /system/framework/framework.jar
+ffffff80546f3178 ffffff80546f3340 8747     34.17MB    /priv-app/Settings/Settings.apk
+ffffff8035864cb8 ffffff8035864e80 5312     20.75MB    /system/framework/services.jar
+```
+
+### cache -a
+Display all anon pages.
+```
+crash> cache -a
+page:0xfffffffe00000000  paddr:0x40000000
+page:0xfffffffe00000040  paddr:0x40001000
+page:0xfffffffe00000080  paddr:0x40002000
+page:0xfffffffe000000c0  paddr:0x40003000
+```
+
+## dbi
+This command dumps the debug image info.
+
+### dbi -a
+Display all debug image.
+```
+crash> dbi -a
+DumpTable base:bc700000
+Id   Dump_entry       version  magic            DataAddr         DataLen    Name
+0    bc707e10         20       42445953         bc707e50         2048       c0_context
+1    bc708650         20       42445953         bc708690         2048       c1_context
+2    bc708e90         20       42445953         bc708ed0         2048       c2_context
+3    bc7096d0         20       42445953         bc709710         2048       c3_context
+96   bc709f10         20       42445953         bc709f50         36928      l1_icache0
+97   bc712f90         20       42445953         bc712fd0         36928      l1_icache1
+98   bc71c010         20       42445953         bc71c050         36928      l1_icache2
 ```
