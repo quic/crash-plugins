@@ -13,4 +13,5 @@
 
 set sysroot /usr
 set solib-search-path
+set print pretty on
 bt -full

@@ -156,12 +156,12 @@ bool Zraminfo::get_zspage(ulong page,struct zspage* zp){
     // find the zspage addr of page
     ulong zspage_addr = read_ulong(page + field_offset(page,private),"page private");
     if (!is_kvaddr(zspage_addr)){
-        fprintf(fp, "invaild zspage:%lx\n",zspage_addr);
+        if(debug)fprintf(fp, "invaild zspage:%lx\n",zspage_addr);
         return false;
     }
     // fprintf(fp, "zspage:%lx\n",zspage_addr);
     if(!read_struct(zspage_addr,zp,sizeof(struct zspage),"zspage")){// read the zspage
-        fprintf(fp, "read zspage fail at %lx\n",zspage_addr);
+        if(debug)fprintf(fp, "read zspage fail at %lx\n",zspage_addr);
         return false;
     }
     if (field_offset(zspage, huge) != -1){
@@ -174,7 +174,7 @@ bool Zraminfo::get_zspage(ulong page,struct zspage* zp){
         zs_magic = zp->v0.magic;
     }
     if (zs_magic != ZSPAGE_MAGIC) {
-        fprintf(fp, "zspage magic incorrect: %x\n",zs_magic);
+        if(debug)fprintf(fp, "zspage magic incorrect: %x\n",zs_magic);
         return false;
     }
     return true;
@@ -189,13 +189,13 @@ char* Zraminfo::read_object(std::shared_ptr<zram> zram_ptr,struct zram_table_ent
     // find the page addr of pfn
     ulong page = pfn_to_page(pfn);
     if (!is_kvaddr(page)){
-        fprintf(fp, "invaild page:%lx\n",page);
+        if(debug)fprintf(fp, "invaild page:%lx\n",page);
         return nullptr;
     }
     if(debug)fprintf(fp, "page:0x%lx\n",page);
     struct zspage zspage_s;
     if (!get_zspage(page,&zspage_s)){
-        fprintf(fp, "invaild zspage\n");
+        if(debug)fprintf(fp, "invaild zspage\n");
         return nullptr;
     }
     int class_idx = get_class_id(zspage_s);
@@ -299,7 +299,7 @@ char* Zraminfo::read_zram_page(ulong zram_addr, ulonglong index){
     if (!read_table_entry(zram_ptr,index,&entry)){
         return nullptr;
     }
-    char* page_data = (char*)std::malloc(page_size);
+    char* page_data = (char *)GETBUF(page_size);
     BZERO(page_data, page_size);
     if (entry.flags & ZRAM_FLAG_SAME_BIT) { //ZRAM_SAME
         if(debug)fprintf(fp, "ZRAM_SAME page\n");
