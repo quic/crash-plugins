@@ -344,9 +344,6 @@ char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
     if (!IS_UVADDR(page_start, tc)){
         return nullptr;
     }
-    if (!IN_TASK_VMA(tc->task, page_start)) {
-        // fprintf(fp, "vaddr:%#llx is not in vma range\n", uvaddr);
-    }
     char* page_data;
     int page_exist = uvtop(tc, page_start, &paddr, 0);
     if (page_exist){
