@@ -162,24 +162,12 @@ void LogcatS::get_rw_vma_list(){
 
 long LogcatS::check_ChunkList_in_vma(std::shared_ptr<rw_vma> vma_ptr,ulong list_addr){
     int pointer_size = BITS64() ? (is_compat ? 4 : sizeof(long)) : sizeof(long);
-    for (size_t stdlist_addr = list_addr;
-        stdlist_addr < vma_ptr->vm_end; stdlist_addr += pointer_size){
-        ulong page_start = stdlist_addr & page_mask;
-        int offset_in_page = (stdlist_addr & ~page_mask);
-        char* data_ptr;
-        if (page_data_list.find(page_start) != page_data_list.end()) {
-            data_ptr = page_data_list[page_start];
-        }else{
-            data_ptr = swap_ptr->do_swap_page(tc_logd->task,page_start);
-            page_data_list[page_start] = data_ptr;
-        }
-        char* node_buf = data_ptr;
+    char node_buf[3 * pointer_size];
+    for (size_t stdlist_addr = list_addr; stdlist_addr < vma_ptr->vm_end; stdlist_addr += pointer_size){
         size_t tail_node, next_node, list_size;
-        // char* node_buf = swap_ptr->uread_memory(tc_logd->task,stdlist_addr,3 * pointer_size, "stdlist Node");
-        if(node_buf == nullptr){
+        BZERO(node_buf, 3 * pointer_size);
+        if(!swap_ptr->uread_buffer(tc_logd->task,stdlist_addr,node_buf,3 * pointer_size, "stdlist Node")){
             continue;
-        }else{
-            node_buf += offset_in_page;
         }
         if (is_compat) {
             tail_node = UINT(node_buf + 0 * sizeof(uint32_t));
@@ -213,20 +201,9 @@ long LogcatS::check_ChunkList_in_vma(std::shared_ptr<rw_vma> vma_ptr,ulong list_
         size_t next_node_addr = next_node;
         size_t prev_node;
         while (next_node_addr > 0 && index < list_size){
-            // node_buf = swap_ptr->uread_memory(tc_logd->task,next_node_addr,3 * pointer_size, "stdlist Node");
-            page_start = next_node_addr & page_mask;
-            offset_in_page = (next_node_addr & ~page_mask);
-            if (page_data_list.find(page_start) != page_data_list.end()) {
-                data_ptr = page_data_list[page_start];
-            }else{
-                data_ptr = swap_ptr->do_swap_page(tc_logd->task,page_start);
-                page_data_list[page_start] = data_ptr;
-            }
-            char* node_buf = data_ptr;
-            if(node_buf == nullptr){
+            BZERO(node_buf, 3 * pointer_size);
+            if(!swap_ptr->uread_buffer(tc_logd->task,next_node_addr,node_buf,3 * pointer_size, "stdlist Node")){
                 break;
-            }else{
-                node_buf += offset_in_page;
             }
             size_t tail_node, next_node, list_size;
             if (is_compat) {
@@ -339,14 +316,12 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
         compressed_size = swap_ptr->uread_ulong(tc_logd->task,vaddr
                 + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_,"read compressed_size");
     }
-    char* log_data = nullptr;
-    uint32_t log_len = 0;
     if (writer_active == false){
         if (!is_uvaddr(compressed_data,tc_logd) || compressed_size == 0){
             return;
         }
-        char* compressed_log = swap_ptr->uread_memory(tc_logd->task,compressed_data,compressed_size, "compressed_log");
-        if(compressed_log == nullptr){
+        char compressed_log[compressed_size];
+        if(!swap_ptr->uread_buffer(tc_logd->task,compressed_data,compressed_log,compressed_size, "compressed_log")){
             return;
         }
         size_t const rBuffSize = ZSTD_getFrameContentSize(compressed_log, compressed_size);
@@ -358,23 +333,21 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
         size_t const dSize = ZSTD_decompress(buffer.data(), buffer.size(), compressed_log, compressed_size);
         if (ZSTD_isError(dSize)) {
             std::cout << "Failed to decompress data: " << ZSTD_getErrorName(dSize) << std::endl;
-            std::free(compressed_log);
             return;
         }
-        std::free(compressed_log);
         // std::cout << std::string(buffer.begin(), buffer.end()) << std::endl;
-        log_len = buffer.size();
-        log_data = (char*)std::malloc(log_len);
-        memcpy(log_data, buffer.data(), log_len);
+        parser_SerializedLogEntry(log_id, buffer.data(),buffer.size());
     }else{
         if (!is_uvaddr(contents_data,tc_logd) || write_offset == 0){
             return;
         }
-        log_len = write_offset;
-        log_data = swap_ptr->uread_memory(tc_logd->task, contents_data, write_offset, "contents_log");
+        uint32_t log_len = write_offset;
+        char log_data[log_len];
+        if(!swap_ptr->uread_buffer(tc_logd->task,contents_data,log_data,log_len, "contents_log")){
+            return;
+        }
+        parser_SerializedLogEntry(log_id, log_data,log_len);
     }
-    parser_SerializedLogEntry(log_id, log_data,log_len);
-    std::free(log_data);
 }
 
 void LogcatS::parser_SerializedLogEntry(LOG_ID log_id, char* log_data, uint32_t data_len){

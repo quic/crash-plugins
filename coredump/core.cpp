@@ -14,6 +14,7 @@
  */
 
 #include "core.h"
+#include <chrono>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -214,17 +215,19 @@ void Core::write_core_file(void) {
         fclose(corefile);
         return;
     }
+    auto start = std::chrono::high_resolution_clock::now();
     char page_data[page_size];
     for (const auto& vma : vma_list) {
         for(ulong addr = vma->vm_start; addr < vma->vm_start + vma_dump_size(vma); addr += page_size){
-            char* buf_page = swap_ptr->do_swap_page(tc->task,addr);
-            if(buf_page == nullptr){
+            if(!swap_ptr->uread_buffer(tc->task,addr,page_data,page_size, "read page")){
                 BZERO(page_data, page_size);
-                buf_page = page_data;
             }
-            fwrite(buf_page, sizeof(char), page_size, corefile);
+            fwrite(page_data, sizeof(char), page_size, corefile);
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    fprintf(fp, "time: %.6f s\n",elapsed.count());
     fclose(corefile);
     core_path.clear();
     return;
@@ -446,11 +449,7 @@ void Core::parser_vma_list(ulong task_addr){
 #if defined(__LP64__)
                 vma_ptr->anon_name &= (USERSPACE_TOP - 1);
 #endif
-                char* name_buf = swap_ptr->uread_memory(tc->task,vma_ptr->anon_name, ANON_BUFSIZE, "anon_name");
-                if (name_buf != nullptr){
-                    vma_ptr->name = name_buf;
-                    std::free(name_buf);
-                }
+                vma_ptr->name = swap_ptr->uread_cstring(tc->task,vma_ptr->anon_name, ANON_BUFSIZE, "anon_name");
             }
         } else {
             if (vma_ptr->vm_end > mm.start_brk && vma_ptr->vm_start < mm.brk){

@@ -36,11 +36,14 @@ struct swap_info {
 };
 
 class Swapinfo : public PaserPlugin {
+private:
+    int nr_swap;
+    char* uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
+    char* do_swap_page(ulonglong task_addr,ulonglong uvaddr);
+
 protected:
     bool debug = false;
     std::shared_ptr<Zraminfo> zram_ptr;
-    std::unordered_map<size_t, char*> memory_page_cahe; //<paddr, buf>
-    std::unordered_map<size_t, char*> zram_page_cahe;   //<PTE, buf>
 public:
     Swapinfo();
     bool is_zram_enable();
@@ -48,14 +51,12 @@ public:
     ~Swapinfo();
     void init_command();
     ulonglong pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
-    int nr_swap;
     std::vector<std::shared_ptr<swap_info>> swap_list;
     void cmd_main(void) override;
     void parser_swap_info();
     std::shared_ptr<swap_info> get_swap_info(ulonglong pte_val);
     ulong get_zram_addr(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
     ulong lookup_swap_cache(ulonglong pte_val);
-    char* do_swap_page(ulonglong task_addr,ulonglong uvaddr);
     std::string uread_cstring(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
     bool uread_bool(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     int uread_int(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
@@ -67,7 +68,7 @@ public:
     short uread_short(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     ulong uread_pointer(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     unsigned char uread_byte(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
-    char* uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
+    bool uread_buffer(ulonglong task_addr, ulonglong uvaddr, char *result, int len, const std::string &note);
     bool is_swap_pte(ulong pte);
     void *uread_struct(ulong kvaddr, const std::string &type);
     bool uread_struct(ulong kvaddr,void* buf, int len, const std::string& type);

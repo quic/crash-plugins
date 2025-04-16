@@ -282,12 +282,12 @@ ulong Meminfo::get_available(ulong freeram)
 
     ulong pagecache = node_page_state[enums["NR_LRU_BASE"] + enums["LRU_ACTIVE_FILE"]]
          + node_page_state[enums["NR_LRU_BASE"] + enums["LRU_INACTIVE_FILE"]];
-    pagecache -= min(pagecache / 2, wmark_low);
+    pagecache -= std::min(pagecache / 2, wmark_low);
     available += pagecache;
 
     ulong reclaimable = node_page_state[enums["NR_KERNEL_MISC_RECLAIMABLE"]]
         + node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_RECLAIMABLE_B":"NR_SLAB_RECLAIMABLE"]];
-    available += reclaimable - min(reclaimable / 2, wmark_low);
+    available += reclaimable - std::min(reclaimable / 2, wmark_low);
 
     return (available < 0)?0:available;;
 }

@@ -58,7 +58,6 @@ private:
     struct logcat_size_table g_size;
     ulong min_rw_vma_addr = ULONG_MAX;
     ulong max_rw_vma_addr = 0;
-    std::unordered_map<ulong, char*> page_data_list; //<paddr, buf>
     std::vector<std::shared_ptr<rw_vma>> rw_vma_list;
 
 public:

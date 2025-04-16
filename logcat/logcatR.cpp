@@ -56,20 +56,18 @@ void LogcatR::parser_LogBufferElement(ulong vaddr){
     if (!is_uvaddr(vaddr,tc_logd)){
         return;
     }
-    char* buf = swap_ptr->uread_memory(tc_logd->task,vaddr,sizeof(LogBufferElement), "LogBufferElement");
-    if(buf == nullptr){
+    char buf_element[sizeof(LogBufferElement)];
+    if(!swap_ptr->uread_buffer(tc_logd->task,vaddr,buf_element,sizeof(LogBufferElement), "LogBufferElement")){
         return;
     }
-    LogBufferElement* element = (LogBufferElement*)buf;
+    LogBufferElement* element = (LogBufferElement*)buf_element;
     if (element->mDropped == 1){
-        std::free(buf);
         return;
     }
     if (element->mLogId < MAIN || element->mLogId > KERNEL) {
-        std::free(buf);
         return;
     }
-    char* log_msg = nullptr;
+    char log_msg[element->mMsgLen];
     std::shared_ptr<LogEntry> log_ptr = std::make_shared<LogEntry>();
     log_ptr->uid = element->mUid;
     log_ptr->pid = element->mPid;
@@ -77,18 +75,15 @@ void LogcatR::parser_LogBufferElement(ulong vaddr){
     log_ptr->timestamp = formatTime(element->mRealTime.tv_sec,element->mRealTime.tv_nsec);
     if (log_ptr->logid == SYSTEM || log_ptr->logid == MAIN || log_ptr->logid == KERNEL
         || log_ptr->logid == RADIO || log_ptr->logid == CRASH){
-        log_msg = swap_ptr->uread_memory(tc_logd->task, reinterpret_cast<ulong>(element->mMsg),
-            element->mMsgLen, "read msg log");
-        parser_system_log(log_ptr,log_msg,element->mMsgLen);
-        std::free(log_msg);
+        if(swap_ptr->uread_buffer(tc_logd->task,reinterpret_cast<ulong>(element->mMsg),log_msg,element->mMsgLen, "read msg log")){
+            parser_system_log(log_ptr,log_msg,element->mMsgLen);
+        }
     }else{
-        log_msg = swap_ptr->uread_memory(tc_logd->task, reinterpret_cast<ulong>(element->mMsg),
-            element->mMsgLen, "read bin log");
-        parser_event_log(log_ptr,log_msg,element->mMsgLen);
-        std::free(log_msg);
+        if(swap_ptr->uread_buffer(tc_logd->task,reinterpret_cast<ulong>(element->mMsg),log_msg,element->mMsgLen, "read bin log")){
+            parser_event_log(log_ptr,log_msg,element->mMsgLen);
+        }
     }
     log_list.push_back(log_ptr);
-    std::free(buf);
     return;
 }
 

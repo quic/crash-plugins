@@ -187,7 +187,7 @@ void PaserPlugin::print_backtrace(){
     for (int i = 0; i < nptrs; i++) {
         fprintf(fp, "%s\n", strings[i]);
     }
-    free(strings);
+    std::free(strings);
 }
 
 void PaserPlugin::print_table(){

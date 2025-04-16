@@ -17,7 +17,7 @@ project(plugins)
 string(TOUPPER "${CMAKE_BUILD_TARGET_ARCH}" BUILD_TARGET_ARCH)
 add_definitions(-D${BUILD_TARGET_ARCH})
 add_definitions(-D__LITTLE_ENDIAN)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -rdynamic -Wall")
 
@@ -289,6 +289,12 @@ add_library(wdt SHARED
             ${PLUGIN_SOURCES}
             watchdog/wdt.cpp)
 set_target_properties(wdt PROPERTIES PREFIX "")
+
+# =================== build pagecache ===================
+add_library(cache SHARED
+            ${PLUGIN_SOURCES}
+            pagecache/pageinfo.cpp)
+set_target_properties(cache PROPERTIES PREFIX "")
 
 # =================== build debugimage ===================
 add_library(dbi SHARED

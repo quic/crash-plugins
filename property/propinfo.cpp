@@ -231,8 +231,8 @@ bool PropInfo::parser_prop_area(size_t area_vaddr){
         fprintf(fp, "prop_area: %#zx is not invaild !\n",area_vaddr);
         return false;
     }
-    char* prop_area_buf = swap_ptr->uread_memory(tc_init->task,area_vaddr,sizeof(prop_area), "prop_area");
-    if(prop_area_buf == nullptr){
+    char prop_area_buf[sizeof(prop_area)];
+    if(!swap_ptr->uread_buffer(tc_init->task,area_vaddr,prop_area_buf,sizeof(prop_area), "prop_area")){
         if(debug)fprintf(fp, "read prop_area fail at: %#zx !\n",area_vaddr);
         return false;
     }
@@ -255,7 +255,6 @@ bool PropInfo::parser_prop_area(size_t area_vaddr){
     if (area.bytes_used_ > 0){
         parser_prop_bt(data_addr,data_addr);
     }
-    std::free(prop_area_buf);
     return true;
 }
 
@@ -264,8 +263,8 @@ void PropInfo::parser_prop_bt(size_t root, size_t prop_bt_addr){
         fprintf(fp, "   prop_bt: %#zx is not invaild !\n",prop_bt_addr);
         return;
     }
-    char* prop_bt_buf = swap_ptr->uread_memory(tc_init->task,prop_bt_addr,sizeof(prop_bt), "prop_bt");
-    if(prop_bt_buf == nullptr){
+    char prop_bt_buf[sizeof(prop_bt)];
+    if(!swap_ptr->uread_buffer(tc_init->task,prop_bt_addr,prop_bt_buf,sizeof(prop_bt), "prop_bt")){
         if(debug)fprintf(fp, "   read prop_bt fail at: %#zx !\n",prop_bt_addr);
         return;
     }
@@ -291,7 +290,6 @@ void PropInfo::parser_prop_bt(size_t root, size_t prop_bt_addr){
     if (bt.children > 0 && bt.children < pa_data_size) {
         parser_prop_bt(root, (root + bt.children));
     }
-    std::free(prop_bt_buf);
 }
 
 void PropInfo::parser_prop_info(size_t prop_info_addr){
@@ -299,8 +297,8 @@ void PropInfo::parser_prop_info(size_t prop_info_addr){
         fprintf(fp, "   prop_info: %#zx is not invaild !\n",prop_info_addr);
         return;
     }
-    char* prop_info_buf = swap_ptr->uread_memory(tc_init->task,prop_info_addr,sizeof(prop_info), "prop_info");
-    if(prop_info_buf == nullptr){
+    char prop_info_buf[sizeof(prop_info)];
+    if(!swap_ptr->uread_buffer(tc_init->task,prop_info_addr,prop_info_buf,sizeof(prop_info), "prop_info")){
         if(debug)fprintf(fp, "   read prop_info fail at: %#zx !\n",prop_info_addr);
         return;
     }
@@ -316,6 +314,5 @@ void PropInfo::parser_prop_info(size_t prop_info_addr){
         }
         prop_map[name] = info.value;
     }
-    std::free(prop_info_buf);
 }
 #pragma GCC diagnostic pop

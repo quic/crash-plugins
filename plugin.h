@@ -47,7 +47,6 @@
 #define struct_init(type) type_init(TO_STD_STRING(type))
 #define struct_size(type) type_size(TO_STD_STRING(type))
 #define IS_ALIGNED(x, a)    (((x) & ((typeof(x))(a) - 1)) == 0)
-#define min(a, b) ((a) < (b) ? (a) : (b))
 
 typedef struct {
     long long counter;
