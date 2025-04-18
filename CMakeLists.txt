@@ -100,7 +100,12 @@ list(APPEND PLUGIN_SOURCES
     memory/meminfo.cpp
     watchdog/wdt.cpp
     pagecache/pageinfo.cpp
-    debugimage/debugimage.cpp)
+    debugimage/debugimage.cpp
+    debugimage/image_parser.cpp
+    debugimage/cpu32_ctx.cpp
+    debugimage/cpu64_ctx_v13.cpp
+    debugimage/cpu64_ctx_v14.cpp
+    debugimage/cpu64_ctx_v20.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -299,6 +304,11 @@ set_target_properties(cache PROPERTIES PREFIX "")
 # =================== build debugimage ===================
 add_library(dbi SHARED
             ${PLUGIN_SOURCES}
-            debugimage/debugimage.cpp)
+            debugimage/debugimage.cpp
+            debugimage/image_parser.cpp
+            debugimage/cpu32_ctx.cpp
+            debugimage/cpu64_ctx_v13.cpp
+            debugimage/cpu64_ctx_v14.cpp
+            debugimage/cpu64_ctx_v20.cpp)
 set_target_properties(dbi PROPERTIES PREFIX "")
 endif()

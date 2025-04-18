@@ -17,18 +17,24 @@
 #define DEBUG_IMAGE_DEFS_H_
 
 #include "plugin.h"
+#include "cpu32_ctx.h"
+#include "cpu64_ctx_v13.h"
+#include "cpu64_ctx_v14.h"
+#include "cpu64_ctx_v20.h"
 
 struct Dump_entry {
     ulong addr;
     uint32_t id;
+    uint32_t version;
+    uint32_t magic;
     std::string data_name;
     uint64_t data_addr;
     uint64_t data_len;
 };
 
 enum Entry_type{
-	ENTRY_TYPE_DATA,
-	ENTRY_TYPE_TABLE
+    ENTRY_TYPE_DATA,
+    ENTRY_TYPE_TABLE
 };
 
 enum Dump_data_ids {
@@ -66,21 +72,26 @@ enum Dump_data_ids {
     DATA_MAX = 0x164,
 };
 
+class ImageParser;
+
 class DebugImage : public PaserPlugin {
 private:
     const int MAGIC_NUMBER = 0x42445953;
     const int HYP_MAGIC_NUMBER = 0x42444832;
     std::vector<std::shared_ptr<Dump_entry>> image_list;
+    std::shared_ptr<ImageParser> parser_ptr;
 
 public:
-DebugImage();
-
+    DebugImage();
+    void print_memdump();
     void cmd_main(void) override;
     DEFINE_PLUGIN_INSTANCE(DebugImage)
     void parser_memdump();
     void parser_debugimage(ulong addr);
+    void print_cpu_stack();
+    void parse_cpu_ctx();
+    void parse_cpu_stack(std::shared_ptr<Dump_entry> entry_ptr);
     void parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr);
-    void parse_tlb_common(std::shared_ptr<Dump_entry> entry_ptr);
     void parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr);
     void parser_dump_table(uint64_t paddr);
 };

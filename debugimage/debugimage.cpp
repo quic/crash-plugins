@@ -26,17 +26,19 @@ void DebugImage::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "ai:")) != EOF) {
+    if (image_list.size() == 0){
+        parser_memdump();
+    }
+    while ((c = getopt(argcnt, args, "acs")) != EOF) {
         switch(c) {
             case 'a':
-                parser_memdump();
+                print_memdump();
                 break;
-            case 'i':
-            {
-                cppString.assign(optarg);
-                ulong addr = std::stoul(cppString, nullptr, 16);
-                parser_debugimage(addr);
-            }
+            case 'c':
+                parse_cpu_ctx();
+                break;
+            case 's':
+                print_cpu_stack();
                 break;
             default:
                 argerrs++;
@@ -73,6 +75,29 @@ DebugImage::DebugImage(){
     initialize();
 }
 
+void DebugImage::print_memdump(){
+    std::ostringstream oss_hd;
+    oss_hd  << std::left << std::setw(4)            << "Id" << " "
+            << std::left << std::setw(16)           << "Dump_entry" << " "
+            << std::left << std::setw(8)            << "version" << " "
+            << std::left << std::setw(VADDR_PRLEN)  << "magic" << " "
+            << std::left << std::setw(VADDR_PRLEN)  << "DataAddr" << " "
+            << std::left << std::setw(10)           << "DataLen" << " "
+            << std::left << "Name";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    for (const auto& entry_ptr : image_list) {
+        std::ostringstream oss;
+        oss << std::left << std::setw(4)            << std::dec << entry_ptr->id << " "
+            << std::left << std::setw(16)           << std::hex << entry_ptr->addr << " "
+            << std::left << std::setw(8)            << std::dec << entry_ptr->version << " "
+            << std::left << std::setw(VADDR_PRLEN)  << std::hex << entry_ptr->magic << " "
+            << std::left << std::setw(VADDR_PRLEN)  << std::hex << entry_ptr->data_addr << " "
+            << std::left << std::setw(10)           << std::dec << entry_ptr->data_len << " "
+            << std::left  << entry_ptr->data_name;
+        fprintf(fp, "%s \n",oss.str().c_str());
+    }
+}
+
 void DebugImage::parser_memdump(){
     if (!csymbol_exists("memdump")){
         fprintf(fp, "memdump doesn't exist in this kernel!\n");
@@ -101,47 +126,72 @@ void DebugImage::parser_memdump(){
     struct_init(msm_dump_entry);
     struct_init(msm_dump_data);
     uint64_t table_phys = read_ulonglong(dump_addr + field_offset(msm_memory_dump,table_phys),"table_phys");
-    fprintf(fp, "DumpTable base:%" PRIx64 "\n", table_phys);
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(4)            << "Id" << " "
-            << std::left << std::setw(16)           << "Dump_entry" << " "
-            << std::left << std::setw(8)            << "version" << " "
-            << std::left << std::setw(VADDR_PRLEN)  << "magic" << " "
-            << std::left << std::setw(VADDR_PRLEN)  << "DataAddr" << " "
-            << std::left << std::setw(10)           << "DataLen" << " "
-            << std::left << "Name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    // fprintf(fp, "DumpTable base:%" PRIx64 "\n", table_phys);
     parser_dump_table(table_phys);
 }
 
-void DebugImage::parser_debugimage(ulong addr){
+void DebugImage::print_cpu_stack(){
     for (const auto& entry_ptr : image_list) {
-        if (entry_ptr->addr != addr) {
-            continue;
-        }
         if (entry_ptr->id >= DATA_CPU_CTX && entry_ptr->id < DATA_L1_INST_TLB){
-            parse_cpu_ctx(entry_ptr);
-        }else if (entry_ptr->id >= DATA_L1_INST_TLB && entry_ptr->id < DATA_L1_INST_CACHE){
-            parse_tlb_common(entry_ptr);
+            parse_cpu_stack(entry_ptr);
         }
     }
 }
 
+void DebugImage::parse_cpu_ctx(){
+    for (const auto& entry_ptr : image_list) {
+        if (entry_ptr->id >= DATA_CPU_CTX && entry_ptr->id < DATA_L1_INST_TLB){
+            parse_cpu_ctx(entry_ptr);
+        }
+    }
+}
+
+void DebugImage::parse_cpu_stack(std::shared_ptr<Dump_entry> entry_ptr){
+    int core = entry_ptr->id - DATA_CPU_CTX;
+    int major = entry_ptr->version >> 4;
+    int minor = entry_ptr->version & 0xF;
+    fprintf(fp, "%s  core:%d  version:%d.%d\n",entry_ptr->data_name.c_str(), core,major,minor);
+    if (major == 2 && minor == 0){ //v2.0
+        parser_ptr = std::make_shared<Cpu64_Context_V20>();
+    }else{
+        if (BITS64()){
+            if (major == 1 && minor == 3){ //v1.3
+                parser_ptr = std::make_shared<Cpu64_Context_V13>();
+            }else if (major == 1 && minor == 4){ //v1.4
+                parser_ptr = std::make_shared<Cpu64_Context_V14>();
+            }
+        }else{
+            parser_ptr = std::make_shared<Cpu32_Context>();
+        }
+    }
+    parser_ptr->print_stack(entry_ptr);
+}
+
 void DebugImage::parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr){
-    fprintf(fp, "parse_cpu_ctx:%s \n",entry_ptr->data_name.c_str());
-    // TODO
+    int core = entry_ptr->id - DATA_CPU_CTX;
+    int major = entry_ptr->version >> 4;
+    int minor = entry_ptr->version & 0xF;
+    fprintf(fp, "%s  core:%d  version:%d.%d\n",entry_ptr->data_name.c_str(), core,major,minor);
+    if (major == 2 && minor == 0){ //v2.0
+        parser_ptr = std::make_shared<Cpu64_Context_V20>();
+    }else{
+        if (BITS64()){
+            if (major == 1 && minor == 3){ //v1.3
+                parser_ptr = std::make_shared<Cpu64_Context_V13>();
+            }else if (major == 1 && minor == 4){ //v1.4
+                parser_ptr = std::make_shared<Cpu64_Context_V14>();
+            }
+        }else{
+            parser_ptr = std::make_shared<Cpu32_Context>();
+        }
+    }
+    parser_ptr->generate_cmm(entry_ptr);
 }
-
-void DebugImage::parse_tlb_common(std::shared_ptr<Dump_entry> entry_ptr){
-    fprintf(fp, "parse_tlb_common:%s \n",entry_ptr->data_name.c_str());
-    // TODO
-}
-
 
 void DebugImage::parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr){
-    uint32_t version = read_uint(entry_ptr->addr + field_offset(msm_dump_data,version),"version",false);
-    uint32_t magic = read_uint(entry_ptr->addr + field_offset(msm_dump_data,magic),"magic",false);
-    if (magic != MAGIC_NUMBER && magic != HYP_MAGIC_NUMBER){
+    entry_ptr->version = read_uint(entry_ptr->addr + field_offset(msm_dump_data,version),"version",false);
+    entry_ptr->magic = read_uint(entry_ptr->addr + field_offset(msm_dump_data,magic),"magic",false);
+    if (entry_ptr->magic != MAGIC_NUMBER && entry_ptr->magic != HYP_MAGIC_NUMBER){
         return;
     }
     if (entry_ptr->id > DATA_MAX){
@@ -151,15 +201,6 @@ void DebugImage::parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr){
     entry_ptr->data_addr = read_ulonglong(entry_ptr->addr + field_offset(msm_dump_data,addr),"addr",false);
     entry_ptr->data_len = read_ulonglong(entry_ptr->addr + field_offset(msm_dump_data,len),"len",false);
     image_list.push_back(entry_ptr);
-    std::ostringstream oss;
-    oss << std::left << std::setw(4)            << std::dec << entry_ptr->id << " "
-        << std::left << std::setw(16)           << std::hex << entry_ptr->addr << " "
-        << std::left << std::setw(8)            << std::dec << version << " "
-        << std::left << std::setw(VADDR_PRLEN)  << std::hex << magic << " "
-        << std::left << std::setw(VADDR_PRLEN)  << std::hex << entry_ptr->data_addr << " "
-        << std::left << std::setw(10)           << std::dec << entry_ptr->data_len << " "
-        << std::left  << entry_ptr->data_name;
-    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DebugImage::parser_dump_table(uint64_t paddr){
