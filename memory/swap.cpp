@@ -101,7 +101,6 @@ void Swap::print_page_memory(std::string addr){
         fprintf(fp, "not mapped page\n");
         return;
     }else{
-        uaddr = uaddr & page_mask;
         std::cout << hexdump(uaddr,page_data,page_size);
     }
 }

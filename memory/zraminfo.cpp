@@ -183,6 +183,9 @@ bool Zraminfo::get_zspage(ulong page,struct zspage* zp){
 char* Zraminfo::read_object(std::shared_ptr<zram> zram_ptr,struct zram_table_entry entry,int& read_len, bool& huge_obj){
     ulong pfn = 0;
     int obj_idx = 0;
+    if (!is_kvaddr(entry.handle)){
+        return nullptr;
+    }
     ulong handle = read_ulong(entry.handle,"handle");
     handle_to_location(handle,&pfn,&obj_idx);
     if(debug)fprintf(fp, "handle:%lx, pfn:%lx, obj_idx:%d\n",handle,pfn,obj_idx);

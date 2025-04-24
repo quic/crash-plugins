@@ -293,6 +293,7 @@ std::string Swapinfo::read_start_args(ulong& task_addr){
 char* Swapinfo::uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note){
     int remain = len;
     char* result = (char*)std::malloc(len);
+    ulong orig_uvaddr = uvaddr;
     BZERO(result, len);
     while(remain > 0){
         // read one page
@@ -307,7 +308,7 @@ char* Swapinfo::uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const
         uvaddr += read_len;
         // fprintf(fp, "uvaddr:%#llx offset_in_page:%#x read_len:%#x remain:%#x \n", uvaddr, offset_in_page, read_len, remain);
     }
-    // std::cout << hexdump(uvaddr,result,len) << std::endl;
+    // fprintf(fp, "\nuread_memory:\n%s \n", hexdump(orig_uvaddr, result, len).c_str());
     return result;
 }
 
