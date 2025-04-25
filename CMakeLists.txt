@@ -105,7 +105,8 @@ list(APPEND PLUGIN_SOURCES
     debugimage/cpu32_ctx.cpp
     debugimage/cpu64_ctx_v13.cpp
     debugimage/cpu64_ctx_v14.cpp
-    debugimage/cpu64_ctx_v20.cpp)
+    debugimage/cpu64_ctx_v20.cpp
+    ipc/ipc.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -311,4 +312,10 @@ add_library(dbi SHARED
             debugimage/cpu64_ctx_v14.cpp
             debugimage/cpu64_ctx_v20.cpp)
 set_target_properties(dbi PROPERTIES PREFIX "")
+
+# =================== build IPC log ===================
+add_library(ipc SHARED
+            ${PLUGIN_SOURCES}
+            ipc/ipc.cpp)
+set_target_properties(ipc PROPERTIES PREFIX "")
 endif()
