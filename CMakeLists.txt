@@ -106,7 +106,8 @@ list(APPEND PLUGIN_SOURCES
     debugimage/cpu64_ctx_v13.cpp
     debugimage/cpu64_ctx_v14.cpp
     debugimage/cpu64_ctx_v20.cpp
-    ipc/ipc.cpp)
+    ipc/ipc.cpp
+    regulator/regulator.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -318,4 +319,10 @@ add_library(ipc SHARED
             ${PLUGIN_SOURCES}
             ipc/ipc.cpp)
 set_target_properties(ipc PROPERTIES PREFIX "")
+
+# =================== build regulator ===================
+add_library(reg SHARED
+            ${PLUGIN_SOURCES}
+            regulator/regulator.cpp)
+set_target_properties(reg PROPERTIES PREFIX "")
 endif()

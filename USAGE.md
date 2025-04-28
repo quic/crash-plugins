@@ -28,7 +28,9 @@ Support command:
 | [tm](#tm)                | √           | √            | √            | √            |  show thermal info       |
 | [wdt](#wdt)              | √           | √            | √            | √            |  show watchdog info      |
 | [cache](#cache)          | √           | √            | √            | √            |  show pagecache info     |
-| [dbi](#dbi)              | √           | √            | √            | √            |  show debug iamge info   |
+| [dbi](#dbi)              | √           | √            | √            | √            |  show debug image info   |
+| [ipc](#ipc)              | √           | √            | √            | √            |  show ipc log            |
+| [reg](#reg)              | √           | √            | √            | √            |  show regulator info     |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -1733,4 +1735,74 @@ Id   Dump_entry       version  magic            DataAddr         DataLen    Name
 96   bc709f10         20       42445953         bc709f50         36928      l1_icache0
 97   bc712f90         20       42445953         bc712fd0         36928      l1_icache1
 98   bc71c010         20       42445953         bc71c050         36928      l1_icache2
+```
+
+## ipc
+This command dumps the ipc log.
+
+### ipc -a
+Display all ipc module info.
+```
+crash> ipc -a
+ipc_log_context  Magic      Version first_page       last_page        write_page       read_page        Name
+ffffff80039a3b00 25874452   3       ffffff8007b9c000 ffffff8007b9d000 ffffff8007b9c000 ffffff8007b9c000 glink_probe
+ffffff8008ee5700 25874452   3       ffffff8008904000 ffffff8008900000 ffffff8008904000 ffffff8008904000 bcl_0x4700_0
+ffffff80088a1800 25874452   3       ffffff8007bb7000 ffffff8007bb4000 ffffff8007bb4000 ffffff8007bb7000 smp2p
+ffffff8012f27500 25874452   3       ffffff8008905000 ffffff8012fb7000 ffffff800a038000 ffffff800a038000 rpm-glink
+ffffff8012f9ec00 25874452   3       ffffff8012fc6000 ffffff8012fcb000 ffffff8012fc3000 ffffff8012fc3000 qrtr_ns
+ffffff8012e2a100 25874452   3       ffffff8003121000 ffffff8003126000 ffffff8003121000 ffffff8003121000 glink_ssr
+ffffff80041c9700 25874452   3       ffffff8007bb1000 ffffff800216e000 ffffff8007bb1000 ffffff8007bb1000 mmc0
+ffffff8018af1600 25874452   3       ffffff8018e8c000 ffffff8018e8c000 ffffff8018e8c000 ffffff8018e8c000 dma_bam_log
+```
+
+### ipc -l 'ipc module name'
+Display ipc log.
+```
+crash> ipc -l bcl_0x4700_0
+[ 1.748384640 0x722c8ab9b01]   [kworker/u8:1]: bcl_read_ibat: ibat:0 mA ADC:0x00
+[ 1.748404692 0x722c8ab9c80]   [kworker/u8:1]: bcl_read_vbat_tz: vbat:4185 mv ADC:0x54
+[ 1.748409536 0x722c8ab9cdd]   [kworker/u8:1]: bcl_read_lbat: LVLbat:5 val:0
+[ 1.748486775 0x722c8aba2a8]   [kworker/u8:1]: bcl_read_ibat: ibat:0 mA ADC:0x00
+[ 1.748504744 0x722c8aba401]   [kworker/u8:1]: bcl_read_vbat_tz: vbat:4185 mv ADC:0x54
+[ 1.748508494 0x722c8aba449]   [kworker/u8:1]: bcl_read_lbat: LVLbat:6 val:0
+[ 9.688728102 0x722d1c1e0c3]   [kworker/2:0H]: bcl_read_ibat: ibat:0 mA ADC:0x00
+[ 9.688746748 0x722d1c1e227]   [kworker/2:0H]: bcl_read_vbat_tz: vbat:4185 mv ADC:0x54
+[ 9.688751227 0x722d1c1e27d]   [kworker/2:0H]: bcl_read_lbat: LVLbat:5 val:0
+```
+
+## reg
+This command dumps the regulator info.
+
+### reg -a
+Display all regulator and consumer info.
+```
+crash> reg -a
+regulator_dev:ffffff8006994800 regulator-dummy open_count:4 use_count:3 bypass_count:0 min_uV:0 max_uV:0 input_uV:0
+   regulator:ffffff801e51c000 enable:0 load:0uA 5e94000,mdss_dsi0_ctrl-refgen
+   regulator:ffffff801e51c0c0 enable:0 load:0uA 5e94400,mdss_dsi_phy0-gdsc
+   regulator:ffffff801ad6cc00 enable:1 load:0uA soc:usb_nop_phy-vcc
+   regulator:ffffff800a036780 enable:1 load:0uA regulator.21-SUPPLY
+```
+### reg -r
+Display all regulator info.
+```
+crash> reg -r
+regulator_dev    open use bypass regulator_desc   constraints      min_uV   max_uV   input_uV Name
+ffffff8006994800 4    3   0      ffffffeee20a0020 ffffff80067f8d00 0        0        0        regulator-dummy
+ffffff8007811800 17   0   0      ffffff8003999048 ffffff80033ebb00 0        0        0        gcc_camss_top_gdsc
+ffffff8007813000 1    1   0      ffffff8003999448 ffffff80033eb700 0        0        0        gcc_usb20_prim_gdsc
+ffffff8007812000 1    0   0      ffffff8003999c48 ffffff80033eb000 0        0        0        gcc_vcodec0_gdsc
+ffffff8007810800 1    0   0      ffffff800a39a048 ffffff8007a39000 0        0        0        gcc_venus_gdsc
+```
+### reg -c 'name'
+Display all consumer info of regulator.
+```
+crash> reg -c pm5100_l12
+Consumers:
+   regulator        load       enable Name
+   ffffff802a899a80 0uA        0      5c54000,csiphy1-mipi-csi-vdd1
+   ffffff802a883780 0uA        0      5c52000,csiphy0-mipi-csi-vdd1
+   ffffff801e51ca80 0uA        0      5e94400,mdss_dsi_phy0-vdda-0p9 voltage:[904000uV~904000uV,]
+   ffffff801ad6ce40 30000uA    1      1613000.hsphy-vdd voltage:[904000uV~904000uV,]
+   ffffff8002204f00 0uA        1      regulator.59-SUPPLY
 ```

@@ -87,6 +87,8 @@ Support module:
 | watchdog      | √         | √         | parser watchdog info                                 |
 | pagecache     | √         | √         | parser pagecache for every file                      |
 | debugimage    | √         | √         | parser debug image info                              |
+| ipc log       | √         | √         | parser ipc log                                       |
+| regulator     | √         | √         | parser regulator info                                |
 
 |  module       |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |       comment         |
 |  --------     | ------------------- | ------------------- | ------------------- | -----------------     |
