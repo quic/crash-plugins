@@ -68,6 +68,7 @@ Thermal::Thermal(){
     field_init(thermal_instance, cdev_node);
     field_init(thermal_instance, trip);
     field_init(thermal_instance, cdev);
+    field_init(thermal_governor, name);
     struct_init(thermal_instance);
     field_init(thermal_cooling_device, id);
     field_init(thermal_cooling_device, type);
@@ -158,7 +159,14 @@ void Thermal::parser_thrermal_zone(){
         zone_ptr->last_temp = INT(dev_buf + field_offset(thermal_zone_device,last_temperature));
         zone_ptr->name = read_cstring(addr + field_offset(thermal_zone_device,type),20, "type");
         ulong governor_addr = ULONG(dev_buf + field_offset(thermal_zone_device,governor));
-        zone_ptr->governor = read_cstring(governor_addr,20, "governor name");
+        if (field_size(thermal_governor,name) > sizeof(void*)){
+            zone_ptr->governor = read_cstring(governor_addr,20, "governor name");
+        }else{
+            ulong name_addr = read_pointer(governor_addr + field_offset(thermal_governor,name),"name addr");
+            if (is_kvaddr(name_addr)) {
+                zone_ptr->governor = read_cstring(name_addr,64, "governor name");
+            }
+        }
         int trip_cnt = 0;
         ulong trip_addr = 0;
         if (field_offset(thermal_zone_device,trips) != -1){
