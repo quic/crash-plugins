@@ -55,6 +55,9 @@ public:
     std::vector<std::shared_ptr<vmap_area>> area_list;
     Vmalloc();
 
+    void parser_vmap_nodes();
+    void parser_vmap_area(ulong addr);
+
     void cmd_main(void) override;
     void parser_vmap_area_list();
     void print_vmap_area_list();

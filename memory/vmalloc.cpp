@@ -76,6 +76,11 @@ Vmalloc::Vmalloc(){
     field_init(vm_struct,caller);
     struct_init(vmap_area);
     struct_init(vm_struct);
+    field_init(vmap_node,pool);
+    field_init(vmap_pool,head);
+    field_init(vmap_pool,len);
+    struct_init(vmap_node);
+    struct_init(vmap_pool);
     cmd_name = "vmalloc";
     help_str_list={
         "vmalloc",                            /* command name */
@@ -149,92 +154,121 @@ Vmalloc::Vmalloc(){
     initialize();
 }
 
-void Vmalloc::parser_vmap_area_list(){
-    if (!csymbol_exists("vmap_area_list")){
-        fprintf(fp, "vmap_area_list doesn't exist in this kernel!\n");
+void Vmalloc::parser_vmap_nodes(){
+    if (!csymbol_exists("vmap_nodes")){
+        fprintf(fp, "vmap_nodes doesn't exist in this kernel!\n");
         return;
     }
-    ulong area_list_addr = csymbol_value("vmap_area_list");
-    if (!is_kvaddr(area_list_addr)) {
-        fprintf(fp, "vmap_area_list address is invalid!\n");
-        return;
-    }
+    ulong nodes_addr = read_pointer(csymbol_value("vmap_nodes"),"vmap_nodes pages");
+    if (!is_kvaddr(nodes_addr)) return;
+    int nr_node = read_int( csymbol_value("nr_vmap_nodes"),"nr_vmap_nodes");
+    int pool_cnt = field_size(vmap_node,pool)/struct_size(vmap_pool);
     int offset = field_offset(vmap_area,list);
-    for (const auto& area_addr : for_each_list(area_list_addr,offset)) {
-        void *vmap_buf = read_struct(area_addr,"vmap_area");
-        if (!vmap_buf) {
-            fprintf(fp, "Failed to read vmap_area structure at address %lx\n", area_addr);
-            continue;
-        }
-        std::shared_ptr<vmap_area> area_ptr = std::make_shared<vmap_area>();
-        area_ptr->addr = area_addr;
-        area_ptr->va_start = ULONG(vmap_buf + field_offset(vmap_area,va_start));
-        area_ptr->va_end = ULONG(vmap_buf + field_offset(vmap_area,va_end));
-        area_list.push_back(area_ptr);
-        ulong vm_addr = ULONG(vmap_buf + field_offset(vmap_area,vm));
-        FREEBUF(vmap_buf);
-        while (is_kvaddr(vm_addr)){
-            void *vm_buf = read_struct(vm_addr,"vm_struct");
-            if (!vm_buf) {
-                fprintf(fp, "Failed to read vm_struct structure at address %lx\n", vm_addr);
+    for (size_t i = 0; i < nr_node; i++){
+        ulong pools_addr = nodes_addr + i * struct_size(vmap_node) + field_offset(vmap_node,pool);
+        for (size_t p = 0; p < pool_cnt; p++){
+            ulong pool_addr = pools_addr + p * struct_size(vmap_pool);
+            if (!is_kvaddr(pool_addr)) continue;
+            ulong len = read_ulong(pool_addr + field_offset(vmap_pool,len),"vmap_pool len");
+            if (len == 0){
                 continue;
             }
-            size_t vm_size = ULONG(vm_buf + field_offset(vm_struct,size));
-            int nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
-            if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
-                FREEBUF(vm_buf);
-                break;
+            for (const auto& area_addr : for_each_list(pool_addr,offset)) {
+                parser_vmap_area(area_addr);
             }
-            std::shared_ptr<vm_struct> vm_ptr = std::make_shared<vm_struct>();
-            vm_ptr->addr = vm_addr;
-            vm_ptr->kaddr = ULONG(vm_buf + field_offset(vm_struct,addr));
-            vm_ptr->size = vm_size;
-            vm_ptr->nr_pages = nr_pages;
-            vm_ptr->phys_addr = ULONG(vm_buf + field_offset(vm_struct,phys_addr));
-            ulong caller = ULONG(vm_buf + field_offset(vm_struct,caller));
-            ulong next = ULONG(vm_buf + field_offset(vm_struct,next));
-            ulong pages = ULONG(vm_buf + field_offset(vm_struct,pages));
-            ulong flags = ULONG(vm_buf + field_offset(vm_struct,flags));
+        }
+    }
+}
+
+void Vmalloc::parser_vmap_area(ulong addr){
+    void *vmap_buf = read_struct(addr,"vmap_area");
+    if (!vmap_buf) {
+        return;
+    }
+    std::shared_ptr<vmap_area> area_ptr = std::make_shared<vmap_area>();
+    area_ptr->addr = addr;
+    area_ptr->va_start = ULONG(vmap_buf + field_offset(vmap_area,va_start));
+    area_ptr->va_end = ULONG(vmap_buf + field_offset(vmap_area,va_end));
+    area_list.push_back(area_ptr);
+    ulong vm_addr = ULONG(vmap_buf + field_offset(vmap_area,vm));
+    FREEBUF(vmap_buf);
+    while (is_kvaddr(vm_addr)){
+        void *vm_buf = read_struct(vm_addr,"vm_struct");
+        if (!vm_buf) {
+            fprintf(fp, "Failed to read vm_struct structure at address %lx\n", vm_addr);
+            continue;
+        }
+        size_t vm_size = ULONG(vm_buf + field_offset(vm_struct,size));
+        int nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
+        if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
             FREEBUF(vm_buf);
-            if (flags & Vmalloc::VM_IOREMAP){
-                vm_ptr->flags.assign("ioremap");
-            }else if (flags & Vmalloc::VM_ALLOC){
-                vm_ptr->flags.assign("vmalloc");
-            }else if (flags & Vmalloc::VM_MAP){
-                vm_ptr->flags.assign("vmap");
-            }else if (flags & Vmalloc::VM_USERMAP){
-                vm_ptr->flags.assign("user");
-            }else if (flags & Vmalloc::VM_VPAGES){
-                vm_ptr->flags.assign("vpages");
-            }else if (flags & Vmalloc::VM_UNLIST){
-                vm_ptr->flags.assign("unlist");
-            }else{
-                vm_ptr->flags.assign("unknow");
+            break;
+        }
+        std::shared_ptr<vm_struct> vm_ptr = std::make_shared<vm_struct>();
+        vm_ptr->addr = vm_addr;
+        vm_ptr->kaddr = ULONG(vm_buf + field_offset(vm_struct,addr));
+        vm_ptr->size = vm_size;
+        vm_ptr->nr_pages = nr_pages;
+        vm_ptr->phys_addr = ULONG(vm_buf + field_offset(vm_struct,phys_addr));
+        ulong caller = ULONG(vm_buf + field_offset(vm_struct,caller));
+        ulong next = ULONG(vm_buf + field_offset(vm_struct,next));
+        ulong pages = ULONG(vm_buf + field_offset(vm_struct,pages));
+        ulong flags = ULONG(vm_buf + field_offset(vm_struct,flags));
+        FREEBUF(vm_buf);
+        if (flags & Vmalloc::VM_IOREMAP){
+            vm_ptr->flags.assign("ioremap");
+        }else if (flags & Vmalloc::VM_ALLOC){
+            vm_ptr->flags.assign("vmalloc");
+        }else if (flags & Vmalloc::VM_MAP){
+            vm_ptr->flags.assign("vmap");
+        }else if (flags & Vmalloc::VM_USERMAP){
+            vm_ptr->flags.assign("user");
+        }else if (flags & Vmalloc::VM_VPAGES){
+            vm_ptr->flags.assign("vpages");
+        }else if (flags & Vmalloc::VM_UNLIST){
+            vm_ptr->flags.assign("unlist");
+        }else{
+            vm_ptr->flags.assign("unknow");
+        }
+        struct syment *sp;
+        ulong offset;
+        if (sp = value_search(caller, &offset)) {
+            vm_ptr->caller = sp->name;
+            size_t pos = vm_ptr->caller.find('.'); //remove the rest char
+            if (pos != std::string::npos) {
+                vm_ptr->caller = vm_ptr->caller.substr(0, pos);
             }
-            struct syment *sp;
-            ulong offset;
-            if (sp = value_search(caller, &offset)) {
-                vm_ptr->caller = sp->name;
-                size_t pos = vm_ptr->caller.find('.'); //remove the rest char
-                if (pos != std::string::npos) {
-                    vm_ptr->caller = vm_ptr->caller.substr(0, pos);
-                }
-                if (offset)
-                    vm_ptr->caller.append("+").append(std::to_string(offset));
+            if (offset)
+                vm_ptr->caller.append("+").append(std::to_string(offset));
+        }
+        if (is_kvaddr(pages)) {
+            for (int j = 0; j < vm_ptr->nr_pages; ++j) {
+                ulong addr = pages + j * sizeof(void *);
+                if (!is_kvaddr(addr)) break;
+                ulong page_addr = read_pointer(addr,"vm_struct pages");
+                if (!is_kvaddr(page_addr)) continue;
+                physaddr_t paddr = page_to_phy(page_addr);
+                if (paddr <= 0) continue;
+                vm_ptr->page_list.push_back(page_addr);
             }
-            if (is_kvaddr(pages)) {
-                for (int j = 0; j < vm_ptr->nr_pages; ++j) {
-                    ulong addr = pages + j * sizeof(void *);
-                    if (!is_kvaddr(addr)) break;
-                    ulong page_addr = read_pointer(addr,"vm_struct pages");
-                    if (!is_kvaddr(page_addr)) continue;
-                    physaddr_t paddr = page_to_phy(page_addr);
-                    if (paddr <= 0) continue;
-                    vm_ptr->page_list.push_back(page_addr);
-                }
-            }
-            area_ptr->vm_list.push_back(vm_ptr);
-            vm_addr = next;
+        }
+        area_ptr->vm_list.push_back(vm_ptr);
+        vm_addr = next;
+    }
+}
+
+void Vmalloc::parser_vmap_area_list(){
+    if (!csymbol_exists("vmap_area_list")){
+        parser_vmap_nodes();
+    }else{
+        ulong area_list_addr = csymbol_value("vmap_area_list");
+        if (!is_kvaddr(area_list_addr)) {
+            fprintf(fp, "vmap_area_list address is invalid!\n");
+            return;
+        }
+        int offset = field_offset(vmap_area,list);
+        for (const auto& area_addr : for_each_list(area_list_addr,offset)) {
+            parser_vmap_area(area_addr);
         }
     }
 }

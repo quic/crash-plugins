@@ -44,6 +44,7 @@ private:
     size_t get_nomap_size();
     size_t get_dmabuf_size();
     size_t get_vmalloc_size();
+    size_t parser_vmap_area(ulong addr);
     size_t get_dentry_cache_size();
     size_t get_inode_cache_size();
     ulong get_vmalloc_total(void);

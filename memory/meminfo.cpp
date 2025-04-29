@@ -85,6 +85,10 @@ Meminfo::Meminfo(){
     field_init(vm_struct,nr_pages);
     field_init(vm_struct,next);
     field_init(vm_struct,size);
+    field_init(vmap_node,pool);
+    field_init(vmap_pool,len);
+    struct_init(vmap_node);
+    struct_init(vmap_pool);
     if (get_config_val("CONFIG_HUGETLB_PAGE") == "y") {
         struct_init(hstate);
         field_init(hstate, order);
@@ -451,25 +455,52 @@ size_t Meminfo::get_dmabuf_size(){
 }
 
 size_t Meminfo::get_vmalloc_size(){
-    if (!csymbol_exists("vmap_area_list")){
-        return 0;
-    }
-    ulong vmap_area_list = csymbol_value("vmap_area_list");
-    ulong total_pages = 0;
+    size_t total_pages = 0;
     int offset = field_offset(vmap_area,list);
-    for (const auto& addr : for_each_list(vmap_area_list,offset)) {
-        ulong vm_addr = read_pointer(addr + field_offset(vmap_area,vm),"vm addr");
-        while (is_kvaddr(vm_addr)){
-            int nr_pages = read_uint(vm_addr + field_offset(vm_struct,nr_pages),"nr_pages");
-            ulong vm_size = read_ulong(vm_addr + field_offset(vm_struct,size),"size");
-            if (vm_size % page_size == 0 && (vm_size / page_size) == (nr_pages + 1)) {
-                // fprintf(fp, "vm_addr:%#lx nr_pages:%d\n",vm_addr, nr_pages);
-                total_pages += nr_pages;
+    if (csymbol_exists("vmap_area_list")){
+        ulong area_list_addr = csymbol_value("vmap_area_list");
+        if (!is_kvaddr(area_list_addr)) {
+            return total_pages;
+        }
+        for (const auto& area_addr : for_each_list(area_list_addr,offset)) {
+            total_pages += parser_vmap_area(area_addr);
+        }
+    }else if(csymbol_exists("vmap_nodes")){
+        ulong nodes_addr = read_pointer(csymbol_value("vmap_nodes"),"vmap_nodes pages");
+        if (!is_kvaddr(nodes_addr)) return total_pages;
+        int nr_node = read_int(csymbol_value("nr_vmap_nodes"),"nr_vmap_nodes");
+        int pool_cnt = field_size(vmap_node,pool)/struct_size(vmap_pool);
+        for (size_t i = 0; i < nr_node; i++){
+            ulong pools_addr = nodes_addr + i * struct_size(vmap_node) + field_offset(vmap_node,pool);
+            for (size_t p = 0; p < pool_cnt; p++){
+                ulong pool_addr = pools_addr + p * struct_size(vmap_pool);
+                if (!is_kvaddr(pool_addr)) continue;
+                ulong len = read_ulong(pool_addr + field_offset(vmap_pool,len),"vmap_pool len");
+                if (len == 0){
+                    continue;
+                }
+                for (const auto& area_addr : for_each_list(pool_addr,offset)) {
+                    total_pages += parser_vmap_area(area_addr);
+                }
             }
-            vm_addr = read_pointer(vm_addr + field_offset(vm_struct,next),"next");
         }
     }
     return total_pages * page_size;
+}
+
+size_t Meminfo::parser_vmap_area(ulong addr){
+    size_t total_pages = 0;
+    ulong vm_addr = read_pointer(addr + field_offset(vmap_area,vm),"vm addr");
+    while (is_kvaddr(vm_addr)){
+        int nr_pages = read_uint(vm_addr + field_offset(vm_struct,nr_pages),"nr_pages");
+        ulong vm_size = read_ulong(vm_addr + field_offset(vm_struct,size),"size");
+        if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
+            break;
+        }
+        total_pages += nr_pages;
+        vm_addr = read_pointer(vm_addr + field_offset(vm_struct,next),"next");
+    }
+    return total_pages;
 }
 
 size_t Meminfo::get_dentry_cache_size(){
