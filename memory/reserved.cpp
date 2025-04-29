@@ -82,12 +82,25 @@ void Reserved::parser_reserved_mem(){
         return;
     }
     ulong reserved_mem_count = read_pointer(csymbol_value("reserved_mem_count"),"reserved_mem_count");
-    for (int i = 0; i < reserved_mem_count; ++i) {
+    int cnt = reserved_mem_count == 0 ? get_array_length(TO_CONST_STRING("reserved_mem"), NULL, 0) : reserved_mem_count;
+    for (int i = 0; i < cnt; ++i) {
         ulong reserved_addr = reserved_mem_addr + i * struct_size(reserved_mem);
         void *reserved_mem_buf = read_struct(reserved_addr,"reserved_mem");
         if (!reserved_mem_buf) {
-            fprintf(fp, "Failed to read reserved_mem structure at address %lx\n", reserved_addr);
-            return;
+            continue;
+        }
+        int64_t base = 0;
+        int64_t size = 0;
+        if(get_config_val("CONFIG_PHYS_ADDR_T_64BIT") == "y"){
+            base = ULONGLONG(reserved_mem_buf + field_offset(reserved_mem,base));
+            size = ULONGLONG(reserved_mem_buf + field_offset(reserved_mem,size));
+        }else{
+            base = ULONG(reserved_mem_buf + field_offset(reserved_mem,base));
+            size = ULONG(reserved_mem_buf + field_offset(reserved_mem,size));
+        }
+        if (size == 0) {
+            FREEBUF(reserved_mem_buf);
+            continue;
         }
         std::shared_ptr<reserved_mem> mem_ptr = std::make_shared<reserved_mem>();
         std::string name = read_cstring(ULONG(reserved_mem_buf + field_offset(reserved_mem,name)),64, "reserved_mem_name");
@@ -106,13 +119,8 @@ void Reserved::parser_reserved_mem(){
                 mem_ptr->type = Type::REUSABLE;
             }
         }
-        if(get_config_val("CONFIG_PHYS_ADDR_T_64BIT") == "y"){
-            mem_ptr->base = ULONGLONG(reserved_mem_buf + field_offset(reserved_mem,base));
-            mem_ptr->size = ULONGLONG(reserved_mem_buf + field_offset(reserved_mem,size));
-        }else{
-            mem_ptr->base = ULONG(reserved_mem_buf + field_offset(reserved_mem,base));
-            mem_ptr->size = ULONG(reserved_mem_buf + field_offset(reserved_mem,size));
-        }
+        mem_ptr->base = base;
+        mem_ptr->size = size;
         FREEBUF(reserved_mem_buf);
         mem_list.push_back(mem_ptr);
     }

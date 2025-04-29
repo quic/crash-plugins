@@ -404,13 +404,18 @@ size_t Meminfo::get_nomap_size(){
         return 0;
     }
     ulong reserved_mem_addr = csymbol_value("reserved_mem");
-    ulong cnt = read_pointer(csymbol_value("reserved_mem_count"),"reserved_mem_count");
+    int reserved_mem_count = read_pointer(csymbol_value("reserved_mem_count"),"reserved_mem_count");
+    int cnt = reserved_mem_count == 0 ? get_array_length(TO_CONST_STRING("reserved_mem"), NULL, 0) : reserved_mem_count;
     if (cnt == 0) {
         return 0;
     }
     size_t total_size = 0;
     for (int i = 0; i < cnt; ++i) {
         ulong reserved_addr = reserved_mem_addr + i * struct_size(reserved_mem);
+        size_t mem_size = read_ulong(reserved_addr + field_offset(reserved_mem,size), "size");
+        if (mem_size == 0){
+            continue;
+        }
         ulong name_addr = read_pointer(reserved_addr + field_offset(reserved_mem,name),"name");
         if (!is_kvaddr(name_addr)) continue;
         std::string name = read_cstring(name_addr,64, "reserved_mem_name");
@@ -420,7 +425,7 @@ size_t Meminfo::get_nomap_size(){
         for (const auto& node : nodes) {
             std::shared_ptr<Property> prop = dts->getprop(node->addr,"no-map");
             if (prop.get() != nullptr){
-                total_size += read_ulong(reserved_addr + field_offset(reserved_mem,size), "size");
+                total_size += mem_size ;
             }
         }
     }
