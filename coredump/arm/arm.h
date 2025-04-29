@@ -18,11 +18,6 @@
 
 #include "coredump/core.h"
 
-#define elf_hdr     Elf32_Ehdr
-#define elf_phdr    Elf32_Phdr
-#define elf_note    Elf32_Nhdr
-#define elf_addr_t  Elf32_Off
-
 struct user_fp {
     struct fp_reg {
         unsigned int sign1:1;
@@ -67,13 +62,6 @@ struct arm32_pt_regs{
 
 #define ARM_VFPREGS_SIZE ( 32 * 8 /*fpregs*/ + 4 /*fpscr*/ )
 
-struct elf_siginfo {
-    int si_signo;
-    int si_errno;
-    int si_code;
-    // char padding[20];
-};
-
 struct elf32_prstatus {
     struct elf_siginfo pr_info;
     short pr_cursig;
@@ -92,19 +80,9 @@ struct elf32_prstatus {
 };
 
 class Arm : public Core {
-    protected:
-        elf_hdr* hdr;
     public:
         Arm(std::shared_ptr<Swapinfo> swap);
         ~Arm();
-        void parser_auvx() override;
-        void write_pt_note_phdr(size_t note_size) override;
-        void write_pt_load_phdr(std::shared_ptr<vma> vma_ptr, size_t& vma_offset) override;
-        void writenote(std::shared_ptr<memelfnote> note_ptr) override;
-        int notesize(std::shared_ptr<memelfnote> note_ptr) override;
-        void write_elf_header(int phnum) override;
-        int get_phdr_start() override;
-        int get_pt_note_data_start() override;
         void parser_prpsinfo() override;
         void parser_siginfo() override;
         void* parser_prstatus(ulong task_addr,int* data_size) override;

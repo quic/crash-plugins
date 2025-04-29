@@ -1653,17 +1653,33 @@ Generate process coredump.
 crash> coredump -p 323
 ```
 
+### coredump -p 'pid' -s 'symbols_path' -f
+Generate process fake coredump with symbols.
+```
+overwrite /system/bin/logd:[size:0x15000 off:0] to core:[0x6052e20000 - 0x6052e35000]
+```
+
+### coredump -p 'pid' -s 'symbols_path' -r
+```
+overwrite PHDR /system/bin/logd:[size:0x15000 off:0] to core:[0x6052e20000 - 0x6052e35000]
+```
+
+### coredump -l 'pid' -s 'symbols_path'
+get the linkmap with symbols
+```
+addr                ld                  next                prev                name
+56ef6c4000          56ef6cc090          7eafbb4158          0                   /system/bin/app_process64
+7eafa2a000          7eafb9f3b8          7eae8eb388          7eae8eb0e0          /system/bin/linker64
+7eafa29000          7eafa29848          7eae8eb630          7eafbb4158          [vdso]
+```
+
 ### coredump -m 'pid'
 Show process maps.
 ```
 crash> coredump -m 437
-VMA:ffffff801d43e870 [459a000-45a5000] r--p 00000000 /system/bin/logd
-VMA:ffffff801d43ea50 [45a6000-4617000] r-xp 0000000b /system/bin/logd
-VMA:ffffff801d43ed20 [4617000-461a000] r--p 0000007b /system/bin/logd
-VMA:ffffff801d43e960 [461a000-461b000] rw-p 0000007d /system/bin/logd
-VMA:ffffff804c6f9870 [f61fb000-f61fc000] ---p 000f61fb
-VMA:ffffff80498e50f0 [f61fc000-f62fb000] rw-p 000f61fc
-VMA:ffffff8063974e10 [f62fb000-f62fd000] ---p 000f62fb
+VMA:ffffff801d653b40 [6052e20000-6052e35000] r--p 0000000000000071 00000000 /system/bin/logd
+VMA:ffffff801d653000 [6052e38000-6052ebd000] r-xp 0000000000000075 00000018 /system/bin/logd
+VMA:ffffff80279c05a0 [7befacb000-7befb14000] rw-p 0000000000100073 07befacb [anon:scudo:secondary]
 ```
 
 ## tm

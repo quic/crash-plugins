@@ -18,11 +18,6 @@
 
 #include "coredump/core.h"
 
-#define elf_compat_hdr     Elf32_Ehdr
-#define elf_compat_phdr    Elf32_Phdr
-#define elf_compat_note    Elf32_Nhdr
-#define elf_compat_addr_t  Elf32_Addr
-
 #define PSR_AA32_DIT_BIT 0x01000000
 #define COMPAT_PSR_DIT_BIT 0x00200000
 
@@ -93,19 +88,9 @@ struct compat_elf_prstatus
 };
 
 class Compat : public Core {
-    protected:
-        elf_compat_hdr* hdr;
     public:
         Compat(std::shared_ptr<Swapinfo> swap);
         ~Compat();
-        void parser_auvx() override;
-        void write_pt_note_phdr(size_t note_size) override;
-        void write_pt_load_phdr(std::shared_ptr<vma> vma_ptr, size_t& vma_offset) override;
-        void writenote(std::shared_ptr<memelfnote> note_ptr) override;
-        int notesize(std::shared_ptr<memelfnote> note_ptr) override;
-        void write_elf_header(int phnum) override;
-        int get_phdr_start() override;
-        int get_pt_note_data_start() override;
         void parser_prpsinfo() override;
         void parser_siginfo() override;
         void* parser_prstatus(ulong task_addr,int* data_size) override;

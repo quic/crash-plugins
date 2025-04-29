@@ -21,13 +21,11 @@
 Compat::Compat(std::shared_ptr<Swapinfo> swap) : Core(swap){
     field_init(task_struct, thread);
     field_init(thread_struct, uw);
-
     elf_class = ELFCLASS32;
-    hdr = (elf_compat_hdr*)std::malloc(sizeof(elf_compat_hdr));
 }
 
 Compat::~Compat(){
-    std::free(hdr);
+
 }
 
 void* Compat::parser_nt_arm_vfp(ulong task_addr) {
@@ -100,117 +98,6 @@ void* Compat::parser_nt_arm_tagged_addr_ctrl(ulong task_addr) {
     return nullptr;
 }
 
-void Compat::parser_auvx(){
-    size_t data_size = field_size(mm_struct, saved_auxv);
-    elf_compat_addr_t* auxv_buf = (elf_compat_addr_t*)read_memory(tc->mm_struct + field_offset(mm_struct, saved_auxv), data_size, "mm_struct saved_auxv");
-    if(!auxv_buf){
-        fprintf(fp, "fill_auvx_note auxv_buf is NULL \n");
-    }
-    int i = 0;
-    do {
-        i += 2;
-    }
-    while (auxv_buf[i - 2] != AT_NULL);
-    data_size = i * sizeof(elf_compat_addr_t);
-    void* data = std::malloc(data_size);
-    memcpy(data, auxv_buf, data_size);
-    FREEBUF(auxv_buf);
-    if (debug){
-        fprintf(fp,  "\n\nNT_AUXV:\n");
-        fprintf(fp, "%s", hexdump(0x1000, (char*)data, data_size).c_str());
-    }
-    pt_note.auxv = std::make_shared<memelfnote>();
-    pt_note.auxv->name = "CORE";
-    pt_note.auxv->type = NT_AUXV;
-    pt_note.auxv->data = data;
-    pt_note.auxv->datasz = data_size;
-}
-
-void Compat::write_pt_note_phdr(size_t note_size) {
-    size_t data_size = sizeof(elf_compat_phdr);
-    elf_compat_phdr* phdr = (elf_compat_phdr*)std::malloc(data_size);
-    BZERO(phdr, data_size);
-    phdr->p_type = PT_NOTE;
-    phdr->p_offset = get_pt_note_data_start();
-    phdr->p_vaddr = 0;
-    phdr->p_paddr = 0;
-    phdr->p_filesz = note_size;
-    phdr->p_memsz = 0;
-    phdr->p_flags = 0;
-    phdr->p_align = 0;
-    fwrite(phdr, data_size, 1, corefile);
-    std::free(phdr);
-}
-
-void Compat::write_pt_load_phdr(std::shared_ptr<vma> vma_ptr, size_t& vma_offset) {
-    size_t data_size = sizeof(elf_compat_phdr);
-    elf_compat_phdr* phdr = (elf_compat_phdr*)std::malloc(data_size);
-    BZERO(phdr, data_size);
-    phdr->p_type = PT_LOAD;
-    phdr->p_offset = vma_offset;
-    phdr->p_vaddr = vma_ptr->vm_start;
-    phdr->p_paddr = 0;
-    phdr->p_memsz = vma_ptr->vm_end - vma_ptr->vm_start;
-    phdr->p_filesz = vma_dump_size(vma_ptr);
-
-    if (vma_ptr->vm_flags & VM_READ){
-        phdr->p_flags |= PF_R;
-    }
-    if (vma_ptr->vm_flags & VM_WRITE){
-        phdr->p_flags |= PF_W;
-    }
-    if (vma_ptr->vm_flags & VM_EXEC){
-        phdr->p_flags |= PF_X;
-    }
-    phdr->p_align = page_size;
-    fwrite(phdr, data_size, 1, corefile);
-    vma_offset += phdr->p_filesz;
-    std::free(phdr);
-}
-
-int Compat::notesize(std::shared_ptr<memelfnote> note_ptr){
-    int total_size = sizeof(elf_compat_note);
-    total_size += roundup(note_ptr->name.size() + 1,4);
-    total_size += roundup(note_ptr->datasz,4);
-    return total_size;
-}
-
-void Compat::writenote(std::shared_ptr<memelfnote> note_ptr) {
-    elf_compat_note note;
-    note.n_namesz = note_ptr->name.size() + 1;
-    note.n_descsz = note_ptr->datasz;
-    note.n_type = note_ptr->type;
-    fwrite(&note, sizeof(elf_compat_note), 1, corefile);
-    fwrite(note_ptr->name.c_str(), note.n_namesz, 1, corefile);
-    dump_align(ftell(corefile),4);
-    fwrite((char*)note_ptr->data, note_ptr->datasz, 1, corefile);
-    std::free(note_ptr->data);
-    dump_align(ftell(corefile),4);
-}
-
-void Compat::write_elf_header(int phnum) {
-    size_t data_size = sizeof(elf_compat_hdr);
-    BZERO(hdr, data_size);
-    snprintf((char *)hdr->e_ident, 5, ELFMAG);
-    hdr->e_ident[EI_CLASS] = elf_class;
-    hdr->e_ident[EI_DATA] = ELFDATA2LSB;
-    hdr->e_ident[EI_VERSION] = EV_CURRENT;
-    hdr->e_ident[EI_OSABI] = urv_ptr->ei_osabi;
-    hdr->e_type = ET_CORE;
-    hdr->e_machine = urv_ptr->e_machine;
-    hdr->e_version = EV_CURRENT;
-    hdr->e_phoff = data_size;
-    hdr->e_flags = urv_ptr->e_flags;
-    hdr->e_ehsize = data_size;
-    hdr->e_phentsize = sizeof(elf_compat_phdr);
-    hdr->e_phnum = phnum;
-    if (debug){
-        fprintf(fp, "\n\nelf_compat_hdr:\n");
-        fprintf(fp, "%s", hexdump(0x1000,(char*)hdr,data_size).c_str());
-    }
-    fwrite(hdr, data_size, 1, corefile);
-}
-
 void* Compat::parser_prstatus(ulong task_addr,int* data_size) {
     size_t data_len = sizeof(struct compat_elf_prstatus);
     struct compat_elf_prstatus* prstatus = (struct compat_elf_prstatus*)std::malloc(data_len);
@@ -252,8 +139,8 @@ void* Compat::parser_prstatus(ulong task_addr,int* data_size) {
 }
 
 void Compat::parser_prpsinfo() {
-    size_t data_size = sizeof(struct compat_elf_prpsinfo);
-    struct compat_elf_prpsinfo* prpsinfo = (struct compat_elf_prpsinfo*)std::malloc(data_size);
+    size_t data_size = sizeof(struct elf_prpsinfo);
+    struct elf_prpsinfo* prpsinfo = (struct elf_prpsinfo*)std::malloc(data_size);
     BZERO(prpsinfo, data_size);
     ulong state = 0;
     if (field_offset(task_struct, state) != -1){
@@ -283,34 +170,27 @@ void Compat::parser_prpsinfo() {
         fprintf(fp,  "\n\nNT_PRPSINFO:\n");
         fprintf(fp, "%s", hexdump(0x1000,(char*)prpsinfo,data_size).c_str());
     }
-    pt_note.psinfo = std::make_shared<memelfnote>();
-    pt_note.psinfo->name = "CORE";
-    pt_note.psinfo->type = NT_PRPSINFO;
-    pt_note.psinfo->data = prpsinfo;
-    pt_note.psinfo->datasz = data_size;
+    psinfo = std::make_shared<memelfnote>();
+    psinfo->name = "CORE";
+    psinfo->type = NT_PRPSINFO;
+    psinfo->data = prpsinfo;
+    psinfo->datasz = data_size;
 }
 
 void Compat::parser_siginfo() {
-    size_t data_size = sizeof(struct compat_elf_siginfo);
-    struct compat_elf_siginfo* sinfo = (struct compat_elf_siginfo*)std::malloc(data_size);
+    size_t data_size = sizeof(struct elf_siginfo);
+    struct elf_siginfo* sinfo = (struct elf_siginfo*)std::malloc(data_size);
     BZERO(sinfo, data_size);
     sinfo->si_signo = 6;
     if (debug){
         fprintf(fp,  "\n\nNT_SIGINFO:\n");
         fprintf(fp, "%s", hexdump(0x1000,(char*)sinfo,data_size).c_str());
     }
-    pt_note.signote = std::make_shared<memelfnote>();
-    pt_note.signote->name = "CORE";
-    pt_note.signote->type = NT_SIGINFO;
-    pt_note.signote->data = sinfo;
-    pt_note.signote->datasz = data_size;
+    signote = std::make_shared<memelfnote>();
+    signote->name = "CORE";
+    signote->type = NT_SIGINFO;
+    signote->data = sinfo;
+    signote->datasz = data_size;
 }
 
-int Compat::get_phdr_start() {
-    return hdr->e_phoff;
-}
-
-int Compat::get_pt_note_data_start() {
-    return hdr->e_ehsize + (hdr->e_phnum * hdr->e_phentsize);
-}
 #pragma GCC diagnostic pop

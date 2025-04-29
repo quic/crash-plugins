@@ -20,16 +20,19 @@
 #include <elf.h>
 #include <linux/types.h>
 #include "memory/swapinfo.h"
+#include <sys/stat.h>
+#include <filesystem>
+#include <exception>
 
-#define MMF_DUMP_ANON_PRIVATE  2
-#define MMF_DUMP_ANON_SHARED  3
-#define MMF_DUMP_MAPPED_PRIVATE  4
-#define MMF_DUMP_MAPPED_SHARED  5
-#define MMF_DUMP_ELF_HEADERS  6
-#define MMF_DUMP_HUGETLB_PRIVATE  7
-#define MMF_DUMP_HUGETLB_SHARED  8
-#define MMF_DUMP_DAX_PRIVATE  9
-#define MMF_DUMP_DAX_SHARED  10
+#define MMF_DUMP_ANON_PRIVATE       2
+#define MMF_DUMP_ANON_SHARED        3
+#define MMF_DUMP_MAPPED_PRIVATE     4
+#define MMF_DUMP_MAPPED_SHARED      5
+#define MMF_DUMP_ELF_HEADERS        6
+#define MMF_DUMP_HUGETLB_PRIVATE    7
+#define MMF_DUMP_HUGETLB_SHARED     8
+#define MMF_DUMP_DAX_PRIVATE        9
+#define MMF_DUMP_DAX_SHARED         10
 
 #define NT_ARM_PAC_ENABLED_KEYS 0x40a
 #define NT_ARM_TAGGED_ADDR_CTRL 0x409
@@ -38,27 +41,58 @@
 #define VFP_FPSCR_CTRL_MASK 0x07f79f00
 typedef unsigned long long __ull[2];
 
+#define FILTER_SPECIAL_VMA          (1 << 0)
+#define FILTER_FILE_VMA             (1 << 1)
+#define FILTER_SHARED_VMA           (1 << 2)
+#define FILTER_SANITIZER_SHADOW_VMA (1 << 3)
+#define FILTER_NON_READ_VMA         (1 << 4)
+
+#define FAKE_AUXV_PHDR 0x100000
+
+
 /*
-# +--------------------------------+
-# |             elf header         |
-# +--------------------------------+
-# |    program header(PT_NOTE)     |
-# +--------------------------------+
-# |    program header(PT_Load)     |
-# +--------------------------------+
-# |          ...........           |
-# +--------------------------------+<---- note_info_offset
-# |                                |   ^
-# |                                |   |
-# |         PT_NOTE(data)          | total_note_size
-# |                                |   |
-# |                                |   v
-# +--------------------------------+<---- vma_offset
-# |          PT_LOAD(data)         |
-# +--------------------------------+
-# |          ...........           |
-# +--------------------------------+
+                                        +--------------------------------+
+                                        |           ELF Header           |
+                                        +--------------------------------+ AT_PHDR(0x10000)
+                                        |    Program Header (PT_NOTE)    |-------------------------+
+                                        +--------------------------------+ p_vaddr: 0x10000        |
+                                        |  Program Header (PT_LOAD fake) |-------------------------|
+                                        +--------------------------------+                         |
+                                        |    Program Header (PT_LOAD)    |                         |
+                                        +--------------------------------+                         |
+                                        |          ...........           |                         |
+                note_info_offset------> +--------------------------------+                         |
+                                   ^    |                                |                         |
+                                   |    |                                |                         |
+                       total_note_size  |         PT_NOTE (data)         |                         |
+                                   |    |                                |                         |
+                                   v    |                                |                         |
++-----------------+\  vma_offset------> +--------------------------------+<------------------------+
+|     ET_DYN      | \                 / |           FAKE PHDR            |   ^
++-----------------+  \               / /+--------------------------------+   |
+|     PT_PHDR     |   --------------- / |          FAKE DYNAMIC          | PT_LOAD (fake data)
++-----------------+  /---------------/ /+--------------------------------+   |
+|    PT_DYNAMIC   | /               / / |         FAKE LINK MAP          |-------------------------+
++-----------------+/               / /  +--------------------------------+   |                     |
+                                  / /   |          FAKE STRTAB           |   v                     |
+                                 / /    +--------------------------------+<---                     |
+                 +-----------+--/ /     |          PT_LOAD (data)        |                         |
+                 |  Dynamic  |   /      +--------------------------------+                         |
+                 +-----------+  /       |          PT_LOAD (data)        |     linkmap.l_addr      |
+                 |   Debug   | /        +--------------------------------+ <-----------------------+
+                 +-----------+/         |        Replace Data            |
+                                        |     (from symbols file,        |
+                                        |     off: pgoff << 12           |
+                                        |     size: memze)               |
+                                        +--------------------------------+
+                                        |          PT_LOAD (data)        |
+                                        +--------------------------------+
+                                        |          PT_LOAD (data)        |
+                                        +--------------------------------+
+                                        |          ...........           |
+                                        +--------------------------------+
 */
+
 
 #ifndef IS_ARM
 struct elf_prpsinfo {
@@ -76,7 +110,27 @@ struct elf_prpsinfo {
     char pr_fname[16];
     char pr_psargs[80];
 };
+
+struct elf_siginfo {
+    int si_signo;
+    int si_errno;
+    int si_code;
+    // char padding[36];
+};
 #endif
+
+struct vma;
+
+struct symbol_info {
+    std::vector<std::shared_ptr<vma>> vma_load_list;
+    uintmax_t dynamic_offset;
+    uintmax_t dynamic_vaddr;
+    uintmax_t phdr_offset;
+    uintmax_t phdr_vaddr;
+    std::string lib_path;
+    void* map_addr;
+    size_t map_size;
+};
 
 struct vma {
     ulong addr;
@@ -88,9 +142,8 @@ struct vma {
     ulong vm_pgoff;
     ulong anon_name;
     ulong anon_vma;
-    ulong file_inode;
-    uint i_nlink;
     std::string name;
+    std::shared_ptr<symbol_info> symbol_ptr;
 };
 
 struct user_regset {
@@ -121,14 +174,6 @@ struct elf_thread_info {
     ulong task_addr;
     std::shared_ptr<memelfnote> prstatus_ptr;
     std::vector<std::shared_ptr<memelfnote>> note_list;
-};
-
-struct elf_pt_note_data {
-    std::vector<std::shared_ptr<elf_thread_info>> thread_list;
-    std::shared_ptr<memelfnote> psinfo;
-    std::shared_ptr<memelfnote> signote;
-    std::shared_ptr<memelfnote> auxv;
-    std::shared_ptr<memelfnote> files;
 };
 
 struct mm_info {
@@ -181,22 +226,62 @@ struct user_fpsimd_state {
     unsigned int   __reserved[2];
 };
 
+typedef struct{
+    int32_t type;
+    int32_t val;
+} Elf32_Auxv_t;
+
+typedef struct{
+    int64_t type;
+    int64_t val;
+} Elf64_Auxv_t;
+
+typedef struct {
+    ulong version;
+    ulong map;
+} r_debug_t;
+
+typedef struct {
+    ulong type;
+    ulong value;
+} dynamic_t;
+
+typedef struct {
+    ulong addr;
+    ulong name;
+    ulong ld;
+    ulong next;
+    ulong prev;
+} linkmap_t;
+
 class Core : public PaserPlugin {
+public:
+    static int cmd_flags;
+    static std::string symbols_path;
+    static const int CORE_REPLACE_HEAD = 0x0001;
+    static const int CORE_FAKE_LINKMAP = 0x0002;
+
 protected:
+    void* hdr_ptr;
     bool debug = false;
     bool is_compat = false;
-    std::string core_path;
-    int core_filter;
     int core_pid;
     FILE* corefile;
     ulong thread_info_flags;
     int elf_class;
+    std::string exe_name;
     std::string user_view_var_name;
     std::shared_ptr<user_regset_view> urv_ptr;
     std::vector<std::shared_ptr<vma>> vma_list;
+    std::unordered_map<std::string, std::shared_ptr<symbol_info>> lib_map;
+    std::unordered_map <ulong, ulong> auxv_list; // <type, val>
     struct task_context *tc;
     struct mm_info mm;
-    struct elf_pt_note_data pt_note;
+    std::vector<std::shared_ptr<elf_thread_info>> thread_list;
+    std::shared_ptr<memelfnote> psinfo;
+    std::shared_ptr<memelfnote> signote;
+    std::shared_ptr<memelfnote> auxv;
+    std::shared_ptr<memelfnote> files;
     std::shared_ptr<Swapinfo> swap_ptr;
 
 public:
@@ -207,6 +292,7 @@ public:
     void set_core_pid(int pid){
         core_pid = pid;
     };
+
     template <size_t N>
     void copy_and_fill_char(char (&dest)[N], const char* src, size_t src_len){
         size_t len = (src_len < (N - 1)) ? src_len : (N - 1);
@@ -214,6 +300,11 @@ public:
         dest[len] = '\0';
     }
     void parser_core_dump(void);
+    void parser_exec_name(ulong addr);
+    void print_linkmap();
+    bool find_lib_path(const std::string &target_path, const std::string &search_base, std::string &result_path);
+    bool write_pt_note(void);
+    bool write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& data_pos);
     void write_core_file(void);
     bool parser_mm_struct(int pid);
     bool parser_user_regset_view(void);
@@ -224,20 +315,27 @@ public:
     int pid_alive(ulong task_addr);
     ulong ns_of_pid(ulong thread_pid_addr);
     ulong task_pid_ptr(ulong task_addr, long type);
-    int get_vma_count(ulong task_addr);
+    void write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_filesz, size_t p_memsz, size_t p_flags, size_t p_align);
     void parser_vma_list(ulong task_addr);
+    void parser_auvx();
     void parser_nt_file();
     void parser_thread_core_info();
-    ulong vma_dump_size(std::shared_ptr<vma> vma_ptr);
+    int vma_dump_size(std::shared_ptr<vma> vma_ptr);
     void dump_align(std::streampos position, std::streamsize align);
-    virtual void parser_auvx()=0;
-    virtual void write_pt_note_phdr(size_t note_size)=0;
-    virtual void write_pt_load_phdr(std::shared_ptr<vma> vma_ptr, size_t& vma_offset)=0;
-    virtual void writenote(std::shared_ptr<memelfnote> note_ptr)=0;
-    virtual int notesize(std::shared_ptr<memelfnote> note_ptr)=0;
-    virtual int get_phdr_start()=0;
-    virtual int get_pt_note_data_start()=0;
-    virtual void write_elf_header(int phnum)=0;
+    void writenote(std::shared_ptr<memelfnote> note_ptr);
+    void *fill_elf_header(int type, int phnum, size_t &hdr_size);
+    int notesize(std::shared_ptr<memelfnote> note_ptr);
+    int get_phdr_start();
+    int get_phdr_size();
+    std::shared_ptr<vma> get_phdr_vma(std::vector<std::shared_ptr<vma>> vma_list);
+    void *map_elf_file(std::string filepath, size_t &len);
+    bool check_elf_file(void * map);
+    bool read_elf_file(std::shared_ptr<symbol_info> lib_ptr);
+    void free_lib_map();
+    size_t replace_phdr_load(std::shared_ptr<vma> vma_ptr);
+    void write_fake_data(size_t &data_pos, size_t phdr_pos);
+    int get_pt_note_data_start();
+
     virtual void parser_prpsinfo()=0;
     virtual void parser_siginfo()=0;
     virtual void* parser_prstatus(ulong task_addr,int* data_size)=0;
