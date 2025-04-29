@@ -18,30 +18,30 @@
 
 #include "plugin.h"
 #include "core.h"
-#if defined(ARM)
-#include "arm/arm.h"
-#endif
 
-#if defined(ARM64)
 #include "arm/arm64.h"
 #include "arm/compat.h"
-#endif
+#include "arm/arm.h"
 
 class Coredump : public PaserPlugin {
 private:
-    std::shared_ptr<Core> core_ptr;
-    std::shared_ptr<Core> compat_core_ptr;
+    std::shared_ptr<Core> core_parser;
     std::shared_ptr<Swapinfo> swap_ptr;
     bool is_compat = false;
     bool debug = false;
 
 public:
+    static const int PRINT_LINKMAP = 0x0001;
+    static const int PRINT_PROCMAP = 0x0002;
+    static const int PRINT_COREDUMP = 0x0004;
     Coredump();
     Coredump(std::shared_ptr<Swapinfo> swap);
     void init_command();
     void cmd_main(void) override;
-    void print_proc_mapping(int pid);
+    void print_linkmap(int pid);
     void generate_coredump(int pid);
+    bool get_core_parser(int pid);
+    void print_proc_mapping(int pid);
     DEFINE_PLUGIN_INSTANCE(Coredump)
 };
 

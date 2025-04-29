@@ -75,6 +75,11 @@ void Procrank::parser_process_memory() {
     if (!swap_ptr->is_zram_enable()){
         return;
     }
+    uint64_t total_vss = 0;
+    uint64_t total_rss = 0;
+    uint64_t total_pss = 0;
+    uint64_t total_uss = 0;
+    uint64_t total_swap = 0;
     if (procrank_list.size() == 0){
         for(ulong task_addr: for_each_process()){
             auto procrank_result = std::make_shared<procrank>();
@@ -86,6 +91,11 @@ void Procrank::parser_process_memory() {
                 procrank_result->uss += procrank_ptr->uss;
                 procrank_result->swap += procrank_ptr->swap;
             }
+            total_vss += procrank_result->vss;
+            total_rss += procrank_result->rss;
+            total_pss += procrank_result->pss;
+            total_uss += procrank_result->uss;
+            total_swap += procrank_result->swap;
             struct task_context *tc = task_to_context(task_addr);
             procrank_result->pid = tc->pid;
             // memcpy(procrank_result->comm, tc->comm, TASK_COMM_LEN + 1);
@@ -116,6 +126,14 @@ void Procrank::parser_process_memory() {
             << p->cmdline;
         fprintf(fp, "%s \n",oss.str().c_str());
     }
+    std::ostringstream oss_total;
+    oss_total << std::left << std::setw(8) << "Total" << " "
+        << std::left << std::setw(10) << csize(total_vss) << " "
+        << std::left << std::setw(10) << csize(total_rss) << " "
+        << std::left << std::setw(10) << csize(total_pss) << " "
+        << std::left << std::setw(10) << csize(total_uss) << " "
+        << std::left << std::setw(10) << csize(total_swap);
+    fprintf(fp, "%s\n", oss_total.str().c_str());
 }
 
 std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr) {

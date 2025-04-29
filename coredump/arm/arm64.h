@@ -18,11 +18,6 @@
 
 #include "coredump/core.h"
 
-#define elf_hdr     Elf64_Ehdr
-#define elf_phdr    Elf64_Phdr
-#define elf_note    Elf64_Nhdr
-#define elf_addr_t  Elf64_Off
-
 #define BIT(nr)         (1UL << (nr))
 #define GENMASK_ULL(h, l) (((1ULL<<(h+1))-1)&(~((1ULL<<l)-1)))
 
@@ -54,15 +49,6 @@ struct user_pac_mask {
     uint64_t insn_mask;
 };
 
-#ifndef IS_ARM
-struct elf_siginfo {
-    int si_signo;
-    int si_errno;
-    int si_code;
-    // char padding[36];
-};
-#endif
-
 struct __kernel_old_timeval {
     long tv_sec;
     long tv_usec;
@@ -86,19 +72,9 @@ struct elf64_prstatus {
 };
 
 class Arm64 : public Core {
-    protected:
-        elf_hdr* hdr;
     public:
         Arm64(std::shared_ptr<Swapinfo> swap);
         ~Arm64();
-        void parser_auvx() override;
-        void write_pt_note_phdr(size_t note_size) override;
-        void write_pt_load_phdr(std::shared_ptr<vma> vma_ptr, size_t& vma_offset) override;
-        void writenote(std::shared_ptr<memelfnote> note_ptr) override;
-        int notesize(std::shared_ptr<memelfnote> note_ptr) override;
-        void write_elf_header(int phnum) override;
-        int get_phdr_start() override;
-        int get_pt_note_data_start() override;
         void parser_prpsinfo() override;
         void parser_siginfo() override;
         void* parser_prstatus(ulong task_addr,int* data_size) override;
