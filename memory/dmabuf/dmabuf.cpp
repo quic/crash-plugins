@@ -76,12 +76,16 @@ Dmabuf::Dmabuf(){
 }
 
 void Dmabuf::parser_dma_bufs(){
-    if (!csymbol_exists("db_list")){
+    ulong db_list_addr = 0;
+    if (csymbol_exists("db_list")){
+        db_list_addr = csymbol_value("db_list");
+    }else if (csymbol_exists("debugfs_list")){
+        db_list_addr = csymbol_value("debugfs_list");
+    }
+    if (!is_kvaddr(db_list_addr)){
         fprintf(fp, "db_list doesn't exist in this kernel!\n");
         return;
     }
-    ulong db_list_addr = csymbol_value("db_list");
-    if (!is_kvaddr(db_list_addr))return;
     int offset = field_offset(dma_buf,list_node);
     char buf[BUFSIZE];
     for (const auto& buf_addr : for_each_list(db_list_addr,offset)) {

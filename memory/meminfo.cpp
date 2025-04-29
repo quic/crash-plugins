@@ -433,11 +433,16 @@ size_t Meminfo::get_nomap_size(){
 }
 
 size_t Meminfo::get_dmabuf_size(){
-    if (!csymbol_exists("db_list")){
+    ulong db_list_addr = 0;
+    if (csymbol_exists("db_list")){
+        db_list_addr = csymbol_value("db_list");
+    }else if (csymbol_exists("debugfs_list")){
+        db_list_addr = csymbol_value("debugfs_list");
+    }
+    if (!is_kvaddr(db_list_addr)){
         return 0;
     }
     size_t total_size = 0;
-    ulong db_list_addr = csymbol_value("db_list");
     int offset = field_offset(dma_buf,list_node);
     for (const auto& buf_addr : for_each_list(db_list_addr,offset)) {
         total_size += read_ulong(buf_addr + field_offset(dma_buf,size), "size");
