@@ -60,24 +60,24 @@ typedef struct {
     int counter;
 } atomic_long_t;
 
-#define VM_NONE        0x00000000
-#define VM_READ        0x00000001    /* currently active flags */
-#define VM_WRITE    0x00000002
-#define VM_EXEC        0x00000004
-#define VM_SHARED    0x00000008
-#define VM_MAYREAD    0x00000010    /* limits for mprotect() etc */
-#define VM_MAYWRITE    0x00000020
-#define VM_MAYEXEC    0x00000040
-#define VM_MAYSHARE    0x00000080
-#define VM_GROWSDOWN    0x00000100    /* general info on the segment */
-#define VM_UFFD_MISSING    0x00000200    /* missing pages tracking */
-#define VM_PFNMAP    0x00000400    /* Page-ranges managed without "struct page", just pure PFN */
-#define VM_DENYWRITE    0x00000800    /* ETXTBSY on write attempts.. */
-#define VM_UFFD_WP    0x00001000    /* wrprotect pages tracking */
-#define VM_LOCKED    0x00002000
-#define VM_IO           0x00004000    /* Memory mapped I/O or similar */
-#define VM_HUGETLB 0x00400000
-#define VM_DONTDUMP 0x04000000
+#define VM_NONE             0x00000000
+#define VM_READ             0x00000001    /* currently active flags */
+#define VM_WRITE            0x00000002
+#define VM_EXEC             0x00000004
+#define VM_SHARED           0x00000008
+#define VM_MAYREAD          0x00000010    /* limits for mprotect() etc */
+#define VM_MAYWRITE         0x00000020
+#define VM_MAYEXEC          0x00000040
+#define VM_MAYSHARE         0x00000080
+#define VM_GROWSDOWN        0x00000100    /* general info on the segment */
+#define VM_UFFD_MISSING     0x00000200    /* missing pages tracking */
+#define VM_PFNMAP           0x00000400    /* Page-ranges managed without "struct page", just pure PFN */
+#define VM_DENYWRITE        0x00000800    /* ETXTBSY on write attempts.. */
+#define VM_UFFD_WP          0x00001000    /* wrprotect pages tracking */
+#define VM_LOCKED           0x00002000
+#define VM_IO               0x00004000    /* Memory mapped I/O or similar */
+#define VM_HUGETLB          0x00400000
+#define VM_DONTDUMP         0x04000000
 
 class PaserPlugin {
 private:

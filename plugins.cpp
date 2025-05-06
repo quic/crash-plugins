@@ -43,6 +43,7 @@
 #include "ipc/ipc.h"
 #include "regulator/regulator.h"
 #include "icc/icc.h"
+#include "clock/clock.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -81,6 +82,7 @@ std::shared_ptr<DebugImage> DebugImage::instance = nullptr;
 std::shared_ptr<IPCLog>     IPCLog::instance = nullptr;
 std::shared_ptr<Regulator>  Regulator::instance = nullptr;
 std::shared_ptr<ICC>        ICC::instance = nullptr;
+std::shared_ptr<Clock>      Clock::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -114,6 +116,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     IPCLog::instance = std::make_shared<IPCLog>();
     Regulator::instance = std::make_shared<Regulator>();
     ICC::instance = std::make_shared<ICC>();
+    Clock::instance = std::make_shared<Clock>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -146,6 +149,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &IPCLog::instance->cmd_name[0], &IPCLog::wrapper_func, IPCLog::instance->cmd_help, 0 },
         { &Regulator::instance->cmd_name[0], &Regulator::wrapper_func, Regulator::instance->cmd_help, 0 },
         { &ICC::instance->cmd_name[0], &ICC::wrapper_func, ICC::instance->cmd_help, 0 },
+        { &Clock::instance->cmd_name[0], &Clock::wrapper_func, Clock::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -183,6 +187,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     IPCLog::instance.reset();
     Regulator::instance.reset();
     ICC::instance.reset();
+    Clock::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
