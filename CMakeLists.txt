@@ -110,7 +110,8 @@ list(APPEND PLUGIN_SOURCES
     ipc/ipc.cpp
     regulator/regulator.cpp
     icc/icc.cpp
-    clock/clock.cpp)
+    clock/clock.cpp
+    pstore/pstore.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -335,9 +336,15 @@ add_library(icc SHARED
             icc/icc.cpp)
 set_target_properties(icc PROPERTIES PREFIX "")
 
-# =================== build icc ===================
+# =================== build clock ===================
 add_library(ccf SHARED
             ${PLUGIN_SOURCES}
             clock/clock.cpp)
 set_target_properties(ccf PROPERTIES PREFIX "")
+
+# =================== build pstore ===================
+add_library(pstore SHARED
+            ${PLUGIN_SOURCES}
+            pstore/pstore.cpp)
+set_target_properties(pstore PROPERTIES PREFIX "")
 endif()

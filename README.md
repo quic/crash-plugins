@@ -89,6 +89,10 @@ Support module:
 | debugimage    | √         | √         | parser debug image info                              |
 | ipc log       | √         | √         | parser ipc log                                       |
 | regulator     | √         | √         | parser regulator info                                |
+| icc           | √         | √         | parser icc info                                      |
+| clock         | √         | √         | parser clock info                                    |
+| pstore        | √         | √         | parser pstore log                                    |
+
 
 |  module       |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |       comment         |
 |  --------     | ------------------- | ------------------- | ------------------- | -----------------     |

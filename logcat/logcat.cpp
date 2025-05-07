@@ -109,8 +109,12 @@ void Logcat::print_logcat_log(LOG_ID id){
         if (log_ptr->msg.empty() || isWhitespaceOrNewline(log_ptr->msg)){
             continue;
         }
-        while (!log_ptr->msg.empty() && log_ptr->msg.back() == '\n') {
-            log_ptr->msg.pop_back();
+        size_t pos = 0;
+        while ((pos = log_ptr->msg.find('\0')) != std::string::npos) {
+            log_ptr->msg.replace(pos, 1, " ");
+        }
+        while ((pos = log_ptr->msg.find('\n')) != std::string::npos) {
+            log_ptr->msg.replace(pos, 1, " ");
         }
         std::ostringstream oss;
         if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO

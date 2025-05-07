@@ -31,6 +31,10 @@ Support command:
 | [dbi](#dbi)              | √           | √            | √            | √            |  show debug image info   |
 | [ipc](#ipc)              | √           | √            | √            | √            |  show ipc log            |
 | [reg](#reg)              | √           | √            | √            | √            |  show regulator info     |
+| [icc](#icc)              | √           | √            | √            | √            |  show icc info           |
+| [ccf](#ccf)              | √           | √            | √            | √            |  show clock info         |
+| [pstore](#pstore)        | √           | √            | √            | √            |  show pstore log         |
+
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -1821,4 +1825,127 @@ Consumers:
    ffffff801e51ca80 0uA        0      5e94400,mdss_dsi_phy0-vdda-0p9 voltage:[904000uV~904000uV,]
    ffffff801ad6ce40 30000uA    1      1613000.hsphy-vdd voltage:[904000uV~904000uV,]
    ffffff8002204f00 0uA        1      regulator.59-SUPPLY
+```
+
+## icc
+This command dumps the icc info.
+
+### icc -a
+Display all icc provider/node/request info.
+```
+crash> icc -a
+icc_provider:ffffff880264a280 soc:interconnect@0
+    icc_node:ffffff8808e67380 avg_bw:0 peak_bw:0 [qup0_core_master]
+    icc_node:ffffff8808e67480 avg_bw:1 peak_bw:1 [qup1_core_master]
+       icc_req:ffffff885db4b290 avg_bw:1 peak_bw:1 [a94000.i2c]
+       icc_req:ffffff8862678710 avg_bw:1 peak_bw:1 [a8c000.i2c]
+```
+### icc -p
+Display all icc provider.
+```
+crash> icc -p
+icc_provider     users Name
+ffffff880264a280 18    soc:interconnect@0
+ffffff8807352a80 32    1600000.interconnect
+ffffff880879ba80 34    1500000.interconnect
+ffffff8808798c80 36    1680000.interconnect
+ffffff8808799480 6     16c0000.interconnect
+```
+### icc -n 'provider'
+Display all icc node of specified provider by provider name.
+```
+crash> icc -n 1600000.interconnect
+icc_node         id    avg_bw     peak_bw    qcom_icc_node    Name
+ffffff8808703980 39    115        14000      ffffffecd52b0c08 qsm_cfg
+ffffff882e640500 513   0          0          ffffffecd52b0dc8 qhs_ahb2phy0
+ffffff882e640880 514   0          0          ffffffecd52b0f88 qhs_ahb2phy1
+ffffff882e640d00 516   0          0          ffffffecd52b1148 qhs_camera_cfg
+ffffff8807b34100 517   0          0          ffffffecd52b1308 qhs_clk_ctl
+```
+### icc -r 'node'
+Display all icc request of specified node by node name.
+```
+crash> icc -r qsm_cfg
+icc_req          enabled tag  avg_bw     peak_bw    Name
+ffffff8865f38cd0 true    0    0          0          a600000.ssusb
+ffffff8857aaa4d0 false   0    1          1          1a88000.i2c
+ffffff8857ad0cd0 false   0    1          1          884000.i2c
+ffffff882abecad0 false   0    1          1          a94000.i2c
+ffffff8857c782d0 false   0    1          1          880000.i3c-master
+```
+
+## ccf
+This command dumps the clock info.
+
+### ccf -c
+Display all clock provider info.
+```
+crash> ccf -c
+clk_provider: clock-controller
+   clk_core               rate   req_rate   new_rate rpm   boot  en    prep  clk_hw           Name
+   ffffff8017a8d600  1010.0MHZ   310.0MHZ  1010.0MHZ 0     1     1     1     ffffffd3034531a8 gpu_cc_pll0
+   ffffff8017a8dc00     0.0MHZ     0.0MHZ     0.0MHZ 0     0     0     0     ffffffd3034533f0 gpu_cc_crc_ahb_clk
+   ffffff8017a8dd00     0.0MHZ     0.0MHZ     0.0MHZ 0     0     0     0     ffffffd303453488 gpu_cc_cx_apb_clk
+   ffffff8017a8d900  1010.0MHZ    19.2MHZ  1010.0MHZ 0     0     0     0     ffffffd303453520 gpu_cc_cx_gfx3d_clk
+```
+### ccf -t
+Display all clock provider and clock consumers by tree.
+```
+crash> ccf -t
+clk_provider:clock-controller
+   clk_core:ffffff8017a8d600  gpu_cc_pll0                                   1010MHZ
+   clk_core:ffffff8017a8d900  gpu_cc_cx_gfx3d_clk                           1010MHZ
+   clk_core:ffffff8017a8d500  gpu_cc_cx_gfx3d_slv_clk                       1010MHZ
+   clk_core:ffffff8017a8df00  gpu_cc_cx_gmu_clk                             19.2MHZ
+           clk:ffffff801625a000  --> device:5900000.qcom,kgsl-3d0
+```
+### ccf -e
+Display all enable clock info.
+```
+crash> ccf -e
+=============================================
+  Enable Clocks from of_clk_providers list
+=============================================
+clk_core         Name                                          Rate
+ffffff801804ab00 dsi0_phy_pll_out_byteclk                      24.6847MHZ
+ffffff801804aa00 dsi0_phy_pll_out_dsiclk                       8.22824MHZ
+ffffff8017a8d600 gpu_cc_pll0                                   1010MHZ
+```
+### ccf -d
+Display all disable clock info.
+```
+crash> ccf -d
+=============================================
+  Disabled Clocks from of_clk_providers list
+=============================================
+clk_core         Name                                          Rate
+ffffff8017a8d500 gpu_cc_cx_gfx3d_slv_clk                       1010MHZ
+ffffff800a68ed00 gpll4                                         806.4MHZ
+ffffff800a68ef00 gpll7                                         808MHZ
+```
+### ccf -p
+Display all prepare clock info.
+```
+crash> ccf -p
+=============================================
+  Prepare Clocks from of_clk_providers list
+=============================================
+clk_core         Name                                          Rate
+ffffff801804ab00 dsi0_phy_pll_out_byteclk                      24.6847MHZ
+ffffff801804aa00 dsi0_phy_pll_out_dsiclk                       8.22824MHZ
+ffffff8017a8d600 gpu_cc_pll0                                   1010MHZ
+```
+## pstore
+This command dumps the pstore log info.
+
+### pstore -p
+Display pmsg log.
+```
+crash> pstore -p
+25-04-20 19:03:41.000758 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
+25-04-20 19:03:41.000766 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
+25-04-20 19:03:41.000775 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
+25-04-20 19:03:41.000775 7290  7911  1000   I lcomm.qti.axiom Waiting for a blocking GC Alloc
+25-04-20 19:03:41.000782 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
+25-04-20 19:03:41.000791 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
 ```
