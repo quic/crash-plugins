@@ -47,6 +47,7 @@ public:
 
     void print_zone_device();
     void print_zone_device(std::string dev_name);
+    void print_cooling_device();
     void cmd_main(void) override;
     void parser_thrermal_zone();
     DEFINE_PLUGIN_INSTANCE(Thermal)

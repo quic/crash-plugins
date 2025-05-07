@@ -29,12 +29,15 @@ void Thermal::cmd_main(void) {
     if (zone_list.size() == 0){
         parser_thrermal_zone();
     }
-    while ((c = getopt(argcnt, args, "dD:")) != EOF) {
+    while ((c = getopt(argcnt, args, "czZ:")) != EOF) {
         switch(c) {
-            case 'd':
+            case 'z':
                 print_zone_device();
                 break;
-            case 'D':
+            case 'c':
+                print_cooling_device();
+                break;
+            case 'Z':
                 cppString.assign(optarg);
                 print_zone_device(cppString);
                 break;
@@ -72,27 +75,36 @@ Thermal::Thermal(){
     struct_init(thermal_instance);
     field_init(thermal_cooling_device, id);
     field_init(thermal_cooling_device, type);
+    field_init(thermal_cooling_device, node);
     cmd_name = "tm";
     help_str_list={
         "tm",                            /* command name */
         "dump thermal information",        /* short description */
-        "-d \n"
-            "  tm -D <thermal zone name>\n"
+        "-z \n"
+            "  tm -Z <thermal zone name>\n"
+            "  tm -c\n"
             "  This command dumps the thermal info.",
         "\n",
         "EXAMPLES",
         "  Display all thermal zone info:",
-        "    %s> tm -d",
+        "    %s> tm -z",
         "    11    e9ae1c00   gpu-step           step_wise    38700      33600",
         "    12    e9ae1000   cpuss-0-step       step_wise    34300      34600",
         "    13    e9ae4c00   cpuss-1-step       step_wise    34600      35300",
         "\n",
         "  Display the temperature gear and cooling action of specified thermal zone:",
-        "    %s> tm -D cpuss-0-step",
+        "    %s> tm -Z cpuss-0-step",
         "    cpuss-0-step:",
         "        temperature:100000",
         "            [4]thermal_cooling_device:0xe574c000 --> cpu-isolate0",
         "            [6]thermal_cooling_device:0xe574a800 --> cpu-isolate2",
+        "\n",
+        "  Display all cooling device:",
+        "    %s> tm -c",
+        "    ID    ADDR               Name",
+        "    3     ffffff801d7d1000   bcl-off",
+        "    1     ffffff801ace0800   cpu-cluster0",
+        "    0     ffffff800832a000   cpufreq-cpu0",
         "\n",
     };
     initialize();
@@ -109,6 +121,37 @@ void Thermal::print_zone_device(std::string dev_name){
                 }
             }
         }
+    }
+}
+
+void Thermal::print_cooling_device(){
+    if (!csymbol_exists("thermal_cdev_list")){
+        fprintf(fp, "thermal_cdev_list doesn't exist in this kernel!\n");
+        return;
+    }
+    ulong list_head = csymbol_value("thermal_cdev_list");
+    if (!is_kvaddr(list_head)) {
+        fprintf(fp, "thermal_cdev_list address is invalid!\n");
+        return;
+    }
+    std::ostringstream oss_hd;
+    oss_hd << std::left << std::setw(5) << "ID" << " "
+        << std::left << std::setw(VADDR_PRLEN + 2) << "ADDR" << " "
+        << std::left << "Name";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    int offset = field_offset(thermal_cooling_device, node);
+    for (const auto& addr : for_each_list(list_head,offset)) {
+        int id = read_int(addr + field_offset(thermal_cooling_device, id),"id");
+        std::string name = "";
+        ulong name_addr = read_pointer(addr + field_offset(thermal_cooling_device,type),"type");
+        if (is_kvaddr(name_addr)) {
+            name = read_cstring(name_addr,64, "type name");
+        }
+        std::ostringstream oss;
+        oss << std::left << std::hex << std::setw(5) << std::dec << id << " "
+            << std::left << std::setw(VADDR_PRLEN + 2) << std::hex << addr << " "
+            << std::left << name;
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 
