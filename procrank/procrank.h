@@ -36,6 +36,7 @@ public:
     void init_command();
     void cmd_main(void) override;
     void parser_process_memory();
+    void parser_process_name();
     std::shared_ptr<procrank> parser_vma(ulong& vma_addr, ulong& task_addr);
     DEFINE_PLUGIN_INSTANCE(Procrank)
 
