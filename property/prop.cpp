@@ -51,19 +51,10 @@ void Prop::cmd_main(void) {
             case 'a':
             {
                 if (prop_map.size() == 0){
-                    field_init(prop_info,name);
-                    if (field_offset(prop_info,name) == -1){
-                        fprintf(fp, "Not load libc.so symbol, Please run getprop -s <symbol path> load it !\n");
-                        return;
-                    }
-                    if (parser_propertys()){
-                        print_propertys();
-                    }else{
-                        fprintf(fp, "Can't get property from dump \n");
-                    }
-                }else{
-                    print_propertys();
+                    parser_propertys();
+                    parser_prop_by_init();
                 }
+                print_propertys();
             }
             break;
             case 'p':

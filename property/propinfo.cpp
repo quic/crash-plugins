@@ -25,6 +25,7 @@ void PropInfo::cmd_main(void) {
 std::string PropInfo::get_prop(std::string name){
     if (prop_map.size() == 0){
         parser_propertys();
+        parser_prop_by_init();
     }
     if (prop_map.find(name) != prop_map.end()) {
         return prop_map[name];
@@ -37,6 +38,13 @@ PropInfo::~PropInfo(){
 }
 
 PropInfo::PropInfo(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
+    field_init(vm_area_struct, vm_file);
+    field_init(vm_area_struct, vm_start);
+    field_init(vm_area_struct, vm_end);
+    field_init(file, f_path);
+    field_init(path, dentry);
+    field_init(path, mnt);
+
     for(ulong task_addr: for_each_process()){
         struct task_context *tc = task_to_context(task_addr);
         if (!tc){
@@ -133,7 +141,6 @@ bool PropInfo::parser_propertys(){
     }
     std::string symbol_file = get_symbol_file("libc.so");
     if (symbol_file.empty() || symbol_file == ""){
-        fprintf(fp, "Not found symbol file of libc.so ! \n");
         return false;
     }
     init_datatype_info();
@@ -314,5 +321,146 @@ void PropInfo::parser_prop_info(size_t prop_info_addr){
         }
         prop_map[name] = info.value;
     }
+}
+
+void PropInfo::parser_prop_by_init(){
+    for(auto& task_addr : for_each_process()){
+        struct task_context *tc = task_to_context(task_addr);
+        if(tc && tc->pid == 1 /* init */){
+            std::set<std::string> prop_files;
+            // size_t index = 0;
+            for(const auto& vma_addr : for_each_vma(task_addr)){
+                void *vma_buf = read_struct(vma_addr, "vm_area_struct");
+                if (!vma_buf) {
+                    fprintf(fp, "Failed to read vm_area_struct at address %lx\n", vma_addr);
+                    continue;
+                }
+                ulong vm_file = ULONG(vma_buf + field_offset(vm_area_struct, vm_file));
+                ulong vm_start = ULONG(vma_buf + field_offset(vm_area_struct, vm_start));
+                ulong vm_end = ULONG(vma_buf + field_offset(vm_area_struct, vm_end));
+                size_t vma_len = vm_end - vm_start;
+                FREEBUF(vma_buf);
+                if (is_kvaddr(vm_file)){ //file vma
+                    char buf[BUFSIZE];
+                    char *file_buf = fill_file_cache(vm_file);
+                    ulong dentry = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, dentry));
+                    if(is_kvaddr(dentry)){
+                        if (field_offset(file, f_path) != -1 && field_offset(path, dentry) != -1 && field_offset(path, mnt) != -1) {
+                            ulong vfsmnt = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, mnt));
+                            get_pathname(dentry, buf, BUFSIZE, 1, vfsmnt);
+                        } else {
+                            get_pathname(dentry, buf, BUFSIZE, 1, 0);
+                        }
+                        if (strstr(buf, "u:object_r:") != nullptr) {
+                            if (prop_files.find(std::string(buf)) != prop_files.end()) {
+                                continue;
+                            }
+                            prop_files.insert(std::string(buf));
+                            char vma_data[vma_len];
+                            if (!swap_ptr->uread_buffer(tc->task, vm_start, vma_data, vma_len, "read vma data for prop")) {
+                                fprintf(fp, "uread_buffer fail in prop \n");
+                            }
+                            // if(index == 0){
+                            //     prop_area pa = *reinterpret_cast<prop_area*>(vma_data);
+                            //     fprintf(fp, "System Properties Magic:%#lx, Version:%#lx\n", pa.magic_, pa.version_);
+                            // }
+                            // index += 1;
+                            prop_bt pb = *reinterpret_cast<prop_bt*>(vma_data + sizeof(prop_area));
+                            if(pb.children != 0){
+                                for_each_prop(pb.children, vma_len, vma_data);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/*
+                                                  |<----------- prop3      ---------------------------------------------------------------------------------------------->|
+                                                  |<----------- children2  ----------------------------------------------------->|                                        |
+                                                  |<----------- children1  ---------------->|                                    |                                        |
++-----------+-------+------+--------+-------------+-------+-----+----+-----+---------+-----+-------+-----+----+-----+---------+--+-------+-----+----+-----+---------+-----+------+---------------+-------+
+|bytes_used_|serial_|magic_|version_|reserved_[28]|namelen|prop1|left|right|children1|     |namelen|prop2|left|right|children2|  |namelen|prop3|left|right|children3|.....|serial|value/long_prop|name[0]|
++-----------+-------+------+--------+-------------+-------+-----+----+-----+---------+-----+-------+-----+----+-----+---------+--+-------+-----+----+-----+---------+-----+------+---------------+-------+
+|<-----------        prop_area        ----------->|<----------- prop_bt   ---------->|     |<----------- prop_bt   ---------->|  |<----------- prop_bt   ---------->|     |<-------   prop_info   ------>|
+|<-----------------------------------------------------------------------------          init vma         ---------------------------------------------------------------------------------------------->|
+*/
+bool PropInfo::for_each_prop(uint32_t prop_bt_off, size_t vma_len, char* vma_data){
+    if(sizeof(prop_area) + prop_bt_off + sizeof(prop_bt) > vma_len)
+        return false;
+    prop_bt pb = *reinterpret_cast<prop_bt*>(vma_data + sizeof(prop_area) + prop_bt_off);
+    uint32_t namelen = pb.namelen;
+    uint prop = pb.prop;
+    uint left = pb.left;
+    uint right = pb.right;
+    uint children = pb.children;
+    if (left != 0){
+        if(!for_each_prop(left, vma_len, vma_data)){
+            return false;
+        }
+    }
+
+    if(prop != 0){
+        if((sizeof(prop_area) + prop + 92/*PROP_VALUE_MAX*/) < vma_len){
+            std::string value = std::string(vma_data + sizeof(prop_area) + prop + 0x4/* serial*/, 92/*PROP_VALUE_MAX*/);
+            /*
+            see PROP_NAME_MAX in system_properties.h
+            Deprecated: there's no limit on the length of a property name since
+            API level 26, though the limit on property values (PROP_VALUE_MAX) remains.
+            */
+            std::string name = std::string(vma_data + sizeof(prop_area) + prop + sizeof(prop_info), 100);
+            /*
+            remove the case as below
+            =
+            ro.boot.memcg=
+            */
+            auto cleanedValue = cleanString(value);
+            auto cleanedName = cleanString(name);
+
+            if (cleanedValue && cleanedName) {
+                // fprintf(fp, "%s=%s\n", cleanedName->c_str(), cleanedValue->c_str());
+                prop_map[cleanedName.value()] = cleanedValue.value();
+            }
+        }
+    }
+
+    if (children != 0){
+        if(!for_each_prop(children, vma_len, vma_data)){
+            return false;
+        }
+    }
+
+    if (right != 0){
+        if(!for_each_prop(right, vma_len, vma_data)){
+            return false;
+        }
+    }
+    return true;
+}
+
+std::optional<std::string> PropInfo::cleanString(const std::string& str) {
+    std::optional<std::string> cleanedStr;
+    std::string tempStr = str;
+    tempStr.erase(std::find(tempStr.begin(), tempStr.end(), '\0'), tempStr.end());
+
+    tempStr.erase(0, tempStr.find_first_not_of(" \t\n\r\f\v"));
+    tempStr.erase(tempStr.find_last_not_of(" \t\n\r\f\v") + 1);
+
+    if (!tempStr.empty()) {
+        bool hasValidChar = false;
+        for (char c : tempStr) {
+            if (c != '\0' && !std::isspace(c)) {
+                hasValidChar = true;
+                break;
+            }
+        }
+        if (hasValidChar) {
+            cleanedStr = tempStr;
+        }
+    }
+
+    return cleanedStr;
 }
 #pragma GCC diagnostic pop

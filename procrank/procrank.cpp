@@ -27,10 +27,13 @@ void Procrank::cmd_main(void) {
     int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "a")) != EOF) {
+    while ((c = getopt(argcnt, args, "ac")) != EOF) {
         switch(c) {
             case 'a':
                 parser_process_memory();
+                break;
+            case 'c':
+                parser_process_name();
                 break;
             default:
                 argerrs++;
@@ -58,6 +61,8 @@ void Procrank::init_command(){
         "dump process memory information",        /* short description */
         "-a \n"
             "  This command dumps the process info. sorted by rss",
+        "-c \n"
+            "  This command dumps the process cmdline.",
         "\n",
         "EXAMPLES",
         "  Display process memory info:",
@@ -65,6 +70,12 @@ void Procrank::init_command(){
         "    PID        Vss        Rss        Pss        Uss        Swap        Comm",
         "    975      1.97Gb     51.09Mb    13.71Mb    3.54Mb     1.99Mb     Binder:975_3",
         "    465      1.69Gb     4.53Mb     286.01Kb   36.00Kb    26.01Mb    main",
+        "\n",
+        "EXAMPLES",
+        "  Display process cmdline:",
+        "    %s> procrank -c",
+        "    PID      Comm                 Cmdline",
+        "    1        init                 /system/bin/init",
         "\n",
     };
     initialize();
@@ -147,6 +158,7 @@ std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr
     ulong vm_end = ULONG(vma_struct + field_offset(vm_area_struct, vm_end));
     struct task_context *tc = task_to_context(task_addr);
     if(tc == nullptr){
+        FREEBUF(vma_struct);
         return nullptr;
     }
     for(ulong vaddr = vm_start; vaddr < vm_end; vaddr+= page_size){
@@ -179,6 +191,27 @@ std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr
     procrank_ptr->vss += vm_end - vm_start;
     FREEBUF(vma_struct);
     return procrank_ptr;
+}
+
+void Procrank::parser_process_name() {
+    std::ostringstream oss_hd;
+    oss_hd << std::left << std::setw(8) << "PID" << " "
+           << std::left << std::setw(20) << "Comm" << " "
+           << std::left << std::setw(10) << "Cmdline" << "\n";
+    for(ulong task_addr: for_each_process()){
+        std::string cmdline;
+        struct task_context *tc = task_to_context(task_addr);
+        if (!swap_ptr->is_zram_enable()){
+            cmdline = tc->comm;
+        } else {
+            cmdline = swap_ptr->read_start_args(task_addr);
+        }
+        oss_hd << std::left << std::setw(8) << tc->pid << " "
+               << std::left << std::setw(20) << tc->comm << " "
+               << std::left << std::setw(10) << cmdline << "\n";
+    }
+
+    fprintf(fp, "%s \n", oss_hd.str().c_str());
 }
 
 #pragma GCC diagnostic pop
