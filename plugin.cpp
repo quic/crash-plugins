@@ -261,7 +261,6 @@ std::vector<ulong> PaserPlugin::for_each_rbtree(ulong rb_root,int offset){
     retrieve_list(treeList, cnt);
     for (int i = 0; i < cnt; ++i) {
         if (!is_kvaddr(treeList[i]))continue;
-        // LOGI("node addr:%lx\n",treeList[i]);
         treeList[i] -= td.node_member_offset;
         res.push_back(treeList[i]);
     }
@@ -284,6 +283,12 @@ std::vector<ulong> PaserPlugin::for_each_list(ulong list_head,int offset){
     struct list_data ld;
     BZERO(&ld, sizeof(struct list_data));
     ld.flags |= LIST_ALLOCATE;
+    /*
+    case : invalid list entry: 4000000000000000
+    readflag = ld->flags & RETURN_ON_LIST_ERROR ? (RETURN_ON_ERROR|QUIET) : FAULT_ON_ERROR; in tools.c
+    Even if the list is incomplete, we should ensure that the existing elements can be used normally.
+    */
+    // ld.flags |= RETURN_ON_LIST_ERROR;
     readmem(list_head, KVADDR, &ld.start,sizeof(ulong), TO_CONST_STRING("for_each_list list_head"), FAULT_ON_ERROR);
     ld.end = list_head;
     // ld.member_offset = offset;
