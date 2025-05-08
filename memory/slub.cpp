@@ -351,8 +351,10 @@ void Slub::parser_slab_caches(){
     cache_list.clear();
     if (csymbol_exists("depot_index")){
         depot_index = read_int(csymbol_value("depot_index"),"depot_index");
-    }else if (csymbol_exists("pool_index")){
+    } else if (csymbol_exists("pool_index")){
         depot_index = read_int(csymbol_value("pool_index"),"pool_index");
+    } else if(csymbol_exists("pools_num")){ /* 6.12 and later */
+        depot_index = read_int(csymbol_value("pools_num"), "pools_num");
     }
     if (!depot_index){
         fprintf(fp, "cannot get depot_index\n");
@@ -360,7 +362,7 @@ void Slub::parser_slab_caches(){
     }
     if (csymbol_exists("stack_slabs")){
         stack_slabs = csymbol_value("stack_slabs");
-    }else if (csymbol_exists("stack_pools")){/* 6.3 and later */
+    } else if (csymbol_exists("stack_pools")){/* 6.3 and later */
         stack_slabs = csymbol_value("stack_pools");
     }
     if (!stack_slabs){

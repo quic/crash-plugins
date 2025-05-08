@@ -75,9 +75,10 @@ bool Pageowner::is_enable_pageowner(){
         return false;
     }
     int inited;
+    // see set_page_owner in page_owner.h
     try_get_symbol_data(TO_CONST_STRING("page_owner_inited"), sizeof(int), &inited);
     if (inited != 1){
-        fprintf(fp, "cannot find page_owner_inited\n");
+        fprintf(fp, "page_owner is disabled, pls check the page_owner=on in cmdline\n");
         return false;
     }
     return true;
@@ -667,6 +668,8 @@ void Pageowner::parser_all_pageowners(){
         depot_index = read_int(csymbol_value("depot_index"),"depot_index");
     }else if (csymbol_exists("pool_index")){
         depot_index = read_int(csymbol_value("pool_index"),"pool_index");
+    } else if(csymbol_exists("pools_num")){
+        depot_index = read_int(csymbol_value("pools_num"), "pools_num");
     }
     if (csymbol_exists("stack_slabs")){
         stack_slabs = csymbol_value("stack_slabs");

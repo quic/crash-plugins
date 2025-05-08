@@ -253,6 +253,21 @@ PID      Vss        Rss        Pss        Uss        Swap       Comm
 2865     1021.14MB  34.44MB    1.68MB     0B         25.35MB    com.qti.diagservices
 2292     1017.32MB  33.75MB    1.64MB     0B         25.34MB    com.qualcomm.qti.aonutility
 ```
+
+### procrank -c
+```
+crash> mod -s zram ./lib/zram.ko
+     MODULE       NAME                             BASE            SIZE  OBJECT FILE
+ffffffd4d3758440  zram                       ffffffd4d3752000     49152  ./lib/zram.ko
+crash> mod -s zsmalloc ./lib/zsmalloc.ko
+     MODULE       NAME                             BASE            SIZE  OBJECT FILE
+ffffffd4d34c6200  zsmalloc                   ffffffd4d34bf000     57344  ./lib/zsmalloc.ko
+
+crash> procrank -c
+PID      Comm                 Cmdline
+1        init                 /system/bin/init
+```
+
 ## vmalloc
 This command dumps the vmalloc info.
 
