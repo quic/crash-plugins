@@ -163,7 +163,8 @@ public:
     bool isNumber(const std::string& str);
     std::string extract_string(const char *input);
     int is_bigendian(void);
-    long read_enum_val(const std::string& enum_name);
+    std::vector<std::string> get_enumerator_list(const std::string &enum_name);
+    long read_enum_val(const std::string &enum_name);
     std::map<std::string, ulong> read_enum_list(const std::string& enum_list_name);
     char get_printable(uint8_t d);
     std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);

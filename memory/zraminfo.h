@@ -56,10 +56,6 @@ struct zs_pool_stats {
     atomic_long_t pages_compacted;
 };
 
-struct zs_size_stat {
-    unsigned long objs[6];
-};
-
 struct zobj {
     int id;
     ulong start;
@@ -87,13 +83,13 @@ struct zpage {
 
 struct size_class {
     ulong addr;
-    std::vector<std::shared_ptr<zpage>> fullness_list[4];
+    std::vector<std::vector<std::shared_ptr<zpage>>> fullness_list;
     bool zspage_parser;
     int size;
     int objs_per_zspage;
     int pages_per_zspage;
     unsigned int index;
-    struct zs_size_stat stats;
+    std::vector<ulong> stats;
 };
 
 struct zs_pool {

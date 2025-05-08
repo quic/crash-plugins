@@ -699,6 +699,32 @@ int PaserPlugin::is_bigendian(void){
         return FALSE;
 }
 
+std::vector<std::string> PaserPlugin::get_enumerator_list(const std::string &enum_name){
+    std::vector<std::string> result;
+    char buf[BUFSIZE];
+    open_tmpfile();
+    if (dump_enumerator_list(TO_CONST_STRING(enum_name.c_str()))){
+        rewind(pc->tmpfile);
+        while (fgets(buf, BUFSIZE, pc->tmpfile)){
+            std::string line = buf;
+            size_t pos = line.find('=');
+            if (pos == std::string::npos) {
+                continue;
+            }else{
+                std::string name = line.substr(0, pos - 1);
+                size_t first = name.find_first_not_of(' ');
+                size_t last = name.find_last_not_of(' ');
+                if (first == std::string::npos || last == std::string::npos) {
+                    continue;
+                }
+                result.push_back(name.substr(first, (last - first + 1)));
+            }
+        }
+    }
+    close_tmpfile();
+    return result;
+}
+
 long PaserPlugin::read_enum_val(const std::string& enum_name){
      long enum_val = 0;
      enumerator_value(TO_CONST_STRING(enum_name.c_str()), &enum_val);

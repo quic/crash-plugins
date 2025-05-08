@@ -460,6 +460,10 @@ void Binder::print_binder_ref_olocked(ulong ref_addr) {
         void *binder_proc_buf = read_struct((ulong)node.proc,"binder_proc");
         if(binder_proc_buf == nullptr) return;
         ulong tsk_addr = ULONG(binder_proc_buf + field_offset(binder_proc,tsk));
+        if (!is_kvaddr(tsk_addr)) {
+            FREEBUF(binder_proc_buf);
+            return;
+        }
         int pid = UINT(binder_proc_buf + field_offset(binder_proc,pid));
         std::string task_name = read_cstring(tsk_addr + field_offset(task_struct,comm),16, "task_struct_comm");
         fprintf(fp, "  binder_ref:%#lx id:%d desc:%d s:%d w:%d death:%#lx -> node_id:%d binder_proc:%#lx %s[%d]\n",ref_addr,

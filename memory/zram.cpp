@@ -214,21 +214,42 @@ void Zram::print_mem_pool(std::string zram_addr){
         << std::left << std::setw(13) << "OBJ_ALLOCATED" << " "
         << "OBJ_USED";
     fprintf(fp, "%s \n",oss_hd.str().c_str());
-
+    std::vector<std::string> class_stat_type = get_enumerator_list("class_stat_type");
+    int CLASS_EMPTY = 0;
+    int CLASS_ALMOST_EMPTY = 0;
+    int CLASS_ALMOST_FULL = 0;
+    int CLASS_FULL = 0;
+    int OBJ_ALLOCATED = 0;
+    int OBJ_USED = 0;
+    if (class_stat_type.size() > 0){
+        CLASS_EMPTY = read_enum_val("ZS_INUSE_RATIO_0");
+        CLASS_ALMOST_EMPTY = read_enum_val("ZS_INUSE_RATIO_10");
+        CLASS_ALMOST_FULL = read_enum_val("ZS_INUSE_RATIO_99");
+        CLASS_FULL = read_enum_val("ZS_INUSE_RATIO_100");
+        OBJ_ALLOCATED = read_enum_val("ZS_OBJS_ALLOCATED");
+        OBJ_USED = read_enum_val("ZS_OBJS_INUSE");
+    }else{
+        CLASS_EMPTY = read_enum_val("CLASS_EMPTY");
+        CLASS_ALMOST_EMPTY = read_enum_val("CLASS_ALMOST_EMPTY");
+        CLASS_ALMOST_FULL = read_enum_val("CLASS_ALMOST_FULL");
+        CLASS_FULL = read_enum_val("CLASS_FULL");
+        OBJ_ALLOCATED = read_enum_val("OBJ_ALLOCATED");
+        OBJ_USED = read_enum_val("OBJ_USED");
+    }
     for (size_t i = 0; i < pool_ptr->class_list.size(); i++){
         std::shared_ptr<size_class> class_ptr = pool_ptr->class_list[i];
         std::ostringstream oss;
-        oss << std::dec << std::setw(5) << std::setfill('0') << i << " "
+        oss << "[" << std::dec << std::setw(5) << std::setfill('0') << i << "] "
             << std::left << std::hex << std::setw(VADDR_PRLEN) << std::setfill(' ') << class_ptr->addr << " "
-            << std::left << std::dec << std::setw(5) << class_ptr->stats.objs[zs_stat_type::CLASS_EMPTY] << " "
-            << std::left << std::dec << std::setw(12) << class_ptr->stats.objs[zs_stat_type::CLASS_ALMOST_EMPTY] << " "
-            << std::left << std::dec << std::setw(12) << class_ptr->stats.objs[zs_stat_type::CLASS_ALMOST_FULL] << " "
-            << std::left << std::dec << std::setw(5) << class_ptr->stats.objs[zs_stat_type::CLASS_FULL] << " "
+            << std::left << std::dec << std::setw(5) << class_ptr->stats[CLASS_EMPTY] << " "
+            << std::left << std::dec << std::setw(12) << class_ptr->stats[CLASS_ALMOST_EMPTY] << " "
+            << std::left << std::dec << std::setw(12) << class_ptr->stats[CLASS_ALMOST_FULL] << " "
+            << std::left << std::dec << std::setw(5) << class_ptr->stats[CLASS_FULL] << " "
             << std::left << std::dec << std::setw(12) << class_ptr->pages_per_zspage << " "
             << std::left << std::dec << std::setw(12) << class_ptr->objs_per_zspage << " "
             << std::left << std::dec << std::setw(9) << csize(class_ptr->size) << " "
-            << std::left << std::dec << std::setw(13) << class_ptr->stats.objs[zs_stat_type::OBJ_ALLOCATED] << " "
-            << std::left << std::dec << class_ptr->stats.objs[zs_stat_type::OBJ_USED];
+            << std::left << std::dec << std::setw(13) << class_ptr->stats[OBJ_ALLOCATED] << " "
+            << std::left << std::dec << class_ptr->stats[OBJ_USED];
         fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
@@ -488,6 +509,10 @@ void Zram::print_zram_full_info(std::string zram_addr){
 }
 
 void Zram::print_zrams(){
+    if (zram_list.size() == 0){
+        fprintf(fp, "Maybe not enable zram \n");
+        return;
+    }
     fprintf(fp, "========================================================================\n");
     for (const auto& zram_ptr : zram_list) {
         double ratio = (double)zram_ptr->stats.compr_data_size / (double)(zram_ptr->stats.pages_stored * page_size);

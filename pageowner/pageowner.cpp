@@ -337,7 +337,6 @@ void Pageowner::print_page_owner(std::string addr,int flags){
     if (flags == INPUT_PFN){
         pfn = number;
     }else if (flags == INPUT_PYHS){
-        fprintf(fp, "hello \n");
         pfn = phy_to_pfn(number);
     }else if (flags == INPUT_PAGE){
         pfn = page_to_pfn(number);
@@ -691,8 +690,8 @@ void Pageowner::parser_all_pageowners(){
         try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
     }
     /* PAGE_EXT_OWNER{,_ALLOCATED} */
-    enumerator_value(TO_CONST_STRING("PAGE_EXT_OWNER"), &PAGE_EXT_OWNER);
-    enumerator_value(TO_CONST_STRING("PAGE_EXT_OWNER_ALLOCATED"), &PAGE_EXT_OWNER_ALLOCATED); /* 5.4 and later */
+    PAGE_EXT_OWNER = read_enum_val("PAGE_EXT_OWNER");
+    PAGE_EXT_OWNER_ALLOCATED = read_enum_val("PAGE_EXT_OWNER_ALLOCATED");
     // fprintf(fp, "min_low_pfn:%ld\n", min_low_pfn);
     // fprintf(fp, "max_pfn:%ld\n", max_pfn);
     for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){

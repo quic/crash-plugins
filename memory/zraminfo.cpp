@@ -40,11 +40,13 @@ void Zraminfo::init_offset(){
     field_init(zram,table);
     field_init(zram,mem_pool);
     field_init(zram,comp);
+    field_init(zram,comps);
     field_init(zram,disk);
     field_init(zram,limit_pages);
     field_init(zram,stats);
     field_init(zram,disksize);
     field_init(zram,compressor);
+    field_init(zram,comp_algs);
     field_init(zram,claim);
     struct_init(zram);
 
@@ -70,6 +72,8 @@ void Zraminfo::init_offset(){
     field_init(zspage,list);
     field_init(zspage,huge);
     struct_init(zspage);
+
+    field_init(zs_size_stat,objs);
 
     field_init(zram_stats,compr_data_size);
     field_init(zram_stats,num_reads);
@@ -165,7 +169,9 @@ bool Zraminfo::get_zspage(ulong page,struct zspage* zp){
         return false;
     }
     if (field_offset(zspage, huge) != -1){
-        if (THIS_KERNEL_VERSION >= LINUX(6, 6, 0)){
+        if (THIS_KERNEL_VERSION >= LINUX(6, 12, 0)){
+            zs_magic = zp->v6_12.magic;
+        }else if (THIS_KERNEL_VERSION >= LINUX(6, 6, 0)){
             zs_magic = zp->v6_6.magic;
         }else{
             zs_magic = zp->v5_17.magic;
@@ -476,9 +482,13 @@ std::shared_ptr<size_class> Zraminfo::parser_size_class(ulong addr){
     class_ptr->pages_per_zspage = INT(class_buf + field_offset(size_class,pages_per_zspage));
     class_ptr->index = UINT(class_buf + field_offset(size_class,index));
     class_ptr->zspage_parser = false;
-    // fprintf(fp, "\nsize_class(%lx) objs_per_zspage:%d size:%d\n", addr,class_ptr->objs_per_zspage,class_ptr->size);
-    read_struct(addr + field_offset(size_class,stats),&class_ptr->stats,sizeof(struct zs_size_stat),"size_class_stats");
     FREEBUF(class_buf);
+    // fprintf(fp, "\nsize_class(%lx) objs_per_zspage:%d size:%d\n", addr,class_ptr->objs_per_zspage,class_ptr->size);
+    int stats_cnt = field_size(zs_size_stat,objs)/sizeof(unsigned long);
+    ulong stats_addr = addr + field_offset(size_class,stats);
+    for (size_t i = 0; i < stats_cnt; i++){
+        class_ptr->stats.push_back(read_ulong(stats_addr + i * sizeof(unsigned long), "size_class_stats"));
+    }
     return class_ptr;
 }
 
@@ -486,16 +496,19 @@ void Zraminfo::parser_zpage(std::shared_ptr<size_class> class_ptr){
     for (size_t i = 0; i < group_cnt; i++){
         ulong group_addr = class_ptr->addr + field_offset(size_class,fullness_list) + i * sizeof(struct kernel_list_head);
         int offset = field_offset(zspage,list);
-        std::vector<ulong> zspage_list = for_each_list(group_addr,offset);
-        for (const auto& zspage_addr : zspage_list) {
-            class_ptr->fullness_list[i].push_back(parser_zpage(zspage_addr,class_ptr));
+        std::vector<std::shared_ptr<zpage>> zspage_list;
+        for (const auto& zspage_addr : for_each_list(group_addr,offset)) {
+            zspage_list.push_back(parser_zpage(zspage_addr,class_ptr));
         }
+        class_ptr->fullness_list.push_back(zspage_list);
     }
     class_ptr->zspage_parser = true;
 }
 
 std::shared_ptr<zs_pool> Zraminfo::parser_mem_pool(ulong addr){
-    if (!is_kvaddr(addr))return nullptr;
+    if (!is_kvaddr(addr)){
+        return nullptr;
+    }
     void *pool_buf = read_struct(addr,"zs_pool");
     if(pool_buf == nullptr) return nullptr;
     std::shared_ptr<zs_pool> pool_ptr = std::make_shared<zs_pool>();
@@ -503,8 +516,12 @@ std::shared_ptr<zs_pool> Zraminfo::parser_mem_pool(ulong addr){
     pool_ptr->name = read_cstring(ULONG(pool_buf + field_offset(zs_pool,name)),64,"pool_name");
     // fprintf(fp, "zs_pool(%lx) pool_name:%s\n", addr,pool_ptr->name.c_str());
     pool_ptr->pages_allocated = INT(pool_buf + field_offset(zs_pool,pages_allocated));
-    pool_ptr->isolated_pages = INT(pool_buf + field_offset(zs_pool,isolated_pages));
-    pool_ptr->destroying = BOOL(pool_buf + field_offset(zs_pool,destroying));
+    if (field_offset(zs_pool,isolated_pages) != -1){
+        pool_ptr->isolated_pages = INT(pool_buf + field_offset(zs_pool,isolated_pages));
+    }
+    if (field_offset(zs_pool,destroying) != -1){
+        pool_ptr->destroying = BOOL(pool_buf + field_offset(zs_pool,destroying));
+    }
     read_struct(addr + field_offset(zs_pool,stats),&pool_ptr->stats,sizeof(struct zs_pool_stats),"zs_pool_stats");
     int class_cnt = field_size(zs_pool,size_class)/sizeof(void *);
     for (size_t i = 0; i < class_cnt; i++){
@@ -517,22 +534,46 @@ std::shared_ptr<zs_pool> Zraminfo::parser_mem_pool(ulong addr){
 }
 
 std::shared_ptr<zram> Zraminfo::parser_zram(ulong addr){
+    if(debug)fprintf(fp, "zram:%lx \n",addr);
     void *zram_buf = read_struct(addr,"zram");
     if(zram_buf == nullptr) return nullptr;
+    ulong pool_addr = ULONG(zram_buf + field_offset(zram,mem_pool));
+    if (!is_kvaddr(pool_addr))return nullptr;
     std::shared_ptr<zram> zram_ptr = std::make_shared<zram>();
     zram_ptr->addr = addr;
     zram_ptr->table = ULONG(zram_buf + field_offset(zram,table));
     zram_ptr->mem_pool = parser_mem_pool(ULONG(zram_buf + field_offset(zram,mem_pool)));
-    ulong zcomp_addr = ULONG(zram_buf + field_offset(zram,comp));
-    ulong zcomp_name_addr = read_pointer(zcomp_addr + field_offset(zcomp,name),"zcomp_name_addr");
-    zram_ptr->zcomp_name = read_cstring(zcomp_name_addr,64,"zcomp_name");
+    if (field_offset(zram,comp) != -1){
+        ulong zcomp_addr = ULONG(zram_buf + field_offset(zram,comp));
+        if (is_kvaddr(zcomp_addr)){
+            ulong zcomp_name_addr = read_pointer(zcomp_addr + field_offset(zcomp,name),"zcomp_name_addr");
+            if (is_kvaddr(zcomp_name_addr)){
+                zram_ptr->zcomp_name = read_cstring(zcomp_name_addr,64,"zcomp_name");
+            }
+        }
+    }else if (field_offset(zram,comps) != -1){
+        ulong zcomp_addr = ULONG(zram_buf + field_offset(zram,comps));
+        if (is_kvaddr(zcomp_addr)){
+            ulong zcomp_name_addr = read_pointer(zcomp_addr + field_offset(zcomp,name),"zcomp_name_addr");
+            if (is_kvaddr(zcomp_name_addr)){
+                zram_ptr->zcomp_name = read_cstring(zcomp_name_addr,64,"zcomp_name");
+            }
+        }
+    }
     ulong disk_name_addr = ULONG(zram_buf + field_offset(zram,disk)) + field_offset(gendisk,disk_name);
     zram_ptr->disk_name = read_cstring(disk_name_addr,32,"disk_name");;
     // fprintf(fp, "disk_name:%s\n", zram_ptr->disk_name.c_str());
-    char compressor_name[128];
-    memcpy(&compressor_name,(void *)zram_buf + field_offset(zram,compressor),128);
-    zram_ptr->compressor = extract_string(compressor_name);
-    // std::cout << "compressor_name:" << zram_ptr->compressor << std::endl;
+    if (field_offset(zram,compressor) != -1){
+        char compressor_name[128];
+        memcpy(&compressor_name,(void *)zram_buf + field_offset(zram,compressor),128);
+        zram_ptr->compressor = extract_string(compressor_name);
+        // std::cout << "compressor_name:" << zram_ptr->compressor << std::endl;
+    }else if (field_offset(zram,comp_algs) != -1){
+        ulong name_addr = ULONG(zram_buf + field_offset(zram,comp_algs));
+        if (is_kvaddr(name_addr)){
+            zram_ptr->compressor = read_cstring(name_addr, 64, "compressor name");
+        }
+    }
     zram_ptr->limit_pages = ULONG(zram_buf + field_offset(zram,limit_pages));
     zram_ptr->disksize = ULONGLONG(zram_buf + field_offset(zram,disksize));
     zram_ptr->claim = BOOL(zram_buf + field_offset(zram,claim));
@@ -540,11 +581,17 @@ std::shared_ptr<zram> Zraminfo::parser_zram(ulong addr){
     void *stats_buf = read_struct(addr + field_offset(zram,stats),"zram_stats");
     if(stats_buf == nullptr) return nullptr;
     zram_ptr->stats.compr_data_size = ULONGLONG(stats_buf + field_offset(zram_stats,compr_data_size));
-    zram_ptr->stats.num_reads = ULONGLONG(stats_buf + field_offset(zram_stats,num_reads));
-    zram_ptr->stats.num_writes = ULONGLONG(stats_buf + field_offset(zram_stats,num_writes));
+    if(field_offset(zram_stats,num_reads) != -1){
+        zram_ptr->stats.num_reads = ULONGLONG(stats_buf + field_offset(zram_stats,num_reads));
+    }
+    if(field_offset(zram_stats,num_writes) != -1){
+        zram_ptr->stats.num_writes = ULONGLONG(stats_buf + field_offset(zram_stats,num_writes));
+    }
     zram_ptr->stats.failed_reads = ULONGLONG(stats_buf + field_offset(zram_stats,failed_reads));
     zram_ptr->stats.failed_writes = ULONGLONG(stats_buf + field_offset(zram_stats,failed_writes));
-    zram_ptr->stats.invalid_io = ULONGLONG(stats_buf + field_offset(zram_stats,invalid_io));
+    if(field_offset(zram_stats,invalid_io) != -1){
+        zram_ptr->stats.invalid_io = ULONGLONG(stats_buf + field_offset(zram_stats,invalid_io));
+    }
     zram_ptr->stats.notify_free = ULONGLONG(stats_buf + field_offset(zram_stats,notify_free));
     zram_ptr->stats.same_pages = ULONGLONG(stats_buf + field_offset(zram_stats,same_pages));
     zram_ptr->stats.huge_pages = ULONGLONG(stats_buf + field_offset(zram_stats,huge_pages));
