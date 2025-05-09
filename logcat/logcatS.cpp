@@ -82,42 +82,32 @@ ulong LogcatS::parser_logbuf_addr(){
 
 size_t LogcatS::get_logbuf_addr_from_vma(){
     int index = 0;
+    fprintf(fp, "Found logbuf addr from %zu vma \n", rw_vma_list.size());
     for (const auto& vma_ptr : rw_vma_list) {
         if (debug){
-            std::cout << "check vma:[" << std::dec << index << "]"
-                << "[" << std::hex << vma_ptr->vm_start
-                << "~" << std::hex << vma_ptr->vm_end << "]"
-                << std::endl;
+            fprintf(fp,  "check vma:[%d][%lx~%lx]\n", index, vma_ptr->vm_start, vma_ptr->vm_end);
         }
         long stdlist_addr = check_ChunkList_in_vma(vma_ptr,vma_ptr->vm_start);
-        if (debug){
-            if (stdlist_addr == -1) {
-                std::cout << "Result: " << stdlist_addr << "\n" << std::endl;
-            } else {
-                std::cout << "Result: " << std::showbase << std::hex << stdlist_addr << "\n" << std::endl;
-            }
-        }
         index++;
         if (stdlist_addr == -1){
             continue;
+        }
+        if (debug){
+            fprintf(fp, "stdlist maybe at %lx \n", stdlist_addr);
         }
         bool is_match = true;
         for (size_t i = 1; i < ALL; i++){
             long check_addr = stdlist_addr + g_size.stdlist_node_size * i;
             if (debug){
-                std::cout << "check Log[" << std::dec << i << "] from " << std::hex << check_addr << std::endl;
+                fprintf(fp,  "check LogBuf:[%zu] from %lx\n", i, check_addr);
             }
             long list_addr = check_ChunkList_in_vma(vma_ptr,check_addr);
-            if (debug){
-                if (list_addr == -1) {
-                    std::cout << "Result: " << list_addr << "\n" << std::endl;
-                } else {
-                    std::cout << "Result: " << std::showbase << std::hex << list_addr << "\n" << std::endl;
-                }
-            }
             if (list_addr == -1 || list_addr != check_addr){
                 is_match = false;
                 break;
+            }
+            if (debug){
+                fprintf(fp, "stdlist maybe at %lx \n", list_addr);
             }
         }
         if (is_match){
@@ -128,6 +118,8 @@ size_t LogcatS::get_logbuf_addr_from_vma(){
 }
 
 void LogcatS::get_rw_vma_list(){
+    field_init(vm_area_struct, anon_name);
+    field_init(anon_vma_name, name);
     for (auto &vma_addr : for_each_vma(tc_logd->task)){
         void *vma_buf = read_struct(vma_addr, "vm_area_struct");
         if (!vma_buf) {
@@ -139,10 +131,33 @@ void LogcatS::get_rw_vma_list(){
             continue;
         }
         ulong vm_flags = ULONG(vma_buf + field_offset(vm_area_struct, vm_flags));
+        if (vm_flags & VM_EXEC) {
+            FREEBUF(vma_buf);
+            continue;
+        }
         if (!(vm_flags & VM_READ) || !(vm_flags & VM_WRITE)) {
             FREEBUF(vma_buf);
             continue;
         }
+        std::string vma_name = "";
+        ulong anon_name = ULONG(vma_buf + field_offset(vm_area_struct, anon_name));
+        if (is_kvaddr(anon_name)){ // // kernel 5.15 in kernelspace
+            if (field_offset(anon_vma_name, name) != -1) {
+                vma_name = read_cstring(anon_name + field_offset(anon_vma_name, name),page_size,"anon_name");
+            }else{
+                vma_name = read_cstring(anon_name,page_size,"anon_name");
+            }
+        }else if (is_uvaddr(anon_name,tc_logd) && swap_ptr.get() != nullptr){ // kernel 5.4 in userspace
+#if defined(ARM64)
+            anon_name &= (USERSPACE_TOP - 1);
+#endif
+            vma_name = swap_ptr->uread_cstring(tc_logd->task,anon_name, page_size, "anon_name");
+        }
+        if (vma_name.find("alloc") == std::string::npos){
+            FREEBUF(vma_buf);
+            continue;
+        }
+        fprintf(fp, "vma_name: %s \n",vma_name.c_str());
         ulong vm_start = ULONG(vma_buf + field_offset(vm_area_struct, vm_start));
         ulong vm_end = ULONG(vma_buf + field_offset(vm_area_struct, vm_end));
         FREEBUF(vma_buf);
@@ -184,11 +199,7 @@ long LogcatS::check_ChunkList_in_vma(std::shared_ptr<rw_vma> vma_ptr,ulong list_
             continue;
         }
         if (debug){
-            std::cout << "addr:" << std::hex << stdlist_addr
-                << " tail_node:" << std::hex << tail_node
-                << " next_node:" << std::hex << next_node
-                << " list_size:" << std::dec << list_size
-                << std::endl;
+            fprintf(fp, "   addr:%zu tail_node:%zu next_node:%zu list_size:%zu\n",stdlist_addr,tail_node,next_node,list_size);
         }
         if (list_size > 5000){
             continue;
@@ -219,11 +230,7 @@ long LogcatS::check_ChunkList_in_vma(std::shared_ptr<rw_vma> vma_ptr,ulong list_
                 break;
             }
             if (debug){
-                std::cout << "   [" << std::dec << index << "]"
-                    << "addr:" << std::hex << next_node_addr
-                    << " prev_node:" << std::hex << prev_node
-                    << " next_node:" << std::hex << next_node
-                    << std::endl;
+                fprintf(fp, "   [%d]addr:%zu prev_node:%zu next_node:%zu \n",index, next_node_addr,prev_node,next_node);
             }
             if (prev_node != prev_node_addr){
                 break;
@@ -326,13 +333,13 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
         }
         size_t const rBuffSize = ZSTD_getFrameContentSize(compressed_log, compressed_size);
         if (rBuffSize == ZSTD_CONTENTSIZE_ERROR || rBuffSize == ZSTD_CONTENTSIZE_UNKNOWN) {
-            std::cout << "Error determining the content size of the compressed data." << std::endl;
+            fprintf(fp, "Error determining the content size of the compressed data.\n");
             return;
         }
         std::vector<char> buffer(rBuffSize);
         size_t const dSize = ZSTD_decompress(buffer.data(), buffer.size(), compressed_log, compressed_size);
         if (ZSTD_isError(dSize)) {
-            std::cout << "Failed to decompress data: " << ZSTD_getErrorName(dSize) << std::endl;
+            fprintf(fp, "Failed to decompress data: %s \n",ZSTD_getErrorName(dSize));
             return;
         }
         // std::cout << std::string(buffer.begin(), buffer.end()) << std::endl;

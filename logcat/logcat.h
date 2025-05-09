@@ -123,7 +123,7 @@ protected:
     }};
 
 public:
-    bool debug = false;
+    bool debug = true;
     bool is_compat;
     Logcat(std::shared_ptr<Swapinfo> swap);
     ~Logcat();

@@ -146,7 +146,7 @@ bool PropInfo::parser_propertys(){
     init_datatype_info();
     size_t pa_size_addr = swap_ptr->get_var_addr_by_bss("pa_size_", tc_init->task, symbol_file);
     if (!is_uvaddr(pa_size_addr,tc_init)){
-        fprintf(fp, "pa_size: %#zx is not invaild !\n",pa_size_addr);
+        // fprintf(fp, "pa_size: %#zx is not invaild !\n",pa_size_addr);
         return false;
     }
     if (is_compat){
@@ -158,7 +158,7 @@ bool PropInfo::parser_propertys(){
 
     size_t pa_data_size_addr = swap_ptr->get_var_addr_by_bss("pa_data_size_", tc_init->task, symbol_file);
     if (!is_uvaddr(pa_data_size_addr,tc_init)){
-        fprintf(fp, "pa_data_size: %#zx is not invaild !\n",pa_data_size_addr);
+        // fprintf(fp, "pa_data_size: %#zx is not invaild !\n",pa_data_size_addr);
         return false;
     }
     if (is_compat){
@@ -169,7 +169,7 @@ bool PropInfo::parser_propertys(){
     if(debug)fprintf(fp, "pa_data_size:%#zx --> %zu \n",pa_data_size_addr, pa_data_size);
     size_t system_prop_addr = swap_ptr->get_var_addr_by_bss("system_properties", tc_init->task, symbol_file);
     if (!is_uvaddr(system_prop_addr,tc_init)){
-        fprintf(fp, "system_properties: %#zx is not invaild !\n",system_prop_addr);
+        // fprintf(fp, "system_properties: %#zx is not invaild !\n",system_prop_addr);
         return false;
     }
     if(debug)fprintf(fp, "system_properties: %#zx \n",system_prop_addr);
@@ -181,7 +181,7 @@ bool PropInfo::parser_propertys(){
         contexts_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr, "read Contexts");
     }
     if (!is_uvaddr(contexts_addr,tc_init)){
-        fprintf(fp, "ContextsSerialized: %#zx is not invaild !\n",contexts_addr);
+        // fprintf(fp, "ContextsSerialized: %#zx is not invaild !\n",contexts_addr);
         return false;
     }
     if(debug)fprintf(fp, "ContextsSerialized: %#zx \n",contexts_addr);
@@ -196,21 +196,21 @@ bool PropInfo::parser_propertys(){
         serial_prop_area_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_serial_prop_area_, "read serial_prop_area_");
     }
     if (!is_uvaddr(serial_prop_area_addr,tc_init)){
-        fprintf(fp, "serial_prop_area: %#zx is not invaild !\n",serial_prop_area_addr);
+        // fprintf(fp, "serial_prop_area: %#zx is not invaild !\n",serial_prop_area_addr);
         return false;
     }
     if(debug)fprintf(fp, "serial_prop_area: %#zx \n",serial_prop_area_addr);
     // parser_prop_area(serial_prop_area_addr);
 
     if (!is_uvaddr(context_nodes_addr,tc_init)){
-        fprintf(fp, "context_nodes: %#zx is not invaild !\n",context_nodes_addr);
+        // fprintf(fp, "context_nodes: %#zx is not invaild !\n",context_nodes_addr);
         return false;
     }
     if(debug)fprintf(fp, "context_nodes base: %#zx  cnt:%zu\n",context_nodes_addr,num_context_nodes);
     for (size_t i = 0; i < num_context_nodes; i++){
         size_t node_addr = context_nodes_addr + i * g_size.ContextNode;
         if (!is_uvaddr(node_addr,tc_init)){
-            fprintf(fp, "ContextNode: %#zx is not invaild !\n",node_addr);
+            // fprintf(fp, "ContextNode: %#zx is not invaild !\n",node_addr);
             continue;
         }
         size_t prop_area_addr,context_addr,filename_addr;
@@ -235,17 +235,17 @@ bool PropInfo::parser_propertys(){
 
 bool PropInfo::parser_prop_area(size_t area_vaddr){
     if (!is_uvaddr(area_vaddr,tc_init)){
-        fprintf(fp, "prop_area: %#zx is not invaild !\n",area_vaddr);
+        // fprintf(fp, "prop_area: %#zx is not invaild !\n",area_vaddr);
         return false;
     }
     char prop_area_buf[sizeof(prop_area)];
     if(!swap_ptr->uread_buffer(tc_init->task,area_vaddr,prop_area_buf,sizeof(prop_area), "prop_area")){
-        if(debug)fprintf(fp, "read prop_area fail at: %#zx !\n",area_vaddr);
+        // fprintf(fp, "read prop_area fail at: %#zx !\n",area_vaddr);
         return false;
     }
     prop_area area = *reinterpret_cast<prop_area*>(prop_area_buf);
     if (area.magic_ != 0x504f5250){
-        fprintf(fp, "prop_area magic not correct !\n");
+        // fprintf(fp, "prop_area magic not correct !\n");
         return false;
     }
     ulong data_addr = area_vaddr + g_offset.prop_area_data_;
@@ -267,7 +267,7 @@ bool PropInfo::parser_prop_area(size_t area_vaddr){
 
 void PropInfo::parser_prop_bt(size_t root, size_t prop_bt_addr){
     if (!is_uvaddr(prop_bt_addr,tc_init)){
-        fprintf(fp, "   prop_bt: %#zx is not invaild !\n",prop_bt_addr);
+        // fprintf(fp, "   prop_bt: %#zx is not invaild !\n",prop_bt_addr);
         return;
     }
     char prop_bt_buf[sizeof(prop_bt)];
@@ -301,7 +301,7 @@ void PropInfo::parser_prop_bt(size_t root, size_t prop_bt_addr){
 
 void PropInfo::parser_prop_info(size_t prop_info_addr){
     if (!is_uvaddr(prop_info_addr,tc_init)){
-        fprintf(fp, "   prop_info: %#zx is not invaild !\n",prop_info_addr);
+        // fprintf(fp, "   prop_info: %#zx is not invaild !\n",prop_info_addr);
         return;
     }
     char prop_info_buf[sizeof(prop_info)];
@@ -369,7 +369,7 @@ void PropInfo::parser_prop_by_init(){
             prop_files.insert(file_path);
             char vma_data[vma_len];
             if (!swap_ptr->uread_buffer(tc->task, vm_start, vma_data, vma_len, "read vma data for prop")) {
-                fprintf(fp, "uread_buffer fail in prop \n");
+                // fprintf(fp, "uread_buffer fail in prop \n");
             }
             // if(index == 0){
             //     prop_area pa = *reinterpret_cast<prop_area*>(vma_data);
