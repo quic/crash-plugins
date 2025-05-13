@@ -369,7 +369,7 @@ void PropInfo::parser_prop_by_init(){
             prop_files.insert(file_path);
             char vma_data[vma_len];
             if (!swap_ptr->uread_buffer(tc->task, vm_start, vma_data, vma_len, "read vma data for prop")) {
-                // fprintf(fp, "uread_buffer fail in prop \n");
+                fprintf(fp, "uread_buffer fail in prop \n");
             }
             // if(index == 0){
             //     prop_area pa = *reinterpret_cast<prop_area*>(vma_data);
@@ -387,7 +387,7 @@ void PropInfo::parser_prop_by_init(){
 /*
                                                   |<----------- prop3      ---------------------------------------------------------------------------------------------->|
                                                   |<----------- children2  ----------------------------------------------------->|                                        |
-                                                  |<----------- children1  ---------------->|                                    |                                        |
+                                                  |<----------- children1  --------------->|                                     |                                        |
 +-----------+-------+------+--------+-------------+-------+-----+----+-----+---------+-----+-------+-----+----+-----+---------+--+-------+-----+----+-----+---------+-----+------+---------------+-------+
 |bytes_used_|serial_|magic_|version_|reserved_[28]|namelen|prop1|left|right|children1|     |namelen|prop2|left|right|children2|  |namelen|prop3|left|right|children3|.....|serial|value/long_prop|name[0]|
 +-----------+-------+------+--------+-------------+-------+-----+----+-----+---------+-----+-------+-----+----+-----+---------+--+-------+-----+----+-----+---------+-----+------+---------------+-------+
@@ -421,9 +421,9 @@ bool PropInfo::for_each_prop(uint32_t prop_bt_off, size_t vma_len, char* vma_dat
         */
         auto cleanedValue = cleanString(value);
         auto cleanedName = cleanString(name);
-        if (cleanedValue && cleanedName) {
+        if (!cleanedValue.empty() && !cleanedName.empty()) {
             // fprintf(fp, "%s=%s\n", cleanedName->c_str(), cleanedValue->c_str());
-            prop_map[cleanedName.value()] = cleanedValue.value();
+            prop_map[cleanedName] = cleanedValue;
         }
     }
     if (children != 0 && !for_each_prop(children, vma_len, vma_data)){
@@ -435,26 +435,25 @@ bool PropInfo::for_each_prop(uint32_t prop_bt_off, size_t vma_len, char* vma_dat
     return true;
 }
 
-std::optional<std::string> PropInfo::cleanString(const std::string& str) {
-    std::optional<std::string> cleanedStr;
+std::string PropInfo::cleanString(const std::string& str) {
     std::string tempStr = str;
     tempStr.erase(std::find(tempStr.begin(), tempStr.end(), '\0'), tempStr.end());
 
     tempStr.erase(0, tempStr.find_first_not_of(" \t\n\r\f\v"));
     tempStr.erase(tempStr.find_last_not_of(" \t\n\r\f\v") + 1);
 
-    if (!tempStr.empty()) {
-        bool hasValidChar = false;
-        for (char c : tempStr) {
-            if (c != '\0' && !std::isspace(c)) {
-                hasValidChar = true;
-                break;
-            }
-        }
-        if (hasValidChar) {
-            cleanedStr = tempStr;
+    bool hasValidChar = false;
+    for (char c : tempStr) {
+        if (c != '\0' && !std::isspace(c)) {
+            hasValidChar = true;
+            break;
         }
     }
-    return cleanedStr;
+
+    if (!hasValidChar) {
+        return "";
+    }
+    return tempStr;
 }
+
 #pragma GCC diagnostic pop

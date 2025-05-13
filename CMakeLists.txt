@@ -164,7 +164,7 @@ add_library(procrank SHARED
             memory/swapinfo.cpp
             procrank/procrank.cpp)
 set_target_properties(procrank PROPERTIES PREFIX "")
-target_link_libraries(procrank ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
+target_link_libraries(procrank ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 
 # =================== build dts ===================
 add_library(dts SHARED
