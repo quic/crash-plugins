@@ -19,7 +19,6 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 PaserPlugin::PaserPlugin(){
-    // std::cout << "PaserPlugin" << std::endl;
     field_init(task_struct, active_mm);
     field_init(task_struct, mm);
     field_init(task_struct, tasks);
