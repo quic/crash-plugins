@@ -48,6 +48,7 @@ Logcat::Logcat(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
             ulong thread_info_flags = ULONG(tt->thread_info + field_offset(thread_info, flags));
             if(thread_info_flags & (1 << 22)){
                 is_compat = true;
+                vaddr_mask = 0xffffffff;
             }
         }
     }else{
@@ -78,10 +79,6 @@ std::string Logcat::getLogLevelChar(LogLevel level) {
 }
 
 void Logcat::parser_logcat_log(){
-    if (logd_symbol.empty()){
-        fprintf(fp, "Can't found logd symbol, please load logd symbol first ! \n");
-        return;
-    }
     if (log_list.size() > 0){
         return;
     }
@@ -220,27 +217,27 @@ std::string Logcat::formatTime(uint32_t tv_sec, long tv_nsec) {
 
 std::vector<size_t> Logcat::for_each_stdlist(ulong& stdlist_addr){
     std::vector<size_t> node_list;
-    int data_size = BITS64() ? (is_compat ? 4 : sizeof(long)) : sizeof(long);
+    int data_size =(BITS64() && !is_compat) ? 8 : 4;
     size_t tail_node, next_node, list_size;
-    if (is_compat) {
-        tail_node = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 0 * data_size, "read tail_node");
-        next_node = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 1 * data_size, "read next_node");
-        list_size = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 2 * data_size, "read list_size");
+    if (BITS64() && !is_compat) {
+        tail_node = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 0 * data_size, "read tail_node") & vaddr_mask;;
+        next_node = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 1 * data_size, "read next_node") & vaddr_mask;;
+        list_size = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 2 * data_size, "read list_size") & vaddr_mask;;
     } else {
-        tail_node = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 0 * data_size, "read tail_node");
-        next_node = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 1 * data_size, "read next_node");
-        list_size = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 2 * data_size, "read list_size");
+        tail_node = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 0 * data_size, "read tail_node") & vaddr_mask;;
+        next_node = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 1 * data_size, "read next_node") & vaddr_mask;;
+        list_size = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 2 * data_size, "read list_size") & vaddr_mask;;
     }
     size_t prev_node = 0;
     size_t current = next_node;
     // fprintf(fp, "addr:0x%lx tail_node:0x%zx next_node:0x%zx list_size:%zu\n",stdlist_addr,tail_node,next_node,list_size);
     for (size_t i = 1; i <= list_size && is_uvaddr(current, tc_logd); ++i) {
-        if (is_compat) {
-            prev_node = swap_ptr->uread_uint(tc_logd->task, current + 0 * data_size, "read prev_node");
-            next_node = swap_ptr->uread_uint(tc_logd->task, current + 1 * data_size, "read next_node");
+        if (BITS64() && !is_compat) {
+            prev_node = swap_ptr->uread_ulong(tc_logd->task, current + 0 * data_size, "read prev_node") & vaddr_mask;;
+            next_node = swap_ptr->uread_ulong(tc_logd->task, current + 1 * data_size, "read next_node") & vaddr_mask;;
         } else {
-            prev_node = swap_ptr->uread_ulong(tc_logd->task, current + 0 * data_size, "read prev_node");
-            next_node = swap_ptr->uread_ulong(tc_logd->task, current + 1 * data_size, "read next_node");
+            prev_node = swap_ptr->uread_uint(tc_logd->task, current + 0 * data_size, "read prev_node") & vaddr_mask;;
+            next_node = swap_ptr->uread_uint(tc_logd->task, current + 1 * data_size, "read next_node") & vaddr_mask;;
         }
         ulong data_node = current + 2 * data_size;
         // fprintf(fp, "[%zu]addr:0x%zx prev_node:0x%zx next_node:0x%zx data_node:0x%lx\n",i,current,prev_node,next_node,data_node);

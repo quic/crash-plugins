@@ -60,6 +60,16 @@ typedef struct {
     int counter;
 } atomic_long_t;
 
+typedef struct {
+    uint32_t type;
+    uint32_t val;
+} Elf32_Auxv_t;
+
+typedef struct {
+    uint64_t type;
+    uint64_t val;
+} Elf64_Auxv_t;
+
 #define VM_NONE             0x00000000
 #define VM_READ             0x00000001    /* currently active flags */
 #define VM_WRITE            0x00000002
@@ -79,6 +89,8 @@ typedef struct {
 #define VM_HUGETLB          0x00400000
 #define VM_DONTDUMP         0x04000000
 
+#define GENMASK_ULL(h, l) (((1ULL<<(h+1))-1)&(~((1ULL<<l)-1)))
+
 class PaserPlugin {
 private:
 #if defined(ARM)
@@ -96,7 +108,7 @@ public:
     const size_t page_size = PAGESIZE();
     const size_t page_shift = PAGESHIFT();
     const size_t page_mask = ~(page_size - 1);
-    uint64_t vaddr_mask = 0;
+    ulong vaddr_mask = 0;
     std::string cmd_name;
     std::vector<std::string> help_str_list;
     char** cmd_help;
@@ -173,6 +185,7 @@ public:
     ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
 #endif
     bool load_symbols(std::string& path, std::string name);
+    std::unordered_map<ulong, ulong> parser_auvx_list(ulong mm_struct_addr, bool is_compat);
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \

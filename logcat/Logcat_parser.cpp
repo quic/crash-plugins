@@ -42,16 +42,6 @@ void Logcat_Parser::cmd_main(void) {
         switch(c) {
             case 'b':
             {
-                struct_init(android_event_header_t);
-                if (struct_size(android_event_header_t) <= 0){
-                    fprintf(fp, "Not load logd symbol, Please run logcat -s <symbol path> load it !\n");
-                    return;
-                }
-                field_init(prop_info,name);
-                if (field_offset(prop_info,name) == -1){
-                    fprintf(fp, "Not load libc.so symbol, Please run logcat -s <symbol path> load it !\n");
-                    return;
-                }
                 if (logcat_ptr.get() == nullptr){
                     std::string version = prop_ptr->get_prop("ro.build.version.sdk");
                     if (version.empty() || version == ""){
@@ -100,10 +90,6 @@ void Logcat_Parser::cmd_main(void) {
                             logcat_ptr->logd_symbol = symbol.path;
                             break;
                         }
-                    }
-                    if (logcat_ptr->logd_symbol.empty()){
-                        fprintf(fp, "Not load logd symbol, Please run logcat -s <symbol path> load it !\n");
-                        return;
                     }
                     logcat_ptr->parser_logcat_log();
                     cppString.assign(optarg);

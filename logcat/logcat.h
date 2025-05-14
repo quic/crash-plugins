@@ -123,8 +123,8 @@ protected:
     }};
 
 public:
-    bool debug = true;
-    bool is_compat;
+    bool debug = false;
+    bool is_compat = false;
     Logcat(std::shared_ptr<Swapinfo> swap);
     ~Logcat();
     std::vector<std::shared_ptr<LogEntry>> log_list;
