@@ -36,11 +36,14 @@ struct LogBufferElement {
 };
 
 class LogcatR : public Logcat {
+private:
+    ulong parser_logbuf_addr() override;
+    void parser_LogBufferElement(ulong vaddr);
+
 public:
     LogcatR(std::shared_ptr<Swapinfo> swap);
-    ulong parser_logbuf_addr() override;
     void parser_logbuf(ulong buf_addr) override;
-    void parser_LogBufferElement(ulong vaddr);
+
 };
 
 #endif // LOGCAT_R_DEFS_H_

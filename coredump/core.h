@@ -226,16 +226,6 @@ struct user_fpsimd_state {
     unsigned int   __reserved[2];
 };
 
-typedef struct{
-    int32_t type;
-    int32_t val;
-} Elf32_Auxv_t;
-
-typedef struct{
-    int64_t type;
-    int64_t val;
-} Elf64_Auxv_t;
-
 typedef struct {
     ulong version;
     ulong map;
@@ -317,9 +307,9 @@ public:
     ulong task_pid_ptr(ulong task_addr, long type);
     void write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_filesz, size_t p_memsz, size_t p_flags, size_t p_align);
     void parser_vma_list(ulong task_addr);
-    void parser_auvx();
     void parser_nt_file();
     void parser_thread_core_info();
+    void parser_auvx();
     int vma_dump_size(std::shared_ptr<vma> vma_ptr);
     void dump_align(std::streampos position, std::streamsize align);
     void writenote(std::shared_ptr<memelfnote> note_ptr);

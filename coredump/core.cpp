@@ -739,25 +739,7 @@ void Core::parser_auvx(){
     if(auxv_list.size()){
         auxv_list.clear();
     }
-    if (BITS64() && !is_compat){
-        Elf64_Auxv_t* elf_auxv = (Elf64_Auxv_t*)auxv_buf;
-        for (int i = 0; i < auxv_cnt; i++){
-            if (elf_auxv->type == 0){
-               continue;
-            }
-            auxv_list[elf_auxv->type] = elf_auxv->val;
-            elf_auxv++;
-        }
-    }else{
-        Elf32_Auxv_t* elf_auxv = (Elf32_Auxv_t*)auxv_buf;
-        for (int i = 0; i < auxv_cnt; i++){
-            if (elf_auxv->type == 0){
-               continue;
-            }
-            auxv_list[elf_auxv->type] = elf_auxv->val;
-            elf_auxv++;
-        }
-    }
+    auxv_list = parser_auvx_list(tc->mm_struct, is_compat);
     auxv = std::make_shared<memelfnote>();
     auxv->name = "CORE";
     auxv->type = NT_AUXV;

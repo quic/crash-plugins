@@ -23,6 +23,11 @@ LogcatR::LogcatR(std::shared_ptr<Swapinfo> swap) : Logcat(swap){
 }
 
 ulong LogcatR::parser_logbuf_addr(){
+    struct_init(LogBufferElement);
+    if (struct_size(LogBufferElement) == -1 || logd_symbol.empty()){
+        fprintf(fp, "Not load logd symbol, Please run logcat -s <symbol path> load it !\n");
+        return 0;
+    }
     ulong logbuf_addr = swap_ptr->get_var_addr_by_bss("logBuf", tc_logd->task, logd_symbol);
     if (logbuf_addr == 0){
         return 0;

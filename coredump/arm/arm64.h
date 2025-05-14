@@ -19,7 +19,6 @@
 #include "coredump/core.h"
 
 #define BIT(nr)         (1UL << (nr))
-#define GENMASK_ULL(h, l) (((1ULL<<(h+1))-1)&(~((1ULL<<l)-1)))
 
 #define SCTLR_ELx_ENIA (BIT(31))
 #define SCTLR_ELx_ENIB (BIT(30))
