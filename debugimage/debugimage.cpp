@@ -191,7 +191,7 @@ void DebugImage::parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr){
 void DebugImage::parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr){
     entry_ptr->version = read_uint(entry_ptr->addr + field_offset(msm_dump_data,version),"version",false);
     entry_ptr->magic = read_uint(entry_ptr->addr + field_offset(msm_dump_data,magic),"magic",false);
-    if (entry_ptr->magic != MAGIC_NUMBER && entry_ptr->magic != HYP_MAGIC_NUMBER){
+    if ((entry_ptr->magic != MAGIC_NUMBER) && (entry_ptr->magic != HYP_MAGIC_NUMBER)){
         return;
     }
     if (entry_ptr->id > DATA_MAX){
@@ -204,7 +204,6 @@ void DebugImage::parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr){
 }
 
 void DebugImage::parser_dump_table(uint64_t paddr){
-    uint32_t version = read_uint(paddr + field_offset(msm_dump_table,version),"version",false);
     uint32_t num_entries = read_uint(paddr + field_offset(msm_dump_table,num_entries),"num_entries",false);
     if (num_entries == 0 || num_entries > 100){
         return;

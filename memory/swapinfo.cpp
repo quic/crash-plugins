@@ -67,11 +67,11 @@ Swapinfo::~Swapinfo(){
 }
 
 ulonglong Swapinfo::pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val){
-    ulonglong swp_offset = 0;
+    ulong swp_offset = 0;
     if (THIS_KERNEL_VERSION >= LINUX(2, 6, 0)){
-        swp_offset = (ulonglong)__swp_offset(pte_val);
+        swp_offset = (ulong)__swp_offset(pte_val);
     }else{
-        swp_offset = (ulonglong)SWP_OFFSET(pte_val);
+        swp_offset = (ulong)SWP_OFFSET(pte_val);
     }
     ulong swap_extent_root = read_pointer(swap_ptr->addr + field_offset(swap_info_struct,swap_extent_root),"rb_root");
     int offset = field_offset(swap_extent,rb_node);
@@ -82,7 +82,7 @@ ulonglong Swapinfo::pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulongl
         if(!read_struct(addr,&extent,sizeof(extent),"swap_extent")){
             continue;
         }
-        if (extent.start_page < swp_offset < (extent.start_page + extent.nr_pages)){
+        if (extent.start_page < swp_offset && swp_offset < (extent.start_page + extent.nr_pages)){
             if(debug)fprintf(fp, "swap_extent:%lx, start_block:%lld, start_page:%ld, nr_pages:%ld\n", addr, extent.start_block,extent.start_page,extent.nr_pages);
             break;
         }
@@ -293,7 +293,7 @@ std::string Swapinfo::read_start_args(ulong& task_addr){
 char* Swapinfo::uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note){
     int remain = len;
     char* result = (char*)std::malloc(len);
-    ulong orig_uvaddr = uvaddr;
+    // ulong orig_uvaddr = uvaddr;
     BZERO(result, len);
     while(remain > 0){
         // read one page
@@ -341,7 +341,6 @@ char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
     if (!IS_UVADDR(page_start, tc)){
         return nullptr;
     }
-    char* page_data;
     int page_exist = uvtop(tc, page_start, &paddr, 0);
     if (page_exist){
         if(debug)fprintf(fp, "read %llx from page_vaddr:%llx, page_paddr:%llx\n\n",uvaddr,page_start,(ulonglong)paddr);
@@ -402,7 +401,6 @@ std::shared_ptr<swap_info> Swapinfo::get_swap_info(ulonglong pte_val){
     swap_info_init();
     ulong swap_addr = csymbol_value("swap_info");
     ulong swp_type = SWP_TYPE(pte_val);
-    ulonglong swp_offset = (ulonglong)__swp_offset(pte_val);
     if (vt->flags & SWAPINFO_V2) {
         swap_addr += (swp_type * sizeof(void *));
         swap_addr = read_pointer(swap_addr,"swap_info_struct addr");
@@ -447,7 +445,7 @@ void Swapinfo::parser_swap_info(){
     ulong swap_info_addr = csymbol_value("swap_info");
     nr_swap = read_int(csymbol_value("nr_swapfiles"),"nr_swapfiles");
     ulong swp_space = csymbol_value("swapper_spaces");
-    for (size_t i = 0; i < nr_swap; i++){
+    for (int i = 0; i < nr_swap; i++){
         ulong addr = read_pointer(swap_info_addr + i * sizeof(void *),"swap_info_struct addr");
         if (!is_kvaddr(addr))continue;
         void *swap_info_buf = read_struct(addr,"swap_info_struct");

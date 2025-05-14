@@ -198,15 +198,15 @@ char* Zraminfo::read_object(std::shared_ptr<zram> zram_ptr,struct zram_table_ent
     if(debug)fprintf(fp, "class_idx:%d\n",class_idx);
     // find the size_class to get the obj size by class id
     std::shared_ptr<size_class> class_ptr = zram_ptr->mem_pool->class_list[class_idx];
-    int obj_size = class_ptr->size;
+    size_t obj_size = class_ptr->size;
     if(debug)fprintf(fp, "size_class:%lx\n",class_ptr->addr);
-    if(debug)fprintf(fp, "obj size:%d\n",obj_size);
+    if(debug)fprintf(fp, "obj size:%zd\n",obj_size);
     char* obj_buf = (char*)std::malloc(obj_size);
     BZERO(obj_buf, obj_size);
     physaddr_t paddr;
     void* tmpbuf;
-    int offset = (obj_size * obj_idx) & (page_size -1);
-    if(debug)fprintf(fp, "obj offset:%d\n",offset);
+    size_t offset = (obj_size * obj_idx) & (page_size -1);
+    if(debug)fprintf(fp, "obj offset:%zd\n",offset);
     if (offset + obj_size <= page_size){ //in one page
         paddr = page_to_phy(page);
         if (!paddr){
@@ -307,9 +307,9 @@ char* Zraminfo::read_zram_page(ulong zram_addr, ulonglong index){
     }else{
         bool is_huge = false;
         int read_len = 0;
-        int comp_len = entry.flags & ((1 << ZRAM_FLAG_SHIFT) - 1);
+        size_t comp_len = entry.flags & ((1 << ZRAM_FLAG_SHIFT) - 1);
         char *obj_data = read_object(zram_ptr,entry,read_len,is_huge);
-        if(debug)fprintf(fp, "ZRAM_FLAG_SHIFT:%d, comp_len:%d, read_len:%d\n",ZRAM_FLAG_SHIFT,comp_len,read_len);
+        if(debug)fprintf(fp, "ZRAM_FLAG_SHIFT:%d, comp_len:%zd, read_len:%d\n",ZRAM_FLAG_SHIFT,comp_len,read_len);
         if (obj_data == nullptr){
             return nullptr;
         }
@@ -370,7 +370,6 @@ std::shared_ptr<zobj> Zraminfo::parser_obj(int obj_id, ulong handle_addr,physadd
     obj_ptr->start = start;
     obj_ptr->end = end;
     obj_ptr->id = obj_id;
-    ulong handle = 0;
     if (handle_addr & OBJ_ALLOCATED_TAG){ //obj is alloc
         obj_ptr->is_free = false;
         obj_ptr->handle_addr = handle_addr & ~OBJ_TAG_BITS; //clean the bit0
@@ -475,14 +474,14 @@ std::shared_ptr<size_class> Zraminfo::parser_size_class(ulong addr){
     // fprintf(fp, "\nsize_class(%lx) objs_per_zspage:%d size:%d\n", addr,class_ptr->objs_per_zspage,class_ptr->size);
     int stats_cnt = field_size(zs_size_stat,objs)/sizeof(unsigned long);
     ulong stats_addr = addr + field_offset(size_class,stats);
-    for (size_t i = 0; i < stats_cnt; i++){
+    for (int i = 0; i < stats_cnt; i++){
         class_ptr->stats.push_back(read_ulong(stats_addr + i * sizeof(unsigned long), "size_class_stats"));
     }
     return class_ptr;
 }
 
 void Zraminfo::parser_zpage(std::shared_ptr<size_class> class_ptr){
-    for (size_t i = 0; i < group_cnt; i++){
+    for (int i = 0; i < group_cnt; i++){
         ulong group_addr = class_ptr->addr + field_offset(size_class,fullness_list) + i * sizeof(struct kernel_list_head);
         int offset = field_offset(zspage,list);
         std::vector<std::shared_ptr<zpage>> zspage_list;
@@ -513,7 +512,7 @@ std::shared_ptr<zs_pool> Zraminfo::parser_mem_pool(ulong addr){
     }
     read_struct(addr + field_offset(zs_pool,stats),&pool_ptr->stats,sizeof(struct zs_pool_stats),"zs_pool_stats");
     int class_cnt = field_size(zs_pool,size_class)/sizeof(void *);
-    for (size_t i = 0; i < class_cnt; i++){
+    for (int i = 0; i < class_cnt; i++){
         ulong class_addr = read_pointer(addr + field_offset(zs_pool,size_class) + i * sizeof(void *),"size_class addr");
         if (!is_kvaddr(class_addr))continue;
         pool_ptr->class_list.push_back(parser_size_class(class_addr));

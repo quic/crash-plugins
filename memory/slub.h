@@ -143,7 +143,7 @@ protected:
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> alloc_trace_map;
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> free_trace_map;
     ulong max_pfn;
-    int depot_index;
+    ulong depot_index;
     ulong stack_slabs;
     // std::unordered_set<size_t> unique_hash;
 

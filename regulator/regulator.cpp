@@ -283,7 +283,7 @@ void Regulator::parser_regulator_dev(){
             if (is_kvaddr(name_addr)){
                 reg_ptr->name = read_cstring(name_addr,64, "supply_name");
             }
-            int cnt = field_size(regulator,voltage)/struct_size(regulator_voltage);
+            size_t cnt = field_size(regulator,voltage)/struct_size(regulator_voltage);
             for(size_t i=0; i < cnt; i++){
                 ulong vol_addr = reg + field_offset(regulator,voltage) + i * struct_size(regulator_voltage);
                 int min_uV = read_int(vol_addr + field_offset(regulator_voltage,min_uV),"min_uV");

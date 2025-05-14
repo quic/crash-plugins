@@ -24,7 +24,6 @@ DEFINE_PLUGIN_COMMAND(DmaIon)
 
 void DmaIon::cmd_main(void) {
     int c;
-    int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     if(dmabuf_ptr == nullptr){

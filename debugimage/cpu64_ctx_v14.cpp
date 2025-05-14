@@ -51,7 +51,7 @@ void Cpu64_Context_V14::compute_pc(sysdbg_cpu64_ctx_1_4_t reg,sysdbg_neon128_reg
                 fprintf(fp, "AArch32 PC Approximation Logic Failed! \n");
             }
         }else{// AArch64 Mode
-            if (reg.cpu_state3 & (1ULL << 30) != 0){
+            if ((reg.cpu_state3 & (1ULL << 30)) != 0){
                 reg.pc = reg.x[30];
             }
             uint64_t val = (reg.cpu_state1 >> 2) & 0x3;
@@ -79,8 +79,6 @@ void Cpu64_Context_V14::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     tzbsp_dump_64_1_4_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_4_t*>(buf);
 
     uint64_t lr = reg_dump.sc_regs.x[30];
-    uint64_t sp = reg_dump.sc_regs.sp_el1;
-    uint64_t fp1 = reg_dump.sc_regs.x[29];
     uint64_t pc = pac_ignore(reg_dump.sc_regs.pc);
     struct syment *sym;
     ulong offset;

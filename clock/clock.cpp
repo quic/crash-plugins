@@ -251,7 +251,6 @@ void Clock::parser_clk_core(ulong addr){
     if (!core_buf) {
         return;
     }
-    ulong ops = ULONG(core_buf + field_offset(clk_core,ops));
     ulong hw = ULONG(core_buf + field_offset(clk_core,hw));
     ulong rate = ULONG(core_buf + field_offset(clk_core,rate));
     ulong req_rate = ULONG(core_buf + field_offset(clk_core,req_rate));

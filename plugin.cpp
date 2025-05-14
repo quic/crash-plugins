@@ -274,7 +274,6 @@ std::vector<ulong> PaserPlugin::for_each_list(ulong list_head,int offset){
     void *buf = read_struct(list_head,"list_head");
     if(buf == nullptr) return res;
     ulong next = ULONG(buf + field_offset(list_head,next));
-    ulong prev = ULONG(buf + field_offset(list_head,prev));
     FREEBUF(buf);
     if (!next || (next == list_head)) {
         return res;

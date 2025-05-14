@@ -245,7 +245,7 @@ void Meminfo::parse_meminfo(void){
     FREEBUF(zone_page_list);
 
     // Read full list from vm_event_states
-    for (int cpu = 0; cpu < read_uint(g_param["nr_cpu_ids"], ""); ++cpu) {
+    for (uint cpu = 0; cpu < read_uint(g_param["nr_cpu_ids"], ""); ++cpu) {
         std::vector<ulong> per_cpu_vm_event_page_state;
         ulong per_cpu_offset = read_ulong(g_param["__per_cpu_offset"] + sizeof(ulong)*cpu, "get __per_cpu_offset[cpu]");
         long* vm_event_page_list = (long *)read_memory(g_param["vm_event_states"] + per_cpu_offset, sizeof(ulong) * enums["NR_VM_EVENT_ITEMS"], "");
@@ -262,11 +262,11 @@ void Meminfo::parse_meminfo(void){
 
 ulong Meminfo::get_wmark_low(void){
     ulong wmark_low = 0;
-    for (size_t n = 0; n < vt->numnodes; n++) {
+    for (int n = 0; n < vt->numnodes; n++) {
         struct node_table *nt = &vt->node_table[n];
         ulong node_zones = nt->pgdat + field_offset(pglist_data, node_zones);
 
-        for (size_t i = 0; i < vt->nr_zones; i++) {
+        for (int i = 0; i < vt->nr_zones; i++) {
             ulong zone_addr = (node_zones + (i * struct_size(zone)));
             void *zone_buf = read_struct(zone_addr, "zone");
             ulong watermark_low_offset = field_offset(zone, _watermark) + enums["WMARK_LOW"] * sizeof(ulong);
@@ -345,11 +345,9 @@ ulong Meminfo::get_vm_commit_pages(ulong totalram_pg){
 ulong Meminfo::get_mm_committed_pages(void){
     ulong allowed = read_ulong(g_param["vm_committed_as"] + field_offset(percpu_counter, count), "get percpu_counter count");
     std::string config_nr_cpus = get_config_val("CONFIG_NR_CPUS");
-    uint nr_cpus = isNumber(config_nr_cpus)?std::stoi(config_nr_cpus):1;  // Default: 1
-
     ulong cpu_online_mask = read_ulong(g_param["__cpu_online_mask"], "get cpu_online_mask");
-    ulong nr_cpu_ids = read_uint(g_param["nr_cpu_ids"], "get nr_cpu_ids");
-    for (int cpu = 0; cpu < nr_cpu_ids; ++cpu) {
+    uint nr_cpu_ids = read_uint(g_param["nr_cpu_ids"], "get nr_cpu_ids");
+    for (uint cpu = 0; cpu < nr_cpu_ids; ++cpu) {
         if (cpu_online_mask & (1UL << cpu)) {
             ulong per_cpu_offset = read_ulong(g_param["__per_cpu_offset"] + sizeof(ulong)*cpu, "get __per_cpu_offset[cpu]");
             uint temp = read_uint(g_param["vm_committed_as"] + per_cpu_offset + field_offset(percpu_counter, counters), 
@@ -370,7 +368,7 @@ size_t Meminfo::get_cma_size(){
         return 0;
     }
     size_t total_pages = 0;
-    for (int i = 0; i < cnt; ++i) {
+    for (ulong i = 0; i < cnt; ++i) {
         ulong cma_addr = cma_areas_addr + i * struct_size(cma);
         total_pages += read_ulong(cma_addr + field_offset(cma,count), "count");
     }
@@ -470,9 +468,9 @@ size_t Meminfo::get_vmalloc_size(){
         if (!is_kvaddr(nodes_addr)) return total_pages;
         int nr_node = read_int(csymbol_value("nr_vmap_nodes"),"nr_vmap_nodes");
         int pool_cnt = field_size(vmap_node,pool)/struct_size(vmap_pool);
-        for (size_t i = 0; i < nr_node; i++){
+        for (int i = 0; i < nr_node; i++){
             ulong pools_addr = nodes_addr + i * struct_size(vmap_node) + field_offset(vmap_node,pool);
-            for (size_t p = 0; p < pool_cnt; p++){
+            for (int p = 0; p < pool_cnt; p++){
                 ulong pool_addr = pools_addr + p * struct_size(vmap_pool);
                 if (!is_kvaddr(pool_addr)) continue;
                 ulong len = read_ulong(pool_addr + field_offset(vmap_pool,len),"vmap_pool len");
@@ -494,7 +492,7 @@ size_t Meminfo::parser_vmap_area(ulong addr){
     while (is_kvaddr(vm_addr)){
         int nr_pages = read_uint(vm_addr + field_offset(vm_struct,nr_pages),"nr_pages");
         ulong vm_size = read_ulong(vm_addr + field_offset(vm_struct,size),"size");
-        if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
+        if (vm_size % page_size != 0 || (vm_size / page_size) != (ulong)(nr_pages + 1)) {
             break;
         }
         total_pages += nr_pages;
@@ -612,7 +610,7 @@ void Meminfo::print_vmstat(void){
     for (const auto& pair : enum_dict["vm_event_item"]) {
         if (pair.second == enums["NR_VM_EVENT_ITEMS"])   continue;
         ulong vm_event_item_pg = 0;
-        for (int cpu = 0; cpu < read_uint(g_param["nr_cpu_ids"], ""); ++cpu) {
+        for (uint cpu = 0; cpu < read_uint(g_param["nr_cpu_ids"], ""); ++cpu) {
             vm_event_item_pg += vm_event_page_state[cpu][enums[pair.first]];
         }
         oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << vm_event_item_pg << " |"
@@ -629,7 +627,6 @@ void Meminfo::print_mem_breakdown(void){
     ulong swap_cached_pg = node_page_state[enums["NR_SWAPCACHE"]];
     ulong cached_pg = node_page_state[enums["NR_FILE_PAGES"]] - swap_cached_pg - blockdev_pg;
     ulong totalmm_pg = get_memory_size();
-    ulong static_pg = totalmm_pg - totalram_pg * page_size;
     ulong no_hlos = get_nomap_size();
     ulong kernel_code = csymbol_value("_sinittext") - csymbol_value("_text");
     ulong kernel_data = csymbol_value("_end") - csymbol_value("_sdata");
@@ -719,7 +716,7 @@ void Meminfo::print_meminfo(void){
 
     ulong writebacktmp_pg = node_page_state[enums["NR_WRITEBACK_TEMP"]];
     ulong vm_commit_pg = get_vm_commit_pages(totalram_pg);
-    ulong mm_committed_pg = get_mm_committed_pages();
+    // ulong mm_committed_pg = get_mm_committed_pages();
     ulong vmalloc_total_bytes = get_vmalloc_total();
     ulong vmalloc_used_pg = read_ulong(g_param["nr_vmalloc_pages"], "");
     ulong pcpu_nr_pg = read_uint(g_param["pcpu_nr_units"], "nr_units") * read_ulong(g_param["pcpu_nr_populated"], "");

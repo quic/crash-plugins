@@ -24,7 +24,6 @@ DEFINE_PLUGIN_COMMAND(Vmalloc)
 
 void Vmalloc::cmd_main(void) {
     int c;
-    int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     if(area_list.size() == 0){
@@ -161,9 +160,9 @@ void Vmalloc::parser_vmap_nodes(){
     }
     ulong nodes_addr = read_pointer(csymbol_value("vmap_nodes"),"vmap_nodes pages");
     if (!is_kvaddr(nodes_addr)) return;
-    int nr_node = read_int( csymbol_value("nr_vmap_nodes"),"nr_vmap_nodes");
-    int pool_cnt = field_size(vmap_node,pool)/struct_size(vmap_pool);
-    int offset = field_offset(vmap_area,list);
+    size_t nr_node = read_int( csymbol_value("nr_vmap_nodes"),"nr_vmap_nodes");
+    size_t pool_cnt = field_size(vmap_node,pool)/struct_size(vmap_pool);
+    size_t offset = field_offset(vmap_area,list);
     for (size_t i = 0; i < nr_node; i++){
         ulong pools_addr = nodes_addr + i * struct_size(vmap_node) + field_offset(vmap_node,pool);
         for (size_t p = 0; p < pool_cnt; p++){
@@ -199,7 +198,7 @@ void Vmalloc::parser_vmap_area(ulong addr){
             continue;
         }
         size_t vm_size = ULONG(vm_buf + field_offset(vm_struct,size));
-        int nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
+        size_t nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
         if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
             FREEBUF(vm_buf);
             break;
@@ -230,9 +229,9 @@ void Vmalloc::parser_vmap_area(ulong addr){
         }else{
             vm_ptr->flags.assign("unknow");
         }
-        struct syment *sp;
         ulong offset;
-        if (sp = value_search(caller, &offset)) {
+        struct syment *sp = value_search(caller, &offset);
+        if (sp) {
             vm_ptr->caller = sp->name;
             size_t pos = vm_ptr->caller.find('.'); //remove the rest char
             if (pos != std::string::npos) {
@@ -317,7 +316,7 @@ void Vmalloc::print_vmap_area(){
     }
     fprintf(fp, "Total vm size:%s\n",csize(total_size).c_str());
     fprintf(fp, "==============================================================================================================\n");
-    for(int i=0; i < area_list.size(); i++){
+    for(size_t i=0; i < area_list.size(); i++){
         std::ostringstream oss_area;
         oss_area << "[" << std::setw(4) << std::setfill('0') << i << "]"
             << "vmap_area:" << std::hex << area_list[i]->addr << " "

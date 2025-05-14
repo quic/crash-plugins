@@ -164,9 +164,9 @@ void CpuInfo::parser_cpu_policy(){
 }
 
 void CpuInfo::print_freq_table(){
-    int freq_cnt = 0;
+    size_t freq_cnt = 0;
     for (const auto& cpu_ptr : cpu_infos) {
-        freq_cnt = std::max(freq_cnt,static_cast<int>(cpu_ptr->freq_table.size()));
+        freq_cnt = std::max(freq_cnt,cpu_ptr->freq_table.size());
     }
     std::ostringstream oss_hd;
     for (size_t i = 0; i < cpu_infos.size(); i++){

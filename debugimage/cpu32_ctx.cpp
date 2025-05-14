@@ -29,14 +29,13 @@ void Cpu32_Context::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     tzbsp_dump_32_t reg_dump = *reinterpret_cast<tzbsp_dump_32_t*>(buf);
 
     unsigned long long lr = reg_dump.sc_regs.r14_svc;
-    unsigned long long sp = reg_dump.sc_regs.r13_svc;
-    unsigned long long cpsr = reg_dump.sc_regs.cpsr;
-    unsigned long long fp1 = 0;
-    if (cpsr & 0x20){
-        fp1 = reg_dump.sc_regs.r[7];
-    }else{
-        fp1 = reg_dump.sc_regs.r[11];
-    }
+    // unsigned long long cpsr = reg_dump.sc_regs.cpsr;
+    // unsigned long long fp1 = 0;
+    // if (cpsr & 0x20){
+    //     fp1 = reg_dump.sc_regs.r[7];
+    // }else{
+    //     fp1 = reg_dump.sc_regs.r[11];
+    // }
     unsigned long long pc = pac_ignore(reg_dump.sc_regs.pc);
     struct syment *sym;
     ulong offset;

@@ -196,9 +196,9 @@ void Dts::read_dtb(std::string& path){
        fprintf(fp,"Failed to read dtb header at address %lx\n", initial_boot_params);
        return;
     }
-    int magic = UINT(header);
+    ulong magic = UINT(header);
     if (magic != 0xEDFE0DD0){
-        fprintf(fp, "magic:%x is not correct !\n",magic);
+        fprintf(fp, "magic:%lx is not correct !\n",magic);
         FREEBUF(header);
         return;
     }

@@ -398,7 +398,6 @@ bool PropInfo::for_each_prop(uint32_t prop_bt_off, size_t vma_len, char* vma_dat
     if(sizeof(prop_area) + prop_bt_off + sizeof(prop_bt) > vma_len)
         return false;
     prop_bt pb = *reinterpret_cast<prop_bt*>(vma_data + sizeof(prop_area) + prop_bt_off);
-    uint32_t namelen = pb.namelen;
     uint prop = pb.prop;
     uint left = pb.left;
     uint right = pb.right;

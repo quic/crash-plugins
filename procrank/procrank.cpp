@@ -24,7 +24,6 @@ DEFINE_PLUGIN_COMMAND(Procrank)
 
 void Procrank::cmd_main(void) {
     int c;
-    int flags;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     while ((c = getopt(argcnt, args, "ac")) != EOF) {

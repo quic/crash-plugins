@@ -76,8 +76,8 @@ class ImageParser;
 
 class DebugImage : public PaserPlugin {
 private:
-    const int MAGIC_NUMBER = 0x42445953;
-    const int HYP_MAGIC_NUMBER = 0x42444832;
+    const uint MAGIC_NUMBER = 0x42445953;
+    const uint HYP_MAGIC_NUMBER = 0x42444832;
     std::vector<std::shared_ptr<Dump_entry>> image_list;
     std::shared_ptr<ImageParser> parser_ptr;
 

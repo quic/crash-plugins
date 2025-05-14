@@ -153,7 +153,6 @@ void Watchdog::print_watchdog_info(){
     uint64_t thread_start = ULONGLONG(wdt_buf + field_offset(msm_watchdog_data,thread_start));
     ulong watchdog_task = ULONG(wdt_buf + field_offset(msm_watchdog_data,watchdog_task));
     FREEBUF(wdt_buf);
-    long state = task_state(watchdog_task);
     struct task_context* tc = task_to_context(watchdog_task);
     uint64_t jiffies = 0;
     if (csymbol_exists("jiffies")){
@@ -198,13 +197,11 @@ void Watchdog::print_watchdog_info(){
         << std::left << std::setw(20) << "  do_ipi_ping         : " << (do_ipi_ping ? "True":"False") << "\n";
     ulong ping_start_addr = wdt_addr + field_offset(msm_watchdog_data,ping_start);
     ulong ping_end_addr = wdt_addr + field_offset(msm_watchdog_data,ping_end);
-    ulong cips_addr = wdt_addr + field_offset(msm_watchdog_data,cpu_idle_pc_state);
     for (size_t i = 0; i < NR_CPUS; i++) {
         if (!kt->__per_cpu_offset[i])
             continue;
         ulong ping_start = read_ulonglong(ping_start_addr + i * sizeof(unsigned long long),"ping_start");
         ulong ping_end =  read_ulonglong(ping_end_addr + i * sizeof(unsigned long long),"ping_end");
-        ulong cips =  read_int(cips_addr + i * sizeof(int),"cpu_idle_pc_state");
         std::string pcpu = "ping cpu[" + std::to_string(i) + "]";
         oss << std::left << "  " << std::setw(20) << pcpu << ": " << ping_start << "~" << ping_end << "(" << (ping_end - ping_start)<< "ns)" << "\n";
     }

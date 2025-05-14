@@ -319,7 +319,6 @@ std::shared_ptr<worker> Workqueue::parser_worker(ulong addr,std::shared_ptr<work
     worker_ptr->desc = read_cstring(addr + field_offset(worker, desc), 24, "worker_desc");
     if (worker_ptr->desc.size() == 0)
     worker_ptr->desc = "None";
-    int pid = 0;
     struct task_context *tc = task_to_context(worker_ptr->task_addr);
     if (tc){
         worker_ptr->comm = tc->comm;

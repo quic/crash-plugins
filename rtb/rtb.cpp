@@ -391,7 +391,7 @@ void Rtb::print_rtb_log(){
         fprintf(fp, "RTB was not initialized in this build.\n");
         return;
     }
-    for (size_t cpu = 0; cpu < rtb_state_ptr->step_size; cpu++){
+    for (int cpu = 0; cpu < rtb_state_ptr->step_size; cpu++){
         print_percpu_rtb_log(cpu);
     }
 }
@@ -411,7 +411,7 @@ void Rtb::parser_rtb_log(){
     void *rtb_state_buf = read_struct(msm_rtb_addr,"msm_rtb_state");
     if(rtb_state_buf == nullptr) return;
     rtb_state_ptr = std::make_shared<rtb_state>();
-    int cnt = field_size(msm_rtb_state,msm_rtb_idx)/struct_size(rtb_idx);
+    size_t cnt = field_size(msm_rtb_state,msm_rtb_idx)/struct_size(rtb_idx);
     for (size_t i = 0; i < cnt; i++){
         ulong rtb_idx_addr = msm_rtb_addr + i * struct_size(rtb_idx);
         int idx = read_int(rtb_idx_addr,"rtb_idx");

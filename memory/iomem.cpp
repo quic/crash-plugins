@@ -73,7 +73,6 @@ IoMem::IoMem(){
 }
 
 void IoMem::print_iomem(std::vector<std::shared_ptr<resource>>& res_list,int level){
-    char buf_size[BUFSIZE];
     for (const auto& res_ptr : res_list) {
         for (int i = 0; i < level; i++) {
             fprintf(fp, "\t");

@@ -154,8 +154,6 @@ void IPCLog::parser_ipc_log_page(ulong addr,ulong page_list){
             return;
         }
         write_offset = USHORT(log_page_buf + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,write_offset));
-        uint64_t start_time = ULONGLONG(log_page_buf + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,start_time));
-        uint64_t end_time = ULONGLONG(log_page_buf + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,end_time));
         nd_read_offset = USHORT(log_page_buf + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,nd_read_offset));
         FREEBUF(log_page_buf);
 
@@ -199,7 +197,6 @@ void IPCLog::parser_ipc_log_page(ulong addr,ulong page_list){
     uint64_t TimeStamp = 0;
     uint64_t TimeQtimer = 0;
     while (len < ipcLogBuf.size()) {
-        tsv_header header = *reinterpret_cast<tsv_header*>(dataPtr);
         len += sizeof(tsv_header);
         dataPtr += sizeof(tsv_header);
 
@@ -288,8 +285,6 @@ void IPCLog::parser_ipc_log(){
         ulong last_page = ULONG(ctx_buf + field_offset(ipc_log_context,last_page));
         ulong write_page = ULONG(ctx_buf + field_offset(ipc_log_context,write_page));
         ulong read_page = ULONG(ctx_buf + field_offset(ipc_log_context,read_page));
-        ulong nd_read_page = ULONG(ctx_buf + field_offset(ipc_log_context,nd_read_page));
-        uint32_t write_avail = UINT(ctx_buf + field_offset(ipc_log_context,write_avail));
         FREEBUF(ctx_buf);
         std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN)  << std::hex << ctx_addr     << " "

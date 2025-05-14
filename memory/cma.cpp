@@ -126,7 +126,7 @@ void Cma::parser_cma_areas(){
         fprintf(fp, "cma_area_count is zero!\n");
         return;
     }
-    for (int i = 0; i < cma_area_count; ++i) {
+    for (ulong i = 0; i < cma_area_count; ++i) {
         ulong cma_addr = cma_areas_addr + i * struct_size(cma);
         void *cma_buf = read_struct(cma_addr,"cma");
         if (!cma_buf) {
@@ -197,14 +197,14 @@ void Cma::print_cma_areas(){
 
 int Cma::get_cma_used_size(std::shared_ptr<cma_mem> cma){
     // calc how many byte of bitmap
-    int nr_byte = (cma->count >> cma->order_per_bit) / 8;
-    int per_bit_size = (1U << cma->order_per_bit) * page_size;
-    int used_count = 0;
+    size_t nr_byte = (cma->count >> cma->order_per_bit) / 8;
+    size_t per_bit_size = (1U << cma->order_per_bit) * page_size;
+    size_t used_count = 0;
     ulong bitmap_addr = cma->bitmap;
-    for (int i = 0; i < nr_byte; ++i) {
+    for (size_t i = 0; i < nr_byte; ++i) {
         unsigned char bitmap_data = read_byte(bitmap_addr,"cma bitmap");
         std::bitset<8> bits(bitmap_data);
-        int nr_bit = bits.count();
+        size_t nr_bit = bits.count();
         // fprintf(fp, "bitmap_addr:%#lx bitmap:%x, nr_bit:%d\n",bitmap_addr, bitmap_data, nr_bit);
         used_count += nr_bit;
         bitmap_addr += 1;
@@ -225,7 +225,7 @@ void Cma::print_cma_page_status(std::string name,bool alloc){
             fprintf(fp, "%s \n",oss.str().c_str());
             oss.str("");
             // calc how many byte of bitmap
-            int nr_byte = (cma->count >> cma->order_per_bit) / 8;
+            size_t nr_byte = (cma->count >> cma->order_per_bit) / 8;
             oss << std::left << std::setw(10) << "Bitmap" << ": "
                 << std::hex << cma->bitmap
                 << " ~ "
@@ -233,7 +233,7 @@ void Cma::print_cma_page_status(std::string name,bool alloc){
             fprintf(fp, "%s \n",oss.str().c_str());
             oss.str("");
             // calc how many page of one bit
-            int nr_pages = (1U << cma->order_per_bit);
+            size_t nr_pages = (1U << cma->order_per_bit);
             fprintf(fp, "========================================================================\n");
             ulong bitmap_addr = cma->bitmap;
             int index = 1;

@@ -741,7 +741,7 @@ void Core::parser_auvx(){
     }
     if (BITS64() && !is_compat){
         Elf64_Auxv_t* elf_auxv = (Elf64_Auxv_t*)auxv_buf;
-        for (size_t i = 0; i < auxv_cnt; i++){
+        for (int i = 0; i < auxv_cnt; i++){
             if (elf_auxv->type == 0){
                continue;
             }
@@ -750,7 +750,7 @@ void Core::parser_auvx(){
         }
     }else{
         Elf32_Auxv_t* elf_auxv = (Elf32_Auxv_t*)auxv_buf;
-        for (size_t i = 0; i < auxv_cnt; i++){
+        for (int i = 0; i < auxv_cnt; i++){
             if (elf_auxv->type == 0){
                continue;
             }
@@ -1316,10 +1316,10 @@ void Core::print_linkmap(){
     parser_auvx();
     std::free(auxv->data);
     auxv.reset();
-    ulong at_phdr = auxv_list[AT_PHDR];
-    ulong at_phnum = auxv_list[AT_PHNUM];
-    ulong at_phent = auxv_list[AT_PHENT];
-    ulong at_entry = auxv_list[AT_ENTRY];
+    size_t at_phdr = auxv_list[AT_PHDR];
+    size_t at_phnum = auxv_list[AT_PHNUM];
+    size_t at_phent = auxv_list[AT_PHENT];
+    size_t at_entry = auxv_list[AT_ENTRY];
     parser_exec_name(auxv_list[AT_EXECFN]);
     std::string exec_file_path;
     if(!find_lib_path(exe_name, Core::symbols_path, exec_file_path)){
@@ -1358,7 +1358,7 @@ void Core::print_linkmap(){
     ulong exec_dynamic_vaddr = 0;
     Elf(Dyn)* dyn = nullptr;
     bool flags = true;
-    for (int i = 0; i < at_phnum; ++i) {
+    for (size_t i = 0; i < at_phnum; ++i) {
         if (phdr[i].p_type == PT_DYNAMIC) {
             dyn = reinterpret_cast<Elf(Dyn)*>((static_cast<char*>(exec_map) + phdr[i].p_offset));
             exec_dynamic_vaddr = phdr[i].p_vaddr;

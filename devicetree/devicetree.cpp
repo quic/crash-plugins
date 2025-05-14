@@ -169,7 +169,7 @@ std::vector<DdrRange> Devicetree::parse_memory_regs(std::shared_ptr<Property> pr
         regs[i] = ntohl(UINT(ptr + i * sizeof(int)));
     }
     int group_cnt = reg_cnt / 4;
-    for (size_t i = 0; i < group_cnt; ++i) {
+    for (int i = 0; i < group_cnt; ++i) {
         uint64_t address = (static_cast<uint64_t>(regs[i * 4 + 0]) << 32) | regs[i * 4 + 1];
         size_t size = static_cast<size_t>((static_cast<uint64_t>(regs[i * 4 + 2]) << 32) | regs[i * 4 + 3]);
         result.push_back({address, size});

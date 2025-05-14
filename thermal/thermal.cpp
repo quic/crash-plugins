@@ -202,7 +202,7 @@ void Thermal::parser_thrermal_zone(){
         zone_ptr->last_temp = INT(dev_buf + field_offset(thermal_zone_device,last_temperature));
         zone_ptr->name = read_cstring(addr + field_offset(thermal_zone_device,type),20, "type");
         ulong governor_addr = ULONG(dev_buf + field_offset(thermal_zone_device,governor));
-        if (field_size(thermal_governor,name) > sizeof(void*)){
+        if ((long unsigned int)field_size(thermal_governor,name) > sizeof(void*)){
             zone_ptr->governor = read_cstring(governor_addr,20, "governor name");
         }else{
             ulong name_addr = read_pointer(governor_addr + field_offset(thermal_governor,name),"name addr");
@@ -210,7 +210,7 @@ void Thermal::parser_thrermal_zone(){
                 zone_ptr->governor = read_cstring(name_addr,64, "governor name");
             }
         }
-        int trip_cnt = 0;
+        size_t trip_cnt = 0;
         ulong trip_addr = 0;
         if (field_offset(thermal_zone_device,trips) != -1){
             trip_cnt = INT(dev_buf + field_offset(thermal_zone_device,num_trips));
@@ -238,7 +238,7 @@ void Thermal::parser_thrermal_zone(){
             ulong head_addr = addr + field_offset(thermal_zone_device,thermal_instances);
             for (const auto& ins_addr : for_each_list(head_addr,node_offset)) {
                 void *ins_buf = read_struct(ins_addr,"thermal_instance");
-                int trip = INT(ins_buf + field_offset(thermal_instance,trip));
+                size_t trip = INT(ins_buf + field_offset(thermal_instance,trip));
                 if (trip > zone_ptr->trip_list.size()) {
                     continue;
                 }

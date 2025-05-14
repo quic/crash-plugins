@@ -415,7 +415,6 @@ void Pageowner::print_memory_info(){
 
     std::unordered_map<size_t, std::shared_ptr<process_info>> process_map; //<pid,process_info>
     for (const auto& pair : owner_map) {
-        ulong pfn = pair.first;
         std::shared_ptr<page_owner> owner_ptr = pair.second;
         if(owner_ptr->handle <= 0 || owner_ptr->pid <= 0) continue;
         std::shared_ptr<process_info> proc_ptr;
@@ -435,7 +434,7 @@ void Pageowner::print_memory_info(){
     std::sort(process_vec.begin(), process_vec.end(),[&](const std::pair<unsigned int, std::shared_ptr<process_info>>& a, const std::pair<unsigned int, std::shared_ptr<process_info>>& b){
         return a.second->total_cnt > b.second->total_cnt;
     });
-    int print_cnt = 50; //only print top 50
+    size_t print_cnt = 50; //only print top 50
     for (size_t i = 0; i < process_vec.size() && i < print_cnt; i++){
         size_t pid = process_vec[i].first;
         std::string name = "unknow";
@@ -496,7 +495,6 @@ void Pageowner::print_total_size_by_handle(){
 void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list){
     std::unordered_map<size_t, std::shared_ptr<process_info>> process_map; //<pid,process_info>
     for (const auto& pair : owner_list) {
-        ulong pfn = pair.first;
         std::shared_ptr<page_owner> owner_ptr = pair.second;
         if(owner_ptr->pid <= 0) continue;
         // fprintf(fp, "pid:%zu, handle:%ld order:%d\n",owner_ptr->pid,(ulong)owner_ptr->handle,owner_ptr->order);
@@ -524,7 +522,7 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
         << std::left << std::setw(10) << "Times" << " "
         << std::left << std::setw(10) << "Size";
     fprintf(fp, "%s \n",oss_hd.str().c_str());
-    int print_cnt = 20; //only print top 20
+    size_t print_cnt = 20; //only print top 20
     for (size_t i = 0; i < process_vec.size() && i < print_cnt; i++){
         size_t pid = process_vec[i].first;
         std::string name = "unknow";
@@ -543,13 +541,11 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
 }
 
 void Pageowner::print_stack(ulong entries,uint nr_size){
-    struct syment *sp;
-    ulong offset;
     if (is_kvaddr(entries)){
         for (size_t i = 0; i < nr_size; i++) {
             ulong bt_addr = read_ulong(entries + i * sizeof(void *),"stack_record entries");
             ulong offset;
-            sp = value_search(bt_addr, &offset);
+            struct syment *sp = value_search(bt_addr, &offset);
             if (sp) {
                 fprintf(fp, "      [<%lx>] %s+%#lx\n", bt_addr, sp->name, offset);
             } else {
@@ -605,7 +601,7 @@ std::shared_ptr<page_owner> Pageowner::parser_page_owner(ulong addr){
 
 ulong Pageowner::parser_stack_record(uint page_owner_handle,uint* stack_len, ulong* sr_addr){
     ulong offset;
-    ulong slabindex;
+    int slabindex;
     union handle_parts parts = { .handle = page_owner_handle };
     if (THIS_KERNEL_VERSION >= LINUX(6,8,0)) {
         offset = parts.v3.offset << DEPOT_STACK_ALIGN;
@@ -749,7 +745,6 @@ ulong Pageowner::lookup_page_ext(ulong page) {
         int nid = page_to_nid(page);
         struct node_table *nt = &vt->node_table[nid];
         page_ext = read_pointer(nt->pgdat + field_offset(pglist_data,node_page_ext),"pglist_data_node_page_ext");
-        ulong index = pfn - phy_to_pfn(nt->start_paddr);
         return get_entry(page_ext, pfn);
     }
 }

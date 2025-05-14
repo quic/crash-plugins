@@ -278,7 +278,7 @@ void Zram::print_zspages(std::string zram_addr){
         if(class_ptr->zspage_parser == false){
             parser_zpage(class_ptr);
         }
-        for (size_t i = 0; i < group_cnt; i++){
+        for (int i = 0; i < group_cnt; i++){
             std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
             for (size_t z = 0; z < zspage_list.size(); z++){
                 std::shared_ptr<zpage> zspage_ptr = zspage_list[z];
@@ -332,7 +332,7 @@ void Zram::print_pages(std::string zram_addr){
         if(class_ptr->zspage_parser == false){
             parser_zpage(class_ptr);
         }
-        for (size_t i = 0; i < group_cnt; i++){
+        for (int i = 0; i < group_cnt; i++){
             std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
             for (size_t z = 0; z < zspage_list.size(); z++){
                 std::shared_ptr<zpage> zspage_ptr = zspage_list[z];
@@ -377,7 +377,7 @@ void Zram::print_objs(std::string addr){
                 mclass_ptr = class_ptr;
                 goto print_obj;
             }
-            for (size_t i = 0; i < group_cnt; i++){
+            for (int i = 0; i < group_cnt; i++){
                 std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
                 for (size_t z = 0; z < zspage_list.size(); z++){
                     std::shared_ptr<zpage> zspage_ptr = zspage_list[z];
@@ -409,7 +409,7 @@ print_obj:
 }
 
 void Zram::print_size_class_obj(std::shared_ptr<size_class> class_ptr){
-    for (size_t i = 0; i < group_cnt; i++){
+    for (int i = 0; i < group_cnt; i++){
         std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
         for (size_t z = 0; z < zspage_list.size(); z++){
             std::shared_ptr<zpage> zspage_ptr = zspage_list[z];
@@ -474,7 +474,7 @@ void Zram::print_zram_full_info(std::string zram_addr){
         }
         fprintf(fp, "\nsize_class(%lx) objs_per_zspage:%d pages_per_zspage:%d size:%d\n", class_ptr->addr,
             class_ptr->objs_per_zspage, class_ptr->pages_per_zspage, class_ptr->size);
-        for (size_t i = 0; i < group_cnt; i++){
+        for (int i = 0; i < group_cnt; i++){
             std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
             for (size_t z = 0; z < zspage_list.size(); z++){
                 std::shared_ptr<zpage> zspage_ptr = zspage_list[z];

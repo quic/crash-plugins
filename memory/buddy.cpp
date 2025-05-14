@@ -151,7 +151,7 @@ Buddy::Buddy(){
 std::vector<std::vector<ulong>> Buddy::parser_free_list(ulong addr){
     // fprintf(fp, "   free_list:%lx\n", addr);
     std::vector<std::vector<ulong>> free_list;
-    int free_list_cnt = field_size(free_area,free_list)/struct_size(list_head);
+    size_t free_list_cnt = field_size(free_area,free_list)/struct_size(list_head);
     for (size_t i = 0; i < free_list_cnt; i++){
         ulong list_head_addr = addr + i * struct_size(list_head);
         if (!is_kvaddr(list_head_addr))continue;
@@ -170,7 +170,7 @@ std::vector<std::vector<ulong>> Buddy::parser_free_list(ulong addr){
 std::vector<std::shared_ptr<free_area>> Buddy::parser_free_area(ulong addr){
     // fprintf(fp, "free_area:%lx\n", addr);
     std::vector<std::shared_ptr<free_area>> area_list;
-    int free_area_cnt = field_size(zone,free_area)/struct_size(free_area);
+    size_t free_area_cnt = field_size(zone,free_area)/struct_size(free_area);
     for (size_t i = 0; i < free_area_cnt; i++){
         ulong area_addr = addr + field_offset(zone,free_area) + i * struct_size(free_area);
         void *area_buf = read_struct(area_addr,"free_area");
@@ -196,12 +196,12 @@ std::shared_ptr<pglist_data> Buddy::parser_node_info(ulong addr){
     node_ptr->present_pages = ULONG(node_buf + field_offset(pglist_data,node_present_pages));
     node_ptr->spanned_pages = ULONG(node_buf + field_offset(pglist_data,node_spanned_pages));
     node_ptr->totalreserve_pages = ULONG(node_buf + field_offset(pglist_data,totalreserve_pages));
-    int vm_stat_cnt = field_size(pglist_data,vm_stat)/struct_size(atomic_long_t);
+    size_t vm_stat_cnt = field_size(pglist_data,vm_stat)/struct_size(atomic_long_t);
     for (size_t i = 0; i < vm_stat_cnt; i++){
         node_ptr->vm_stat.push_back(ULONG(node_buf + field_offset(pglist_data,vm_stat) + i * struct_size(atomic_long_t)));
     }
     ulong node_zones = addr + field_offset(pglist_data,node_zones);
-    for (size_t i = 0; i < vt->nr_zones; i++) {
+    for (int i = 0; i < vt->nr_zones; i++) {
         ulong zone_addr = (node_zones + (i * struct_size(zone)));
         std::shared_ptr<zone> zone_ptr = parser_zone_info(zone_addr);
         if (zone_ptr == nullptr) continue;
@@ -227,13 +227,10 @@ std::shared_ptr<zone> Buddy::parser_zone_info(ulong addr){
     zone_ptr->name = read_cstring(ULONG(zone_buf + field_offset(zone,name)),64, "zone_name");
     zone_ptr->watermark_boost = ULONG(zone_buf + field_offset(zone,watermark_boost));
     for (size_t i = 0; i < 3; i++){
-        int offset = field_offset(zone,_watermark);
-        int long_size = sizeof(long);
-        int waddr = offset + (i * long_size);
         zone_ptr->_watermark[i] = ULONG(zone_buf + (field_offset(zone,_watermark) + i * sizeof(unsigned long)));
         zone_ptr->lowmem_reserve[i] = ULONG(zone_buf + field_offset(zone,lowmem_reserve) + i * sizeof(long));
     }
-    int vm_stat_cnt = field_size(zone,vm_stat)/struct_size(atomic_long_t);
+    size_t vm_stat_cnt = field_size(zone,vm_stat)/struct_size(atomic_long_t);
     for (size_t i = 0; i < vm_stat_cnt; i++){
         zone_ptr->vm_stat.push_back(ULONG(zone_buf + field_offset(zone,vm_stat) + i * struct_size(atomic_long_t)));
     }
@@ -243,7 +240,7 @@ std::shared_ptr<zone> Buddy::parser_zone_info(ulong addr){
 }
 
 void Buddy::get_migratetype_names(){
-    int migratetype_cnt = get_array_length(TO_CONST_STRING("migratetype_names"),nullptr, 0);
+    size_t migratetype_cnt = get_array_length(TO_CONST_STRING("migratetype_names"),nullptr, 0);
     ulong migratetype_names_addr = csymbol_value("migratetype_names");
     for (size_t i = 0; i < migratetype_cnt; i++){
         ulong addr = migratetype_names_addr + i * sizeof(void *);
@@ -269,7 +266,7 @@ void Buddy::parser_buddy_info(){
         fprintf(fp, "migratetype_names not found in this kernel\n");
         return;
     }
-    for (size_t n = 0; n < vt->numnodes; n++) {
+    for (int n = 0; n < vt->numnodes; n++) {
         nt = &vt->node_table[n];
         std::shared_ptr<pglist_data> node_ptr = parser_node_info(nt->pgdat);
         if(node_ptr == nullptr) continue;
@@ -303,13 +300,13 @@ void Buddy::print_buddy_info(){
                 fprintf(fp, "%8s ", csize((1U << o)*page_size).c_str());
             }
             fprintf(fp, "%10s\n", "Total");
-            int free_list_cnt = field_size(free_area,free_list)/struct_size(list_head);
+            size_t free_list_cnt = field_size(free_area,free_list)/struct_size(list_head);
             if (free_list_cnt > migratetype_names.size()){
                 free_list_cnt = migratetype_names.size();
             }
             int64_t total_size = 0;
             int64_t total_by_order[vt->nr_free_areas] = {0};
-            for (int m = 0; m < free_list_cnt; m++) { //migrate type
+            for (size_t m = 0; m < free_list_cnt; m++) { //migrate type
                 fprintf(fp, "%12s ", migratetype_names[m].c_str());
                 int64_t total_per_type = 0;
                 for (int o = 0; o < vt->nr_free_areas; o++) { //order
@@ -334,7 +331,6 @@ void Buddy::print_buddy_info(){
 }
 
 void Buddy::print_node_info(std::shared_ptr<pglist_data> node_ptr){
-    int len = 15;
     int64_t spanned_size = node_ptr->spanned_pages*page_size;
     int64_t present_size = node_ptr->present_pages*page_size;
     int64_t hole_size = spanned_size - present_size;
@@ -385,7 +381,7 @@ void Buddy::print_memory_zone(std::string addr){
             for (size_t o = 0; o < zone_ptr->free_areas.size(); o++){
                 std::shared_ptr<free_area> area_ptr = zone_ptr->free_areas[o];
                 fprintf(fp, "\nOrder[%zu] %s\n", o, csize((1U << o)*page_size).c_str());
-                int free_list_cnt = area_ptr->free_list.size();
+                size_t free_list_cnt = area_ptr->free_list.size();
                 if (free_list_cnt > migratetype_names.size()){
                     free_list_cnt = migratetype_names.size();
                 }
@@ -411,7 +407,6 @@ void Buddy::print_memory_zone(std::string addr){
 }
 
 void Buddy::print_memory_node(){
-    char buf[BUFSIZE];
     fprintf(fp, "\nConfig:\n");
     fprintf(fp, "---------------------------------------\n");
     std::ostringstream oss;

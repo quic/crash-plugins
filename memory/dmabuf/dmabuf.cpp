@@ -115,9 +115,9 @@ void Dmabuf::parser_dma_bufs(){
              buf_ptr->exp_name = read_cstring(name_addr,64,"dma_buf_exp_name");
         }
         ulong ops_addr = ULONG(dmabuf + field_offset(dma_buf,ops));
-        struct syment *sp;
         ulong offset;
-        if (sp = value_search(ops_addr, &offset)) {
+        struct syment *sp = value_search(ops_addr, &offset);
+        if (sp) {
             buf_ptr->ops_name = sp->name;
         }
         FREEBUF(dmabuf);
@@ -454,7 +454,7 @@ void Dmabuf::print_procs(){
     }
 }
 
-void Dmabuf::print_proc(int pid){
+void Dmabuf::print_proc(ulong pid){
     for (const auto& proc_ptr : proc_list) {
         if (proc_ptr->tc->pid != pid){
             continue;

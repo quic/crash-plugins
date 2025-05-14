@@ -56,7 +56,7 @@ void Pageinfo::print_anon_pages(){
         if (!is_kvaddr(mapping)){
             continue;
         }
-        if(mapping & 0x1 == 0){ // skip file page
+        if((mapping & 0x1) == 0){ // skip file page
             continue;
         }
         physaddr_t paddr = page_to_phy(page);
@@ -78,7 +78,7 @@ void Pageinfo::parser_file_pages(){
         if (!is_kvaddr(mapping)){
             continue;
         }
-        if(mapping & 0x1 == 1){ // skip anon page
+        if((mapping & 0x1) == 1){ // skip anon page
             continue;
         }
         ulong inode = read_pointer(mapping + field_offset(address_space,host),"host");
@@ -95,7 +95,6 @@ void Pageinfo::parser_file_pages(){
         }
         inode_list.insert(inode);
     }
-    char *file_buf = nullptr;
     char buf[BUFSIZE];
     for (const auto& addr : inode_list) {
         std::shared_ptr<FileCache> file_ptr = std::make_shared<FileCache>();
@@ -151,8 +150,8 @@ bool Pageinfo::page_buddy(ulong page_addr){
         uint page_type = read_uint(page_addr + field_offset(page,page_type),"page_type");
         return ((page_type & 0xf0000080) == 0xf0000000);
     }else{
-        int mapcount = read_int(page_addr + field_offset(page,_mapcount),"_mapcount");
-        return mapcount == 0xffffff80;
+        uint mapcount = read_int(page_addr + field_offset(page,_mapcount),"_mapcount");
+        return (mapcount == 0xffffff80);
     }
 }
 

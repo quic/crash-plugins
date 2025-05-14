@@ -212,7 +212,7 @@ Slub::Slub(){
 
 std::shared_ptr<slab> Slub::parser_slab(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr){
     int count = 0;
-    int obj_index = 0;
+    unsigned int obj_index = 0;
     ulong freelist = 0;
     void *page_buf = nullptr;
     if (!is_kvaddr(slab_page_addr)){
@@ -289,7 +289,7 @@ std::vector<std::shared_ptr<slab>> Slub::parser_slab_from_list(std::shared_ptr<k
 std::vector<std::shared_ptr<kmem_cache_node>> Slub::parser_kmem_cache_node(std::shared_ptr<kmem_cache> cache_ptr, ulong node_addr){
     std::vector<std::shared_ptr<kmem_cache_node>> node_list;
     int node_cnt = field_size(kmem_cache,node)/sizeof(void *);
-    for (size_t i = 0; i < node_cnt; i++){
+    for (int i = 0; i < node_cnt; i++){
         ulong addr = read_pointer((node_addr + i * sizeof(void *)),"kmem_cache_node addr");
         if (!is_kvaddr(addr))continue;
         void *node_buf = read_struct(addr,"kmem_cache_node");
@@ -537,7 +537,7 @@ bool Slub::check_valid_pointer(std::shared_ptr<kmem_cache> cache_ptr, ulong page
         count = read_ulong(page_addr + field_offset(slab, counters), "slab counters");
     }
     ulong objects = (count >> 16) & 0x00007FFF;
-    if(object < slab_vaddr | object >= slab_vaddr + objects * cache_ptr->size | (object - slab_vaddr) % cache_ptr->size)
+    if((object < slab_vaddr) || (object >= slab_vaddr + objects * cache_ptr->size) || ((object - slab_vaddr) % cache_ptr->size))
         return false;
     return true;
 }
@@ -916,9 +916,9 @@ int Slub::check_object(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, u
         // check the kmalloc Redzone
         if(slub_debug_orig_size(cache_ptr) && val == SLUB_RED_ACTIVE){
             unsigned int orig_size_offset = get_orig_size(cache_ptr);
-            int orig_size = read_int(object + orig_size_offset, "orig_size");
+            unsigned int orig_size = read_int(object + orig_size_offset, "orig_size");
             if(cache_ptr->object_size > orig_size &&
-            !check_bytes_and_report(cache_ptr, page_addr, object, "kmalloc Redzone", p + orig_size, val, cache_ptr->object_size - orig_size)){
+                !check_bytes_and_report(cache_ptr, page_addr, object, "kmalloc Redzone", p + orig_size, val, cache_ptr->object_size - orig_size)){
                 ret = 0;
             }
         }

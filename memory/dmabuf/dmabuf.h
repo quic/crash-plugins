@@ -94,7 +94,7 @@ public:
     void print_dma_buf(std::string addr);
     void save_dma_buf(std::string addr);
     void print_procs();
-    void print_proc(int pid);
+    void print_proc(ulong pid);
 };
 
 #endif // DMABUF_DEFS_H_

@@ -321,9 +321,7 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
 }
 
 void Binder::print_binder_proc(ulong proc_addr,int flags) {
-    int cnt = 0;
     int offset = 0;
-
     ulong part1_addr = proc_addr + field_offset(binder_proc,proc_node);
     struct binder_proc_part1 proc_part1;
     if(!read_struct(part1_addr,&proc_part1,sizeof(proc_part1),"binder_proc_part1")){

@@ -207,7 +207,7 @@ long LogcatS::check_ChunkList_in_vma(std::shared_ptr<rw_vma> vma_ptr,ulong list_
         if (list_size < 2 && next_node == tail_node){
             return stdlist_addr;
         }
-        int index = 0;
+        size_t index = 0;
         size_t prev_node_addr = stdlist_addr;
         size_t next_node_addr = next_node;
         size_t prev_node;
@@ -216,7 +216,7 @@ long LogcatS::check_ChunkList_in_vma(std::shared_ptr<rw_vma> vma_ptr,ulong list_
             if(!swap_ptr->uread_buffer(tc_logd->task,next_node_addr,node_buf,3 * pointer_size, "stdlist Node")){
                 break;
             }
-            size_t tail_node, next_node, list_size;
+            size_t next_node;
             if (is_compat) {
                 prev_node = UINT(node_buf + 0 * sizeof(uint32_t));
                 next_node = UINT(node_buf + 1 * sizeof(uint32_t));
@@ -291,7 +291,6 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
     }
     init_datatype_info();
     ulong contents_data = 0;
-    ulong contents_size = 0;
     int write_offset = 0;
     unsigned char writer_active = 0;
     ulong compressed_data = 0;
@@ -299,8 +298,6 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
     if (is_compat) {
         contents_data = swap_ptr->uread_uint(tc_logd->task,vaddr
                 + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_,"read contents_data");
-        contents_size = swap_ptr->uread_uint(tc_logd->task,vaddr
-                + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_ ,"read contents_size");
         write_offset = swap_ptr->uread_int(tc_logd->task,vaddr
                 + g_offset.SerializedLogChunk_write_offset_,"read write_offset");
         writer_active = swap_ptr->uread_byte(tc_logd->task,vaddr
@@ -312,8 +309,6 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
     }else{
         contents_data = swap_ptr->uread_ulong(tc_logd->task,vaddr
                 + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_,"read contents_data");
-        contents_size = swap_ptr->uread_ulong(tc_logd->task,vaddr
-                + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_ ,"read contents_size");
         write_offset = swap_ptr->uread_int(tc_logd->task,vaddr
                 + g_offset.SerializedLogChunk_write_offset_,"read write_offset");
         writer_active = swap_ptr->uread_byte(tc_logd->task,vaddr
@@ -366,7 +361,6 @@ void LogcatS::parser_SerializedLogEntry(LOG_ID log_id, char* log_data, uint32_t 
     size_t pos = 0;
     char* logbuf = log_data;
     int entry_size = sizeof(SerializedLogEntry);
-    size_t cnt = 0;
     while (pos + entry_size <= data_len){
         SerializedLogEntry* entry = (SerializedLogEntry*)logbuf;
         std::shared_ptr<LogEntry> log_ptr = std::make_shared<LogEntry>();

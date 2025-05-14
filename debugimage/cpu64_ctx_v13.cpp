@@ -29,8 +29,6 @@ void Cpu64_Context_V13::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     tzbsp_dump_64_1_3_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_3_t*>(buf);
 
     uint64_t lr = reg_dump.sc_regs.x[30];
-    uint64_t sp = reg_dump.sc_regs.sp_el1;
-    uint64_t fp1 = reg_dump.sc_regs.x[29];
     uint64_t pc = pac_ignore(reg_dump.sc_regs.pc);
     struct syment *sym;
     ulong offset;

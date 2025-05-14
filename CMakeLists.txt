@@ -20,7 +20,7 @@ add_definitions(-D__LITTLE_ENDIAN)
 add_definitions(-D_FILE_OFFSET_BITS=64)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -rdynamic -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -rdynamic -Wall")
 
 include_directories(.)
 

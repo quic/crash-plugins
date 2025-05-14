@@ -183,12 +183,12 @@ void Memblock::print_memblock(){
 
 void Memblock::print_memblock_type(memblock_type* type){
     size_t addr_len = 0;
-    for (int i = 0; i < type->cnt; ++i) {
+    for (size_t i = 0; i < type->cnt; ++i) {
         std::stringstream tmp;
         tmp << std::hex << (type->regions[i]->base + type->regions[i]->size);
         addr_len = std::max(addr_len,tmp.str().length());
     }
-    for (int i = 0; i < type->cnt; ++i) {
+    for (size_t i = 0; i < type->cnt; ++i) {
         std::ostringstream oss;
         oss << "  ["
             << std::setw(5) << std::setfill('0') << i << "]"
