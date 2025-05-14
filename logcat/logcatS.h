@@ -92,7 +92,7 @@ private:
     /*
      SerializedLogBuffer has 10 virtual functions
     */
-    const int vtbl_size = 10;
+    const size_t vtbl_size = 10;
     struct logcat_offset_table g_offset;
     struct logcat_size_table g_size;
     ulong min_rw_vma_addr = ULONG_MAX;

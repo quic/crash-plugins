@@ -770,8 +770,6 @@ void Core::parser_thread_core_info() {
 
 void Core::parser_auvx(){
     size_t auxv_size = field_size(mm_struct, saved_auxv);
-    size_t data_size = BITS64() && !is_compat ? sizeof(Elf64_Auxv_t) : sizeof(Elf32_Auxv_t);
-    int auxv_cnt = auxv_size / data_size;
     void* auxv_buf = read_memory(tc->mm_struct + field_offset(mm_struct, saved_auxv), auxv_size, "mm_struct saved_auxv");
     if(!auxv_buf){
         fprintf(fp, "fill_auvx_note auxv_buf is NULL \n");
@@ -876,7 +874,7 @@ void Core::dump_align(std::streampos position, std::streamsize align) {
     if (mod > 0) {
         std::streamsize padding_size = align - mod;
         std::vector<char> padding(padding_size, 0);
-        if (fwrite(padding.data(), 1, padding_size, corefile) != padding_size) {
+        if (fwrite(padding.data(), 1, padding_size, corefile) != static_cast<size_t>(padding_size)) {
             fprintf(fp, "Error writing padding to core file\n");
         }
     }
@@ -1153,7 +1151,6 @@ bool Core::read_elf_file(std::shared_ptr<symbol_info> lib_ptr){
 
 void Core::free_lib_map() {
     for (auto& pair : lib_map) {
-        const auto& vma_name = pair.first;
         const auto& symbol = pair.second;
         if (!symbol) continue;
         if (symbol->map_addr != nullptr && symbol->map_size > 0) {
@@ -1391,7 +1388,7 @@ void Core::print_linkmap(){
         // see the svr4_exec_displacement in GDB.
         if (memcmp(&phdr[i], &core_phdr[i * sizeof(Elf(Phdr))], sizeof(Elf(Phdr))) != 0) {
             if(flags){
-                fprintf(fp, "the phdr is not correct in coredump, core phnum:%ld, exec phnum:%d \n", at_phnum, ehdr->e_phnum);
+                fprintf(fp, "the phdr is not correct in coredump, core phnum:%zd, exec phnum:%d \n", at_phnum, ehdr->e_phnum);
                 flags = false;
             }
         }

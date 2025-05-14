@@ -59,6 +59,9 @@ void Swapinfo::init_command(){
     field_init(vm_area_struct,vm_start);
     field_init(vm_area_struct,vm_file);
     field_init(file,f_vfsmnt);
+    field_init(file, f_path);
+    field_init(path, dentry);
+    field_init(path, mnt);
     parser_swap_info();
 }
 
@@ -592,6 +595,7 @@ uint64_t Swapinfo::read_symbol(std::string& symbol_name,std::string& libname) {
 //  get the first vma start address,such as b61db000
 ulong Swapinfo::get_file_min_vaddr(ulong task_addr, std::string libname){
     char buf[BUFSIZE];
+    char *file_buf = nullptr;
     std::vector<ulong> res_list;
     for (auto &vma_addr : for_each_vma(task_addr)){
         void *vma_buf = read_struct(vma_addr, "vm_area_struct");
@@ -605,10 +609,13 @@ ulong Swapinfo::get_file_min_vaddr(ulong task_addr, std::string libname){
         if (!is_kvaddr(vm_file)){
             continue;
         }
-        if (field_offset(file, f_vfsmnt) != -1) {
-            get_pathname(file_to_dentry(vm_file), buf, BUFSIZE, 1, file_to_vfsmnt(vm_file));
+        file_buf = fill_file_cache(vm_file);
+        ulong dentry = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, dentry));
+        if (is_kvaddr(dentry) && field_offset(file, f_path) != -1 && field_offset(path, dentry) != -1 && field_offset(path, mnt) != -1) {
+            ulong vfsmnt = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, mnt));
+            get_pathname(dentry, buf, BUFSIZE, 1, vfsmnt);
         } else {
-            get_pathname(file_to_dentry(vm_file), buf, BUFSIZE, 1, 0);
+            get_pathname(dentry, buf, BUFSIZE, 1, 0);
         }
         std::string file_name = buf;
         if (file_name.find(libname) != std::string::npos){

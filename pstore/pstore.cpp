@@ -119,7 +119,7 @@ void Pstore::print_ftrace_log(){
         return;
     }
     ulong zone_paddr = read_ulong(fprzs_addr + field_offset(persistent_ram_zone,paddr),"paddr");
-    ulong zone_size = read_ulong(fprzs_addr + field_offset(persistent_ram_zone,size),"size");
+    // ulong zone_size = read_ulong(fprzs_addr + field_offset(persistent_ram_zone,size),"size");
     ulong buffer_addr = read_pointer(fprzs_addr + field_offset(persistent_ram_zone,buffer),"buffer");
     if (!is_kvaddr(buffer_addr)) {
         fprintf(fp, "buffer address is invalid!\n");
@@ -149,7 +149,7 @@ void Pstore::print_oops_log(){
         return;
     }
     ulong zone_paddr = read_ulong(dprzs_addr + field_offset(persistent_ram_zone,paddr),"paddr");
-    ulong zone_size = read_ulong(dprzs_addr + field_offset(persistent_ram_zone,size),"size");
+    // ulong zone_size = read_ulong(dprzs_addr + field_offset(persistent_ram_zone,size),"size");
     ulong buffer_addr = read_pointer(dprzs_addr + field_offset(persistent_ram_zone,buffer),"buffer");
     if (!is_kvaddr(buffer_addr)) {
         fprintf(fp, "buffer address is invalid!\n");
@@ -179,7 +179,7 @@ void Pstore::print_console_log(){
         return;
     }
     ulong zone_paddr = read_ulong(cprz_addr + field_offset(persistent_ram_zone,paddr),"paddr");
-    ulong zone_size = read_ulong(cprz_addr + field_offset(persistent_ram_zone,size),"size");
+    // ulong zone_size = read_ulong(cprz_addr + field_offset(persistent_ram_zone,size),"size");
     ulong buffer_addr = read_pointer(cprz_addr + field_offset(persistent_ram_zone,buffer),"buffer");
     if (!is_kvaddr(buffer_addr)) {
         fprintf(fp, "buffer address is invalid!\n");
@@ -209,7 +209,7 @@ void Pstore::print_pmsg(){
         return;
     }
     ulong zone_paddr = read_ulong(mprz_addr + field_offset(persistent_ram_zone,paddr),"paddr");
-    ulong zone_size = read_ulong(mprz_addr + field_offset(persistent_ram_zone,size),"size");
+    // ulong zone_size = read_ulong(mprz_addr + field_offset(persistent_ram_zone,size),"size");
     ulong buffer_addr = read_pointer(mprz_addr + field_offset(persistent_ram_zone,buffer),"buffer");
     if (!is_kvaddr(buffer_addr)) {
         fprintf(fp, "buffer address is invalid!\n");
