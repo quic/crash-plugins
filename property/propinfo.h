@@ -18,7 +18,6 @@
 
 #include "plugin.h"
 #include "memory/swapinfo.h"
-#include <functional>
 
 struct prop_area{
     uint32_t bytes_used_;
@@ -99,7 +98,7 @@ public:
     void parser_prop_info(size_t prop_info_addr);
     void parser_prop_by_init();
     bool for_each_prop(uint32_t prop_bt_off, size_t vma_len, char *vma_data);
-    std::optional<std::string> cleanString(const std::string &str);
+    std::string cleanString(const std::string &str);
     void cmd_main(void) override;
     std::string get_prop(std::string name);
 };

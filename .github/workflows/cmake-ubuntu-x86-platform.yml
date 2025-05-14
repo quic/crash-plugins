@@ -1,6 +1,6 @@
 # This starter workflow is for a CMake project running on a single platform. There is a different starter workflow if you need cross-platform coverage.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
-name: CMake on ubuntu platforms
+name: CMake on ubuntu x86 platforms
 
 on:
   push:
@@ -34,14 +34,14 @@ jobs:
     - name: Build
       run: |
         bash build.sh
-        tar -czvf crash-plugins_${{ env.tag }}.tar.gz output/arm64/plugins.so \
+        tar -czvf crash-plugins_${{ env.tag }}_x86.tar.gz output/arm64/plugins.so \
                         output/arm/plugins.so
 
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: crash-plugins_${{ env.tag }}.tar.gz
-        path: crash-plugins_${{ env.tag }}.tar.gz
+        name: crash-plugins_${{ env.tag }}_x86.tar.gz
+        path: crash-plugins_${{ env.tag }}_x86.tar.gz
 
   release:
      needs: build
@@ -57,26 +57,16 @@ jobs:
      - name: Download build artifacts
        uses: actions/download-artifact@v4
        with:
-           name: crash-plugins_${{ env.plugin_tag }}.tar.gz
+           name: crash-plugins_${{ env.plugin_tag }}_x86.tar.gz
 
      - name: Release the Crash-plugins
        id: release-crash
-       uses: actions/create-release@v1
+       uses: softprops/action-gh-release@v1
        env:
            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
        with:
            tag_name: ${{ env.plugin_tag }}
-           release_name: crash-plugins-${{ env.plugin_tag }}
+           name: crash-plugins-${{ env.plugin_tag }}
+           update: true
            files: |
-             crash-plugins_${{ env.plugin_tag }}.tar.gz
-
-     - name: Upload Release Asset
-       id: upload
-       uses: actions/upload-release-asset@latest
-       env:
-             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-       with:
-             upload_url: ${{ steps.release-crash.outputs.upload_url }}
-             asset_path: crash-plugins_${{ env.plugin_tag }}.tar.gz
-             asset_name: crash-plugins_${{ env.plugin_tag }}.tar.gz
-             asset_content_type: application/gzip #zip
+             crash-plugins_${{ env.plugin_tag }}_x86.tar.gz

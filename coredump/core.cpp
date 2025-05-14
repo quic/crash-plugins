@@ -416,11 +416,13 @@ void Core::write_core_file(void) {
     //  Writing PT LOAD
     //  ===========================================
     // auto start = std::chrono::high_resolution_clock::now();
+    size_t vma_count = vma_list.size();
     for (const auto& vma_ptr : vma_list) {
         phdr_pos += get_phdr_size();
         if (!write_pt_load(vma_ptr,phdr_pos,load_data_pos)){
             continue;
         }
+        std::cout << "Written page to core file. Remaining VMA count: " << --vma_count << std::endl;
     }
     // auto end = std::chrono::high_resolution_clock::now();
     // std::chrono::duration<double> elapsed = end - start;

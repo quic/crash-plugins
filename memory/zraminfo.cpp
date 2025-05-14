@@ -98,21 +98,8 @@ void Zraminfo::init_offset(){
 }
 
 bool Zraminfo::is_zram_enable(){
-    std::string config = get_config_val("CONFIG_ZRAM");
-    if(config == "y")return true;
-    if(config == "m"){
-        init_offset();
-        if(field_offset(zram,mem_pool) == -1){
-            fprintf(fp, "Please run mod -s zram.ko \n");
-            return false;
-        }
-        if(field_offset(size_class,size) == -1){
-            fprintf(fp, "Please run mod -s zsmalloc.ko \n");
-            return false;
-        }
-        return true;
-    }else{
-        fprintf(fp, "zram is disabled\n");
+    if(field_offset(zram,mem_pool) == -1 || field_offset(size_class,size) == -1){
+        fprintf(fp, "Please run mod -s zram.ko and zsmalloc.ko at first, then reload the plugins\n");
         return false;
     }
     if (!csymbol_exists("zram_index_idr")){
@@ -301,7 +288,9 @@ char* Zraminfo::read_zram_page(ulong zram_addr, ulonglong index){
     }
     ulonglong total_pages = zram_ptr->disksize >> PAGESHIFT();
     if (index > total_pages){
-        fprintf(fp, "the max index of zram_table_entry:%lld, cur index:%lld\n",total_pages,index);
+        if(debug){
+            fprintf(fp, "the max index of zram_table_entry:%lld, cur index:%lld\n",total_pages,index);
+        }
         return nullptr;
     }
     struct zram_table_entry entry;
@@ -567,7 +556,7 @@ std::shared_ptr<zram> Zraminfo::parser_zram(ulong addr){
         char compressor_name[128];
         memcpy(&compressor_name,(void *)zram_buf + field_offset(zram,compressor),128);
         zram_ptr->compressor = extract_string(compressor_name);
-        // std::cout << "compressor_name:" << zram_ptr->compressor << std::endl;
+        // fprintf(fp, "compressor_name:%s\n", zram_ptr->compressor.c_str());
     }else if (field_offset(zram,comp_algs) != -1){
         ulong name_addr = ULONG(zram_buf + field_offset(zram,comp_algs));
         if (is_kvaddr(name_addr)){
