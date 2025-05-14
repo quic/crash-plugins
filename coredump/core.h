@@ -291,8 +291,10 @@ public:
     }
     void parser_core_dump(void);
     void parser_exec_name(ulong addr);
+    bool SearchFile(const std::string &directory, const std::string &name, std::string &result);
+    bool InnerSearchFile(const std::string &path, std::string name, std::string &result);
+    void ListFiles(const std::string &directory, std::string name, std::string &result);
     void print_linkmap();
-    bool find_lib_path(const std::string &target_path, const std::string &search_base, std::string &result_path);
     bool write_pt_note(void);
     bool write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& data_pos);
     void write_core_file(void);

@@ -142,56 +142,72 @@ void Core::parser_exec_name(ulong addr){
     }
 }
 
-bool Core::find_lib_path(const std::string& target_path, const std::string& search_base, std::string& result_path) {
-    std::string clean_target = target_path;
-    if (!clean_target.empty() && clean_target[0] == '/') {
-        clean_target.erase(0, 1);
-    }
-    const std::string normalized_target = std::filesystem::path(clean_target).lexically_normal().generic_string();
-    const std::filesystem::path direct_path = std::filesystem::path(search_base) / clean_target;
-    if (std::filesystem::exists(direct_path)) {
-        result_path = direct_path.generic_string();
-        return true;
-    }
-
-    std::string target_filename = std::filesystem::path(clean_target).filename().generic_string();
-    target_filename.erase(std::remove(target_filename.begin(), target_filename.end(), '\0'), target_filename.end());
-    std::string first_filename_match;
-    try {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(search_base)) {
-            if (!entry.is_regular_file()) continue;
-
-            const std::string current_filename = entry.path().filename().generic_string();
-            if (current_filename != target_filename) continue;
-
-            if (first_filename_match.empty()) {
-                first_filename_match = entry.path().generic_string();
-            }
-            const std::string relative_path = entry.path()
-                .lexically_relative(search_base)
-                .lexically_normal()
-                .generic_string();
-            const size_t pos = relative_path.find(normalized_target);
-            if (pos != std::string::npos) {
-                const bool valid_prefix = (pos == 0) || (relative_path[pos-1] == '/');
-                const bool valid_suffix = (pos + normalized_target.size() == relative_path.size());
-
-                if (valid_prefix && valid_suffix) {
-                    result_path = entry.path().generic_string();
-                    return true;
-                }
-            }
-        }
-    } catch (const std::exception& e) {
-        fprintf(fp, "exception msg:%s \n", e.what());
-    }
-
-    if (!first_filename_match.empty()) {
-        result_path = first_filename_match;
-        fprintf(fp, "only match the file name:%s \n", result_path.c_str());
-        return true;
+bool Core::SearchFile(const std::string& directory, const std::string& name, std::string& result) {
+    if (!directory.empty() && !name.empty()) {
+        return InnerSearchFile(directory, name, result);
     }
     return false;
+}
+
+bool Core::InnerSearchFile(const std::string& path, std::string name, std::string& result) {
+    struct stat path_stat;
+    if (stat(path.c_str(), &path_stat) != 0) {
+        return false;
+    }
+    if (S_ISDIR(path_stat.st_mode)) {
+        ListFiles(path, name, result);
+    } else if (S_ISREG(path_stat.st_mode)) {
+        size_t last_slash = path.find_last_of('/');
+        std::string filename = (last_slash == std::string::npos) ? path : path.substr(last_slash + 1);
+
+        last_slash = name.find_last_of('/');
+        name = (last_slash == std::string::npos) ? name : name.substr(last_slash + 1);
+        name.erase(std::remove(name.begin(), name.end(), '\0'), name.end());
+        if (filename == name) {
+            result = path;
+        }
+    }
+    return !result.empty();
+}
+
+void Core::ListFiles(const std::string& directory, std::string name, std::string& result) {
+    DIR* dirp = opendir(directory.c_str());
+    if (!dirp) {
+        return;
+    }
+
+    struct dirent* dp;
+    while ((dp = readdir(dirp))) {
+        std::string entry_name(dp->d_name);
+
+        if (entry_name == "." || entry_name == "..") {
+            continue;
+        }
+
+        std::string full_path = directory;
+        if (full_path.back() != '/'){
+            full_path += '/';
+        }
+        full_path += entry_name;
+        if (dp->d_type == DT_DIR) {
+            ListFiles(full_path, name, result);
+        } else {
+            size_t last_slash = full_path.find_last_of('/');
+            std::string filename = (last_slash == std::string::npos) ? full_path : full_path.substr(last_slash + 1);
+
+            last_slash = name.find_last_of('/');
+            name = (last_slash == std::string::npos) ? name : name.substr(last_slash + 1);
+            name.erase(std::remove(name.begin(), name.end(), '\0'), name.end());
+            if (filename == name) {
+                result = full_path;
+                break;
+            }
+        }
+        if(!result.empty()){
+            break;
+        }
+    }
+    closedir(dirp);
 }
 
 bool Core::write_pt_note(void) {
@@ -302,14 +318,26 @@ bool Core::write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& 
         /*
         replace all symbol info to core base on l_addr
         */
-        for (auto& [vma_name, symbol] : lib_map) {
+        for (auto& pair : lib_map) {
+            const auto& vma_name = pair.first;
+            const auto& symbol = pair.second;
             if (!symbol) continue;
             if(get_phdr_vma(symbol->vma_load_list) == vma_ptr){
                 size_t memsz = vma_ptr->vm_end - vma_ptr->vm_start;
                 size_t pgoff = vma_ptr->vm_pgoff << 12;
                 fwrite(reinterpret_cast<char*>(symbol->map_addr) + pgoff, memsz, 1, corefile);
-                fprintf(fp, "overwrite %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
-                    vma_name.c_str(), memsz,vma_ptr->vm_pgoff << 12, vma_ptr->vm_start, vma_ptr->vm_end);
+                if(debug){
+                    fprintf(fp, "overwrite %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
+                        vma_name.c_str(), memsz,vma_ptr->vm_pgoff << 12, vma_ptr->vm_start, vma_ptr->vm_end);
+                } else {
+                    std::cout << "overwrite " << vma_name
+                    << ":[size:" << std::hex << std::showbase << memsz
+                    << " off:" << std::hex << std::showbase << (vma_ptr->vm_pgoff << 12)
+                    << " to core:[" << std::hex << std::showbase << vma_ptr->vm_start
+                    << " - " << std::hex << std::showbase << vma_ptr->vm_end
+                    << "]\n";
+                }
+
                 data_pos += memsz;
                 replace = true;
             }
@@ -344,8 +372,17 @@ size_t Core::replace_phdr_load(std::shared_ptr<vma> vma_ptr){
     if (munmap(map, map_size) == -1) {
         fprintf(fp, "munmap PHDR failed \n");
     }
-    fprintf(fp, "overwrite PHDR %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
+    if(debug){
+        fprintf(fp, "overwrite PHDR %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
             vma_ptr->name.c_str(), memsz, vma_ptr->vm_pgoff << 12, vma_ptr->vm_start, vma_ptr->vm_end);
+    } else {
+        std::cout << "overwrite PHDR " << vma_ptr->name
+        << ":[size:" << std::hex << std::showbase << memsz
+        << " off:" << std::hex << std::showbase << (vma_ptr->vm_pgoff << 12)
+        << " to core:[" << std::hex << std::showbase << vma_ptr->vm_start
+        << " - " << std::hex << std::showbase << vma_ptr->vm_end
+        << "]\n";
+    }
     return memsz;
 }
 void Core::write_core_file(void) {
@@ -422,7 +459,11 @@ void Core::write_core_file(void) {
         if (!write_pt_load(vma_ptr,phdr_pos,load_data_pos)){
             continue;
         }
-        std::cout << "Written page to core file. Remaining VMA count: " << --vma_count << std::endl;
+        if(debug){
+            fprintf(fp, "Written page to core file. Remaining VMA count: %zd\n", --vma_count);
+        } else {
+            std::cout << "Written page to core file. Remaining VMA count: " << --vma_count << std::endl;
+        }
     }
     // auto end = std::chrono::high_resolution_clock::now();
     // std::chrono::duration<double> elapsed = end - start;
@@ -771,7 +812,7 @@ void Core::parser_nt_file() {
 
         if (!Core::symbols_path.empty()){
             std::string filepath;
-            if(!find_lib_path(vma->name, Core::symbols_path, filepath)){
+            if(!SearchFile(Core::symbols_path, vma->name, filepath)){
                 continue;
             }
             std::shared_ptr<symbol_info> lib_ptr;
@@ -1111,7 +1152,9 @@ bool Core::read_elf_file(std::shared_ptr<symbol_info> lib_ptr){
 }
 
 void Core::free_lib_map() {
-    for (auto& [key, symbol] : lib_map) {
+    for (auto& pair : lib_map) {
+        const auto& vma_name = pair.first;
+        const auto& symbol = pair.second;
         if (!symbol) continue;
         if (symbol->map_addr != nullptr && symbol->map_size > 0) {
             if (munmap(symbol->map_addr, symbol->map_size) == -1) {
@@ -1304,7 +1347,7 @@ void Core::print_linkmap(){
     size_t at_entry = auxv_list[AT_ENTRY];
     parser_exec_name(auxv_list[AT_EXECFN]);
     std::string exec_file_path;
-    if(!find_lib_path(exe_name, Core::symbols_path, exec_file_path)){
+    if(!SearchFile(Core::symbols_path, exe_name, exec_file_path)){
         fprintf(fp, "can't find %s\n",exe_name.c_str());
         return;
     }
