@@ -24,8 +24,8 @@ void PropInfo::cmd_main(void) {
 
 std::string PropInfo::get_prop(std::string name){
     if (prop_map.size() == 0){
-        parser_propertys();
         parser_prop_by_init();
+        parser_propertys();
     }
     if (prop_map.find(name) != prop_map.end()) {
         return prop_map[name];
@@ -108,17 +108,17 @@ void PropInfo::init_datatype_info(){
     field_init(prop_info, name);
     struct_init(ContextNode);
     if (field_offset(prop_area, data_) == -1){
-        g_offset.SystemProperties_contexts_ = BITS64() ? (is_compat ? 32 : 64) : 32;
-        g_offset.ContextsSerialized_context_nodes_ = BITS64() ? (is_compat ? 16 : 32) : 16;
-        g_offset.ContextsSerialized_num_context_nodes_ = BITS64() ? (is_compat ? 20 : 40) : 20;
-        g_offset.ContextsSerialized_serial_prop_area_ = BITS64() ? (is_compat ? 28 : 56) : 28;
-        g_offset.ContextNode_pa_ = BITS64() ? (is_compat ? 12 : 16) : 12;
-        g_offset.ContextNode_filename_ = BITS64() ? (is_compat ? 20 : 32) : 20;
-        g_offset.ContextNode_context_ = BITS64() ? (is_compat ? 8 : 8) : 8;
-        g_offset.prop_bt_prop = BITS64() ? (is_compat ? 4 : 4) : 4;
-        g_offset.prop_area_data_ = BITS64() ? (is_compat ? 128 : 128) : 128;
-        g_offset.prop_info_name = BITS64() ? (is_compat ? 96 : 96) : 96;
-        g_size.ContextNode = BITS64() ? (is_compat ? 24 : 40) : 24;
+        g_offset.SystemProperties_contexts_ = (BITS64() && !is_compat) ? 64 : 32;
+        g_offset.ContextsSerialized_context_nodes_ = (BITS64() && !is_compat) ? 32 : 16;
+        g_offset.ContextsSerialized_num_context_nodes_ = (BITS64() && !is_compat) ? 40 : 20;
+        g_offset.ContextsSerialized_serial_prop_area_ = (BITS64() && !is_compat) ? 56 : 28;
+        g_offset.ContextNode_pa_ = (BITS64() && !is_compat) ? 16 : 12;
+        g_offset.ContextNode_filename_ = (BITS64() && !is_compat) ? 32 : 20;
+        g_offset.ContextNode_context_ = 8;
+        g_offset.prop_bt_prop = 4;
+        g_offset.prop_area_data_ = 128;
+        g_offset.prop_info_name = (BITS64() && !is_compat) ? 96 : 96;
+        g_size.ContextNode = (BITS64() && !is_compat) ? 40 : 24;
     }else{
         g_offset.SystemProperties_contexts_ = field_offset(SystemProperties, contexts_);
         g_offset.ContextsSerialized_context_nodes_ = field_offset(ContextsSerialized, context_nodes_);
@@ -152,7 +152,7 @@ bool PropInfo::parser_propertys(){
     if (is_compat){
         pa_size = swap_ptr->uread_uint(tc_init->task, pa_size_addr, "read pa_size");
     }else{
-        pa_size = swap_ptr->uread_ulong(tc_init->task, pa_size_addr, "read pa_size");
+        pa_size = swap_ptr->uread_ulong(tc_init->task, pa_size_addr, "read pa_size") & vaddr_mask;
     }
     if(debug)fprintf(fp, "pa_size:%#zx --> %zu \n",pa_size_addr, pa_size);
 
@@ -164,7 +164,7 @@ bool PropInfo::parser_propertys(){
     if (is_compat){
         pa_data_size = swap_ptr->uread_uint(tc_init->task, pa_data_size_addr, "read pa_data_size");
     }else{
-        pa_data_size = swap_ptr->uread_ulong(tc_init->task, pa_data_size_addr, "read pa_data_size");
+        pa_data_size = swap_ptr->uread_ulong(tc_init->task, pa_data_size_addr, "read pa_data_size") & vaddr_mask;
     }
     if(debug)fprintf(fp, "pa_data_size:%#zx --> %zu \n",pa_data_size_addr, pa_data_size);
     size_t system_prop_addr = swap_ptr->get_var_addr_by_bss("system_properties", tc_init->task, symbol_file);
@@ -178,7 +178,7 @@ bool PropInfo::parser_propertys(){
     if (is_compat){
         contexts_addr = swap_ptr->uread_uint(tc_init->task, contexts_addr, "read Contexts");
     }else{
-        contexts_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr, "read Contexts");
+        contexts_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr, "read Contexts") & vaddr_mask;
     }
     if (!is_uvaddr(contexts_addr,tc_init)){
         // fprintf(fp, "ContextsSerialized: %#zx is not invaild !\n",contexts_addr);
@@ -191,9 +191,9 @@ bool PropInfo::parser_propertys(){
         context_nodes_addr = swap_ptr->uread_uint(tc_init->task, contexts_addr + g_offset.ContextsSerialized_context_nodes_, "read context_nodes_");
         serial_prop_area_addr = swap_ptr->uread_uint(tc_init->task, contexts_addr + g_offset.ContextsSerialized_serial_prop_area_, "read serial_prop_area_");
     }else{
-        num_context_nodes = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_num_context_nodes_, "read num_context_nodes_");
-        context_nodes_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_context_nodes_, "read context_nodes_");
-        serial_prop_area_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_serial_prop_area_, "read serial_prop_area_");
+        num_context_nodes = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_num_context_nodes_, "read num_context_nodes_") & vaddr_mask;
+        context_nodes_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_context_nodes_, "read context_nodes_") & vaddr_mask;
+        serial_prop_area_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_serial_prop_area_, "read serial_prop_area_") & vaddr_mask;
     }
     if (!is_uvaddr(serial_prop_area_addr,tc_init)){
         // fprintf(fp, "serial_prop_area: %#zx is not invaild !\n",serial_prop_area_addr);
@@ -219,9 +219,9 @@ bool PropInfo::parser_propertys(){
             context_addr = swap_ptr->uread_uint(tc_init->task, node_addr + g_offset.ContextNode_context_, "read context_");
             filename_addr = swap_ptr->uread_uint(tc_init->task, node_addr + g_offset.ContextNode_filename_, "read filename");
         }else{
-            prop_area_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_pa_, "read prop_area");
-            context_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_context_, "read context_");
-            filename_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_filename_, "read filename");
+            prop_area_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_pa_, "read prop_area") & vaddr_mask;
+            context_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_context_, "read context_") & vaddr_mask;
+            filename_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_filename_, "read filename") & vaddr_mask;
         }
         std::string context = swap_ptr->uread_cstring(tc_init->task,context_addr,100, "prop context");
         std::string filename = swap_ptr->uread_cstring(tc_init->task,filename_addr,100, "prop filename");
@@ -240,7 +240,7 @@ bool PropInfo::parser_prop_area(size_t area_vaddr){
     }
     char prop_area_buf[sizeof(prop_area)];
     if(!swap_ptr->uread_buffer(tc_init->task,area_vaddr,prop_area_buf,sizeof(prop_area), "prop_area")){
-        // fprintf(fp, "read prop_area fail at: %#zx !\n",area_vaddr);
+        if(debug)fprintf(fp, "read prop_area fail at: %#zx !\n",area_vaddr);
         return false;
     }
     prop_area area = *reinterpret_cast<prop_area*>(prop_area_buf);
