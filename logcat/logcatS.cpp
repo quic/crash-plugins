@@ -75,11 +75,17 @@ ulong LogcatS::parser_logbuf_addr(){
             }
         }
     }
+    std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> start, end;
+    std::chrono::duration<double> elapsed;
     get_rw_vma_list();
     fprintf(fp, "vma count:%zu, vaddr_mask:%#lx \n", rw_vma_list.size(), vaddr_mask);
     if (BITS64() && !is_compat) {
         fprintf(fp, "Looking for register\n");
+        start = std::chrono::high_resolution_clock::now();
         logbuf_addr = get_logbuf_addr_from_register();
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+        fprintf(fp, "time: %.6f s\n",elapsed.count());
         if (logbuf_addr != 0){
             freeResource();
             return logbuf_addr;
@@ -87,23 +93,30 @@ ulong LogcatS::parser_logbuf_addr(){
     }
 
     fprintf(fp, "Looking for SerializedLogBuffer \n");
+    start = std::chrono::high_resolution_clock::now();
     if (BITS64() && !is_compat) {
         logbuf_addr = get_SerializedLogBuffer_from_vma<SerializedLogBuffer64_t, uint64_t>();
     } else {
         logbuf_addr = get_SerializedLogBuffer_from_vma<SerializedLogBuffer32_t, uint32_t>();
     }
+    end = std::chrono::high_resolution_clock::now();
+    elapsed = end - start;
+    fprintf(fp, "time: %.6f s\n",elapsed.count());
     if (logbuf_addr != 0){
         freeResource();
         return logbuf_addr + g_offset.SerializedLogBuffer_logs_;
     }
 
     fprintf(fp, "looking for std::list \n");
+    start = std::chrono::high_resolution_clock::now();
     logbuf_addr = get_stdlist_addr_from_vma();
+    end = std::chrono::high_resolution_clock::now();
+    elapsed = end - start;
+    fprintf(fp, "time: %.6f s\n",elapsed.count());
     if (logbuf_addr != 0){
         freeResource();
         return logbuf_addr;
     }
-
     freeResource();
     return 0;
 }
@@ -222,12 +235,20 @@ size_t LogcatS::get_SerializedLogBuffer_from_vma() {
         for (size_t addr = vma_ptr->vm_start; addr < vma_ptr->vm_end; addr += sizeof(U)) {
             bool match = true;
             T* logbuffer = reinterpret_cast<T*>(vma_ptr->vm_data + (addr - vma_ptr->vm_start));
-            if (!is_uvaddr(logbuffer->vtpr, tc_logd) || !logbuffer->vtpr/* 0 */) {
+            if (!is_uvaddr(logbuffer->vtpr, tc_logd) || !logbuffer->vtpr /* 0 */) {
                 continue;
             }
-            U vtbl[vtbl_size];
-            swap_ptr->uread_buffer(tc_logd->task, logbuffer->vtpr, (char*)vtbl, vtbl_size * sizeof(U), "read vtbl");
+            U* vtbl = nullptr;
+            for (const auto& vma_ptr : rw_vma_list) {
+                if (logbuffer->vtpr >= vma_ptr->vm_start && logbuffer->vtpr < vma_ptr->vm_end){
+                    if((logbuffer->vtpr - vma_ptr->vm_start) + sizeof(vtbl_size * sizeof(U)) <= vma_ptr->vm_size){
+                        vtbl = reinterpret_cast<U*>(vma_ptr->vm_data + (logbuffer->vtpr - vma_ptr->vm_start));
+                    }
+                }
+            }
+            if (!vtbl) continue;
             for (size_t i = 0; i < vtbl_size; ++i){
+                if (vtbl[i] == 0) continue;
                 if(!addrContains(exec_vma_ptr, vtbl[i])){
                     match = false;
                     break;
