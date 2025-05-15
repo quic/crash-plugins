@@ -94,10 +94,10 @@ Support module:
 | pstore        | √         | √         | parser pstore log                                    |
 
 
-|  module       |   Android-11.0(30)  |  Android-12.0(31)   |   Android-13.0(33)  |       comment         |
-|  --------     | ------------------- | ------------------- | ------------------- | -----------------     |
-| property      | √                   | √                   |                     | parser property info  |
-| logcat        | √                   | √                   |                     | parser logcat log     |
+|  module       |   Android-11.0(30)  |  > Android-12.0(31)  |       comment         |
+|  --------     | ------------------- | -------------------  | -----------------     |
+| property      | √                   | √                    | parser property info  |
+| logcat        | √                   | √                    | parser logcat log     |
 
 ## usage
 See [USAGE.md](USAGE.md)
