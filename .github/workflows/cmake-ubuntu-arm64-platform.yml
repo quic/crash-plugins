@@ -50,25 +50,35 @@ jobs:
      runs-on: ubuntu-22.04-arm
 
      steps:
-     - name: checkout branch
-       uses: actions/checkout@v4
+      - name: checkout branch
+        uses: actions/checkout@v4
 
-     - name: get_tag
-       run: echo "plugin_tag=$(git tag)" >> $GITHUB_ENV
+      - name: get_tag
+        run: echo "plugin_tag=$(git tag)" >> $GITHUB_ENV
 
-     - name: Download build artifacts
-       uses: actions/download-artifact@v4
-       with:
-           name: crash-plugins_${{ env.plugin_tag }}_arm.tar.gz
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+            name: crash-plugins_${{ env.plugin_tag }}_arm.tar.gz
 
-     - name: Release the Crash-plugins
-       id: release-crash
-       uses: softprops/action-gh-release@v1
-       env:
-           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-       with:
-           tag_name: ${{ env.plugin_tag }}
-           name: crash-plugins-${{ env.plugin_tag }}
-           update: true
-           files: |
-             crash-plugins_${{ env.plugin_tag }}_arm.tar.gz
+      - name: Release the Crash-plugins
+        id: release-crash
+        uses: actions/create-release@v1
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+            tag_name: ${{ env.plugin_tag }}
+            release_name: crash-plugins-${{ env.plugin_tag }}
+            files: |
+              crash-plugins_${{ env.plugin_tag }}_arm.tar.gz
+
+      - name: Upload Release Asset
+        id: upload
+        uses: actions/upload-release-asset@latest
+        env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+              upload_url: ${{ steps.release-crash.outputs.upload_url }}
+              asset_path: crash-plugins_${{ env.plugin_tag }}_arm.tar.gz
+              asset_name: crash-plugins_${{ env.plugin_tag }}_arm.tar.gz
+              asset_content_type: application/gzip #zip
