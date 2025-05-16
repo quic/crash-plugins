@@ -755,7 +755,6 @@ std::map<std::string, ulong> PaserPlugin::read_enum_list(const std::string& enum
         key.erase(key.find_last_not_of(" \t\n\r") + 1);
         enum_list.insert(std::make_pair(key, value));
     }
-
     return enum_list;
 }
 

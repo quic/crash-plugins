@@ -45,6 +45,7 @@
 #include "icc/icc.h"
 #include "clock/clock.h"
 #include "pstore/pstore.h"
+#include "sys.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -85,6 +86,7 @@ std::shared_ptr<Regulator>  Regulator::instance = nullptr;
 std::shared_ptr<ICC>        ICC::instance = nullptr;
 std::shared_ptr<Clock>      Clock::instance = nullptr;
 std::shared_ptr<Pstore>     Pstore::instance = nullptr;
+std::shared_ptr<SysInfo>    SysInfo::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -120,6 +122,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     ICC::instance = std::make_shared<ICC>();
     Clock::instance = std::make_shared<Clock>();
     Pstore::instance = std::make_shared<Pstore>();
+    SysInfo::instance = std::make_shared<SysInfo>();
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -154,6 +157,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &ICC::instance->cmd_name[0], &ICC::wrapper_func, ICC::instance->cmd_help, 0 },
         { &Clock::instance->cmd_name[0], &Clock::wrapper_func, Clock::instance->cmd_help, 0 },
         { &Pstore::instance->cmd_name[0], &Pstore::wrapper_func, Pstore::instance->cmd_help, 0 },
+        { &SysInfo::instance->cmd_name[0], &SysInfo::wrapper_func, SysInfo::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -193,6 +197,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     ICC::instance.reset();
     Clock::instance.reset();
     Pstore::instance.reset();
+    SysInfo::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
