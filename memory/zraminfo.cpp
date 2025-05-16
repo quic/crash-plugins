@@ -333,13 +333,13 @@ char* Zraminfo::read_zram_page(ulong zram_addr, ulonglong index){
 int Zraminfo::decompress(std::string comp_name,char* source, char* dest,
                                  int compressedSize, int maxDecompressedSize){
     // sudo apt-get install liblz4-dev liblz4-dev:i386
-    if (comp_name == "lz4" || comp_name == "lz4 rle"){
+    if (comp_name.find("lz4") != std::string::npos){
         int decompressedSize = LZ4_decompress_safe(source, dest, compressedSize, maxDecompressedSize);
         if (decompressedSize > 0) {
             return decompressedSize;
         }
     // sudo apt-get install liblzo2-dev liblzo2-dev:i386
-    }else if (comp_name == "lzo" || comp_name == "lzo rle"){
+    }else if (comp_name.find("lzo") != std::string::npos){
         int res = lzo_init();
         if (res != LZO_E_OK) {
             fprintf(fp, "Error initializing LZO library !\n");
