@@ -47,28 +47,6 @@ struct SerializedLogEntry {
     uint16_t msg_len;
 }__attribute__((packed));
 
-struct vma_info {
-    ulong vm_start;
-    ulong vm_end;
-    ulong vm_size;
-    ulong vm_file;
-    ulong vm_flags;
-    std::string vma_name;
-    void* vm_data;
-};
-
-typedef struct{
-    uint32_t prev;
-    uint32_t next;
-    uint32_t data;
-} list_node32_t;
-
-typedef struct{
-    uint64_t prev;
-    uint64_t next;
-    uint64_t data;
-} list_node64_t;
-
 typedef struct{
     uint32_t vtpr;
     uint32_t reader_list_;
@@ -95,27 +73,16 @@ private:
     const size_t vtbl_size = 10;
     struct logcat_offset_table g_offset;
     struct logcat_size_table g_size;
-    ulong min_rw_vma_addr = ULONG_MAX;
-    ulong max_rw_vma_addr = 0;
-    std::vector<std::shared_ptr<vma_info>> rw_vma_list;
-
-    template<typename T, typename U>
-    ulong check_stdlist(ulong addr);
     void init_datatype_info();
     ulong parser_logbuf_addr() override;
-    void freeResource();
-    size_t get_stdlist_addr_from_vma();
-    std::shared_ptr<vma_info> parser_vma_info(ulong vma_addr);
-    void get_rw_vma_list();
-    template<typename T>
-    char* read_node(ulong addr);
-    bool search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, ulong& start_addr);
+    size_t get_stdlist_addr_from_vma() override;
+    size_t get_logbuf_addr_from_bss() override;
+    bool search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) override;
+
     size_t get_logbuf_addr_from_register();
-    bool check_SerializedLogChunk(ulong addr);
+    bool check_SerializedLogChunk_list_array(ulong addr);
     template<typename T, typename U>
     size_t get_SerializedLogBuffer_from_vma();
-    bool addrContains(std::shared_ptr<vma_info> vma_ptr, ulong addr);
-    size_t get_logbuf_addr_from_bss();
     void parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr);
     void parser_SerializedLogEntry(LOG_ID log_id, char *log_data, uint32_t data_len);
 
