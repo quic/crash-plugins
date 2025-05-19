@@ -35,9 +35,9 @@ struct regulator_dev {
     ulong addr;
     ulong desc;
     ulong constraint;
-    int32_t open_count;
-    int32_t use_count;
-    int32_t bypass_count;
+    uint32_t open_count;
+    uint32_t use_count;
+    uint32_t bypass_count;
     std::string name;
     int min_uV;
     int max_uV;

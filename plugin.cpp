@@ -82,28 +82,28 @@ bool PaserPlugin::isNumber(const std::string& str) {
     return result;
 }
 
-std::string PaserPlugin::csize(int64_t size){
+std::string PaserPlugin::csize(uint64_t size){
     std::ostringstream oss;
     if (size < KB) {
         oss << size << "B";
     } else if (size < MB) {
         double sizeInKB = static_cast<double>(size) / KB;
-        if (sizeInKB == static_cast<int64_t>(sizeInKB)) {
-            oss << static_cast<int64_t>(sizeInKB) << "KB";
+        if (sizeInKB == static_cast<uint64_t>(sizeInKB)) {
+            oss << static_cast<uint64_t>(sizeInKB) << "KB";
         } else {
             oss << std::fixed << std::setprecision(2) << sizeInKB << "KB";
         }
     } else if (size < GB) {
         double sizeInMB = static_cast<double>(size) / MB;
-        if (sizeInMB == static_cast<int64_t>(sizeInMB)) {
-            oss << static_cast<int64_t>(sizeInMB) << "MB";
+        if (sizeInMB == static_cast<uint64_t>(sizeInMB)) {
+            oss << static_cast<uint64_t>(sizeInMB) << "MB";
         } else {
             oss << std::fixed << std::setprecision(2) << sizeInMB << "MB";
         }
     } else {
         double sizeInGB = static_cast<double>(size) / GB;
-        if (sizeInGB == static_cast<int64_t>(sizeInGB)) {
-            oss << static_cast<int64_t>(sizeInGB) << "GB";
+        if (sizeInGB == static_cast<uint64_t>(sizeInGB)) {
+            oss << static_cast<uint64_t>(sizeInGB) << "GB";
         } else {
             oss << std::fixed << std::setprecision(2) << sizeInGB << "GB";
         }
@@ -111,7 +111,7 @@ std::string PaserPlugin::csize(int64_t size){
     return oss.str();
 }
 
-std::string PaserPlugin::csize(int64_t size, int unit, int precision){
+std::string PaserPlugin::csize(uint64_t size, int unit, int precision){
     std::ostringstream oss;
     if (unit == KB) {
         oss << std::fixed << std::setprecision(precision) << (size / KB) << " KB";

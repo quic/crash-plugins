@@ -96,16 +96,16 @@ void Cpu64_Context_V20::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
 }
 
 void Cpu64_Context_V20::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
-    // int32_t affinity = read_uint(entry_ptr->data_addr + cpu_index_offset,"affinity",false);
-    // int32_t cpu_type = read_uint(entry_ptr->data_addr + cpu_type_offset,"cpu_type",false);
-    // int32_t ctx_type = read_uint(entry_ptr->data_addr + ctx_type_offset,"ctx_type",false);
-    int32_t num_register = read_uint(entry_ptr->data_addr + regset_num_register_offset,"num_register",false);
+    // uint32_t affinity = read_uint(entry_ptr->data_addr + cpu_index_offset,"affinity",false);
+    // uint32_t cpu_type = read_uint(entry_ptr->data_addr + cpu_type_offset,"cpu_type",false);
+    // uint32_t ctx_type = read_uint(entry_ptr->data_addr + ctx_type_offset,"ctx_type",false);
+    uint32_t num_register = read_uint(entry_ptr->data_addr + regset_num_register_offset,"num_register",false);
 
     std::vector<std::shared_ptr<regset_t>> regset_list;
     uint64_t registers_addr = entry_ptr->data_addr + registers_offset;
-    for (int32_t i = 0; i < num_register; i++){
+    for (uint32_t i = 0; i < num_register; i++){
         uint64_t addr = registers_addr + i * registers_size;
-        int32_t regset_id = read_uint(addr + regset_id_offset,"regset_id",false);
+        uint32_t regset_id = read_uint(addr + regset_id_offset,"regset_id",false);
         if (regset_id == 0){
             break;
         }

@@ -89,8 +89,8 @@ void Reserved::parser_reserved_mem(){
         if (!reserved_mem_buf) {
             continue;
         }
-        int64_t base = 0;
-        int64_t size = 0;
+        uint64_t base = 0;
+        uint64_t size = 0;
         if(get_config_val("CONFIG_PHYS_ADDR_T_64BIT") == "y"){
             base = ULONGLONG(reserved_mem_buf + field_offset(reserved_mem,base));
             size = ULONGLONG(reserved_mem_buf + field_offset(reserved_mem,size));

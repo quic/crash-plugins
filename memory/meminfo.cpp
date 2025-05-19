@@ -563,13 +563,13 @@ void Meminfo::print_vmstat(void){
             oss << std::left << "Zone (" << zone_name << ")" << std::setw(29 - strlen(zone_name)) << std::right << " Pages |"
                 << std::setw(12) << std::right << "Size\n"
                 << std::left << "present_pages:        " << std::setw(12) << std::right << present_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)present_pg*page_size, MB, 1) << "\n"
+                << std::setw(12) << std::right << csize((uint64_t)present_pg*page_size, MB, 1) << "\n"
                 << std::left << "spanned_pages:        " << std::setw(12) << std::right << spanned_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)spanned_pg*page_size, MB, 1) << "\n"
+                << std::setw(12) << std::right << csize((uint64_t)spanned_pg*page_size, MB, 1) << "\n"
                 << std::left << "managed_pages:        " << std::setw(12) << std::right << managed_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)managed_pg*page_size, MB, 1) << "\n"
+                << std::setw(12) << std::right << csize((uint64_t)managed_pg*page_size, MB, 1) << "\n"
                 << std::left << "cma_pages:            " << std::setw(12) << std::right << cma_pg << " |"
-                << std::setw(12) << std::right << csize((int64_t)cma_pg*page_size, MB, 1) << "\n";
+                << std::setw(12) << std::right << csize((uint64_t)cma_pg*page_size, MB, 1) << "\n";
             FREEBUF(zone_name);
 
             ulong wtmark_offset = (THIS_KERNEL_VERSION < LINUX(4, 19, 0))?field_offset(zone, watermark):field_offset(zone, _watermark);
@@ -577,14 +577,14 @@ void Meminfo::print_vmstat(void){
                 if (pair.second == enums["NR_WMARK"])   continue;
                 ulong wt_pg = read_ulong(zone_addr + wtmark_offset + sizeof(ulong)*pair.second, "read from watermark pages");
                 oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << wt_pg << " |"
-                    << std::setw(12) << std::right << csize((int64_t)wt_pg*page_size, MB, 1) << "\n";
+                    << std::setw(12) << std::right << csize((uint64_t)wt_pg*page_size, MB, 1) << "\n";
             }
 
             for (const auto& pair : enum_dict["zone_stat_item"]) {
                 if (pair.second == enums["NR_VM_ZONE_STAT_ITEMS"])   continue;
                 ulong zone_item_pg = read_ulong(zone_addr + field_offset(zone, vm_stat) + sizeof(ulong)*pair.second, "read from vm_stat");
                 oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << zone_item_pg << " |"
-                    << std::setw(12) << std::right << csize((int64_t)zone_item_pg*page_size, MB, 1) << "\n";
+                    << std::setw(12) << std::right << csize((uint64_t)zone_item_pg*page_size, MB, 1) << "\n";
             }
             oss << "\n";
         }
@@ -595,7 +595,7 @@ void Meminfo::print_vmstat(void){
         if (pair.second == enums["NR_VM_ZONE_STAT_ITEMS"])   continue;
         ulong zone_item_pg = zone_page_state[enums[pair.first]];
         oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << zone_item_pg << " |"
-            << std::setw(12) << std::right << csize((int64_t)zone_item_pg*page_size, MB, 1) << "\n";
+            << std::setw(12) << std::right << csize((uint64_t)zone_item_pg*page_size, MB, 1) << "\n";
     }
     oss << "\n";
     oss << std::left << "Node Stats" << std::setw(26) << std::right << " Pages |" << std::setw(12) << std::right << "Size\n";
@@ -603,7 +603,7 @@ void Meminfo::print_vmstat(void){
         if (pair.second == enums["NR_VM_NODE_STAT_ITEMS"])   continue;
         ulong node_item_pg = node_page_state[enums[pair.first]];
         oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << node_item_pg << " |"
-            << std::setw(12) << std::right << csize((int64_t)node_item_pg*page_size, MB, 1) << "\n";
+            << std::setw(12) << std::right << csize((uint64_t)node_item_pg*page_size, MB, 1) << "\n";
     }
     oss << "\n";
     oss << std::left << "VM EVENT Stats" << std::setw(22) << std::right << " Pages |" << std::setw(12) << std::right << "Size\n";
@@ -614,7 +614,7 @@ void Meminfo::print_vmstat(void){
             vm_event_item_pg += vm_event_page_state[cpu][enums[pair.first]];
         }
         oss << std::left << pair.first << ":" << std::setw(33 - pair.first.length()) << std::right << vm_event_item_pg << " |"
-            << std::setw(12) << std::right << csize((int64_t)vm_event_item_pg*page_size, MB, 1) << "\n";
+            << std::setw(12) << std::right << csize((uint64_t)vm_event_item_pg*page_size, MB, 1) << "\n";
     }
     oss << "\n";
     fprintf(fp, "%s \n",oss.str().c_str());
@@ -653,28 +653,28 @@ void Meminfo::print_mem_breakdown(void){
         - (slab_pg * page_size + vmalloc + sharedram_pg * page_size + pagetables_pg * page_size + kernelstack_bytes)
         - aon_pg * page_size;
     std::ostringstream oss;
-    oss << std::left << "RAM                :" << std::setw(12) << std::right << csize((int64_t)totalmm_pg)                  << "\n"
-        << std::left << "   MemTotal        :" << std::setw(12) << std::right << csize((int64_t)totalram_pg * page_size)     << "\n"
-        << std::left << "   MemFree         :" << std::setw(12) << std::right << csize((int64_t)freeram_pg * page_size)      << "\n"
-        << std::left << "   Buffers         :" << std::setw(12) << std::right << csize((int64_t)blockdev_pg * page_size)     << "\n"
-        << std::left << "   Cached          :" << std::setw(12) << std::right << csize((int64_t)cached_pg * page_size)       << "\n"
-        << std::left << "   SwapCached      :" << std::setw(12) << std::right << csize((int64_t)swap_cached_pg * page_size)  << "\n"
-        << std::left << "   AonPage         :" << std::setw(12) << std::right << csize((int64_t)aon_pg * page_size)          << "\n"
-        << std::left << "   FilePage        :" << std::setw(12) << std::right << csize((int64_t)file_pg * page_size)         << "\n"
-        << std::left << "   Slab            :" << std::setw(12) << std::right << csize((int64_t)slab_pg * page_size)         << "\n"
-        << std::left << "   KernelStack     :" << std::setw(12) << std::right << csize((int64_t)kernelstack_bytes)           << "\n"
-        << std::left << "   PageTables      :" << std::setw(12) << std::right << csize((int64_t)pagetables_pg * page_size)   << "\n"
-        << std::left << "   Shmem           :" << std::setw(12) << std::right << csize((int64_t)sharedram_pg * page_size)    << "\n"
-        << std::left << "   Cma             :" << std::setw(12) << std::right << csize((int64_t)get_cma_size())              << "\n"
-        << std::left << "   Dmabuf          :" << std::setw(12) << std::right << csize((int64_t)dmabuf)                      << "\n"
-        << std::left << "   Vmalloc         :" << std::setw(12) << std::right << csize((int64_t)vmalloc)                     << "\n"
-        << std::left << "   Other           :" << std::setw(12) << std::right << csize((int64_t)other_size)                  << "\n\n"
-        << std::left << "   Struct Page     :" << std::setw(12) << std::right << csize((int64_t)struct_page)                 << "\n"
-        << std::left << "   Kernel Code     :" << std::setw(12) << std::right << csize((int64_t)kernel_code)                 << "\n"
-        << std::left << "   Kernel Data     :" << std::setw(12) << std::right << csize((int64_t)kernel_data)                 << "\n"
-        << std::left << "   Dentry Cache    :" << std::setw(12) << std::right << csize((int64_t)dentry_cache)                << "\n"
-        << std::left << "   Inode  Cache    :" << std::setw(12) << std::right << csize((int64_t)inode_cache)                 << "\n\n"
-        << std::left << "   NON_HLOS        :" << std::setw(12) << std::right << csize((int64_t)no_hlos)                     << "\n";
+    oss << std::left << "RAM                :" << std::setw(12) << std::right << csize((uint64_t)totalmm_pg)                  << "\n"
+        << std::left << "   MemTotal        :" << std::setw(12) << std::right << csize((uint64_t)totalram_pg * page_size)     << "\n"
+        << std::left << "   MemFree         :" << std::setw(12) << std::right << csize((uint64_t)freeram_pg * page_size)      << "\n"
+        << std::left << "   Buffers         :" << std::setw(12) << std::right << csize((uint64_t)blockdev_pg * page_size)     << "\n"
+        << std::left << "   Cached          :" << std::setw(12) << std::right << csize((uint64_t)cached_pg * page_size)       << "\n"
+        << std::left << "   SwapCached      :" << std::setw(12) << std::right << csize((uint64_t)swap_cached_pg * page_size)  << "\n"
+        << std::left << "   AonPage         :" << std::setw(12) << std::right << csize((uint64_t)aon_pg * page_size)          << "\n"
+        << std::left << "   FilePage        :" << std::setw(12) << std::right << csize((uint64_t)file_pg * page_size)         << "\n"
+        << std::left << "   Slab            :" << std::setw(12) << std::right << csize((uint64_t)slab_pg * page_size)         << "\n"
+        << std::left << "   KernelStack     :" << std::setw(12) << std::right << csize((uint64_t)kernelstack_bytes)           << "\n"
+        << std::left << "   PageTables      :" << std::setw(12) << std::right << csize((uint64_t)pagetables_pg * page_size)   << "\n"
+        << std::left << "   Shmem           :" << std::setw(12) << std::right << csize((uint64_t)sharedram_pg * page_size)    << "\n"
+        << std::left << "   Cma             :" << std::setw(12) << std::right << csize((uint64_t)get_cma_size())              << "\n"
+        << std::left << "   Dmabuf          :" << std::setw(12) << std::right << csize((uint64_t)dmabuf)                      << "\n"
+        << std::left << "   Vmalloc         :" << std::setw(12) << std::right << csize((uint64_t)vmalloc)                     << "\n"
+        << std::left << "   Other           :" << std::setw(12) << std::right << csize((uint64_t)other_size)                  << "\n\n"
+        << std::left << "   Struct Page     :" << std::setw(12) << std::right << csize((uint64_t)struct_page)                 << "\n"
+        << std::left << "   Kernel Code     :" << std::setw(12) << std::right << csize((uint64_t)kernel_code)                 << "\n"
+        << std::left << "   Kernel Data     :" << std::setw(12) << std::right << csize((uint64_t)kernel_data)                 << "\n"
+        << std::left << "   Dentry Cache    :" << std::setw(12) << std::right << csize((uint64_t)dentry_cache)                << "\n"
+        << std::left << "   Inode  Cache    :" << std::setw(12) << std::right << csize((uint64_t)inode_cache)                 << "\n\n"
+        << std::left << "   NON_HLOS        :" << std::setw(12) << std::right << csize((uint64_t)no_hlos)                     << "\n";
     fprintf(fp, "%s \n",oss.str().c_str());
 }
 
@@ -735,54 +735,54 @@ void Meminfo::print_meminfo(void){
     }
 
     std::ostringstream oss;
-    oss << std::left << "MemTotal:       " << std::setw(12) << std::right << csize((int64_t)totalram_pg * page_size, KB, 0) << "\n"
-        << std::left << "MemFree:        " << std::setw(12) << std::right << csize((int64_t)freeram_pg * page_size, KB, 0) << "\n"
-        << std::left << "MemAvailable:   " << std::setw(12) << std::right << csize((int64_t)available_pg * page_size, KB, 0) << "\n"
-        << std::left << "Buffers:        " << std::setw(12) << std::right << csize((int64_t)blockdev_pg * page_size, KB, 0) << "\n"
-        << std::left << "Cached:         " << std::setw(12) << std::right << csize((int64_t)cached_pg * page_size, KB, 0) << "\n"
-        << std::left << "SwapCached:     " << std::setw(12) << std::right << csize((int64_t)swap_cached_pg * page_size, KB, 0) << "\n"
-        << std::left << "Active:         " << std::setw(12) << std::right << csize((int64_t)active_pg * page_size, KB, 0) << "\n"
-        << std::left << "Inactive:       " << std::setw(12) << std::right << csize((int64_t)inactive_pg * page_size, KB, 0) << "\n"
-        << std::left << "Active(anon):   " << std::setw(12) << std::right << csize((int64_t)active_aon_pg * page_size, KB, 0) << "\n"
-        << std::left << "Inactive(anon): " << std::setw(12) << std::right << csize((int64_t)inactive_aon_pg * page_size, KB, 0) << "\n"
-        << std::left << "Active(file):   " << std::setw(12) << std::right << csize((int64_t)active_file_pg * page_size, KB, 0) << "\n"
-        << std::left << "Inactive(file): " << std::setw(12) << std::right << csize((int64_t)inactive_file_pg * page_size, KB, 0) << "\n"
-        << std::left << "Unevictable:    " << std::setw(12) << std::right << csize((int64_t)unevictable_pg * page_size, KB, 0) << "\n"
-        << std::left << "Mlocked:        " << std::setw(12) << std::right << csize((int64_t)mlocked_pg * page_size, KB, 0) << "\n"
-        << std::left << "SwapTotal:      " << std::setw(12) << std::right << csize((int64_t)totalswap_pg * page_size, KB, 0) << "\n"
-        << std::left << "SwapFree:       " << std::setw(12) << std::right << csize((int64_t)freeswap_pg * page_size, KB, 0) << "\n"
-        << std::left << "Dirty:          " << std::setw(12) << std::right << csize((int64_t)dirty_pg * page_size, KB, 0) << "\n"
-        << std::left << "Writeback:      " << std::setw(12) << std::right << csize((int64_t)writeback_pg * page_size, KB, 0) << "\n"
-        << std::left << "AnonPages:      " << std::setw(12) << std::right << csize((int64_t)anon_pg * page_size, KB, 0) << "\n"
-        << std::left << "Mapped:         " << std::setw(12) << std::right << csize((int64_t)mapped_pg * page_size, KB, 0) << "\n"
-        << std::left << "Shmem:          " << std::setw(12) << std::right << csize((int64_t)sharedram_pg * page_size, KB, 0) << "\n"
-        << std::left << "KReclaimable:   " << std::setw(12) << std::right << csize((int64_t)kreclaimable_pg * page_size, KB, 0) << "\n"
-        << std::left << "Slab:           " << std::setw(12) << std::right << csize((int64_t)slab_pg * page_size, KB, 0) << "\n"
-        << std::left << "SReclaimable:   " << std::setw(12) << std::right << csize((int64_t)slab_reclaimable_pg * page_size, KB, 0) << "\n"
-        << std::left << "SUnreclaim:     " << std::setw(12) << std::right << csize((int64_t)slab_unreclaim_pg * page_size, KB, 0) << "\n"
-        << std::left << "KernelStack:    " << std::setw(12) << std::right << csize((int64_t)kernelstack_bytes, KB, 0) << "\n";
+    oss << std::left << "MemTotal:       " << std::setw(12) << std::right << csize((uint64_t)totalram_pg * page_size, KB, 0) << "\n"
+        << std::left << "MemFree:        " << std::setw(12) << std::right << csize((uint64_t)freeram_pg * page_size, KB, 0) << "\n"
+        << std::left << "MemAvailable:   " << std::setw(12) << std::right << csize((uint64_t)available_pg * page_size, KB, 0) << "\n"
+        << std::left << "Buffers:        " << std::setw(12) << std::right << csize((uint64_t)blockdev_pg * page_size, KB, 0) << "\n"
+        << std::left << "Cached:         " << std::setw(12) << std::right << csize((uint64_t)cached_pg * page_size, KB, 0) << "\n"
+        << std::left << "SwapCached:     " << std::setw(12) << std::right << csize((uint64_t)swap_cached_pg * page_size, KB, 0) << "\n"
+        << std::left << "Active:         " << std::setw(12) << std::right << csize((uint64_t)active_pg * page_size, KB, 0) << "\n"
+        << std::left << "Inactive:       " << std::setw(12) << std::right << csize((uint64_t)inactive_pg * page_size, KB, 0) << "\n"
+        << std::left << "Active(anon):   " << std::setw(12) << std::right << csize((uint64_t)active_aon_pg * page_size, KB, 0) << "\n"
+        << std::left << "Inactive(anon): " << std::setw(12) << std::right << csize((uint64_t)inactive_aon_pg * page_size, KB, 0) << "\n"
+        << std::left << "Active(file):   " << std::setw(12) << std::right << csize((uint64_t)active_file_pg * page_size, KB, 0) << "\n"
+        << std::left << "Inactive(file): " << std::setw(12) << std::right << csize((uint64_t)inactive_file_pg * page_size, KB, 0) << "\n"
+        << std::left << "Unevictable:    " << std::setw(12) << std::right << csize((uint64_t)unevictable_pg * page_size, KB, 0) << "\n"
+        << std::left << "Mlocked:        " << std::setw(12) << std::right << csize((uint64_t)mlocked_pg * page_size, KB, 0) << "\n"
+        << std::left << "SwapTotal:      " << std::setw(12) << std::right << csize((uint64_t)totalswap_pg * page_size, KB, 0) << "\n"
+        << std::left << "SwapFree:       " << std::setw(12) << std::right << csize((uint64_t)freeswap_pg * page_size, KB, 0) << "\n"
+        << std::left << "Dirty:          " << std::setw(12) << std::right << csize((uint64_t)dirty_pg * page_size, KB, 0) << "\n"
+        << std::left << "Writeback:      " << std::setw(12) << std::right << csize((uint64_t)writeback_pg * page_size, KB, 0) << "\n"
+        << std::left << "AnonPages:      " << std::setw(12) << std::right << csize((uint64_t)anon_pg * page_size, KB, 0) << "\n"
+        << std::left << "Mapped:         " << std::setw(12) << std::right << csize((uint64_t)mapped_pg * page_size, KB, 0) << "\n"
+        << std::left << "Shmem:          " << std::setw(12) << std::right << csize((uint64_t)sharedram_pg * page_size, KB, 0) << "\n"
+        << std::left << "KReclaimable:   " << std::setw(12) << std::right << csize((uint64_t)kreclaimable_pg * page_size, KB, 0) << "\n"
+        << std::left << "Slab:           " << std::setw(12) << std::right << csize((uint64_t)slab_pg * page_size, KB, 0) << "\n"
+        << std::left << "SReclaimable:   " << std::setw(12) << std::right << csize((uint64_t)slab_reclaimable_pg * page_size, KB, 0) << "\n"
+        << std::left << "SUnreclaim:     " << std::setw(12) << std::right << csize((uint64_t)slab_unreclaim_pg * page_size, KB, 0) << "\n"
+        << std::left << "KernelStack:    " << std::setw(12) << std::right << csize((uint64_t)kernelstack_bytes, KB, 0) << "\n";
     if (get_config_val("CONFIG_SHADOW_CALL_STACK") == "y") {
-        oss << std::left << "ShadowCallStack:" << std::setw(12) << std::right << csize((int64_t)shadowstack_bytes, KB, 0) << "\n";
+        oss << std::left << "ShadowCallStack:" << std::setw(12) << std::right << csize((uint64_t)shadowstack_bytes, KB, 0) << "\n";
     }
-    oss << std::left << "PageTables:     " << std::setw(12) << std::right << csize((int64_t)pagetables_pg * page_size, KB, 0) << "\n"
-        << std::left << "NFS_Unstable:   " << std::setw(12) << std::right << csize((int64_t)0, KB, 0) << "\n"
-        << std::left << "Bounce:         " << std::setw(12) << std::right << csize((int64_t)bounce_pg * page_size, KB, 0) << "\n"
-        << std::left << "WritebackTmp:   " << std::setw(12) << std::right << csize((int64_t)writebacktmp_pg * page_size, KB, 0) << "\n"
-        << std::left << "CommitLimit:    " << std::setw(12) << std::right << csize((int64_t)vm_commit_pg * page_size, KB, 0) << "\n"
-        << std::left << "VmallocTotal:   " << std::setw(12) << std::right << csize((int64_t)vmalloc_total_bytes, KB, 0) << "\n"
-        << std::left << "VmallocUsed:    " << std::setw(12) << std::right << csize((int64_t)vmalloc_used_pg * page_size, KB, 0) << "\n"
-        << std::left << "VmallocChunk:   " << std::setw(12) << std::right << csize((int64_t)0, KB, 0) << "\n"
-        << std::left << "Percpu:         " << std::setw(12) << std::right << csize((int64_t)pcpu_nr_pg * page_size, KB, 0) << "\n";
+    oss << std::left << "PageTables:     " << std::setw(12) << std::right << csize((uint64_t)pagetables_pg * page_size, KB, 0) << "\n"
+        << std::left << "NFS_Unstable:   " << std::setw(12) << std::right << csize((uint64_t)0, KB, 0) << "\n"
+        << std::left << "Bounce:         " << std::setw(12) << std::right << csize((uint64_t)bounce_pg * page_size, KB, 0) << "\n"
+        << std::left << "WritebackTmp:   " << std::setw(12) << std::right << csize((uint64_t)writebacktmp_pg * page_size, KB, 0) << "\n"
+        << std::left << "CommitLimit:    " << std::setw(12) << std::right << csize((uint64_t)vm_commit_pg * page_size, KB, 0) << "\n"
+        << std::left << "VmallocTotal:   " << std::setw(12) << std::right << csize((uint64_t)vmalloc_total_bytes, KB, 0) << "\n"
+        << std::left << "VmallocUsed:    " << std::setw(12) << std::right << csize((uint64_t)vmalloc_used_pg * page_size, KB, 0) << "\n"
+        << std::left << "VmallocChunk:   " << std::setw(12) << std::right << csize((uint64_t)0, KB, 0) << "\n"
+        << std::left << "Percpu:         " << std::setw(12) << std::right << csize((uint64_t)pcpu_nr_pg * page_size, KB, 0) << "\n";
     if (get_config_val("CONFIG_TRANSPARENT_HUGEPAGE") == "y") {
-        oss << std::left << "AnonHugePages:  " << std::setw(12) << std::right << csize((int64_t)anon_huge_pg * page_size, KB, 0) << "\n"
-            << std::left << "ShmemHugePages: " << std::setw(12) << std::right << csize((int64_t)shmem_huge_pg * page_size, KB, 0) << "\n"
-            << std::left << "ShmemPmdMapped: " << std::setw(12) << std::right << csize((int64_t)shmem_pmd_mapped_pg * page_size, KB, 0) << "\n"
-            << std::left << "FileHugePages:  " << std::setw(12) << std::right << csize((int64_t)file_huge_pg * page_size, KB, 0) << "\n"
-            << std::left << "FilePmdMapped:  " << std::setw(12) << std::right << csize((int64_t)file_pmd_mapped_pg * page_size, KB, 0) << "\n";
+        oss << std::left << "AnonHugePages:  " << std::setw(12) << std::right << csize((uint64_t)anon_huge_pg * page_size, KB, 0) << "\n"
+            << std::left << "ShmemHugePages: " << std::setw(12) << std::right << csize((uint64_t)shmem_huge_pg * page_size, KB, 0) << "\n"
+            << std::left << "ShmemPmdMapped: " << std::setw(12) << std::right << csize((uint64_t)shmem_pmd_mapped_pg * page_size, KB, 0) << "\n"
+            << std::left << "FileHugePages:  " << std::setw(12) << std::right << csize((uint64_t)file_huge_pg * page_size, KB, 0) << "\n"
+            << std::left << "FilePmdMapped:  " << std::setw(12) << std::right << csize((uint64_t)file_pmd_mapped_pg * page_size, KB, 0) << "\n";
     }
     if (get_config_val("CONFIG_CMA") == "y") {
-        oss << std::left << "CmaTotal:       " << std::setw(12) << std::right << csize((int64_t)cma_total_pg * page_size, KB, 0) << "\n"
-            << std::left << "CmaFree:        " << std::setw(12) << std::right << csize((int64_t)cma_free_pg * page_size, KB, 0) << "\n";
+        oss << std::left << "CmaTotal:       " << std::setw(12) << std::right << csize((uint64_t)cma_total_pg * page_size, KB, 0) << "\n"
+            << std::left << "CmaFree:        " << std::setw(12) << std::right << csize((uint64_t)cma_free_pg * page_size, KB, 0) << "\n";
     }
     fprintf(fp, "%s \n",oss.str().c_str());
 }

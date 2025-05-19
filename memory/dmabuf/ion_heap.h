@@ -33,8 +33,8 @@ struct ion_heap {
     unsigned long flags;
     unsigned int id;
     std::string name;
-    int64_t buf_cnt;
-    int64_t total_allocated;
+    uint64_t buf_cnt;
+    uint64_t total_allocated;
     std::vector<std::shared_ptr<dma_buf>> bufs;
 };
 

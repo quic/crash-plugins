@@ -25,8 +25,8 @@ struct dma_heap {
     ulong priv_addr;
     int refcount;
     std::string name;
-    int64_t buf_cnt;
-    int64_t total_allocated;
+    uint64_t buf_cnt;
+    uint64_t total_allocated;
     std::vector<std::shared_ptr<dma_buf>> bufs;
 };
 

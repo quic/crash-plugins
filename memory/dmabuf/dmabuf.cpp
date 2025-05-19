@@ -307,7 +307,7 @@ std::vector<std::shared_ptr<attachment>> Dmabuf::parser_attachments(ulong list_h
 
 void Dmabuf::print_dma_buf_list(){
     int index = 1;
-    int64_t total_size = 0;
+    uint64_t total_size = 0;
     if (buf_list.size() == 0){
         return;
     }

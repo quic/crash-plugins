@@ -25,7 +25,7 @@ struct LogBufferElement {
     struct log_time mRealTime;
     union {
         char *mMsg;
-        int32_t mTag;
+        uint32_t mTag;
     };
     union {
         const uint16_t mMsgLen;

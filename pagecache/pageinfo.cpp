@@ -118,7 +118,7 @@ void Pageinfo::print_file_pages(){
     if (cache_list.size() == 0){
         parser_file_pages();
     }
-    int64_t total_size = 0;
+    uint64_t total_size = 0;
     for (const auto& file_ptr : cache_list) {
         total_size += file_ptr->nrpages;
     }

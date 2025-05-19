@@ -27,7 +27,7 @@ void Mount::cmd_main(void) {
 }
 
 void Mount::statfs(int width) {
-    int64_t total_size = static_cast<int64_t>(f_bsize) * f_blocks;
+    uint64_t total_size = static_cast<uint64_t>(f_bsize) * f_blocks;
     ulong used = f_bsize * (f_blocks - f_bfree);
     // ulong avail = f_bsize * f_bavail;
     ulong avail = total_size - used;

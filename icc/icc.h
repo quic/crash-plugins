@@ -21,17 +21,17 @@
 struct icc_req {
     ulong addr;
     bool enabled;
-    int32_t tag;
-    int32_t avg_bw;
-    int32_t peak_bw;
+    uint32_t tag;
+    uint32_t avg_bw;
+    uint32_t peak_bw;
     std::string name;
 };
 
 struct icc_node {
     ulong addr;
     int id;
-    int32_t avg_bw;
-    int32_t peak_bw;
+    uint32_t avg_bw;
+    uint32_t peak_bw;
     ulong data;
     std::string name;
     std::vector<std::shared_ptr<icc_req>> req_list;

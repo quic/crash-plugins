@@ -133,28 +133,28 @@ Find logbuf based on X22 register
 size_t LogcatS::get_logbuf_addr_from_register(){
 #if defined(ARM64)
     ulong pt_regs_addr = GET_STACKTOP(tc_logd->task) - machdep->machspec->user_eframe_offset;
-    int64_t* regs = (int64_t*)read_memory(pt_regs_addr, 31 * sizeof(int64_t), "user_pt_regs");
+    uint64_t* regs = (uint64_t*)read_memory(pt_regs_addr, 31 * sizeof(uint64_t), "user_pt_regs");
     if (debug){
         fprintf(fp, "user_pt_regs:%#lx \n", pt_regs_addr);
         for (int i = 0; i < 31; i++){
             fprintf(fp, "regs[%d]:%#lx \n", i,regs[i] & vaddr_mask );
         }
     }
-    int64_t x21 = regs[21] & vaddr_mask;
+    uint64_t x21 = regs[21] & vaddr_mask;
     if (x21 > 0){
         x21 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x21)){
             return x21;
         }
     }
-    int64_t x22 = regs[22] & vaddr_mask;
+    uint64_t x22 = regs[22] & vaddr_mask;
     if (x22 > 0){
         x22 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x22)){
             return x22;
         }
     }
-    int64_t x23 = regs[23] & vaddr_mask;
+    uint64_t x23 = regs[23] & vaddr_mask;
     if (x23 > 0){
         x23 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x23)){
