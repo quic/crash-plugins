@@ -15,7 +15,7 @@ sudo dpkg --add-architecture i386
 sudo apt-get update
 ```
 ```
-sudo apt install gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
+sudo apt install gcc-multilib g++-multilib libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
 ```
 
 # How to build
@@ -94,10 +94,10 @@ Support module:
 | pstore        | √         | √         | parser pstore log                                    |
 
 
-|  module       |   Android-11.0(30)  |  > Android-12.0(31)  |       comment         |
-|  --------     | ------------------- | -------------------  | -----------------     |
-| property      | √                   | √                    | parser property info  |
-| logcat        | √                   | √                    | parser logcat log     |
+|  module       |   Android-11.0(30)  |  >Android-12.0(31)  |      comment             |
+|  --------     | ------------------- | ------------------- | -------------------      |
+| property      | √                   | √                   |   parser property info   |
+| logcat        | √                   | √                   |   parser logcat log      |
 
 ## usage
 See [USAGE.md](USAGE.md)

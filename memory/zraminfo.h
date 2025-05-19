@@ -17,9 +17,10 @@
 #define ZRAM_DRV_DEFS_H_
 
 #include "plugin.h"
-#include <lz4.h>
-#include <lzo/lzoconf.h>
-#include <lzo/lzo1x.h> 
+extern "C" {
+#include "lib/lzo/lzo.h"
+#include "lib/lz4/lz4.h"
+}
 
 #define OBJ_ALLOCATED_TAG   1
 #define FULLNESS_BITS       2
@@ -159,6 +160,8 @@ public:
     bool get_zspage(ulong page,struct zspage* zp);
     int get_class_id(struct zspage& zspage_s);
     int decompress(std::string comp_name,char* source, char* dest,int compressedSize, int maxDecompressedSize);
+    int lzo1x_decompress(char *source, char *dest, int compressedSize, int maxDecompressedSize);
+    int lz4_decompress(char *source, char *dest, int compressedSize, int maxDecompressedSize);
 };
 
 #endif // ZRAM_DRV_DEFS_H_
