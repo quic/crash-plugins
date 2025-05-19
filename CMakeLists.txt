@@ -35,16 +35,6 @@ add_compile_definitions(IS_ARM)
 endif()
 
 find_package(PkgConfig REQUIRED)
-# sudo apt-get install liblzo2-dev liblzo2-dev:i386
-pkg_check_modules(LZO2 REQUIRED lzo2)
-if(NOT LZO2_FOUND)
-    message(FATAL_ERROR "LZO2 library not found")
-endif()
-# sudo apt-get install liblz4-dev liblz4-dev:i386
-pkg_check_modules(LZ4 REQUIRED liblz4)
-if(NOT LZ4_FOUND)
-    message(FATAL_ERROR "LZ4 library not found")
-endif()
 # sudo apt-get install libzstd-dev libzstd-dev:i386
 pkg_check_modules(ZSTD REQUIRED libzstd)
 if(NOT ZSTD_FOUND)
@@ -112,7 +102,9 @@ list(APPEND PLUGIN_SOURCES
     icc/icc.cpp
     clock/clock.cpp
     pstore/pstore.cpp
-    sys.cpp)
+    sys.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -122,7 +114,7 @@ elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
 endif()
 
 set_target_properties(plugins PROPERTIES PREFIX "")
-target_link_libraries(plugins ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+target_link_libraries(plugins ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 else()
 # =================== build dmabuf ===================
 add_library(dmabuf SHARED
@@ -163,9 +155,11 @@ add_library(procrank SHARED
             ${PLUGIN_SOURCES}
             memory/zraminfo.cpp
             memory/swapinfo.cpp
-            procrank/procrank.cpp)
+            procrank/procrank.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c)
 set_target_properties(procrank PROPERTIES PREFIX "")
-target_link_libraries(procrank ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+target_link_libraries(procrank ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 
 # =================== build dts ===================
 add_library(dts SHARED
@@ -221,18 +215,22 @@ set_target_properties(rtb PROPERTIES PREFIX "")
 add_library(zram SHARED
             ${PLUGIN_SOURCES}
             memory/zraminfo.cpp
-            memory/zram.cpp)
+            memory/zram.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c)
 set_target_properties(zram PROPERTIES PREFIX "")
-target_link_libraries(zram ${LZO2_LIBRARIES} ${LZ4_LIBRARIES})
+target_link_libraries(zram)
 
 # =================== build swap ===================
 add_library(swap SHARED
             ${PLUGIN_SOURCES}
             memory/zraminfo.cpp
             memory/swapinfo.cpp
-            memory/swap.cpp)
+            memory/swap.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c)
 set_target_properties(swap PROPERTIES PREFIX "")
-target_link_libraries(swap ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
+target_link_libraries(swap ${ELF_LIBRARIES})
 
 # =================== build prop ===================
 add_library(prop SHARED
@@ -240,9 +238,11 @@ add_library(prop SHARED
             memory/zraminfo.cpp
             memory/swapinfo.cpp
             property/propinfo.cpp
-            property/prop.cpp)
+            property/prop.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c)
 set_target_properties(prop PROPERTIES PREFIX "")
-target_link_libraries(prop ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
+target_link_libraries(prop ${ELF_LIBRARIES})
 
 # =================== build logcat ===================
 add_library(logcat SHARED
@@ -253,9 +253,11 @@ add_library(logcat SHARED
             logcat/Logcat_parser.cpp
             logcat/logcat.cpp
             logcat/logcatS.cpp
-            logcat/logcatR.cpp)
+            logcat/logcatR.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c)
 set_target_properties(logcat PROPERTIES PREFIX "")
-target_link_libraries(logcat ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+target_link_libraries(logcat ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 
 # =================== build dd ===================
 add_library(dd SHARED
@@ -274,7 +276,9 @@ add_library(core SHARED
             memory/zraminfo.cpp
             memory/swapinfo.cpp
             coredump/coredump.cpp
-            coredump/core.cpp)
+            coredump/core.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c)
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(core PRIVATE coredump/arm/arm64.cpp
                                 coredump/arm/compat.cpp)
@@ -282,7 +286,7 @@ elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
     target_sources(core PRIVATE coredump/arm/arm.cpp)
 endif()
 set_target_properties(core PROPERTIES PREFIX "")
-target_link_libraries(core ${LZO2_LIBRARIES} ${LZ4_LIBRARIES} ${ELF_LIBRARIES})
+target_link_libraries(core ${ELF_LIBRARIES})
 # =================== build thermal ===================
 add_library(tm SHARED
             ${PLUGIN_SOURCES}

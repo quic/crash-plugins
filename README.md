@@ -15,7 +15,7 @@ sudo dpkg --add-architecture i386
 sudo apt-get update
 ```
 ```
-sudo apt install gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
+sudo apt install gcc-multilib g++-multilib libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
 ```
 
 # How to build
