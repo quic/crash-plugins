@@ -332,31 +332,39 @@ char* Zraminfo::read_zram_page(ulong zram_addr, ulonglong index){
 
 int Zraminfo::decompress(std::string comp_name,char* source, char* dest,
                                  int compressedSize, int maxDecompressedSize){
-    // sudo apt-get install liblz4-dev liblz4-dev:i386
     if (comp_name.find("lz4") != std::string::npos){
-        int decompressedSize = LZ4_decompress_safe(source, dest, compressedSize, maxDecompressedSize);
-        if (decompressedSize > 0) {
-            return decompressedSize;
+        try{
+            lz4_decompress(source,dest,compressedSize,maxDecompressedSize);
+        } catch(const std::exception& e) {
+            fprintf(fp, "Exception in zram lz4: %s \n", e.what());
         }
-    // sudo apt-get install liblzo2-dev liblzo2-dev:i386
     }else if (comp_name.find("lzo") != std::string::npos){
-        int res = lzo_init();
-        if (res != LZO_E_OK) {
-            fprintf(fp, "Error initializing LZO library !\n");
-            return false;
-        }
-        lzo_uint decompressedSize = maxDecompressedSize;
-        res = lzo1x_decompress(reinterpret_cast<const unsigned char*>(source),compressedSize,
-                                 reinterpret_cast<unsigned char*>(dest),
-                                 &decompressedSize,
-                                 nullptr);
-        if (res == LZO_E_OK) {
-            return decompressedSize;
+        try{
+            lzo1x_decompress(source,dest,compressedSize,maxDecompressedSize);
+        } catch(const std::exception& e) {
+            fprintf(fp, "Exception in zram lzo: %s \n", e.what());
         }
     }else{
         fprintf(fp, "Not support %s decompress\n", comp_name.c_str());
     }
     return 0;
+}
+
+int Zraminfo::lzo1x_decompress(char *source, char *dest,
+                                 int compressedSize, int maxDecompressedSize) {
+    int err;
+    size_t tmp_len = maxDecompressedSize;
+    err = lzo1x_decompress_safe((unsigned char*)source, compressedSize, (unsigned char*)dest, &tmp_len);
+    if (err != 0) {
+        tmp_len = 0;
+        fprintf(fp, "lzo1x_decompress_safe error(%d)\n", err);
+    }
+    return tmp_len;
+}
+
+int Zraminfo::lz4_decompress(char *source, char *dest,
+                               int compressedSize, int maxDecompressedSize) {
+    return LZ4_decompress_safe((const char *)source, (char *)dest, compressedSize, maxDecompressedSize);
 }
 
 void Zraminfo::handle_to_location(ulong handle, ulong* pfn,int* obj_idx){
