@@ -45,7 +45,7 @@
 #include "icc/icc.h"
 #include "clock/clock.h"
 #include "pstore/pstore.h"
-#include "sys.h"
+#include "sysinfo/sys.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
