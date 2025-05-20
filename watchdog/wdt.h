@@ -18,7 +18,7 @@
 
 #include "plugin.h"
 
-class Watchdog : public PaserPlugin {
+class Watchdog : public ParserPlugin {
 public:
     Watchdog();
 

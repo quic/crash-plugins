@@ -25,7 +25,7 @@
 #include "memory/swapinfo.h"
 #include "property/propinfo.h"
 
-class Logcat_Parser : public PaserPlugin {
+class Logcat_Parser : public ParserPlugin {
 private:
     std::unique_ptr<Logcat> logcat_ptr;
     std::shared_ptr<Swapinfo> swap_ptr;

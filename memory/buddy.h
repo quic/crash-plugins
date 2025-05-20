@@ -57,7 +57,7 @@ struct pglist_data {
     std::vector<ulong> vm_stat;
 };
 
-class Buddy : public PaserPlugin {
+class Buddy : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<pglist_data>> node_list;
     std::vector<std::string> migratetype_names;

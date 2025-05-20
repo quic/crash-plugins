@@ -20,7 +20,7 @@
 
 struct Dump_entry;
 
-class ImageParser : public PaserPlugin {
+class ImageParser : public ParserPlugin {
 public:
     ImageParser();
     uint64_t createMask(int a, int b);

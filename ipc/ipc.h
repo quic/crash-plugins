@@ -32,7 +32,7 @@ struct tsv_header {
 #define IPC_LOG_CONTEXT_MAGIC_NUM   0x25874452
 #define IPC_LOGGING_MAGIC_NUM       0x52784425
 
-class IPCLog : public PaserPlugin {
+class IPCLog : public ParserPlugin {
 public:
     IPCLog();
 

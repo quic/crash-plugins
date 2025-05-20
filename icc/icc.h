@@ -44,7 +44,7 @@ struct icc_provider {
     std::vector<std::shared_ptr<icc_node>> node_list;
 };
 
-class ICC : public PaserPlugin {
+class ICC : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<icc_provider>> provider_list;
 

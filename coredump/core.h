@@ -21,7 +21,6 @@
 #include <linux/types.h>
 #include "memory/swapinfo.h"
 #include <sys/stat.h>
-#include <filesystem>
 #include <exception>
 
 #define MMF_DUMP_ANON_PRIVATE       2
@@ -34,12 +33,17 @@
 #define MMF_DUMP_DAX_PRIVATE        9
 #define MMF_DUMP_DAX_SHARED         10
 
+#ifndef NT_PRFPREG
+#define NT_PRFPREG              0x2
+#endif
 #define NT_ARM_PAC_ENABLED_KEYS 0x40a
+#define NT_ARM_PAC_MASK         0x406
+#define NT_ARM_PACA_KEYS        0x407
+#define NT_ARM_PACG_KEYS        0x408
 #define NT_ARM_TAGGED_ADDR_CTRL 0x409
 
 #define VFP_FPSCR_STAT_MASK 0xf800009f
 #define VFP_FPSCR_CTRL_MASK 0x07f79f00
-typedef unsigned long long __ull[2];
 
 #define FILTER_SPECIAL_VMA          (1 << 0)
 #define FILTER_FILE_VMA             (1 << 1)
@@ -48,6 +52,8 @@ typedef unsigned long long __ull[2];
 #define FILTER_NON_READ_VMA         (1 << 4)
 
 #define FAKE_AUXV_PHDR 0x100000
+
+typedef unsigned long long __ull[2];
 
 
 /*
@@ -244,7 +250,7 @@ typedef struct {
     ulong prev;
 } linkmap_t;
 
-class Core : public PaserPlugin {
+class Core : public ParserPlugin {
 public:
     static int cmd_flags;
     static std::string symbols_path;

@@ -18,7 +18,7 @@ cmake -DCMAKE_C_COMPILER="/usr/bin/gcc"   \
       -DBUILD_TARGET_TOGETHER="1"         \
       CMakeLists.txt                      \
       -B output/arm64
-make -C output/arm64 -j8
+make -C output/arm64 -j$(nproc)
 
 
 cmake -DCMAKE_C_COMPILER="/usr/bin/gcc"   \
@@ -30,4 +30,4 @@ cmake -DCMAKE_C_COMPILER="/usr/bin/gcc"   \
       -DBUILD_TARGET_TOGETHER="1"         \
       CMakeLists.txt                      \
       -B output/arm
-make -C output/arm -j8
+make -C output/arm -j$(nproc)

@@ -137,7 +137,7 @@ struct track { // see __kmem_obj_info in slub.c
     ulong obj_addr;
 };
 
-class Slub : public PaserPlugin {
+class Slub : public ParserPlugin {
 protected:
     std::vector<std::shared_ptr<kmem_cache>> cache_list;
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> alloc_trace_map;

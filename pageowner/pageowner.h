@@ -71,7 +71,7 @@ struct stack_info {
     std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list; //<pfn, page_owner>
 };
 
-class Pageowner : public PaserPlugin {
+class Pageowner : public ParserPlugin {
 private:
     static const int INPUT_PFN = 0x0001;
     static const int INPUT_PYHS = 0x0002;

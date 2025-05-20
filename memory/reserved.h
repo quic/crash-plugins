@@ -34,7 +34,7 @@ struct reserved_mem {
     Type type;
 };
 
-class Reserved : public PaserPlugin {
+class Reserved : public ParserPlugin {
 public:
     std::shared_ptr<Devicetree> dts;
     std::vector<std::shared_ptr<reserved_mem>> mem_list;

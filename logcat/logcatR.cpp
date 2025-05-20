@@ -113,7 +113,7 @@ size_t LogcatR::get_stdlist_addr_from_vma(){
 }
 
 bool LogcatR::search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) {
-    auto check_stdlist = BITS64() && !is_compat ? &LogcatR::check_stdlist64 : &LogcatR::check_stdlist32;
+    auto check_stdlist = (BITS64() && !is_compat) ? &LogcatR::check_stdlist64 : &LogcatR::check_stdlist32;
     for (size_t addr = start_addr; addr < vma_ptr->vm_end; addr += pointer_size) {
         ulong list_addr = (this->*check_stdlist)(addr, callback);
         if (list_addr != 0) {

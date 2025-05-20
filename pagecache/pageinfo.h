@@ -25,7 +25,7 @@ struct FileCache {
     ulong nrpages;
 };
 
-class Pageinfo : public PaserPlugin {
+class Pageinfo : public ParserPlugin {
 private:
     ulong max_pfn;
     ulong min_low_pfn;

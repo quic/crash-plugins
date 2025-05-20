@@ -28,7 +28,7 @@ struct resource {
     std::vector<std::shared_ptr<resource>> childs;
 };
 
-class IoMem : public PaserPlugin {
+class IoMem : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<resource>> iomem_list;
     IoMem();

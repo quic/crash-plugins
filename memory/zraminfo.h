@@ -126,7 +126,7 @@ enum zs_stat_type {
     NR_ZS_STAT_TYPE,
 };
 
-class Zraminfo : public PaserPlugin {
+class Zraminfo : public ParserPlugin {
 protected:
     bool debug = false;
 public:

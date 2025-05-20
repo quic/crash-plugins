@@ -40,7 +40,7 @@ struct zone_dev {
     int last_temp;
 };
 
-class Thermal : public PaserPlugin {
+class Thermal : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<zone_dev>> zone_list;
     Thermal();

@@ -91,7 +91,7 @@ typedef struct {
 
 #define GENMASK_ULL(h, l) (((1ULL<<(h+1))-1)&(~((1ULL<<l)-1)))
 
-class PaserPlugin {
+class ParserPlugin {
 private:
 #if defined(ARM)
     ulong* pmd_page_addr(ulong pmd);
@@ -104,7 +104,7 @@ protected:
     static constexpr double GB = 1024.0 * 1024.0 * 1024.0;
 
 public:
-    PaserPlugin();
+    ParserPlugin();
     const size_t page_size = PAGESIZE();
     const size_t page_shift = PAGESHIFT();
     const size_t page_mask = ~(page_size - 1);

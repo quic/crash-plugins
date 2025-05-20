@@ -45,7 +45,7 @@ struct regulator_dev {
     std::vector<std::shared_ptr<regulator>> consumers;
 };
 
-class Regulator : public PaserPlugin {
+class Regulator : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<regulator_dev>> regulator_list;
 public:

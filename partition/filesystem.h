@@ -18,7 +18,7 @@
 
 #include "plugin.h"
 
-class Mount : public PaserPlugin{
+class Mount : public ParserPlugin{
 public:
     ulong addr;
     ulong f_bsize;
@@ -51,7 +51,7 @@ public:
     long long percpu_counter_sum(ulong addr);
 };
 
-class FileSystem : public PaserPlugin {
+class FileSystem : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<Mount>> mount_list;
     std::unordered_map<size_t, std::shared_ptr<Mount>> sb_list;

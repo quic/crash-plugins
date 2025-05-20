@@ -110,7 +110,7 @@ struct workqueue_struct{
   std::shared_ptr<worker> rescuer;
 };
 
-class Workqueue : public PaserPlugin {
+class Workqueue : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<workqueue_struct>> workqueue_list;
     std::unordered_map<ulong/* worker ddr address */, std::shared_ptr<worker>> worker_list_map;

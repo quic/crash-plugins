@@ -22,7 +22,7 @@
 #include "dma_heap.h"
 #include "ion_heap.h"
 
-class DmaIon : public PaserPlugin {
+class DmaIon : public ParserPlugin {
 private:
     std::shared_ptr<Dmabuf> dmabuf_ptr;
     std::shared_ptr<Heap> heap_ptr;

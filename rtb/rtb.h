@@ -53,7 +53,7 @@ struct rtb_state {
     int step_size;
 };
 
-class Rtb : public PaserPlugin {
+class Rtb : public ParserPlugin {
 private:
     std::shared_ptr<rtb_state> rtb_state_ptr;
 public:

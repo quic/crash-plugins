@@ -74,7 +74,7 @@ enum Dump_data_ids {
 
 class ImageParser;
 
-class DebugImage : public PaserPlugin {
+class DebugImage : public ParserPlugin {
 private:
     const uint MAGIC_NUMBER = 0x42445953;
     const uint HYP_MAGIC_NUMBER = 0x42444832;

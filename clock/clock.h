@@ -24,7 +24,7 @@ struct clk_provider {
     std::vector<ulong> core_list;
 };
 
-class Clock : public PaserPlugin {
+class Clock : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<clk_provider>> provider_list;
 

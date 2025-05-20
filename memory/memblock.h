@@ -50,7 +50,7 @@ struct memblock {
     struct memblock_type reserved;
 };
 
-class Memblock : public PaserPlugin {
+class Memblock : public ParserPlugin {
 public:
     std::shared_ptr<memblock> block;
     Memblock();

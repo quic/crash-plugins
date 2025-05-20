@@ -170,7 +170,7 @@ void Coredump::init_command(){
     field_init(task_struct, flags);
     field_init(task_struct, thread_info);
     field_init(thread_info, flags);
-    PaserPlugin::cmd_name = "coredump";
+    ParserPlugin::cmd_name = "coredump";
     help_str_list={
         "coredump",                            /* command name */
         "generate process coredump",        /* short description */
