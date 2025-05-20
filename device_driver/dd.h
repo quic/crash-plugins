@@ -66,10 +66,11 @@ public:
     void print_device_list_for_driver(std::string driver_name);
     void print_driver_list();
     void parser_bus_info();
-    std::vector<std::shared_ptr<device>> parser_device_list(size_t subsys_addr, int off);
-    std::vector<std::shared_ptr<driver>> parser_driver_list(size_t subsys_addr, int off);
+    std::vector<std::shared_ptr<device>> parser_bus_device_list(std::string bus_name);
+    std::vector<std::shared_ptr<device>> parser_class_device_list(std::string class_name);
     void parser_class_info();
     std::shared_ptr<driver> parser_driver(size_t addr);
+    std::vector<std::shared_ptr<driver>> parser_driver_list(std::string bus_name);
     std::shared_ptr<device> parser_device(size_t addr);
     DEFINE_PLUGIN_INSTANCE(DDriver)
 };

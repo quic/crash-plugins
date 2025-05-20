@@ -134,8 +134,15 @@ public:
     std::vector<ulong> for_each_process();
     std::vector<ulong> for_each_threads();
     std::vector<ulong> for_each_vma(ulong& task_addr);
-
-    ulonglong read_structure_field(ulong addr,const std::string& type,const std::string& field,bool virt=true);
+    std::vector<ulong> for_each_bus();
+    std::vector<ulong> for_each_class();
+    ulong get_bus_subsys_private(std::string bus_name);
+    ulong get_class_subsys_private(std::string class_name);
+    std::vector<ulong> for_each_device_for_bus(std::string bus_name);
+    std::vector<ulong> for_each_device_for_class(std::string class_name);
+    std::vector<ulong> for_each_device_for_driver(ulong driver_addr);
+    std::vector<ulong> for_each_driver(std::string bus_name);
+    ulonglong read_structure_field(ulong addr, const std::string &type, const std::string &field, bool virt = true);
     std::string read_cstring(ulong addr,int len, const std::string& note,bool virt=true);
     void* read_struct(ulong addr,const std::string& type,bool virt=true);
     bool read_struct(ulong addr,void* buf, int len, const std::string& type,bool virt=true);

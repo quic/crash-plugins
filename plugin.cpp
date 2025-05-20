@@ -52,6 +52,28 @@ ParserPlugin::ParserPlugin(){
     field_init(list_head, prev);
     field_init(list_head, next);
     struct_init(list_head);
+    field_init(driver_private,driver);
+    field_init(driver_private,klist_devices);
+    field_init(driver_private,knode_bus);
+    field_init(device_private,knode_bus);
+    field_init(device_private,device);
+    field_init(device_private,knode_driver);
+    field_init(device_private,knode_class);
+    field_init(subsys_private,klist_drivers);
+    field_init(subsys_private,klist_devices);
+    field_init(subsys_private,bus);
+    field_init(subsys_private,subsys);
+    field_init(subsys_private,class);
+    field_init(klist_node, n_node);
+    field_init(klist,k_list);
+    field_init(device_driver,p);
+    field_init(bus_type,p);
+    field_init(class,p);
+    field_init(class,name);
+    field_init(bus_type,name);
+    field_init(kset,kobj);
+    field_init(kset,list);
+    field_init(kobject, entry);
     if (BITS64()){
         std::string config = get_config_val("CONFIG_ARM64_VA_BITS");
         int va_bits = std::stoi(config);
@@ -368,6 +390,191 @@ std::vector<ulong> ParserPlugin::for_each_vma(ulong& task_addr){
         vma_list = for_each_mptree(mm_mt_addr);
     }
     return vma_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_class(){
+    std::vector<ulong> class_list;
+    if (!csymbol_exists("class_kset")){
+        return class_list;
+    }
+    size_t class_kset_addr = read_pointer(csymbol_value("class_kset"),"class_kset");
+    if (!is_kvaddr(class_kset_addr)) {
+        return class_list;
+    }
+    size_t list_head = class_kset_addr + field_offset(kset,list);
+    for (const auto& kobject_addr : for_each_list(list_head,field_offset(kobject, entry))) {
+        size_t kset_addr = kobject_addr - field_offset(kset,kobj);
+        if (!is_kvaddr(kset_addr)) continue;
+        size_t subsys_addr = kset_addr - field_offset(subsys_private,subsys);
+        if (!is_kvaddr(subsys_addr)) continue;
+        size_t class_addr = read_pointer(subsys_addr + field_offset(subsys_private,class),"class");
+        if (!is_kvaddr(class_addr)) continue;
+        class_list.push_back(class_addr);
+    }
+    return class_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_bus(){
+    std::vector<ulong> bus_list;
+    if (!csymbol_exists("bus_kset")){
+        return bus_list;
+    }
+    size_t bus_kset_addr = read_pointer(csymbol_value("bus_kset"),"bus_kset");
+    if (!is_kvaddr(bus_kset_addr)) {
+        return bus_list;
+    }
+    size_t list_head = bus_kset_addr + field_offset(kset,list);
+    for (const auto& kobject_addr : for_each_list(list_head,field_offset(kobject, entry))) {
+        size_t kset_addr = kobject_addr - field_offset(kset,kobj);
+        if (!is_kvaddr(kset_addr)) continue;
+        size_t subsys_addr = kset_addr - field_offset(subsys_private,subsys);
+        if (!is_kvaddr(subsys_addr)) continue;
+        size_t bus_addr = read_pointer(subsys_addr + field_offset(subsys_private,bus),"bus_type");
+        if (!is_kvaddr(bus_addr)) continue;
+        bus_list.push_back(bus_addr);
+    }
+    return bus_list;
+}
+
+ulong ParserPlugin::get_class_subsys_private(std::string class_name){
+    if (!csymbol_exists("class_kset")){
+        return 0;
+    }
+    size_t class_kset_addr = read_pointer(csymbol_value("class_kset"),"class_kset");
+    if (!is_kvaddr(class_kset_addr)) {
+        return 0;
+    }
+    size_t list_head = class_kset_addr + field_offset(kset,list);
+    for (const auto& kobject_addr : for_each_list(list_head,field_offset(kobject, entry))) {
+        size_t kset_addr = kobject_addr - field_offset(kset,kobj);
+        if (!is_kvaddr(kset_addr)) continue;
+        size_t subsys_addr = kset_addr - field_offset(subsys_private,subsys);
+        if (!is_kvaddr(subsys_addr)) continue;
+        size_t class_addr = read_pointer(subsys_addr + field_offset(subsys_private,class),"class");
+        if (!is_kvaddr(class_addr)) continue;
+        std::string name;
+        size_t name_addr = read_pointer(class_addr + field_offset(class,name),"name addr");
+        if (is_kvaddr(name_addr)){
+            name = read_cstring(name_addr,16, "class name");
+        }
+        if (name.empty() || name != class_name){
+            continue;
+        }
+        size_t private_addr = 0;
+        if (field_offset(class,p) != -1){
+            private_addr = read_pointer(class_addr + field_offset(class,p),"subsys_private");
+        }else{
+            private_addr = subsys_addr;
+        }
+        return private_addr;
+    }
+    return 0;
+}
+
+ulong ParserPlugin::get_bus_subsys_private(std::string bus_name){
+    if (!csymbol_exists("bus_kset")){
+        return 0;
+    }
+    size_t bus_kset_addr = read_pointer(csymbol_value("bus_kset"),"bus_kset");
+    if (!is_kvaddr(bus_kset_addr)) {
+        return 0;
+    }
+    size_t list_head = bus_kset_addr + field_offset(kset,list);
+    for (const auto& kobject_addr : for_each_list(list_head,field_offset(kobject, entry))) {
+        size_t kset_addr = kobject_addr - field_offset(kset,kobj);
+        if (!is_kvaddr(kset_addr)) continue;
+        size_t subsys_addr = kset_addr - field_offset(subsys_private,subsys);
+        if (!is_kvaddr(subsys_addr)) continue;
+        size_t bus_addr = read_pointer(subsys_addr + field_offset(subsys_private,bus),"bus_type");
+        if (!is_kvaddr(bus_addr)) continue;
+        std::string name;
+        size_t name_addr = read_pointer(bus_addr + field_offset(bus_type,name),"name addr");
+        if (is_kvaddr(name_addr)){
+            name = read_cstring(name_addr,16, "bus name");
+        }
+        if (name.empty() || name != bus_name){
+            continue;
+        }
+        size_t private_addr = 0;
+        if (field_offset(bus_type,p) != -1){
+            private_addr = read_pointer(bus_addr + field_offset(bus_type,p),"subsys_private");
+        }else{
+            private_addr = subsys_addr;
+        }
+        return private_addr;
+    }
+    return 0;
+}
+
+std::vector<ulong> ParserPlugin::for_each_device_for_class(std::string class_name){
+    std::vector<ulong> device_list;
+    size_t private_addr = get_class_subsys_private(class_name);
+    if (!is_kvaddr(private_addr)){
+        return device_list;
+    }
+    size_t list_head = private_addr + field_offset(subsys_private,klist_devices) + field_offset(klist,k_list);
+    for (const auto& node : for_each_list(list_head, field_offset(klist_node, n_node))) {
+        if (!is_kvaddr(node)) continue;
+        size_t private_addr = node - field_offset(device_private,knode_class);
+        if (!is_kvaddr(private_addr)) continue;
+        size_t device_addr = read_pointer(private_addr + field_offset(device_private,device),"device_private");
+        if (!is_kvaddr(device_addr)) continue;
+        device_list.push_back(device_addr);
+    }
+    return device_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_device_for_bus(std::string bus_name){
+    std::vector<ulong> device_list;
+    size_t private_addr = get_bus_subsys_private(bus_name);
+    if (!is_kvaddr(private_addr)){
+        return device_list;
+    }
+    size_t list_head = private_addr + field_offset(subsys_private,klist_devices) + field_offset(klist,k_list);
+    for (const auto& node : for_each_list(list_head, field_offset(klist_node, n_node))) {
+        if (!is_kvaddr(node)) continue;
+        size_t private_addr = node - field_offset(device_private,knode_bus);
+        if (!is_kvaddr(private_addr)) continue;
+        size_t device_addr = read_pointer(private_addr + field_offset(device_private,device),"device_private");
+        if (!is_kvaddr(device_addr)) continue;
+        device_list.push_back(device_addr);
+    }
+    return device_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_device_for_driver(ulong driver_addr){
+    std::vector<ulong> device_list;
+    if (!is_kvaddr(driver_addr)){
+        return device_list;
+    }
+    size_t driver_private_addr = read_pointer(driver_addr + field_offset(device_driver,p),"p");
+    size_t dev_list_head = driver_private_addr + field_offset(driver_private,klist_devices) + field_offset(klist,k_list);
+    for (const auto& kobject_addr : for_each_list(dev_list_head,field_offset(klist_node, n_node))) {
+        size_t device_private_addr = kobject_addr - field_offset(device_private,knode_driver);
+        if (!is_kvaddr(device_private_addr)) continue;
+        size_t device_addr = read_pointer(device_private_addr + field_offset(device_private,device),"device_private");
+        if (!is_kvaddr(device_addr)) continue;
+        device_list.push_back(device_addr);
+    }
+    return device_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_driver(std::string bus_name){
+    std::vector<ulong> driver_list;
+    size_t private_addr = get_bus_subsys_private(bus_name);
+    if (!is_kvaddr(private_addr)){
+        return driver_list;
+    }
+    size_t list_head = private_addr + field_offset(subsys_private,klist_drivers) + field_offset(klist,k_list);
+    for (const auto& node : for_each_list(list_head,field_offset(klist_node, n_node))) {
+        if (!is_kvaddr(node)) continue;
+        size_t driver_private_addr = node - field_offset(driver_private,knode_bus);
+        if (!is_kvaddr(driver_private_addr)) continue;
+        size_t driver_addr = read_pointer(driver_private_addr + field_offset(driver_private,driver),"driver_private");
+        if (!is_kvaddr(driver_addr)) continue;
+        driver_list.push_back(driver_addr);
+    }
+    return driver_list;
 }
 
 ulonglong ParserPlugin::read_structure_field(ulong addr,const std::string& type,const std::string& field,bool virt){

@@ -29,14 +29,14 @@ void DDriver::cmd_main(void) {
     if (bus_list.size() == 0){
         parser_bus_info();
         for (auto& bus_ptr : bus_list) {
-            bus_ptr->device_list = parser_device_list(bus_ptr->subsys_private,field_offset(device_private,knode_bus));
-            bus_ptr->driver_list = parser_driver_list(bus_ptr->subsys_private,field_offset(driver_private,knode_bus));
+            bus_ptr->device_list = parser_bus_device_list(bus_ptr->name);
+            bus_ptr->driver_list = parser_driver_list(bus_ptr->name);
         }
     }
     if (class_list.size() == 0){
         parser_class_info();
         for (auto& class_ptr : class_list) {
-            class_ptr->device_list = parser_device_list(class_ptr->subsys_private,field_offset(device_private,knode_class));
+            class_ptr->device_list = parser_class_device_list(class_ptr->name);
         }
     }
     while ((c = getopt(argcnt, args, "bB:cC:dDs:")) != EOF) {
@@ -75,28 +75,7 @@ void DDriver::cmd_main(void) {
 }
 
 DDriver::DDriver(){
-    field_init(kset,list);
-    field_init(kset,kobj);
-    field_init(kobject, entry);
-    field_init(subsys_private,subsys);
-    field_init(subsys_private,bus);
-    field_init(subsys_private,class);
-    field_init(bus_type,name);
     field_init(bus_type,probe);
-    field_init(bus_type,p);
-    field_init(class,name);
-    field_init(class,p);
-    field_init(subsys_private,klist_devices);
-    field_init(subsys_private,klist_drivers);
-    field_init(klist,k_list);
-    field_init(klist_node, n_node);
-    field_init(device_private,knode_bus);
-    field_init(device_private,knode_class);
-    field_init(device_private,device);
-    field_init(device_private,knode_driver);
-    field_init(driver_private,driver);
-    field_init(driver_private,knode_bus);
-    field_init(driver_private,klist_devices);
     field_init(device,kobj);
     field_init(device,driver);
     field_init(kobject,name);
@@ -417,71 +396,35 @@ void DDriver::print_driver_list(){
 }
 
 void DDriver::parser_class_info(){
-    if (!csymbol_exists("class_kset")){
-        fprintf(fp, "class_kset doesn't exist in this kernel!\n");
-        return;
-    }
-    size_t class_kset_addr = read_pointer(csymbol_value("class_kset"),"class_kset");
-    if (!is_kvaddr(class_kset_addr)) {
-        fprintf(fp, "class_kset address is invalid!\n");
-        return;
-    }
-    size_t list_head = class_kset_addr + field_offset(kset,list);
-    int offset = field_offset(kobject, entry);
-    for (const auto& kobject_addr : for_each_list(list_head,offset)) {
-        size_t kset_addr = kobject_addr - field_offset(kset,kobj);
-        if (!is_kvaddr(kset_addr)) continue;
-        size_t subsys_addr = kset_addr - field_offset(subsys_private,subsys);
-        if (!is_kvaddr(subsys_addr)) continue;
-        size_t class_addr = read_pointer(subsys_addr + field_offset(subsys_private,class),"class");
-        if (!is_kvaddr(class_addr)) continue;
+    for (const auto& class_addr : for_each_class()) {
         std::shared_ptr<class_type> class_ptr = std::make_shared<class_type>();
         class_ptr->addr = class_addr;
         // fprintf(fp, "class_addr: %zx\n",class_addr);
         size_t name_addr = read_pointer(class_addr + field_offset(class,name),"name addr");
         if (is_kvaddr(name_addr)){
-            class_ptr->name = read_cstring(name_addr,16, "class name");
-        }else{
-            class_ptr->name = "";
+            class_ptr->name = read_cstring(name_addr,64, "class name");
+        }
+        if (class_ptr->name.empty()){
+            continue;
         }
         if (!class_ptr->name.empty() && *class_ptr->name.rbegin() == '\n') {
             class_ptr->name.pop_back();
         }
-        if (field_offset(class,p) != -1){
-            class_ptr->subsys_private = read_pointer(class_addr + field_offset(class,p),"subsys_private");
-        }else{
-            class_ptr->subsys_private = subsys_addr;
-        }
+        class_ptr->subsys_private = get_class_subsys_private(class_ptr->name);
         class_list.push_back(class_ptr);
     }
 }
 
 void DDriver::parser_bus_info(){
-    if (!csymbol_exists("bus_kset")){
-        fprintf(fp, "bus_kset doesn't exist in this kernel!\n");
-        return;
-    }
-    size_t bus_kset_addr = read_pointer(csymbol_value("bus_kset"),"bus_kset");
-    if (!is_kvaddr(bus_kset_addr)) {
-        fprintf(fp, "bus_kset address is invalid!\n");
-        return;
-    }
-    size_t list_head = bus_kset_addr + field_offset(kset,list);
-    int offset = field_offset(kobject, entry);
-    for (const auto& kobject_addr : for_each_list(list_head,offset)) {
-        size_t kset_addr = kobject_addr - field_offset(kset,kobj);
-        if (!is_kvaddr(kset_addr)) continue;
-        size_t subsys_addr = kset_addr - field_offset(subsys_private,subsys);
-        if (!is_kvaddr(subsys_addr)) continue;
-        size_t bus_addr = read_pointer(subsys_addr + field_offset(subsys_private,bus),"bus_type");
-        if (!is_kvaddr(bus_addr)) continue;
+    for (const auto& bus_addr : for_each_bus()) {
         std::shared_ptr<bus_type> bus_ptr = std::make_shared<bus_type>();
         bus_ptr->addr = bus_addr;
         size_t name_addr = read_pointer(bus_addr + field_offset(bus_type,name),"name addr");
         if (is_kvaddr(name_addr)){
-            bus_ptr->name = read_cstring(name_addr,16, "bus name");
-        }else{
-            bus_ptr->name = "";
+            bus_ptr->name = read_cstring(name_addr,64, "bus name");
+        }
+        if (bus_ptr->name.empty()){
+            continue;
         }
         size_t probe_addr = read_pointer(bus_addr + field_offset(bus_type,probe),"probe addr");
         std::ostringstream oss;
@@ -498,28 +441,14 @@ void DDriver::parser_bus_info(){
         }else{
             bus_ptr->probe = "";
         }
-        if (field_offset(bus_type,p) != -1){
-            bus_ptr->subsys_private = read_pointer(bus_addr + field_offset(bus_type,p),"subsys_private");
-        }else{
-            bus_ptr->subsys_private = subsys_addr;
-        }
+        bus_ptr->subsys_private = get_bus_subsys_private(bus_ptr->name);
         bus_list.push_back(bus_ptr);
     }
 }
 
-std::vector<std::shared_ptr<device>> DDriver::parser_device_list(size_t subsys_addr,int off){
+std::vector<std::shared_ptr<device>> DDriver::parser_class_device_list(std::string class_name){
     std::vector<std::shared_ptr<device>> device_list;
-    if (!is_kvaddr(subsys_addr)){
-        return device_list;
-    }
-    size_t list_head = subsys_addr + field_offset(subsys_private,klist_devices) + field_offset(klist,k_list);
-    int offset = field_offset(klist_node, n_node);
-    for (const auto& node : for_each_list(list_head,offset)) {
-        if (!is_kvaddr(node)) continue;
-        size_t private_addr = node - off;
-        if (!is_kvaddr(private_addr)) continue;
-        size_t device_addr = read_pointer(private_addr + field_offset(device_private,device),"device_private");
-        if (!is_kvaddr(device_addr)) continue;
+    for (const auto& device_addr : for_each_device_for_class(class_name)) {
         // fprintf(fp, "device_addr:%#zx \n",device_addr);
         std::shared_ptr<device> dev_ptr = parser_device(device_addr);
         if (dev_ptr == nullptr) continue;
@@ -528,29 +457,24 @@ std::vector<std::shared_ptr<device>> DDriver::parser_device_list(size_t subsys_a
     return device_list;
 }
 
-std::vector<std::shared_ptr<driver>> DDriver::parser_driver_list(size_t subsys_addr,int off){
-    std::vector<std::shared_ptr<driver>> driver_list;
-    if (!is_kvaddr(subsys_addr)){
-        return driver_list;
+std::vector<std::shared_ptr<device>> DDriver::parser_bus_device_list(std::string bus_name){
+    std::vector<std::shared_ptr<device>> device_list;
+    for (const auto& device_addr : for_each_device_for_bus(bus_name)) {
+        // fprintf(fp, "device_addr:%#zx \n",device_addr);
+        std::shared_ptr<device> dev_ptr = parser_device(device_addr);
+        if (dev_ptr == nullptr) continue;
+        device_list.push_back(dev_ptr);
     }
-    size_t list_head = subsys_addr + field_offset(subsys_private,klist_drivers) + field_offset(klist,k_list);
-    int offset = field_offset(klist_node, n_node);
-    for (const auto& node : for_each_list(list_head,offset)) {
-        if (!is_kvaddr(node)) continue;
-        size_t driver_private_addr = node - off;
-        if (!is_kvaddr(driver_private_addr)) continue;
-        size_t driver_addr = read_pointer(driver_private_addr + field_offset(driver_private,driver),"driver_private");
-        if (!is_kvaddr(driver_addr)) continue;
+    return device_list;
+}
+
+std::vector<std::shared_ptr<driver>> DDriver::parser_driver_list(std::string bus_name){
+    std::vector<std::shared_ptr<driver>> driver_list;
+    for (const auto& driver_addr : for_each_driver(bus_name)) {
         // fprintf(fp, "driver_addr:%#zx \n",driver_addr);
         std::shared_ptr<driver> driv_ptr = parser_driver(driver_addr);
         if (driv_ptr == nullptr) continue;
-
-        size_t dev_list_head = driver_private_addr + field_offset(driver_private,klist_devices) + field_offset(klist,k_list);
-        for (const auto& kobject_addr : for_each_list(dev_list_head,offset)) {
-            size_t device_private_addr = kobject_addr - field_offset(device_private,knode_driver);
-            if (!is_kvaddr(device_private_addr)) continue;
-            size_t device_addr = read_pointer(device_private_addr + field_offset(device_private,device),"device_private");
-            if (!is_kvaddr(device_addr)) continue;
+        for (const auto& device_addr : for_each_device_for_driver(driver_addr)) {
             // fprintf(fp, "device_addr:%#zx \n",device_addr);
             std::shared_ptr<device> dev_ptr = parser_device(device_addr);
             if (dev_ptr == nullptr) continue;
