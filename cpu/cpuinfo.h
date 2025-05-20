@@ -28,7 +28,7 @@ struct cpu_policy{
     std::vector<ulong> freq_table;
 };
 
-class CpuInfo : public PaserPlugin {
+class CpuInfo : public ParserPlugin {
 public:
     CpuInfo();
     std::vector<std::shared_ptr<cpu_policy>> cpu_infos;

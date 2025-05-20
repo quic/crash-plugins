@@ -18,7 +18,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-PaserPlugin::PaserPlugin(){
+ParserPlugin::ParserPlugin(){
     field_init(task_struct, active_mm);
     field_init(task_struct, mm);
     field_init(task_struct, tasks);
@@ -62,7 +62,7 @@ PaserPlugin::PaserPlugin(){
     //print_table();
 }
 
-bool PaserPlugin::isNumber(const std::string& str) {
+bool ParserPlugin::isNumber(const std::string& str) {
     regex_t decimal, hex;
     bool result = false;
     if (regcomp(&decimal, "^-?[0-9]+$", REG_EXTENDED)) {
@@ -82,7 +82,7 @@ bool PaserPlugin::isNumber(const std::string& str) {
     return result;
 }
 
-std::string PaserPlugin::csize(uint64_t size){
+std::string ParserPlugin::csize(uint64_t size){
     std::ostringstream oss;
     if (size < KB) {
         oss << size << "B";
@@ -111,7 +111,7 @@ std::string PaserPlugin::csize(uint64_t size){
     return oss.str();
 }
 
-std::string PaserPlugin::csize(uint64_t size, int unit, int precision){
+std::string ParserPlugin::csize(uint64_t size, int unit, int precision){
     std::ostringstream oss;
     if (unit == KB) {
         oss << std::fixed << std::setprecision(precision) << (size / KB) << " KB";
@@ -125,7 +125,7 @@ std::string PaserPlugin::csize(uint64_t size, int unit, int precision){
     return oss.str();
 }
 
-void PaserPlugin::initialize(void){
+void ParserPlugin::initialize(void){
     cmd_help = new char*[help_str_list.size()+1];
     for (size_t i = 0; i < help_str_list.size(); ++i) {
         cmd_help[i] = TO_CONST_STRING(help_str_list[i].c_str());
@@ -133,17 +133,17 @@ void PaserPlugin::initialize(void){
     cmd_help[help_str_list.size()] = nullptr;
 }
 
-void PaserPlugin::type_init(const std::string& type){
+void ParserPlugin::type_init(const std::string& type){
     std::string name = type;
     typetable[name] = std::make_unique<Typeinfo>(type);
 }
 
-void PaserPlugin::type_init(const std::string& type,const std::string& field){
+void ParserPlugin::type_init(const std::string& type,const std::string& field){
     std::string name = type + "@" + field;
     typetable[name] = std::make_unique<Typeinfo>(type,field);
 }
 
-int PaserPlugin::type_offset(const std::string& type,const std::string& field){
+int ParserPlugin::type_offset(const std::string& type,const std::string& field){
     std::string name = type + "@" + field;
     auto it = typetable.find(name);
     if (it != typetable.end()) {
@@ -154,7 +154,7 @@ int PaserPlugin::type_offset(const std::string& type,const std::string& field){
     }
 }
 
-int PaserPlugin::type_size(const std::string& type,const std::string& field){
+int ParserPlugin::type_size(const std::string& type,const std::string& field){
     std::string name = type + "@" + field;
     auto it = typetable.find(name);
     if (it != typetable.end()) {
@@ -165,7 +165,7 @@ int PaserPlugin::type_size(const std::string& type,const std::string& field){
     }
 }
 
-int PaserPlugin::type_size(const std::string& type){
+int ParserPlugin::type_size(const std::string& type){
     std::string name = type;
     auto it = typetable.find(name);
     if (it != typetable.end()) {
@@ -176,7 +176,7 @@ int PaserPlugin::type_size(const std::string& type){
     }
 }
 
-void PaserPlugin::print_backtrace(){
+void ParserPlugin::print_backtrace(){
     void *buffer[100];
     int nptrs = backtrace(buffer, 100);
     char **strings = backtrace_symbols(buffer, nptrs);
@@ -189,7 +189,7 @@ void PaserPlugin::print_backtrace(){
     std::free(strings);
 }
 
-void PaserPlugin::print_table(){
+void ParserPlugin::print_table(){
     char buf[BUFSIZE];
     for (const auto& pair : typetable) {
         sprintf(buf, "%s", pair.first.c_str());
@@ -200,7 +200,7 @@ void PaserPlugin::print_table(){
     }
 }
 
-std::vector<ulong> PaserPlugin::for_each_radix(ulong root_rnode){
+std::vector<ulong> ParserPlugin::for_each_radix(ulong root_rnode){
     std::vector<ulong> res;
     size_t entry_num = do_radix_tree(root_rnode, RADIX_TREE_COUNT, NULL);
     struct list_pair *entry_list = (struct list_pair *)GETBUF((entry_num + 1) * sizeof(struct list_pair));
@@ -214,7 +214,7 @@ std::vector<ulong> PaserPlugin::for_each_radix(ulong root_rnode){
     return res;
 }
 
-std::vector<ulong> PaserPlugin::for_each_mptree(ulong maptree_addr){
+std::vector<ulong> ParserPlugin::for_each_mptree(ulong maptree_addr){
     std::vector<ulong> res;
     size_t entry_num = do_maple_tree(maptree_addr, MAPLE_TREE_COUNT, NULL);
     struct list_pair *entry_list = (struct list_pair *)GETBUF(entry_num * sizeof(struct list_pair));
@@ -227,7 +227,7 @@ std::vector<ulong> PaserPlugin::for_each_mptree(ulong maptree_addr){
     return res;
 }
 
-std::vector<ulong> PaserPlugin::for_each_xarray(ulong xarray_addr){
+std::vector<ulong> ParserPlugin::for_each_xarray(ulong xarray_addr){
     std::vector<ulong> res;
     if (!is_kvaddr(xarray_addr))return res;
     size_t entry_num = do_xarray(xarray_addr, XARRAY_COUNT, NULL);
@@ -242,7 +242,7 @@ std::vector<ulong> PaserPlugin::for_each_xarray(ulong xarray_addr){
     return res;
 }
 
-std::vector<ulong> PaserPlugin::for_each_rbtree(ulong rb_root,int offset){
+std::vector<ulong> ParserPlugin::for_each_rbtree(ulong rb_root,int offset){
     std::vector<ulong> res;
     if (!is_kvaddr(rb_root))return res;
     ulong *treeList;
@@ -268,7 +268,7 @@ std::vector<ulong> PaserPlugin::for_each_rbtree(ulong rb_root,int offset){
     return res;
 }
 
-std::vector<ulong> PaserPlugin::for_each_list(ulong list_head,int offset){
+std::vector<ulong> ParserPlugin::for_each_list(ulong list_head,int offset){
     std::vector<ulong> res;
     if (!is_kvaddr(list_head))return res;
     void *buf = read_struct(list_head,"list_head");
@@ -303,7 +303,7 @@ std::vector<ulong> PaserPlugin::for_each_list(ulong list_head,int offset){
     return res;
 }
 
-std::vector<ulong> PaserPlugin::for_each_hlist(ulong hlist_head,int offset){
+std::vector<ulong> ParserPlugin::for_each_hlist(ulong hlist_head,int offset){
     std::vector<ulong> res;
     ulong first = read_pointer(hlist_head,"hlist_head");
     if (!is_kvaddr(first))return res;
@@ -325,7 +325,7 @@ std::vector<ulong> PaserPlugin::for_each_hlist(ulong hlist_head,int offset){
     return res;
 }
 
-std::vector<ulong> PaserPlugin::for_each_process(){
+std::vector<ulong> ParserPlugin::for_each_process(){
     std::vector<ulong> res_list;
     ulong init_task = csymbol_value("init_task");
     int offset = field_offset(task_struct,tasks);
@@ -343,7 +343,7 @@ std::vector<ulong> PaserPlugin::for_each_process(){
     return res_list;
 }
 
-std::vector<ulong> PaserPlugin::for_each_threads(){
+std::vector<ulong> ParserPlugin::for_each_threads(){
     std::vector<ulong> task_list;
     struct task_context* tc = FIRST_CONTEXT();
     task_list.push_back(tc->task);
@@ -353,7 +353,7 @@ std::vector<ulong> PaserPlugin::for_each_threads(){
     return task_list;
 }
 
-std::vector<ulong> PaserPlugin::for_each_vma(ulong& task_addr){
+std::vector<ulong> ParserPlugin::for_each_vma(ulong& task_addr){
     std::vector<ulong> vma_list;
     ulong mm_addr = read_pointer(task_addr + field_offset(task_struct,mm), "task_struct_mm");
     if (!is_kvaddr(mm_addr))return vma_list;
@@ -370,7 +370,7 @@ std::vector<ulong> PaserPlugin::for_each_vma(ulong& task_addr){
     return vma_list;
 }
 
-ulonglong PaserPlugin::read_structure_field(ulong addr,const std::string& type,const std::string& field,bool virt){
+ulonglong ParserPlugin::read_structure_field(ulong addr,const std::string& type,const std::string& field,bool virt){
     int offset = type_offset(type,field);
     int size = type_size(type,field);
     std::string note = type + "_" + field;
@@ -402,7 +402,7 @@ ulonglong PaserPlugin::read_structure_field(ulong addr,const std::string& type,c
     return result;
 }
 
-std::string PaserPlugin::read_cstring(ulong addr,int len, const std::string& note,bool virt){
+std::string ParserPlugin::read_cstring(ulong addr,int len, const std::string& note,bool virt){
     char res[len];
     if (!readmem(addr, (virt ? KVADDR : PHYSADDR), res, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
@@ -411,7 +411,7 @@ std::string PaserPlugin::read_cstring(ulong addr,int len, const std::string& not
     return std::string(res);
 }
 
-bool PaserPlugin::read_bool(ulong addr,const std::string& note,bool virt){
+bool ParserPlugin::read_bool(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(bool),note,virt);
     if(buf == nullptr){
         return false;
@@ -421,7 +421,7 @@ bool PaserPlugin::read_bool(ulong addr,const std::string& note,bool virt){
     return res;
 }
 
-int PaserPlugin::read_int(ulong addr,const std::string& note,bool virt){
+int ParserPlugin::read_int(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(int),note,virt);
     if(buf == nullptr){
         return 0;
@@ -431,7 +431,7 @@ int PaserPlugin::read_int(ulong addr,const std::string& note,bool virt){
     return res;
 }
 
-uint PaserPlugin::read_uint(ulong addr,const std::string& note,bool virt){
+uint ParserPlugin::read_uint(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(uint),note,virt);
     if(buf == nullptr){
         return 0;
@@ -441,7 +441,7 @@ uint PaserPlugin::read_uint(ulong addr,const std::string& note,bool virt){
     return res;
 }
 
-long PaserPlugin::read_long(ulong addr,const std::string& note,bool virt){
+long ParserPlugin::read_long(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(long),note,virt);
     if(buf == nullptr){
         return 0;
@@ -451,7 +451,7 @@ long PaserPlugin::read_long(ulong addr,const std::string& note,bool virt){
     return res;
 }
 
-ulong PaserPlugin::read_ulong(ulong addr,const std::string& note,bool virt){
+ulong ParserPlugin::read_ulong(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(ulong),note,virt);
     if(buf == nullptr){
         return 0;
@@ -461,7 +461,7 @@ ulong PaserPlugin::read_ulong(ulong addr,const std::string& note,bool virt){
     return res;
 }
 
-ulonglong PaserPlugin::read_ulonglong(ulong addr,const std::string& note,bool virt){
+ulonglong ParserPlugin::read_ulonglong(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(ulonglong),note,virt);
     if(buf == nullptr){
         return 0;
@@ -471,7 +471,7 @@ ulonglong PaserPlugin::read_ulonglong(ulong addr,const std::string& note,bool vi
     return res;
 }
 
-ushort PaserPlugin::read_ushort(ulong addr,const std::string& note,bool virt){
+ushort ParserPlugin::read_ushort(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(ushort),note,virt);
     if(buf == nullptr){
         return 0;
@@ -481,7 +481,7 @@ ushort PaserPlugin::read_ushort(ulong addr,const std::string& note,bool virt){
     return res;
 }
 
-short PaserPlugin::read_short(ulong addr,const std::string& note,bool virt){
+short ParserPlugin::read_short(ulong addr,const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(short),note,virt);
     if(buf == nullptr){
         return 0;
@@ -491,7 +491,7 @@ short PaserPlugin::read_short(ulong addr,const std::string& note,bool virt){
     return res;
 }
 
-void* PaserPlugin::read_memory(ulong addr,int len, const std::string& note, bool virt){
+void* ParserPlugin::read_memory(ulong addr,int len, const std::string& note, bool virt){
     void* buf = (void *)GETBUF(len);
     if (!readmem(addr, (virt ? KVADDR : PHYSADDR), buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
@@ -501,7 +501,7 @@ void* PaserPlugin::read_memory(ulong addr,int len, const std::string& note, bool
     return buf;
 }
 
-void* PaserPlugin::read_struct(ulong addr,const std::string& type,bool virt){
+void* ParserPlugin::read_struct(ulong addr,const std::string& type,bool virt){
     int size = type_size(type);
     void* buf = (void *)GETBUF(size);
     if (!readmem(addr, (virt ? KVADDR : PHYSADDR), buf, size, TO_CONST_STRING(type.c_str()), RETURN_ON_ERROR|QUIET)) {
@@ -512,7 +512,7 @@ void* PaserPlugin::read_struct(ulong addr,const std::string& type,bool virt){
     return buf;
 }
 
-bool PaserPlugin::read_struct(ulong addr,void* buf, int len, const std::string& note,bool virt){
+bool ParserPlugin::read_struct(ulong addr,void* buf, int len, const std::string& note,bool virt){
     if (!readmem(addr, (virt ? KVADDR : PHYSADDR), buf, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()),addr);
         return false;
@@ -520,7 +520,7 @@ bool PaserPlugin::read_struct(ulong addr,void* buf, int len, const std::string& 
     return true;
 }
 
-ulong PaserPlugin::read_pointer(ulong addr, const std::string& note,bool virt){
+ulong ParserPlugin::read_pointer(ulong addr, const std::string& note,bool virt){
     void *buf = read_memory(addr,sizeof(void *),note,virt);
     if(buf == nullptr){
         return 0;
@@ -530,7 +530,7 @@ ulong PaserPlugin::read_pointer(ulong addr, const std::string& note,bool virt){
     return res;
 }
 
-unsigned char PaserPlugin::read_byte(ulong addr, const std::string& note,bool virt){
+unsigned char ParserPlugin::read_byte(ulong addr, const std::string& note,bool virt){
     unsigned char val;
     if (!readmem(addr, (virt ? KVADDR : PHYSADDR), &val, 1, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
@@ -539,23 +539,23 @@ unsigned char PaserPlugin::read_byte(ulong addr, const std::string& note,bool vi
     return val;
 }
 
-int PaserPlugin::csymbol_exists(const std::string& note){
+int ParserPlugin::csymbol_exists(const std::string& note){
     return symbol_exists(TO_CONST_STRING(note.c_str()));
 }
 
-ulong PaserPlugin::csymbol_value(const std::string& note){
+ulong ParserPlugin::csymbol_value(const std::string& note){
     return symbol_value(TO_CONST_STRING(note.c_str()));
 }
 
-bool PaserPlugin::is_kvaddr(ulong addr){
+bool ParserPlugin::is_kvaddr(ulong addr){
     return IS_KVADDR(addr);
 }
 
-bool PaserPlugin::is_uvaddr(ulong addr, struct task_context* tc){
+bool ParserPlugin::is_uvaddr(ulong addr, struct task_context* tc){
     return IS_UVADDR(addr,tc);
 }
 
-int PaserPlugin::page_to_nid(ulong page){
+int ParserPlugin::page_to_nid(ulong page){
     int i;
     struct node_table *nt;
     physaddr_t paddr = page_to_phy(page);
@@ -572,31 +572,31 @@ int PaserPlugin::page_to_nid(ulong page){
     return -1;
 }
 
-ulong PaserPlugin::virt_to_phy(ulong vaddr){
+ulong ParserPlugin::virt_to_phy(ulong vaddr){
     return VTOP(vaddr);
 }
 
-ulong PaserPlugin::phy_to_virt(ulong paddr){
+ulong ParserPlugin::phy_to_virt(ulong paddr){
     return PTOV(paddr);
 }
 
-ulong PaserPlugin::phy_to_pfn(ulong paddr){
+ulong ParserPlugin::phy_to_pfn(ulong paddr){
     return BTOP(paddr);
 }
 
-physaddr_t PaserPlugin::pfn_to_phy(ulong pfn){
+physaddr_t ParserPlugin::pfn_to_phy(ulong pfn){
     return PTOB(pfn);
 }
 
-ulong PaserPlugin::page_to_pfn(ulong page){
+ulong ParserPlugin::page_to_pfn(ulong page){
     return phy_to_pfn(page_to_phy(page));
 }
 
-ulong PaserPlugin::pfn_to_page(ulong pfn){
+ulong ParserPlugin::pfn_to_page(ulong pfn){
     return phy_to_page(pfn_to_phy(pfn));
 }
 
-ulong PaserPlugin::phy_to_page(ulong paddr){
+ulong ParserPlugin::phy_to_page(ulong paddr){
     ulong page;
     if(phys_to_page(paddr, &page)){
         return page;
@@ -604,7 +604,7 @@ ulong PaserPlugin::phy_to_page(ulong paddr){
     return 0;
 }
 
-physaddr_t PaserPlugin::page_to_phy(ulong page){
+physaddr_t ParserPlugin::page_to_phy(ulong page){
     physaddr_t paddr = 0;
     if (is_page_ptr(page, &paddr)){
         return paddr;
@@ -612,7 +612,7 @@ physaddr_t PaserPlugin::page_to_phy(ulong page){
     return 0;
 }
 
-std::string PaserPlugin::get_config_val(const std::string& conf_name){
+std::string ParserPlugin::get_config_val(const std::string& conf_name){
     char *config_val;
     if (get_kernel_config(TO_CONST_STRING(conf_name.c_str()),&config_val) != IKCONFIG_N){
         std::string val(config_val);
@@ -622,21 +622,21 @@ std::string PaserPlugin::get_config_val(const std::string& conf_name){
     }
 }
 
-void PaserPlugin::cfill_pgd(ulonglong pgd, int type, ulong size){
+void ParserPlugin::cfill_pgd(ulonglong pgd, int type, ulong size){
     if (!IS_LAST_PGD_READ(pgd)) {
         readmem(pgd, type, machdep->pgd, size, TO_CONST_STRING("pgd page"), FAULT_ON_ERROR);
         machdep->last_pgd_read = (ulong)(pgd);
     }
 }
 
-void PaserPlugin::cfill_pmd(ulonglong pmd, int type, ulong size){
+void ParserPlugin::cfill_pmd(ulonglong pmd, int type, ulong size){
     if (!IS_LAST_PMD_READ(pmd)) {
         readmem(pmd, type, machdep->pmd, size, TO_CONST_STRING("pmd page"), FAULT_ON_ERROR);
         machdep->last_pmd_read = (ulong)(pmd);
     }
 }
 
-void PaserPlugin::cfill_ptbl(ulonglong ptbl, int type, ulong size){
+void ParserPlugin::cfill_ptbl(ulonglong ptbl, int type, ulong size){
     if (!IS_LAST_PTBL_READ(ptbl)) {
         readmem(ptbl, type, machdep->ptbl, size, TO_CONST_STRING("page table"), FAULT_ON_ERROR);
         machdep->last_ptbl_read = (ulong)(ptbl);
@@ -644,7 +644,7 @@ void PaserPlugin::cfill_ptbl(ulonglong ptbl, int type, ulong size){
 }
 
 // maybe we can refer to symbols.c is_binary_stripped
-bool PaserPlugin::is_binary_stripped(std::string& filename){
+bool ParserPlugin::is_binary_stripped(std::string& filename){
     std::string command = "readelf -s " + filename;
     FILE *pipe = popen(command.c_str(), "r");
     if (!pipe) {
@@ -660,7 +660,7 @@ bool PaserPlugin::is_binary_stripped(std::string& filename){
     return output.find("Symbol table '.symtab' contains") == std::string::npos;
 }
 
-bool PaserPlugin::add_symbol_file(std::string& filename){
+bool ParserPlugin::add_symbol_file(std::string& filename){
     if(is_elf_file(TO_CONST_STRING(filename.c_str())) && is_binary_stripped(filename)){
         fprintf(fp, "This file is not symbols file \n");
         return false;
@@ -673,7 +673,7 @@ bool PaserPlugin::add_symbol_file(std::string& filename){
     return true;
 }
 
-void PaserPlugin::verify_userspace_symbol(std::string& symbol_name){
+void ParserPlugin::verify_userspace_symbol(std::string& symbol_name){
     char buf[BUFSIZE];
     sprintf(buf, "ptype %s", symbol_name.c_str());
     if(!gdb_pass_through(buf, NULL, GNU_RETURN_ON_ERROR)){
@@ -681,7 +681,7 @@ void PaserPlugin::verify_userspace_symbol(std::string& symbol_name){
     }
 }
 
-std::string PaserPlugin::extract_string(const char *input) {
+std::string ParserPlugin::extract_string(const char *input) {
     std::string result;
     const char *ptr = input;
     while (*ptr != '\0') {
@@ -694,7 +694,7 @@ std::string PaserPlugin::extract_string(const char *input) {
     return result;
 }
 
-int PaserPlugin::is_bigendian(void){
+int ParserPlugin::is_bigendian(void){
     int i = 0x12345678;
     if (*(char *)&i == 0x12)
         return TRUE;
@@ -702,7 +702,7 @@ int PaserPlugin::is_bigendian(void){
         return FALSE;
 }
 
-std::vector<std::string> PaserPlugin::get_enumerator_list(const std::string &enum_name){
+std::vector<std::string> ParserPlugin::get_enumerator_list(const std::string &enum_name){
     std::vector<std::string> result;
     char buf[BUFSIZE];
     open_tmpfile();
@@ -728,13 +728,13 @@ std::vector<std::string> PaserPlugin::get_enumerator_list(const std::string &enu
     return result;
 }
 
-long PaserPlugin::read_enum_val(const std::string& enum_name){
+long ParserPlugin::read_enum_val(const std::string& enum_name){
      long enum_val = 0;
      enumerator_value(TO_CONST_STRING(enum_name.c_str()), &enum_val);
      return enum_val;
 }
 
-std::map<std::string, ulong> PaserPlugin::read_enum_list(const std::string& enum_list_name){
+std::map<std::string, ulong> ParserPlugin::read_enum_list(const std::string& enum_list_name){
     char cmd_buf[BUFSIZE], ret_buf[BUFSIZE*5];
     FILE *tmp_fp = fmemopen(ret_buf, sizeof(ret_buf), "w");
     sprintf(cmd_buf, "ptype enum %s", enum_list_name.c_str());
@@ -758,11 +758,11 @@ std::map<std::string, ulong> PaserPlugin::read_enum_list(const std::string& enum
     return enum_list;
 }
 
-char PaserPlugin::get_printable(uint8_t d) {
+char ParserPlugin::get_printable(uint8_t d) {
     return std::isprint(d) ? static_cast<char>(d) : '.';
 }
 
-std::string PaserPlugin::print_line(uint64_t addr, const std::vector<uint8_t>& data) {
+std::string ParserPlugin::print_line(uint64_t addr, const std::vector<uint8_t>& data) {
     std::vector<char> printable;
     std::vector<std::string> data_hex;
     for (uint8_t d : data) {
@@ -791,7 +791,7 @@ std::string PaserPlugin::print_line(uint64_t addr, const std::vector<uint8_t>& d
     return oss.str();
 }
 
-std::string PaserPlugin::hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian) {
+std::string ParserPlugin::hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian) {
     std::ostringstream sio;
     std::vector<uint8_t> data_list;
     if (little_endian) {
@@ -829,7 +829,7 @@ std::string PaserPlugin::hexdump(uint64_t addr, const char* buf, size_t length, 
 }
 
 #if defined(ARM)
-ulong* PaserPlugin::pmd_page_addr(ulong pmd){
+ulong* ParserPlugin::pmd_page_addr(ulong pmd){
     ulong ptr;
     if (machdep->flags & PGTABLE_V2) {
         ptr = PAGEBASE(pmd);
@@ -840,7 +840,7 @@ ulong* PaserPlugin::pmd_page_addr(ulong pmd){
     return (ulong *)ptr;
 }
 
-ulong PaserPlugin::get_arm_pte(ulong task_addr, ulong page_vaddr){
+ulong ParserPlugin::get_arm_pte(ulong task_addr, ulong page_vaddr){
     char buf[BUFSIZE];
     int verbose = 0;
     ulong *pgd;
@@ -922,7 +922,7 @@ ulong PaserPlugin::get_arm_pte(ulong task_addr, ulong page_vaddr){
 }
 #endif
 
-bool PaserPlugin::load_symbols(std::string& path, std::string name){
+bool ParserPlugin::load_symbols(std::string& path, std::string name){
     if (is_directory(TO_CONST_STRING(path.c_str()))){
         char * buf = search_directory_tree(TO_CONST_STRING(path.c_str()), TO_CONST_STRING(name.c_str()), 1);
         if (buf){
@@ -942,7 +942,7 @@ bool PaserPlugin::load_symbols(std::string& path, std::string name){
     return false;
 }
 
-std::unordered_map<ulong, ulong> PaserPlugin::parser_auvx_list(ulong mm_struct_addr, bool is_compat){
+std::unordered_map<ulong, ulong> ParserPlugin::parser_auvx_list(ulong mm_struct_addr, bool is_compat){
     field_init(mm_struct, saved_auxv);
     std::unordered_map <ulong, ulong> auxv_list;
     size_t auxv_size = field_size(mm_struct, saved_auxv);

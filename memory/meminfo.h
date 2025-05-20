@@ -21,7 +21,7 @@
 #include "plugin.h"
 #include "devicetree/devicetree.h"
 
-class Meminfo : public PaserPlugin {
+class Meminfo : public ParserPlugin {
 private:
     std::vector<ulong> node_page_state;
     std::vector<ulong> zone_page_state;

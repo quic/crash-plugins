@@ -35,7 +35,7 @@ struct swap_info {
     std::string swap_file;
 };
 
-class Swapinfo : public PaserPlugin {
+class Swapinfo : public ParserPlugin {
 private:
     int nr_swap;
     char* uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);

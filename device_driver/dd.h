@@ -51,7 +51,7 @@ struct class_type {
     std::vector<std::shared_ptr<driver>> driver_list;
 };
 
-class DDriver : public PaserPlugin {
+class DDriver : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<bus_type>> bus_list;
     std::vector<std::shared_ptr<class_type>> class_list;

@@ -19,10 +19,6 @@
 #include "plugin.h"
 #include "memory/swapinfo.h"
 #include <array>
-
-#ifdef min
-#undef min
-#endif
 #include <chrono>
 
 enum LOG_ID {
@@ -130,7 +126,7 @@ typedef struct{
     uint64_t data;
 } list_node64_t;
 
-class Logcat : public PaserPlugin {
+class Logcat : public ParserPlugin {
 protected:
     const std::array<LogLevel, 9> priorityMap = {{
         LogLevel::LOG_DEFAULT,

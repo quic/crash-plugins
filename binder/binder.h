@@ -18,7 +18,7 @@
 
 #include "plugin.h"
 
-class Binder : public PaserPlugin {
+class Binder : public ParserPlugin {
 public:
     static const int BINDER_THREAD = 0x0001;
     static const int BINDER_NODE = 0x0002;

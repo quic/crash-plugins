@@ -172,7 +172,7 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
 
 #include "plugin.h"
 
-class Demo: public PaserPlugin {
+class Demo: public ParserPlugin {
 public:
     Demo();
 

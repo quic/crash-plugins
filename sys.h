@@ -22,7 +22,7 @@
 #define SOCINFO_MINOR(ver) ((ver) & 0xffff)
 #define SOCINFO_VERSION(maj, min)  ((((maj) & 0xffff) << 16)|((min) & 0xffff))
 
-class SysInfo : public PaserPlugin {
+class SysInfo : public ParserPlugin {
 private:
     uint32_t socinfo_format;
     std::vector<std::string> pmic_models;

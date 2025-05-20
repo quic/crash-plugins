@@ -71,7 +71,7 @@ struct size_list {
     int ContextNode;
 };
 
-class PropInfo : public PaserPlugin {
+class PropInfo : public ParserPlugin {
 protected:
     bool debug = false;
     std::shared_ptr<Swapinfo> swap_ptr;

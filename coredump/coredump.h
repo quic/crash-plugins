@@ -23,7 +23,7 @@
 #include "arm/compat.h"
 #include "arm/arm.h"
 
-class Coredump : public PaserPlugin {
+class Coredump : public ParserPlugin {
 private:
     std::shared_ptr<Core> core_parser;
     std::shared_ptr<Swapinfo> swap_ptr;

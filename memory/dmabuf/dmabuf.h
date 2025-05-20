@@ -66,7 +66,7 @@ struct dma_buf {
     std::vector<std::shared_ptr<proc_info>> procs;
 };
 
-class Dmabuf : public PaserPlugin {
+class Dmabuf : public ParserPlugin {
 private:
     std::vector<std::string> directions = { "DMA_BIDIRECTIONAL", "DMA_TO_DEVICE", "DMA_FROM_DEVICE", "DMA_NONE" };
 

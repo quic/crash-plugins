@@ -29,7 +29,7 @@ struct procrank{
     std::string cmdline;
 };
 
-class Procrank : public PaserPlugin {
+class Procrank : public ParserPlugin {
 public:
     Procrank();
     Procrank(std::shared_ptr<Swapinfo> swap);

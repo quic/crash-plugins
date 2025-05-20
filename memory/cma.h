@@ -28,7 +28,7 @@ struct cma_mem {
     ulong allocated_size;
 };
 
-class Cma : public PaserPlugin {
+class Cma : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<cma_mem>> mem_list;
     Cma();

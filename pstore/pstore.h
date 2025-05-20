@@ -33,7 +33,7 @@ typedef struct __attribute__((__packed__)) {
     log_time realtime;
 } android_log_header_t;
 
-class Pstore : public PaserPlugin {
+class Pstore : public ParserPlugin {
 private:
     const std::array<LogLevel, 9> priorityMap = {{
         LogLevel::LOG_DEFAULT,

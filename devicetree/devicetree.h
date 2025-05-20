@@ -40,7 +40,7 @@ struct device_node {
     std::shared_ptr<device_node> sibling;
 };
 
-class Devicetree : public PaserPlugin {
+class Devicetree : public ParserPlugin {
 private:
     std::vector<std::string> str_props={
         "model",

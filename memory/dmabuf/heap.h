@@ -19,7 +19,7 @@
 #include "plugin.h"
 #include "dmabuf.h"
 
-class Heap : public PaserPlugin {
+class Heap : public ParserPlugin {
 protected:
     std::shared_ptr<Dmabuf> dmabuf_ptr;
 

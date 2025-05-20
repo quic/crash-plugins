@@ -43,7 +43,7 @@ struct vmalloc_info {
     ulong page_cnt;
 };
 
-class Vmalloc : public PaserPlugin {
+class Vmalloc : public ParserPlugin {
 public:
     static const int VM_IOREMAP =0x00000001;
     static const int VM_ALLOC =0x00000002;
