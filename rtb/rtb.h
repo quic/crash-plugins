@@ -64,6 +64,7 @@ public:
     bool is_enable_rtb();
     void print_rtb_log();
     void print_percpu_rtb_log(int cpu);
+    void print_rtb_log_memory();
     int print_rtb_layout(int cpu,int index);
     int next_rtb_entry(int index);
     void print_none(int cpu, struct rtb_layout& layout);

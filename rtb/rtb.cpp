@@ -32,7 +32,7 @@ void Rtb::cmd_main(void) {
     if(rtb_state_ptr.get() == nullptr){
         parser_rtb_log();
     }
-    while ((c = getopt(argcnt, args, "ac:")) != EOF) {
+    while ((c = getopt(argcnt, args, "ac:i")) != EOF) {
         switch(c) {
             case 'a':
                 print_rtb_log();
@@ -49,6 +49,9 @@ void Rtb::cmd_main(void) {
                 } catch (...) {
                     fprintf(fp, "invaild arg %s\n",cppString.c_str());
                 }
+                break;
+            case 'i':
+                print_rtb_log_memory();
                 break;
             default:
                 argerrs++;
@@ -81,6 +84,7 @@ Rtb::Rtb(){
         "dump rtb log",        /* short description */
         "-a \n"
             "  rtb -c <cpu>\n"
+            "  rtb -i\n"
             "  This command dumps the rtb log.",
         "\n",
         "EXAMPLES",
@@ -97,6 +101,20 @@ Rtb::Rtb(){
         "       [234.501836] [12532249398] <0>: LOGK_IRQ interrupt:1 handled from addr ffffffd4d627c7b4 ipi_handler.04f2cb5359f849bb5e8105832b6bf932.cfi_jt Line 888 of arch/arm64/kernel/entry.S",
         "       [234.501949] [12532251573] <0>: LOGK_CTXID ctxid:4284 called from addr ffffffd4d628a684 __schedule Line 220 of include/trace/events/sched.h",
         "       [234.502641] [12532264845] <0>: LOGK_CTXID ctxid:4285 called from addr ffffffd4d628a684 __schedule Line 220 of include/trace/events/sched.h",
+        "\n",
+        "  Display rtb log memory info:",
+        "    %s> rtb -i",
+        "       RTB log size:1.00Mb",
+        "",
+        "       bc500000-->-----------------",
+        "                  |    rtb_state  |",
+        "       bc500828-->-----------------",
+        "                  |    rtb_layout |",
+        "                  |---------------|",
+        "                  |    rtb_layout |",
+        "                  |---------------|",
+        "                  |    .....      |",
+        "       bc600000-->-----------------",
         "\n",
     };
     initialize();
@@ -384,6 +402,22 @@ void Rtb::print_percpu_rtb_log(int cpu){
             break;
         }
     }
+}
+
+void Rtb::print_rtb_log_memory(){
+    physaddr_t start = rtb_state_ptr->phys - struct_size(msm_rtb_state);
+    size_t size = rtb_state_ptr->size;
+    fprintf(fp, "RTB log size:%s\n\n",csize(size).c_str());
+    fprintf(fp, "%llx-->-----------------\n",(ulonglong)start);
+    fprintf(fp, "           |    rtb_state  |\n");
+    fprintf(fp, "%llx-->-----------------\n",(ulonglong)rtb_state_ptr->phys);
+    fprintf(fp, "           |    rtb_layout |\n");
+    fprintf(fp, "           |---------------|\n");
+    fprintf(fp, "           |    rtb_layout |\n");
+    fprintf(fp, "           |---------------|\n");
+    fprintf(fp, "           |    .....      |\n");
+    fprintf(fp, "%llx-->-----------------\n",(ulonglong)(start + size));
+    fprintf(fp, "\n");
 }
 
 void Rtb::print_rtb_log(){

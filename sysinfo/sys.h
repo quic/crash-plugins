@@ -32,6 +32,8 @@ private:
 public:
     SysInfo();
 
+    void print_socinfo();
+    void print_qsocinfo();
     void cmd_main(void) override;
     void print_command_line();
     void print_soc_info();

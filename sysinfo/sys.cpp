@@ -49,6 +49,7 @@ SysInfo::SysInfo(){
         "env",                            /* command name */
         "dump system information",        /* short description */
         "-c \n"
+            "  env -s \n"
             "  This command dumps the config info.",
         "\n",
         "EXAMPLES",
@@ -60,22 +61,15 @@ SysInfo::SysInfo(){
         "    console                        : ttyMSM0,115200n8",
         "    kasan.stacktrace               : off",
         "\n",
+        "  Display soc info:",
+        "    %s> env -s",
+        "\n",
     };
     initialize();
 }
 
-void SysInfo::print_soc_info(){
-    if (THIS_KERNEL_VERSION > LINUX(5,4,0)){
-        print_soc_info5();
-    }else{
-        fprintf(fp,  "Not support for < kernel5.4 !\n");
-    }
-}
-
-void SysInfo::print_soc_info5(){
-    field_init(socinfo,fmt);
+void SysInfo::print_socinfo(){
     field_init(socinfo,id);
-    field_init(socinfo,ver);
     field_init(socinfo,raw_id);
     field_init(socinfo,hw_plat);
     field_init(socinfo,plat_ver);
@@ -86,49 +80,142 @@ void SysInfo::print_soc_info5(){
     field_init(socinfo,nproduct_id);
     field_init(socinfo,chip_id);
     field_init(socinfo,nmodem_supported);
+    field_init(socinfo,num_subset_parts);
+    field_init(socinfo,nsubset_parts_array_offset);
     struct_init(socinfo);
-    if (!csymbol_exists("socinfo")){
-        fprintf(fp,  "socinfo doesn't exist in this kernel!\n");
-        return;
-    }
     ulong soc_addr = read_pointer(csymbol_value("socinfo"),"socinfo");
     if (!is_kvaddr(soc_addr)) {
         fprintf(fp, "socinfo address is invalid!\n");
         return;
     }
     void *buf = read_struct(soc_addr,"socinfo");
-    if (!buf) {
-        return;
-    }
-    socinfo_format = UINT(buf + field_offset(socinfo,fmt));
-    read_pmic_models();
-    read_hw_platforms();
-    read_soc_ids();
-    uint32_t ver = UINT(buf + field_offset(socinfo,ver));
-    uint32_t chip_ver_major = (ver & 0xFFFF0000) >> 16;
-    uint32_t chip_ver_minor = (ver & 0x0000FFFF);
-    std::string chip_id = read_cstring(soc_addr + field_offset(socinfo,chip_id),32,"chip_id");
     uint soc_id = UINT(buf + field_offset(socinfo,id));
-    uint32_t pmic_id = UINT(buf + field_offset(socinfo,pmic_model));
+    std::string chip_id = read_cstring(soc_addr + field_offset(socinfo,chip_id),32,"chip_id");
     uint32_t hw_id = UINT(buf + field_offset(socinfo,hw_plat));
-    std::string pmic_name = "";
-    if (pmic_id < pmic_models.size()){
-        pmic_name = pmic_models[pmic_id];
-    }
     std::string hw_name = "";
     if (hw_id < hw_platforms.size()){
         hw_name = hw_platforms[hw_id];
     }
+    uint32_t num_parts = UINT(buf + field_offset(socinfo,num_subset_parts));
+    uint32_t offset = UINT(buf + field_offset(socinfo,nsubset_parts_array_offset));
+    ulong part_addr = soc_addr + offset;
+    std::vector<std::string> subset_parts = get_enumerator_list("subset_part_type");
+    std::unordered_map<uint32_t, std::string> parts_map;
+    for (const auto& part : subset_parts){
+        parts_map[read_enum_val(part)] = part;
+    }
     std::ostringstream oss;
-    oss << std::left << std::setw(12) << "Chip Version      : " << chip_ver_major << "." << chip_ver_minor << "\n"
-        << std::left << std::setw(12) << "Chip Family       : " << UINT(buf + field_offset(socinfo,chip_family)) << "\n"
-        << std::left << std::setw(12) << "Serial Number     : " << UINT(buf + field_offset(socinfo,serial_num)) << "\n"
-        << std::left << std::setw(12) << "Soc ID            : " << soc_id << "\n"
-        << std::left << std::setw(12) << "Soc Name          : " << soc_ids[soc_id] << "\n"
-        << std::left << std::setw(12) << "HARDWARE          : " << hw_name  << "\n"
-        << std::left << std::setw(12) << "PMIC              : " << pmic_name  << "\n";
+    oss << std::left << std::setw(20) << "Chip"             << ": " << chip_id << "\n"
+        << std::left << std::setw(20) << "Machine"          << ": " << soc_ids[soc_id] << "\n"
+        << std::left << std::setw(20) << "Soc ID"           << ": " << soc_id << "\n"
+        << std::left << std::setw(20) << "Serial Number"    << ": " << UINT(buf + field_offset(socinfo,serial_num)) << "\n"
+        << std::left << std::setw(20) << "HARDWARE"         << ": " << hw_name  << "\n"
+        << std::left << std::setw(20) << "Product ID"       << ": " << UINT(buf + field_offset(socinfo,nproduct_id))  << "\n";
+    if (num_parts > subset_parts.size()){
+        num_parts = subset_parts.size() - 1;
+    }
+    if (num_parts > 0){
+        for (uint32_t i = 1; i < num_parts; i++){
+            ulong addr =  part_addr + i * sizeof(uint32_t);
+            uint32_t part_entry = read_uint(addr,"part");
+            if (part_entry & 1){
+                oss << std::left << std::setw(20) << parts_map[i] << ": "  << "Enable" << "\n";
+            }else{
+                oss << std::left << std::setw(20) << parts_map[i] << ": "  << "Disable" << "\n";
+            }
+        }
+    }
     fprintf(fp, "%s \n",oss.str().c_str());
     FREEBUF(buf);
+}
+
+void SysInfo::print_qsocinfo(){
+    field_init(device,kobj);
+    field_init(kobject,name);
+    field_init(device,driver_data);
+    field_init(qcom_socinfo,attr);
+    field_init(qcom_socinfo,info);
+
+    field_init(soc_device_attribute,machine);
+    field_init(soc_device_attribute,family);
+    field_init(soc_device_attribute,revision);
+    field_init(soc_device_attribute,serial_number);
+    field_init(soc_device_attribute,soc_id);
+
+    field_init(socinfo_params,raw_device_family);
+    field_init(socinfo_params,hw_plat_subtype);
+    field_init(socinfo_params,raw_ver);
+    field_init(socinfo_params,hw_plat);
+    field_init(socinfo_params,fmt);
+    field_init(socinfo_params,nproduct_id);
+    struct_init(socinfo_params);
+    for (const auto& dev_addr : for_each_device_for_bus("platform")) {
+        std::string device_name;
+        size_t name_addr = read_pointer(dev_addr + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
+        if (is_kvaddr(name_addr)){
+            device_name = read_cstring(name_addr,100, "device name");
+        }
+        if (device_name.empty() || device_name != "qcom-socinfo"){
+            continue;
+        }
+        ulong socinfo_addr = read_pointer(dev_addr + field_offset(device,driver_data) ,"driver_data");
+        if (!is_kvaddr(socinfo_addr)){
+            continue;
+        }
+        fprintf(fp, "addr: %#lx \n",socinfo_addr);
+        ulong attr_addr = socinfo_addr + field_offset(qcom_socinfo,attr);
+        std::string machine;
+        name_addr = read_pointer(attr_addr + field_offset(soc_device_attribute,machine),"machine addr");
+        if (is_kvaddr(name_addr)){
+            machine = read_cstring(name_addr,100, "machine");
+        }
+        std::string family;
+        name_addr = read_pointer(attr_addr + field_offset(soc_device_attribute,family),"family addr");
+        if (is_kvaddr(name_addr)){
+            family = read_cstring(name_addr,100, "family");
+        }
+        std::string serial_number;
+        name_addr = read_pointer(attr_addr + field_offset(soc_device_attribute,serial_number),"serial_number addr");
+        if (is_kvaddr(name_addr)){
+            serial_number = read_cstring(name_addr,100, "serial_number");
+        }
+        std::string soc_id;
+        name_addr = read_pointer(attr_addr + field_offset(soc_device_attribute,soc_id),"soc_id addr");
+        if (is_kvaddr(name_addr)){
+            soc_id = read_cstring(name_addr,100, "soc_id");
+        }
+        ulong param_addr = socinfo_addr + field_offset(qcom_socinfo,info);
+        void *param_buf = read_struct(param_addr,"socinfo_params");
+        uint32_t hw_id = UINT(param_buf + field_offset(socinfo_params,hw_plat));
+        std::string hw_name = "";
+        if (hw_id < hw_platforms.size()){
+            hw_name = hw_platforms[hw_id];
+        }
+        std::ostringstream oss;
+        oss << std::left << std::setw(12) << "Chip Family       : " << family << "\n"
+            << std::left << std::setw(12) << "Machine           : " << machine << "\n"
+            << std::left << std::setw(12) << "Soc ID            : " << soc_id << "\n"
+            << std::left << std::setw(12) << "Serial Number     : " << serial_number << "\n"
+            << std::left << std::setw(12) << "HARDWARE          : " << hw_name  << "\n"
+            << std::left << std::setw(12) << "Product ID        : " << UINT(param_buf + field_offset(socinfo_params,nproduct_id))  << "\n";
+        fprintf(fp, "%s \n",oss.str().c_str());
+        FREEBUF(param_buf);
+    }
+}
+
+void SysInfo::print_soc_info(){
+    if (THIS_KERNEL_VERSION <= LINUX(5,4,0)){
+        fprintf(fp,  "Not support for < kernel5.4 !\n");
+        return;
+    }
+    // read_pmic_models();
+    read_hw_platforms();
+    read_soc_ids();
+    if (!csymbol_exists("socinfo")){
+        print_qsocinfo();
+    }else{
+        print_socinfo();
+    }
 }
 
 void SysInfo::read_pmic_models(){
