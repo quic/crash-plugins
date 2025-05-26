@@ -42,46 +42,41 @@ void Logcat_Parser::cmd_main(void) {
         switch(c) {
             case 'b':
             {
-                if (logcat_ptr.get() == nullptr){
-                    std::string version = prop_ptr->get_prop("ro.build.version.sdk");
-                    if (version.empty() || version == ""){
-                        version = prop_ptr->get_prop("ro.vndk.version");
+                if (logcat_ptr.get() == nullptr) {
+                    int android_ver = 0;
+                    struct task_context* tc = pid_to_context(1);
+                    if (tc) {
+                        if (strstr(tc->comm, "systemd")) { /* LE + LU */
+                            Logcat::is_LE = true;
+                        } else {
+                            std::string version = prop_ptr->get_prop("ro.build.version.sdk");
+                            if (version.empty()) {
+                                version = prop_ptr->get_prop("ro.vndk.version");
+                            }
+                            if (version.empty()) {
+                                fprintf(fp, "Can't get Android version from this dump!\n");
+                                return;
+                            }
+                            try {
+                                android_ver = std::stoi(version);
+                            } catch (const std::exception& e) {
+                                fprintf(fp, "logcat exception in: %s\n", e.what());
+                                return;
+                            }
+                        }
+                    } else {
+                        fprintf(fp, "Using Android R to parse log!\n");
+                        android_ver = 30;
                     }
-                    if (version.empty() || version == ""){
-                        fprintf(fp, "Can't get Android version from this Dump !\n");
-                        return;
-                    }
-                    int android_ver = 30;
-                    try {
-                        android_ver = std::stoi(version);
-                        fprintf(fp, "android_version is : %d !\n",android_ver);
-                    } catch (const std::invalid_argument& e) {
-                        std::cerr << "Invalid argument: " << e.what() << std::endl;
-                        return;
-                    } catch (const std::out_of_range& e) {
-                        std::cerr << "Out of range: " << e.what() << std::endl;
-                        return;
-                    }
-                    if (android_ver >= 31) { //Android12 S
-                        logcat_ptr = std::make_unique<LogcatS>(swap_ptr);
-                    }else if (android_ver >= 30){ //Android11 R
-                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
-                        fprintf(fp, "LogcatR!\n");
-                    }else if (android_ver >= 29){ //Android10 Q
-                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
-                        // logcat_ptr = std::make_unique<LogcatQ>(swap_ptr);
-                    }else if (android_ver >= 28){ //Android9 Pie
-                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
-                        // logcat_ptr = std::make_unique<LogcatPie>(swap_ptr);
-                    }else if (android_ver >= 27){ //Android8 Oreo
-                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
-                        // logcat_ptr = std::make_unique<LogcatOreo>(swap_ptr);
-                    }else if (android_ver >= 26){ //Android7 Nougat
-                        logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
-                        // logcat_ptr = std::make_unique<LogcatNougat>(swap_ptr);
-                    }else{
-                        fprintf(fp, "Not support for this Android version !\n");
-                        return;
+                    fprintf(fp, "Android version is: %d!\n", android_ver);
+                    if (Logcat::is_LE) {
+                        logcat_ptr = std::make_unique<LogcatLE>(swap_ptr); // Android 8.0
+                    } else {
+                        if (android_ver >= 31) { // Android 12 S
+                            logcat_ptr = std::make_unique<LogcatS>(swap_ptr);
+                        } else { // Android 11 R
+                            logcat_ptr = std::make_unique<LogcatR>(swap_ptr);
+                        }
                     }
                 }
                 if (logcat_ptr.get() != nullptr){

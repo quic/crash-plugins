@@ -352,14 +352,8 @@ int Zraminfo::decompress(std::string comp_name,char* source, char* dest,
 
 int Zraminfo::lzo1x_decompress(char *source, char *dest,
                                  int compressedSize, int maxDecompressedSize) {
-    int err;
     size_t tmp_len = maxDecompressedSize;
-    err = lzo1x_decompress_safe((unsigned char*)source, compressedSize, (unsigned char*)dest, &tmp_len);
-    if (err != 0) {
-        tmp_len = 0;
-        fprintf(fp, "lzo1x_decompress_safe error(%d)\n", err);
-    }
-    return tmp_len;
+    return lzo1x_decompress_safe((unsigned char*)source, compressedSize, (unsigned char*)dest, &tmp_len);
 }
 
 int Zraminfo::lz4_decompress(char *source, char *dest,

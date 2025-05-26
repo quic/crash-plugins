@@ -84,6 +84,7 @@ list(APPEND PLUGIN_SOURCES
     logcat/logcat.cpp
     logcat/logcatS.cpp
     logcat/logcatR.cpp
+    logcat/logcatLE.cpp
     device_driver/dd.cpp
     rtb/rtb.cpp
     cpu/cpuinfo.cpp
@@ -254,6 +255,7 @@ add_library(logcat SHARED
             logcat/logcat.cpp
             logcat/logcatS.cpp
             logcat/logcatR.cpp
+            logcat/logcatLE.cpp
             lib/lzo/lzo1x_decompress_safe.c
             lib/lz4/lz4_decompress.c)
 set_target_properties(logcat PROPERTIES PREFIX "")

@@ -31,3 +31,5 @@ cmake -DCMAKE_C_COMPILER="/usr/bin/gcc"   \
       CMakeLists.txt                      \
       -B output/arm
 make -C output/arm -j$(nproc)
+
+echo -e "\033[31mcrash-plugin built at: $(pwd)/output/arm64/plugins.so\033[0m"
