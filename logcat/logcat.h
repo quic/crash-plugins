@@ -22,7 +22,7 @@
 #include <chrono>
 
 enum LOG_ID {
-    MAIN,
+    MAIN = 0,
     RADIO,
     EVENTS,
     SYSTEM,
@@ -34,6 +34,7 @@ enum LOG_ID {
 };
 
 enum LogLevel {
+    LOG_UNKNOWN = 0,
     LOG_DEFAULT = 1,
     LOG_VERBOSE = 2,
     LOG_DEBUG = 3,
@@ -129,7 +130,7 @@ typedef struct{
 class Logcat : public ParserPlugin {
 protected:
     const std::array<LogLevel, 9> priorityMap = {{
-        LogLevel::LOG_DEFAULT,
+        LogLevel::LOG_UNKNOWN,
         LogLevel::LOG_DEFAULT,
         LogLevel::LOG_VERBOSE,
         LogLevel::LOG_DEBUG,
@@ -148,12 +149,14 @@ protected:
     std::shared_ptr<vma_info> parser_vma_info(ulong vma_addr);
     bool addrContains(std::shared_ptr<vma_info> vma_ptr, ulong addr);
     char* read_node(ulong addr, uint len);
-    ulong check_stdlist64(ulong addr, std::function<bool (ulong)> callback);
-    ulong check_stdlist32(ulong addr, std::function<bool (ulong)> callback);
+    ulong check_stdlist64(ulong addr, std::function<bool (ulong)> callback, ulong &list_size);
+    ulong check_stdlist32(ulong addr, std::function<bool (ulong)> callback, ulong &list_size);
     template<typename T, typename U>
-    ulong check_stdlist(ulong addr,std::function<bool (ulong)> callback);
+    ulong check_stdlist(ulong addr,std::function<bool (ulong)> callback, ulong &list_size);
+    std::string remove_invalid_chars(const std::string &str);
 
 public:
+    static bool is_LE;
     bool debug = false;
     bool is_compat = false;
     Logcat(std::shared_ptr<Swapinfo> swap);
@@ -165,7 +168,6 @@ public:
 
     void cmd_main(void) override;
     void parser_logcat_log();
-    bool isWhitespaceOrNewline(const std::string &str);
     void print_logcat_log(LOG_ID id);
     LogEvent get_event(size_t pos, char *data, size_t len);
     std::string formatTime(uint32_t tv_sec, long tv_nsec);

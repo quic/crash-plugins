@@ -13,19 +13,19 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
-#include "logcatR.h"
+#include "logcatLE.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-LogcatR::LogcatR(std::shared_ptr<Swapinfo> swap) : Logcat(swap){
+LogcatLE::LogcatLE(std::shared_ptr<Swapinfo> swap) : Logcat(swap){
 
 }
 
-ulong LogcatR::parser_logbuf_addr(){
+ulong LogcatLE::parser_logbuf_addr(){
     size_t logbuf_addr;
-    struct_init(LogBufferElement);
-    if (struct_size(LogBufferElement) != -1 && !logd_symbol.empty()){
+    struct_init(LogBufferElement_LE);
+    if (struct_size(LogBufferElement_LE) != -1 && !logd_symbol.empty()){
         fprintf(fp, "Looking for static logbuf \n");
         logbuf_addr = get_logbuf_addr_from_bss();
         if (logbuf_addr != 0){
@@ -49,27 +49,33 @@ ulong LogcatR::parser_logbuf_addr(){
     return 0;
 }
 
-size_t LogcatR::get_logbuf_addr_from_bss(){
+size_t LogcatLE::get_logbuf_addr_from_bss(){
     ulong logbuf_addr = swap_ptr->get_var_addr_by_bss("logBuf", tc_logd->task, logd_symbol);
     if (logbuf_addr == 0){
         return 0;
     }
     // static LogBuffer* logBuf = nullptr
-    if (is_compat) {
-        logbuf_addr = swap_ptr->uread_uint(tc_logd->task,logbuf_addr,"read logbuf addr") & vaddr_mask;
-    }else{
-        logbuf_addr = swap_ptr->uread_ulong(tc_logd->task,logbuf_addr,"read logbuf addr")& vaddr_mask;
-    }
+    logbuf_addr = swap_ptr->uread_ulong(tc_logd->task,logbuf_addr,"read logbuf addr")& vaddr_mask;
     return logbuf_addr;
 }
 
-size_t LogcatR::get_stdlist_addr_from_vma(){
+size_t LogcatLE::get_stdlist_addr_from_vma(){
+    auto auxv_list = parser_auvx_list(tc_logd->mm_struct, false);
+    ulong exec_text = auxv_list[AT_ENTRY];
+    std::shared_ptr<vma_info> exec_vma_ptr;
+    for (auto &vma_addr : for_each_vma(tc_logd->task)){
+        std::shared_ptr<vma_info> vma_ptr = parser_vma_info(vma_addr);
+        if (vma_ptr->vm_start <= exec_text && exec_text < vma_ptr->vm_end) {
+            exec_vma_ptr = vma_ptr;
+        }
+    }
+    if(debug){
+        fprintf(fp, "exec_text:%#lx-%#lx\n", exec_vma_ptr->vm_start, exec_vma_ptr->vm_end);
+    }
+
     int index = 0;
     for (const auto& vma_ptr : rw_vma_list) {
         if (!(vma_ptr->vm_flags & VM_READ) || !(vma_ptr->vm_flags & VM_WRITE)) {
-            continue;
-        }
-        if (vma_ptr->vma_name.find("alloc") == std::string::npos){
             continue;
         }
         if (debug){
@@ -81,19 +87,21 @@ size_t LogcatR::get_stdlist_addr_from_vma(){
                 return false;
             }
             ulong data_addr = node_addr + 2 * pointer_size;
-            data_addr = swap_ptr->uread_pointer(tc_logd->task, data_addr,"LogBufferElement addr");
-            if (!is_uvaddr(data_addr,tc_logd)){
+            data_addr = swap_ptr->uread_pointer(tc_logd->task, data_addr, "LogBufferElement_LE addr");
+            if (!is_uvaddr(data_addr, tc_logd)){
                 return false;
             }
-            char buf_element[sizeof(LogBufferElement)];
-            if(!swap_ptr->uread_buffer(tc_logd->task,data_addr,buf_element,sizeof(LogBufferElement), "LogBufferElement")){
+            char buf_element[sizeof(LogBufferElement_LE)];
+            if(!swap_ptr->uread_buffer(tc_logd->task, data_addr, buf_element, sizeof(LogBufferElement_LE), "LogBufferElement_LE")){
                 return false;
             }
-            LogBufferElement* element = (LogBufferElement*)buf_element;
-            if (element->mDropped > 1){
+            LogBufferElement_LE* element = (LogBufferElement_LE*)buf_element;
+            // (gdb) ptype /o LogBufferElement
+            if(exec_vma_ptr->vm_start <= element->mVptr && element->mVptr < exec_vma_ptr->vm_end){
                 return false;
             }
-            if (element->mLogId > 8){
+            // enum log_id : unsigned int {LOG_ID_MIN, LOG_ID_MAIN = 0, LOG_ID_RADIO, LOG_ID_EVENTS, LOG_ID_SYSTEM, LOG_ID_CRASH, LOG_ID_KERNEL, LOG_ID_MAX}
+            if (element->mLogId > 6){
                 return false;
             }
             return true;
@@ -111,12 +119,12 @@ size_t LogcatR::get_stdlist_addr_from_vma(){
     return 0;
 }
 
-bool LogcatR::search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) {
-    auto check_stdlist = (BITS64() && !is_compat) ? &LogcatR::check_stdlist64 : &LogcatR::check_stdlist32;
+bool LogcatLE::search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) {
+    auto check_stdlist = &LogcatLE::check_stdlist64;
     ulong list_size = 0;
     for (size_t addr = start_addr; addr < vma_ptr->vm_end; addr += pointer_size) {
         ulong list_addr = (this->*check_stdlist)(addr, callback, list_size);
-        if (list_addr != 0 && list_size != 0) {
+        if (list_addr != 0 && list_size != 0) { // skip the empty std::list
             // this is a probility list addr
             start_addr = list_addr;
             return true;
@@ -125,30 +133,25 @@ bool LogcatR::search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::func
     return false;
 }
 
-void LogcatR::parser_logbuf(ulong buf_addr){
+void LogcatLE::parser_logbuf(ulong buf_addr){
     ulong LogElements_list_addr = buf_addr;
-    fprintf(fp, "LogBuffer:0x%lx \n",LogElements_list_addr);
+    fprintf(fp, "LogBuffer:%#lx \n", LogElements_list_addr);
     ulong LogBufferElement_addr = 0;
     for(auto data_node: for_each_stdlist(LogElements_list_addr)){
-        if (is_compat) {
-            LogBufferElement_addr = swap_ptr->uread_uint(tc_logd->task,data_node,"read data_node") & vaddr_mask;
-        }else{
-            LogBufferElement_addr = swap_ptr->uread_ulong(tc_logd->task,data_node,"read data_node") & vaddr_mask;
-        }
+        LogBufferElement_addr = swap_ptr->uread_ulong(tc_logd->task,data_node,"read data_node") & vaddr_mask;
         parser_LogBufferElement(LogBufferElement_addr);
     }
 }
 
-void LogcatR::parser_LogBufferElement(ulong vaddr){
-    // fprintf(fp, "LogBufferElement_addr:0x%lx \n",vaddr);
+void LogcatLE::parser_LogBufferElement(ulong vaddr){
     if (!is_uvaddr(vaddr,tc_logd)){
         return;
     }
-    char buf_element[sizeof(LogBufferElement)];
-    if(!swap_ptr->uread_buffer(tc_logd->task,vaddr,buf_element,sizeof(LogBufferElement), "LogBufferElement")){
+    char buf_element[sizeof(LogBufferElement_LE)];
+    if(!swap_ptr->uread_buffer(tc_logd->task, vaddr, buf_element, sizeof(LogBufferElement_LE), "LogBufferElement_LE")){
         return;
     }
-    LogBufferElement* element = (LogBufferElement*)buf_element;
+    LogBufferElement_LE* element = (LogBufferElement_LE*)buf_element;
     if (element->mDropped == 1){
         return;
     }

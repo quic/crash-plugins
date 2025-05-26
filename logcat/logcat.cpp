@@ -558,6 +558,7 @@ std::unordered_map<uint, std::string> event_tags_map = {
     {1937006964, "stats_log"},
 };
 
+bool Logcat::is_LE = false;
 Logcat::Logcat(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
     field_init(vm_area_struct, vm_start);
     field_init(vm_area_struct, vm_end);
@@ -625,31 +626,47 @@ void Logcat::parser_logcat_log(){
         fprintf(fp, "invaild vaddr:0x%lx \n",logbuf_vaddr);
         return;
     }
+    /*
+    only for S, the address of LogBuffer(SerializedLogBuffer) is not same as
+    std::list<SerializedLogChunk> logs_[LOG_ID_MAX] GUARDED_BY(logd_lock);
+    */
     parser_logbuf(logbuf_vaddr);
 }
 
-bool Logcat::isWhitespaceOrNewline(const std::string& str) {
-    return std::all_of(str.begin(), str.end(), [](unsigned char c) {
+// Remove invalid characters
+std::string Logcat::remove_invalid_chars(const std::string& msg) {
+    std::string vaildStr;
+    bool hasPrintable = false;
+    for (unsigned char c : msg) {
+        if (c == '\n') {
+            vaildStr += '\n';
+        } else if (c >= 0x20 && c <= 0x7E) {
+            vaildStr += c;
+            if (c != ' ' && c != '\t') {
+                hasPrintable = true;
+            }
+        } else {
+            vaildStr += ' ';
+        }
+    }
+    if (!hasPrintable || std::all_of(vaildStr.begin(), vaildStr.end(), [](unsigned char c) {
         return std::isspace(c);
-    });
+    })) {
+        return "";
+    }
+    return vaildStr;
 }
 
 void Logcat::print_logcat_log(LOG_ID id){
-    // fprintf(fp, "log_list len:%zu  \n",log_list.size());
+    // fprintf(fp, "log_list len:%zu  \n", log_list.size());
     for (auto &log_ptr : log_list){
         if(id != ALL && log_ptr->logid != id){
             // std::cout << log_ptr->msg << std::endl;
             continue;
         }
-        if (log_ptr->msg.empty() || isWhitespaceOrNewline(log_ptr->msg)){
-            continue;
-        }
-        size_t pos = 0;
-        while ((pos = log_ptr->msg.find('\0')) != std::string::npos) {
-            log_ptr->msg.replace(pos, 1, " ");
-        }
-        while ((pos = log_ptr->msg.find('\n')) != std::string::npos) {
-            log_ptr->msg.replace(pos, 1, " ");
+        std::string vaild_msg = remove_invalid_chars(log_ptr->msg);
+        if(vaild_msg.empty()){
+             continue;
         }
         std::ostringstream oss;
         if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO
@@ -660,8 +677,8 @@ void Logcat::print_logcat_log(LOG_ID id){
                 << std::setw(6) << log_ptr->uid << " "
                 << getLogLevelChar(log_ptr->priority) << " "
                 << log_ptr->tag << " "
-                << log_ptr->msg;
-        }else{
+                << vaild_msg;
+        }else{ // event log
             std::string tag = log_ptr->tag;
             try {
                 uint tag_index = std::stoi(log_ptr->tag);
@@ -677,7 +694,7 @@ void Logcat::print_logcat_log(LOG_ID id){
             << std::setw(6) << log_ptr->uid << " "
             << getLogLevelChar(log_ptr->priority) << " "
             << tag << " "
-            << log_ptr->msg;
+            << vaild_msg;
         }
         fprintf(fp, "%s \n",oss.str().c_str());
     }
@@ -879,7 +896,7 @@ void Logcat::get_rw_vma_list(){
         if (vma_ptr == nullptr) {
             continue;
         }
-        if(vma_ptr->vma_name.find("proper") != std::string::npos){
+        if(!Logcat::is_LE && vma_ptr->vma_name.find("proper") != std::string::npos){
             continue;
         }
         if(is_kvaddr(vma_ptr->vm_file) && vma_ptr->vma_name.find("logd") == std::string::npos){
@@ -943,12 +960,12 @@ std::shared_ptr<vma_info> Logcat::parser_vma_info(ulong vma_addr){
     return vma_ptr;
 }
 
-ulong Logcat::check_stdlist64(ulong addr,std::function<bool (ulong)> callback) {
-    return check_stdlist<list_node64_t, uint64_t>(addr,callback);
+ulong Logcat::check_stdlist64(ulong addr,std::function<bool (ulong)> callback, ulong &list_size) {
+    return check_stdlist<list_node64_t, uint64_t>(addr, callback, list_size);
 }
 
-ulong Logcat::check_stdlist32(ulong addr,std::function<bool (ulong)> callback) {
-    return check_stdlist<list_node32_t, uint32_t>(addr,callback);
+ulong Logcat::check_stdlist32(ulong addr,std::function<bool (ulong)> callback, ulong &list_size) {
+    return check_stdlist<list_node32_t, uint32_t>(addr, callback, list_size);
 }
 
 /*
@@ -966,7 +983,7 @@ ulong Logcat::check_stdlist32(ulong addr,std::function<bool (ulong)> callback) {
 +------------------------------------------------------------------------+
 */
 template<typename T, typename U>
-inline ulong Logcat::check_stdlist(ulong addr, std::function<bool (ulong)> callback) {
+inline ulong Logcat::check_stdlist(ulong addr, std::function<bool (ulong)> callback, ulong &list_size) {
     auto* head_node = reinterpret_cast<T*>(read_node(addr,sizeof(T)));
     if (!head_node) {
         return 0;
@@ -988,6 +1005,11 @@ inline ulong Logcat::check_stdlist(ulong addr, std::function<bool (ulong)> callb
     }
     // tail node
     if (tmp_prev == tmp_next) {
+        /*
+            for R, We will skip the empty std::list.
+            for S, It's normal even the std::list is empty, because the list size is 8.
+        */
+        list_size = tmp_data;
         return addr;
     }
     U index = 0;
@@ -1020,6 +1042,7 @@ inline ulong Logcat::check_stdlist(ulong addr, std::function<bool (ulong)> callb
             break;
         }
         if (tmp_next == head_node_addr) {
+            list_size = tmp_data;
             return head_node_addr;
         }
         prev_node_addr = next_node_addr;

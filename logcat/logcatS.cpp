@@ -113,7 +113,7 @@ ulong LogcatS::parser_logbuf_addr(){
     }
 
     // 4. find the logbuf addr from std::list
-    fprintf(fp, "looking for std::list \n");
+    fprintf(fp, "Looking for std::list \n");
     start = std::chrono::high_resolution_clock::now();
     logbuf_addr = get_stdlist_addr_from_vma();
     end = std::chrono::high_resolution_clock::now();
@@ -171,10 +171,12 @@ bool LogcatS::check_SerializedLogChunk_list_array(ulong addr){
     for (size_t i = 0; i < ALL; i++){
         ulong log_list_addr = addr + g_size.stdlist_node_size * i;
         ulong res_addr = 0;
+        // Do not use
+        ulong list_size = 0;
         if (BITS64() && !is_compat) {
-            res_addr = check_stdlist64(log_list_addr,nullptr);
+            res_addr = check_stdlist64(log_list_addr, nullptr, list_size);
         } else {
-            res_addr = check_stdlist32(log_list_addr,nullptr);
+            res_addr = check_stdlist32(log_list_addr, nullptr, list_size);
         }
         if (debug){
             fprintf(fp, "check Log:[%zu] from %#lx, res:%#lx \n", i, log_list_addr, res_addr);
@@ -356,10 +358,12 @@ size_t LogcatS::get_stdlist_addr_from_vma(){
 bool LogcatS::search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) {
     for (size_t addr = start_addr; addr < vma_ptr->vm_end; addr += pointer_size) {
         ulong list_addr = 0;
+        // Do not use
+        ulong list_size = 0;
         if (BITS64() && !is_compat) {
-            list_addr = check_stdlist64(addr, callback);
+            list_addr = check_stdlist64(addr, callback, list_size);
         } else {
-            list_addr = check_stdlist32(addr, callback);
+            list_addr = check_stdlist32(addr, callback, list_size);
         }
         // Found a likely list
         if (list_addr != 0){

@@ -13,39 +13,38 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
-#ifndef LOGCAT_R_DEFS_H_
-#define LOGCAT_R_DEFS_H_
+#ifndef LOGCAT_LE_DEFS_H_
+#define LOGCAT_LE_DEFS_H_
 
 #include "logcat.h"
 
-struct __attribute__((__packed__)) LogBufferElement {
+struct LogBufferElement_LE {
+    //  virtual ~LogBufferElement();
+    uint64_t mVptr;
+    const uint32_t mLogId;
     const uint32_t mUid;
     const uint32_t mPid;
     const uint32_t mTid;
+    char *mMsg;
+    union {
+        const unsigned short mMsgLen;
+        unsigned short mDropped;
+    };
+    const uint64_t mSequence;
     struct log_time mRealTime;
-    union {
-        char *mMsg;
-        int32_t mTag;
-    };
-    union {
-        const uint16_t mMsgLen;
-        uint16_t mDroppedCount;
-    };
-    const uint8_t mLogId;
-    uint8_t mDropped;
 };
 
-class LogcatR : public Logcat {
+class LogcatLE : public Logcat {
 private:
     ulong parser_logbuf_addr() override;
     void parser_LogBufferElement(ulong vaddr);
 
 public:
-    LogcatR(std::shared_ptr<Swapinfo> swap);
+    LogcatLE(std::shared_ptr<Swapinfo> swap);
     void parser_logbuf(ulong buf_addr) override;
     size_t get_stdlist_addr_from_vma() override;
     size_t get_logbuf_addr_from_bss() override;
     bool search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) override;
 };
 
-#endif // LOGCAT_R_DEFS_H_
+#endif // LOGCAT_LE_DEFS_H_

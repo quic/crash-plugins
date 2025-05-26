@@ -19,6 +19,7 @@
 #include "plugin.h"
 #include "logcatR.h"
 #include "logcatS.h"
+#include "logcatLE.h"
 #include "logcat.h"
 #include <dirent.h> // for directory operations
 #include <sys/stat.h> // for file status
@@ -31,7 +32,7 @@ private:
     std::shared_ptr<Swapinfo> swap_ptr;
     std::shared_ptr<PropInfo> prop_ptr;
     std::vector<symbol> symbol_list = {
-        {"libc.so", ""},
+        {"libc.so", ""}, // for LE, the lib is libc.so.6
         {"logd", ""},
     };
 
