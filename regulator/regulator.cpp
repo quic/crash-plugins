@@ -121,34 +121,6 @@ Regulator::Regulator(){
     initialize();
 }
 
-std::vector<ulong> Regulator::parser_device_list(){
-    std::vector<ulong> device_list;
-    if (!csymbol_exists("regulator_class")){
-        fprintf(fp, "regulator_class doesn't exist in this kernel!\n");
-        return device_list;
-    }
-    ulong reg_class_addr = csymbol_value("regulator_class");
-    if (!is_kvaddr(reg_class_addr)) {
-        fprintf(fp, "regulator_class address is invalid!\n");
-        return device_list;
-    }
-    size_t subsys_addr = read_pointer(reg_class_addr + field_offset(class,p),"subsys_private");
-    if (!is_kvaddr(subsys_addr)){
-        return device_list;
-    }
-    size_t list_head = subsys_addr + field_offset(subsys_private,klist_devices) + field_offset(klist,k_list);
-    int offset = field_offset(klist_node, n_node);
-    for (const auto& node : for_each_list(list_head,offset)) {
-        if (!is_kvaddr(node)) continue;
-        size_t private_addr = node - field_offset(device_private,knode_class);
-        if (!is_kvaddr(private_addr)) continue;
-        size_t device_addr = read_pointer(private_addr + field_offset(device_private,device),"device_private");
-        if (!is_kvaddr(device_addr)) continue;
-        device_list.push_back(device_addr - field_offset(regulator_dev,dev));
-    }
-    return device_list;
-}
-
 void Regulator::print_regulator_consumer(std::string reg_name){
     for (const auto& dev_ptr : regulator_list) {
         if (dev_ptr->name != reg_name){
@@ -241,9 +213,8 @@ void Regulator::print_regulator_dev(){
 }
 
 void Regulator::parser_regulator_dev(){
-    std::vector<ulong> device_list = parser_device_list();
-    if(device_list.size() == 0) return;
-    for (const auto& addr : device_list) {
+    for (auto& addr : for_each_device_for_class("regulator")) {
+        addr = addr - field_offset(regulator_dev,dev);
         std::shared_ptr<regulator_dev> dev_ptr = std::make_shared<regulator_dev>();
         dev_ptr->addr = addr;
         dev_ptr->constraint = read_pointer(addr + field_offset(regulator_dev,constraints),"regulation_constraints");

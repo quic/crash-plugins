@@ -455,7 +455,7 @@ ulong ParserPlugin::get_class_subsys_private(std::string class_name){
         std::string name;
         size_t name_addr = read_pointer(class_addr + field_offset(class,name),"name addr");
         if (is_kvaddr(name_addr)){
-            name = read_cstring(name_addr,16, "class name");
+            name = read_cstring(name_addr,64, "class name");
         }
         if (name.empty() || name != class_name){
             continue;
