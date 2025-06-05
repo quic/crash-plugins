@@ -1772,6 +1772,82 @@ Id   Dump_entry       version  magic            DataAddr         DataLen    Name
 98   bc71c010         20       42445953         bc71c050         36928      l1_icache2
 ```
 
+Generate the cmm file.
+```
+crash> dbi -c
+c0_context  core:0  version:1.4
+c1_context  core:1  version:1.4
+c2_context  core:2  version:1.4
+c3_context  core:3  version:1.4
+```
+
+Parser specified cpu stack(skip swapper).
+```
+vm_3_vcpu_400  core:4  version:2.0
+Core4 PC: <ffffffc080033080>: local_cpu_stop+20
+Core4 LR: <ffffffc080033074>: local_cpu_stop+14
+PID: 0        TASK: ffffff88005213c0  CPU: 4    COMMAND: "swapper/4"
+ #0 [ffffffc08259bf60] ipi_handler at ffffffc08003313c
+ #1 [ffffffc08259bf90] handle_percpu_devid_irq at ffffffc080182e4c
+ #2 [ffffffc08259bfd0] generic_handle_domain_irq at ffffffc08017b534
+ #3 [ffffffc08259bfe0] gic_handle_irq at ffffffc08001012c
+--- <IRQ stack> ---
+ #4 [ffffffc082743bc0] call_on_irq_stack at ffffffc08001f1bc
+ #5 [ffffffc082743bd0] exit_to_kernel_mode at ffffffc0811251a0
+ #6 [ffffffc082743bf0] el1_interrupt at ffffffc081124394
+ #7 [ffffffff82743c10] __kvm_nvhe___kcfi_typeid_hyp_unpin_shared_mem at ffffffa630d39ffc
+```
+
+unwind specified pid stack(only support ARM64).
+```
+crash> dbi -p 141
+cpu_context:
+   X19: 0xffffff8800523b40
+   X20: 0xffffff8803cea780
+   X21: 0xffffff8803cea780
+   X22: 0
+   X23: 0x402
+   X24: 0xffffff8800523b40
+   X25: 0x2
+   X26: 0x1
+   X27: 0xffffff8803cea780
+   X28: 0
+   fp:  0xffffffc083c0bd00
+   sp:  0xffffffc083c0bd00
+   pc:  0xffffffc081128a94
+
+Stack:0xffffffc083c08000~0xffffffc083c0c000
+[0]Potential backtrace -> FP:0xffffffc083c0bb80, LR:0xffffffc083c0bb88
+ #0 [ffffffc083c0bba0] hrtimer_try_to_cancel at ffffffc0801c8060
+ #1 [ffffffc083c0bbe0] dl_server_stop at ffffffc080133ca4
+ #2 [ffffffc083c0bc40] dequeue_entities at ffffffc080123690
+ #3 [ffffffc083c0bc80] psi_group_change at ffffffc0801531e4
+ #4 [ffffffc083c0bce0] psi_task_switch at ffffffc0801536ac
+ #5 [ffffffc083c0bd00] __switch_to at ffffffc08112897c
+ #6 [ffffffc083c0bd80] __schedule at ffffffc0811295ac
+ #7 [ffffffc083c0bde0] schedule at ffffffc081129b34
+ #8 [ffffffc083c0be10] rescuer_thread at ffffffc0800fd118
+ #9 [ffffffc083c0be70] kthread at ffffffc080102e20
+```
+
+unwind irq stack(only support ARM64).
+```
+crash> dbi -C 0
+CPU[0] irq stack:0xffffffc080000000~0xffffffc080004000
+[0]Potential backtrace -> FP:0xffffffc080003ec0, LR:0xffffffc080003ec8
+PID: 0        TASK: ffffffc0822dccc0  CPU: 0    COMMAND: "swapper/0"
+ #0 [ffffffc080003ef0] sched_clock at ffffffc0801dc4dc
+ #1 [ffffffc080003f10] sched_clock_cpu at ffffffc080148fec
+ #2 [ffffffc080003f20] irqtime_account_irq at ffffffc0801318b8
+ #3 [ffffffc080003f80] handle_softirqs at ffffffc0800d7624
+ #4 [ffffffc080003fe0] __do_softirq at ffffffc080010200
+ #5 [ffffffc080003ff0] ____do_softirq at ffffffc08001f230
+--- <IRQ stack> ---
+ #6 [ffffffc0822c3b80] call_on_irq_stack at ffffffc08001f1bc
+ #7 [ffffffc0822c3bf0] init_thread_union at ffffffc0822c3bec
+ #8 [ffffffc0822f9e20] __kvm_nvhe___kcfi_typeid_hyp_unpin_shared_mem at ffffff887ab592fc
+```
+
 ## ipc
 This command dumps the ipc log.
 

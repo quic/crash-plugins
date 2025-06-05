@@ -141,23 +141,26 @@ size_t LogcatS::get_logbuf_addr_from_register(){
         }
     }
     uint64_t x21 = regs[21] & vaddr_mask;
-    if (x21 > 0){
+    if (x21 > 0 && is_uvaddr(x21, tc_logd)){
         x21 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x21)){
+            FREEBUF(regs);
             return x21;
         }
     }
     uint64_t x22 = regs[22] & vaddr_mask;
-    if (x22 > 0){
+    if (x22 > 0 && is_uvaddr(x22, tc_logd)){
         x22 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x22)){
+            FREEBUF(regs);
             return x22;
         }
     }
     uint64_t x23 = regs[23] & vaddr_mask;
-    if (x23 > 0){
+    if (x23 > 0 && is_uvaddr(x23, tc_logd)){
         x23 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x23)){
+            FREEBUF(regs);
             return x23;
         }
     }
@@ -411,12 +414,13 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
     }
     ulong contents_data = 0;
     int write_offset = 0;
-    bool writer_active = 0;
+    bool writer_active = false;
     ulong compressed_data = 0;
     ulong compressed_size = 0;
     void* chunk_buf = std::malloc(g_size.SerializedLogChunk);
     BZERO(chunk_buf, g_size.SerializedLogChunk);
     if (!swap_ptr->uread_buffer(tc_logd->task, vaddr, (char*)chunk_buf, g_size.SerializedLogChunk, "read SerializedLogChunk")){
+        std::free(chunk_buf);
         return;
     }
     if (BITS64() && !is_compat) {
@@ -443,13 +447,13 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
         }
         size_t const rBuffSize = ZSTD_getFrameContentSize(compressed_log, compressed_size);
         if (rBuffSize == ZSTD_CONTENTSIZE_ERROR || rBuffSize == ZSTD_CONTENTSIZE_UNKNOWN) {
-            std::cout << "Error determining the content size:" << compressed_size << " of the compressed data." << std::endl;
+            if(debug) fprintf(fp, "Error determining the content size: %#lx of the compressed data.\n", compressed_size);
             return;
         }
         std::vector<char> buffer(rBuffSize);
         size_t const dSize = ZSTD_decompress(buffer.data(), buffer.size(), compressed_log, compressed_size);
         if (ZSTD_isError(dSize)) {
-            std::cout << "Failed to decompress data: " << ZSTD_getErrorName(dSize) << std::endl;
+            if(debug) fprintf(fp, "Failed to decompress data: %s \n", ZSTD_getErrorName(dSize));
             return;
         }
         // std::cout << std::string(buffer.begin(), buffer.end()) << std::endl;
@@ -460,17 +464,15 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
         }
         uint32_t log_len = write_offset;
         char log_data[log_len];
-        if(!swap_ptr->uread_buffer(tc_logd->task,contents_data,log_data,log_len, "contents_log")){
+        BZERO(log_data, log_len);
+        if(!swap_ptr->uread_buffer(tc_logd->task, contents_data, log_data, log_len, "contents_log")){
             return;
         }
-        parser_SerializedLogEntry(log_id, log_data,log_len);
+        parser_SerializedLogEntry(log_id, log_data, log_len);
     }
 }
 
 void LogcatS::parser_SerializedLogEntry(LOG_ID log_id, char* log_data, uint32_t data_len){
-    if(log_data == nullptr || data_len == 0){
-        return;
-    }
     // fprintf(fp,  "\n\nlog data: \n");
     // fprintf(fp, "%s", hexdump(0x1000, log_data, data_len).c_str());
     size_t pos = 0;
@@ -489,12 +491,25 @@ void LogcatS::parser_SerializedLogEntry(LOG_ID log_id, char* log_data, uint32_t 
         if(entry->msg_len <= 0){
             continue;
         }
-        char log_msg[entry->msg_len + 1];
-        memcpy(log_msg, logbuf, entry->msg_len);
-        if (log_id == MAIN || log_id == SYSTEM || log_id == RADIO || log_id == CRASH || log_ptr->logid == KERNEL){
-            parser_system_log(log_ptr,log_msg,entry->msg_len);
+        /* memory corruption, drop it */
+        const size_t remaining = data_len - pos;
+        if(log_ptr->pid == 0 || log_ptr->pid > 100000 || log_ptr->uid > 100000 || log_ptr->tid > 100000 || (entry->msg_len > remaining)){
+            fprintf(fp, "pid/uid/tid is abnormal[%d, %d, %d], msg_len:%#x, total_len:%u, will save to raw data\n", log_ptr->pid, log_ptr->uid, log_ptr->tid, entry->msg_len, data_len);
+            char filename[256];
+            snprintf(filename, sizeof(filename), "%u.bin", data_len);
+            FILE *file = fopen(filename, "wb");
+            if (!file) break;
+            fwrite(log_data, 1, data_len, file);
+            fclose(file);
+            break;
+        }
+        // char log_msg[msg_len + 1];
+        // BZERO(log_msg, msg_len + 1);
+        // memcpy(log_msg, logbuf, msg_len);
+        if (log_id == MAIN || log_id == SYSTEM || log_id == RADIO || log_id == CRASH || log_id == KERNEL){
+            parser_system_log(log_ptr, (char *)logbuf, entry->msg_len);
         }else{
-            parser_event_log(log_ptr,log_msg,entry->msg_len);
+            parser_event_log(log_ptr, (char *)logbuf, entry->msg_len);
         }
         pos += entry->msg_len;
         logbuf += entry->msg_len;

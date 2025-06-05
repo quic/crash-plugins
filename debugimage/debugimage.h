@@ -72,6 +72,22 @@ enum Dump_data_ids {
     DATA_MAX = 0x164,
 };
 
+struct cpu_context {
+    unsigned long x19;
+    unsigned long x20;
+    unsigned long x21;
+    unsigned long x22;
+    unsigned long x23;
+    unsigned long x24;
+    unsigned long x25;
+    unsigned long x26;
+    unsigned long x27;
+    unsigned long x28;
+    unsigned long fp;
+    unsigned long sp;
+    unsigned long pc;
+};
+
 class ImageParser;
 
 class DebugImage : public ParserPlugin {
@@ -80,6 +96,8 @@ private:
     const uint HYP_MAGIC_NUMBER = 0x42444832;
     std::vector<std::shared_ptr<Dump_entry>> image_list;
     std::shared_ptr<ImageParser> parser_ptr;
+    bool debug = false;
+    int32_t cpu_index_offset = 0;
 
 public:
     DebugImage();
@@ -94,6 +112,9 @@ public:
     void parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr);
     void parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr);
     void parser_dump_table(uint64_t paddr);
+    std::set<ulong> find_x29(const std::map<ulong, ulong>& key_value_map);
+    void print_task_stack(int pid);
+    void print_irq_stack(int cpu);
 };
 
 #endif // DEBUG_IMAGE_DEFS_H_

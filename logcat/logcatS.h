@@ -34,8 +34,8 @@ struct logcat_offset_table {
 struct logcat_size_table {
     int SerializedData;
     int SerializedLogChunk;
-    int SerializedLogBuffer_logs_;
-    int stdlist_node_size;
+    int SerializedLogBuffer_logs_; // 96
+    int stdlist_node_size; // 24
 };
 
 struct SerializedLogEntry {

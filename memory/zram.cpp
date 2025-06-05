@@ -519,7 +519,7 @@ void Zram::print_zrams(){
         std::ostringstream oss;
         oss << std::left << std::setw(20) << "zram"             << ": " << std::hex << zram_ptr->addr << "\n"
             << std::left << std::setw(20) << "name"             << ": " << zram_ptr->disk_name << "\n"
-            << std::left << std::setw(20) << "compressor"       << ": " << zram_ptr->compressor << "\n"
+            << std::left << std::setw(20) << "compressor"       << ": " << (zram_ptr->compressor.empty() ? zram_ptr->zcomp_name : zram_ptr->compressor) << "\n"
             << std::left << std::setw(20) << "total_size"       << ": " << csize(zram_ptr->disksize) << "\n"
             << std::left << std::setw(20) << "zs_pool"          << ": " << std::hex << zram_ptr->mem_pool->addr << "\n"
             << std::left << std::setw(20) << "orig_data_size"   << ": " << csize(zram_ptr->stats.pages_stored * page_size) << "\n"

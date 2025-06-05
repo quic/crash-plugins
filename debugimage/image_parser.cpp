@@ -27,6 +27,10 @@ ImageParser::ImageParser(){
 
 }
 
+uint32_t ImageParser::get_vcpu_index(uint32_t affinity) {
+    return 0;
+}
+
 uint64_t ImageParser::createMask(int a, int b) {
     uint64_t r = 0;
     for (int i = a; i <= b; ++i) {
@@ -54,7 +58,7 @@ uint64_t ImageParser::pac_ignore(uint64_t data) {
     return data;
 }
 
-std::string ImageParser::get_cmm_path(int core, bool secure){
+std::string ImageParser::get_cmm_path(std::string name, bool secure){
     std::string reg_file_path;
     char buffer[PATH_MAX];
     if (getcwd(buffer, sizeof(buffer)) != nullptr) {
@@ -62,9 +66,9 @@ std::string ImageParser::get_cmm_path(int core, bool secure){
     }
     char filename[32];
     if (secure){
-        snprintf(filename, sizeof(filename), "secure_world_core%d_regs.cmm",core);
+        snprintf(filename, sizeof(filename), "secure_world_%s_regs.cmm",name.c_str());
     }else{
-        snprintf(filename, sizeof(filename), "core%d_regs.cmm",core);
+        snprintf(filename, sizeof(filename), "%s_regs.cmm",name.c_str());
     }
     reg_file_path += "/" + std::string(filename);
     // fprintf(fp, "reg_file_path:%s\n", reg_file_path.c_str());
