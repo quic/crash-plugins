@@ -323,7 +323,8 @@ char* Zraminfo::read_zram_page(ulong zram_addr, ulonglong index){
         if (comp_len == page_size) {
             memcpy(page_data, data_ptr, page_size);
         } else {
-            decompress(zram_ptr->compressor,data_ptr,page_data,comp_len, page_size);
+            std::string compress_name = (zram_ptr->compressor.empty() ? zram_ptr->zcomp_name : zram_ptr->compressor);
+            decompress(compress_name, data_ptr, page_data, comp_len, page_size);
         }
         std::free(obj_data);
         return page_data;
