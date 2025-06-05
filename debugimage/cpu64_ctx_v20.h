@@ -20,6 +20,7 @@
 #include "debugimage.h"
 #include <map>
 
+// sysdbg_cpu64_gprs_register_names_v2_0
 typedef struct{
     uint64_t x[31];
     uint64_t pc;
@@ -80,10 +81,22 @@ typedef struct {
 } sysdbg_cpu64_cnt_el2_ctx_2_0_t;
 
 typedef struct {
+    sysdbg_cpu64_cnt_el2_ctx_2_0_t cnt_regs;
+    sysdbg_cpu64_cntp_el10_ctx_2_0_t cntp_regs;
+    sysdbg_cpu64_cntv_el10_ctx_2_0_t cntv_regs;
+    sysdbg_cpu64_vm_el2_ctx_2_0_t vm_regs;
+    sysdbg_cpu64_ctx_2_0_el0_t ctx_el0_regs;
+    sysdbg_cpu64_ctx_2_0_el1_t ctx_el1_regs;
+    sysdbg_cpu64_ctx_2_0_gprs_t ctx_gprs_regs;
+    sysdbg_neon128_registers_t neon_reg;
+} tzbsp_dump_64_2_0_t;
+
+typedef struct {
     uint64_t start_addr;
     uint64_t end_addr;
     uint32_t id;
     std::string name;
+    std::shared_ptr<tzbsp_dump_64_2_0_t> dump_ptr;
 } regset_t;
 
 class Cpu64_Context_V20 : public ImageParser {
@@ -103,9 +116,10 @@ private:
 
 public:
     Cpu64_Context_V20();
-    void compute_pc(sysdbg_cpu64_ctx_2_0_gprs_t reg, sysdbg_neon128_registers_t neon_reg);
+    void compute_pc(sysdbg_cpu64_ctx_2_0_gprs_t &reg, sysdbg_cpu64_ctx_2_0_el1_t &ctx_el1_reg);
     void generate_cmm(std::shared_ptr<Dump_entry> entry_ptr) override;
     void print_stack(std::shared_ptr<Dump_entry> entry_ptr) override;
+    uint32_t get_vcpu_index(uint32_t affinity) override;
 };
 
 #endif // CPU_64_CTX_V20_DEFS_H_

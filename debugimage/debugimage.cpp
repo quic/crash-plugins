@@ -194,6 +194,12 @@ DebugImage::DebugImage(){
         "       #15 [ffffffd20c483e90] start_kernel at ffffffd20bff9af4",
         "\n",
     };
+
+    field_init(msm_dump_cpu_ctx, affinity);
+    cpu_index_offset = field_offset(msm_dump_cpu_ctx, affinity);
+    if (cpu_index_offset == -1){
+        cpu_index_offset = 0x10;
+    }
     initialize();
 }
 
@@ -207,6 +213,7 @@ void DebugImage::print_memdump(){
             << std::left << std::setw(10)           << "DataLen" << " "
             << std::left << "Name";
     fprintf(fp, "%s \n",oss_hd.str().c_str());
+    // parse_dump_v2
     for (const auto& entry_ptr : image_list) {
         std::ostringstream oss;
         oss << std::left << std::setw(4)            << std::dec << entry_ptr->id << " "
@@ -227,7 +234,6 @@ void DebugImage::parser_memdump(){
         return;
     }
     if (!csymbol_exists("memdump")){
-        fprintf(fp, "memdump doesn't exist in this kernel!\n");
         return;
     }
     ulong dump_addr = csymbol_value("memdump");
@@ -277,10 +283,13 @@ void DebugImage::parse_cpu_stack(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
     int major = entry_ptr->version >> 4;
     int minor = entry_ptr->version & 0xF;
-    fprintf(fp, "%s  core:%d  version:%d.%d\n",entry_ptr->data_name.c_str(), core,major,minor);
     if (major == 2 && minor == 0){ //v2.0
+        uint32_t affinity = read_uint(entry_ptr->data_addr + cpu_index_offset, "affinity", false);
         parser_ptr = std::make_shared<Cpu64_Context_V20>();
+        core = parser_ptr->get_vcpu_index(affinity);
+        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major, minor);
     }else{
+        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major, minor);
         if (BITS64()){
             if (major == 1 && minor == 3){ //v1.3
                 parser_ptr = std::make_shared<Cpu64_Context_V13>();
@@ -296,12 +305,16 @@ void DebugImage::parse_cpu_stack(std::shared_ptr<Dump_entry> entry_ptr){
 
 void DebugImage::parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
+    // init_regs_v2
     int major = entry_ptr->version >> 4;
     int minor = entry_ptr->version & 0xF;
-    fprintf(fp, "%s  core:%d  version:%d.%d\n",entry_ptr->data_name.c_str(), core,major,minor);
     if (major == 2 && minor == 0){ //v2.0
+        uint32_t affinity = read_uint(entry_ptr->data_addr + cpu_index_offset, "affinity", false);
         parser_ptr = std::make_shared<Cpu64_Context_V20>();
+        core = parser_ptr->get_vcpu_index(affinity);
+        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major, minor);
     }else{
+        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major,minor);
         if (BITS64()){
             if (major == 1 && minor == 3){ //v1.3
                 parser_ptr = std::make_shared<Cpu64_Context_V13>();

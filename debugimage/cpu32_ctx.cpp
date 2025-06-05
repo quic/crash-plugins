@@ -69,7 +69,7 @@ void Cpu32_Context::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     // fprintf(fp, "%s  core:%d  version:%d.%d\n",entry_ptr->data_name.c_str(), core,major,minor);
     void* buf = read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_32_t),"tzbsp_dump_32_t",false);
     tzbsp_dump_32_t reg_dump = *reinterpret_cast<tzbsp_dump_32_t*>(buf);
-    std::string regs_file = get_cmm_path(core, false);
+    std::string regs_file = get_cmm_path("core" + std::to_string(core), false);
     FILE* cmmfile = fopen(regs_file.c_str(), "wb");
     if (!cmmfile) {
         fprintf(fp, "Can't open %s\n", regs_file.c_str());
@@ -106,7 +106,7 @@ void Cpu32_Context::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     fwrite(oss_regs.str().c_str(), sizeof(char), oss_regs.str().size(), cmmfile);
     fclose(cmmfile);
 
-    std::string secure_file = get_cmm_path(core, true);
+    std::string secure_file = get_cmm_path("core" + std::to_string(core), true);
     cmmfile = fopen(secure_file.c_str(), "wb");
     if (!cmmfile) {
         fprintf(fp, "Can't open %s\n", secure_file.c_str());
@@ -142,6 +142,7 @@ void Cpu32_Context::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     oss_secure << "r.s r14_hyp 0x"     << std::hex << reg_dump.sc_secure.r14_hyp     << std::endl;
     fwrite(oss_secure.str().c_str(), sizeof(char), oss_secure.str().size(), cmmfile);
     fclose(cmmfile);
+    fprintf(fp, "save to %s\n", regs_file.c_str());
     FREEBUF(buf);
 }
 

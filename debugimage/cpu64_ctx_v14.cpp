@@ -128,7 +128,7 @@ void Cpu64_Context_V14::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     tzbsp_dump_64_1_4_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_4_t*>(buf);
     int core = entry_ptr->id - DATA_CPU_CTX;
     compute_pc(reg_dump.sc_regs,reg_dump.neon_reg);
-    std::string regs_file = get_cmm_path(core, false);
+    std::string regs_file = get_cmm_path("core" + std::to_string(core), false);
     FILE* cmmfile = fopen(regs_file.c_str(), "wb");
     if (!cmmfile) {
         fprintf(fp, "Can't open %s\n", regs_file.c_str());
@@ -154,7 +154,7 @@ void Cpu64_Context_V14::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     fclose(cmmfile);
 
     compute_pc(reg_dump.sc_secure,reg_dump.neon_reg);
-    std::string secure_file = get_cmm_path(core, true);
+    std::string secure_file = get_cmm_path("core" + std::to_string(core), true);
     cmmfile = fopen(secure_file.c_str(), "wb");
     if (!cmmfile) {
         fprintf(fp, "Can't open %s\n", secure_file.c_str());
@@ -178,6 +178,7 @@ void Cpu64_Context_V14::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     oss_secure << "r.s sp_el0 0x"      << std::hex << reg_dump.sc_secure.sp_el0     << std::endl;
     fwrite(oss_secure.str().c_str(), sizeof(char), oss_secure.str().size(), cmmfile);
     fclose(cmmfile);
+    fprintf(fp, "save to %s\n", regs_file.c_str());
     FREEBUF(buf);
 }
 

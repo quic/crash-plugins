@@ -97,6 +97,7 @@ private:
     std::vector<std::shared_ptr<Dump_entry>> image_list;
     std::shared_ptr<ImageParser> parser_ptr;
     bool debug = false;
+    int32_t cpu_index_offset = 0;
 
 public:
     DebugImage();
