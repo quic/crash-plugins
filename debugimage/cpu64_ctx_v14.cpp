@@ -101,7 +101,25 @@ void Cpu64_Context_V14::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     } else {
         oss_lr << "LR: " << "<" << std::hex << lr << ">: " << "UNKNOWN"  << "+" << std::hex << 0;
     }
-    fprintf(fp, "%s \n\n",oss_lr.str().c_str());
+    fprintf(fp, "%s \n",oss_lr.str().c_str());
+#if defined(ARM64)
+    struct task_context *tc;
+    tc = task_to_context(tt->active_set[core]);
+    if(tc){
+        ulong stackbase = GET_STACKBASE(tc->task);
+        ulong stacktop = GET_STACKTOP(tc->task);
+        ulong x30 = reg_dump.sc_regs.x[29] + 8;
+        if ((x30 > stackbase && x30 < stacktop)){
+            uwind_task_back_trace(tc->pid, x30);
+        }
+
+        ulong cpu_irq_stack = machdep->machspec->irq_stacks[core];
+        if ((x30 > cpu_irq_stack && x30 < (cpu_irq_stack + machdep->machspec->irq_stack_size))){
+            uwind_irq_back_trace(core,x30);
+        }
+        fprintf(fp, "\n");
+    }
+#endif
     FREEBUF(buf);
 }
 

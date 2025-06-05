@@ -1180,4 +1180,63 @@ std::unordered_map<ulong, ulong> ParserPlugin::parser_auvx_list(ulong mm_struct_
     FREEBUF(auxv_buf);
     return auxv_list;
 }
+
+void ParserPlugin::uwind_irq_back_trace(int cpu, ulong x30){
+#if defined(ARM64)
+    ulong *cpus = get_cpumask_buf();
+    if (NUM_IN_BITMAP(cpus, cpu)) {
+        if (hide_offline_cpu(cpu)) {
+            fprintf(fp, "cpu:%d is OFFLINE \n", cpu);
+            FREEBUF(cpus);
+            return;
+        }
+    }
+    struct bt_info bt_setup, *bt;
+    struct stack_hook hook;
+    BZERO(&hook, sizeof(struct stack_hook));
+    bt = &bt_setup;
+    BZERO(bt, sizeof(struct bt_info));
+    struct task_context *tc = task_to_context(tt->active_set[cpu]);
+    clone_bt_info(&bt_setup, bt, tc);
+    bt->hp = &hook;
+
+    char arg_buf[BUFSIZE];
+    BZERO(arg_buf, BUFSIZE);
+    snprintf(arg_buf, BUFSIZE, "%d", cpu);
+    make_cpumask(arg_buf, cpus, RETURN_ON_ERROR /* FAULT_ON_ERROR */, NULL);
+    bt->cpumask = cpus;
+    hook.esp = x30;
+    print_task_header(fp, tc, 0);
+    back_trace(bt);
+    // dump_bt_info(bt, "back_trace");
+    FREEBUF(cpus);
+    fprintf(fp, "\n");
+#endif
+}
+
+void ParserPlugin::uwind_task_back_trace(int pid, ulong x30){
+#if defined(ARM64)
+    struct task_context *tc = pid_to_context(pid);
+    if(!tc){
+        fprintf(fp, "No such pid:%d \n", pid);
+        return;
+    }
+    if(strstr(tc->comm, "swapper") != NULL){
+        fprintf(fp, "Do not support for swapper process\n");
+        return;
+    }
+    struct bt_info bt_setup, *bt;
+    struct stack_hook hook;
+    BZERO(&hook, sizeof(struct stack_hook));
+
+    bt = &bt_setup;
+    BZERO(bt, sizeof(struct bt_info));
+    clone_bt_info(&bt_setup, bt, tc);
+    bt->hp = &hook;
+    hook.esp = x30;
+    back_trace(bt);
+    // dump_bt_info(bt, "back_trace");
+    fprintf(fp, "\n");
+#endif
+}
 #pragma GCC diagnostic pop
