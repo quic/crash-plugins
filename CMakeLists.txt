@@ -105,7 +105,8 @@ list(APPEND PLUGIN_SOURCES
     icc/icc.cpp
     clock/clock.cpp
     pstore/pstore.cpp
-    sysinfo/sys.cpp)
+    sysinfo/sys.cpp
+    bootlog/boot.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -360,4 +361,9 @@ add_library(sys SHARED
             ${PLUGIN_SOURCES}
             sysinfo/sys.cpp)
 set_target_properties(sys PROPERTIES PREFIX "")
+# =================== build boot ===================
+add_library(boot SHARED
+            ${PLUGIN_SOURCES}
+            bootlog/boot.cpp)
+set_target_properties(boot PROPERTIES PREFIX "")
 endif()
