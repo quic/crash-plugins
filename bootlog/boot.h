@@ -81,6 +81,8 @@ public:
     void pmic_pon_log_print_reason(uint8_t data, std::vector<std::string> reasons);
     void parser_pmic_pon_log_dev(ulong addr);
     void print_pmic_info();
+    void print_boot_log();
+    std::string remove_invalid_chars(const std::string& msg);
     void cmd_main(void) override;
     DEFINE_PLUGIN_INSTANCE(BootInfo)
 };

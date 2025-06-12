@@ -31,6 +31,9 @@ void BootInfo::cmd_main(void) {
             case 'p':
                 print_pmic_info();
                 break;
+            case 'b':
+                print_boot_log();
+                break;
             default:
                 argerrs++;
                 break;
@@ -62,6 +65,14 @@ BootInfo::BootInfo(){
         "    Waiting on PS_HOLD",
         "    Warm Reset Count: 2",
         "    PON Successful",
+        "\n",
+        "  Display the boot log:",
+        "    %s> boot -b",
+        "    <6>[    0.000000][    T0] Booting Linux on physical CPU 0x0000000000 [0x412fd050]",
+        "    <5>[    0.000000][    T0] Linux version 6.12.23-android16-4-maybe-dirty-debug (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Thu Jan  1 00:00:00 UTC 1970",
+        "    <6>[    0.000000][    T0] KASLR enabled",
+        "    <5>[    0.000000][    T0] random: crng init done",
+        "    <6>[    0.000000][    T0] Enabling dynamic shadow call stack",
         "\n",
     };
     initialize();
@@ -311,6 +322,60 @@ void BootInfo::parser_pmic_pon_log_dev(ulong addr){
             }
         }
     }
+}
+
+void BootInfo::print_boot_log(){
+    if (!csymbol_exists("boot_log_buf")){
+        fprintf(fp, "pls load logbuf_boot_log.ko first !\n");
+        return;
+    }
+    ulong logbuf_addr = read_pointer(csymbol_value("boot_log_buf"),"boot_log_buf");
+    if (!is_kvaddr(logbuf_addr)){
+        fprintf(fp, "kernel boot log support is not present\n");
+        return;
+    }
+    ulong logbuf_size = 0;
+    if (csymbol_exists("boot_log_buf_size")){
+        logbuf_size = read_uint(csymbol_value("boot_log_buf_size"),"boot_log_buf_size");
+    }
+    if (logbuf_size == 0){
+        ulong logbuf_pos = read_pointer(csymbol_value("boot_log_pos"),"boot_log_pos");
+        ulong logbuf_left = read_uint(csymbol_value("boot_log_buf_left"),"boot_log_buf_left");
+        if(logbuf_pos != 0 && logbuf_left != 0){
+            logbuf_size = (logbuf_pos - logbuf_addr) +  logbuf_left;
+        }else{
+            logbuf_size = 524288;
+        }
+    }
+    // fprintf(fp, "logbuf_size %ld \n",logbuf_size);
+    void *buf = read_memory(logbuf_addr,logbuf_size, "boot_log");
+    if(buf != nullptr){
+        std::string boot_log(static_cast<const char*>(buf), logbuf_size);
+        std::string msg = remove_invalid_chars(boot_log);
+        fprintf(fp, "%s \n",msg.c_str());
+        FREEBUF(buf);
+    }
+}
+
+std::string BootInfo::remove_invalid_chars(const std::string& msg) {
+    std::string vaildStr;
+    bool hasPrintable = false;
+    for (unsigned char c : msg) {
+        if (c == '\n') {
+            vaildStr += '\n';
+        } else if (c >= 0x20 && c <= 0x7E) {
+            vaildStr += c;
+            if (c != ' ' && c != '\t') {
+                hasPrintable = true;
+            }
+        }
+    }
+    if (!hasPrintable || std::all_of(vaildStr.begin(), vaildStr.end(), [](unsigned char c) {
+        return std::isspace(c);
+    })) {
+        return "";
+    }
+    return vaildStr;
 }
 
 void BootInfo::print_pmic_info(){
