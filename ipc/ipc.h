@@ -23,6 +23,18 @@ struct tsv_header {
     unsigned char size;
 };
 
+struct ipc_log {
+    ulong addr;
+    std::string name;
+    uint32_t version;
+    ulong first_page;
+    ulong last_page;
+    ulong write_page;
+    ulong read_page;
+    ulong nd_read_page;
+    std::vector<std::string> logs;
+};
+
 #define TSV_TYPE_INVALID        0
 #define TSV_TYPE_TIMESTAMP      1
 #define TSV_TYPE_POINTER        2
@@ -35,11 +47,13 @@ struct tsv_header {
 class IPCLog : public ParserPlugin {
 public:
     IPCLog();
-
+    std::vector<std::shared_ptr<ipc_log>> ipc_list;
     void cmd_main(void) override;
     void parser_ipc_log();
-    void parser_ipc_log(std::string name);
-    void parser_ipc_log_page(ulong addr,ulong page_list);
+    void print_ipc_info();
+    void save_ipc_log();
+    void print_ipc_log(std::string name);
+    void parser_ipc_log_page(std::shared_ptr<ipc_log> log_ptr);
     void appendBuffer(std::vector<char> &destBuf, void *sourceBuf, size_t length);
     DEFINE_PLUGIN_INSTANCE(IPCLog)
 };

@@ -668,6 +668,13 @@ void Logcat::print_logcat_log(LOG_ID id){
         if(vaild_msg.empty()){
              continue;
         }
+        size_t pos = 0;
+        while ((pos = vaild_msg.find('\0')) != std::string::npos) {
+            vaild_msg.replace(pos, 1, " ");
+        }
+        while ((pos = vaild_msg.find('\n')) != std::string::npos) {
+            vaild_msg.replace(pos, 1, " ");
+        }
         std::ostringstream oss;
         if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO
             || log_ptr->logid == CRASH || log_ptr->logid == KERNEL){

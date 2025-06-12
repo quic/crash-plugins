@@ -26,14 +26,20 @@ void IPCLog::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "al:")) != EOF) {
+    if (ipc_list.size() == 0){
+        parser_ipc_log();
+    }
+    while ((c = getopt(argcnt, args, "al:s")) != EOF) {
         switch(c) {
             case 'a':
-                parser_ipc_log();
+                print_ipc_info();
                 break;
             case 'l':
                 cppString.assign(optarg);
-                parser_ipc_log(cppString);
+                print_ipc_log(cppString);
+                break;
+            case 's':
+                save_ipc_log();
                 break;
             default:
                 argerrs++;
@@ -100,39 +106,32 @@ IPCLog::IPCLog(){
     initialize();
 }
 
-void IPCLog::parser_ipc_log(std::string name){
-    if (!csymbol_exists("ipc_log_context_list")){
-        fprintf(fp, "ipc_log_context_list doesn't exist in this kernel!\n");
-        return;
-    }
-    size_t list_head = csymbol_value("ipc_log_context_list");
-    if (!is_kvaddr(list_head)) {
-        fprintf(fp, "ipc_log_context_list address is invalid!\n");
-        return;
-    }
-    int offset = field_offset(ipc_log_context, list);
-    for (const auto& ctx_addr : for_each_list(list_head,offset)) {
-        std::string ipc_name = read_cstring(ctx_addr + field_offset(ipc_log_context,name),32, "name");
-        if (ipc_name.empty() || name != ipc_name){
+void IPCLog::print_ipc_log(std::string name){
+    for (const auto& log_ptr : ipc_list) {
+        if (log_ptr->name.empty() || name != log_ptr->name){
             continue;
         }
-        ulong nd_read_page = read_ulong(ctx_addr + field_offset(ipc_log_context,nd_read_page),"nd_read_page");
-        uint32_t magic = read_ulong(nd_read_page + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,magic),"magic");
+        uint32_t magic = read_ulong(log_ptr->nd_read_page + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,magic),"magic");
         if (magic != IPC_LOGGING_MAGIC_NUM){
             continue;
         }
-        ulong page_list = ctx_addr + field_offset(ipc_log_context,page_list);
         // int list_off = field_offset(ipc_log_page_header, list);
         // for (const auto& header_addr : for_each_list(page_list,list_off)) {
         //     ulong log_page_addr = header_addr - field_offset(ipc_log_page,hdr);
         //     fprintf(fp, "ipc_log_page:%#lx \n",log_page_addr);
         // }
-        parser_ipc_log_page(nd_read_page,page_list);
+        if (log_ptr->logs.size() == 0){
+            parser_ipc_log_page(log_ptr);
+        }
+        for (const auto& log : log_ptr->logs){
+            fprintf(fp, "%s",log.c_str());
+        }
     }
 }
 
-void IPCLog::parser_ipc_log_page(ulong addr,ulong page_list){
-    ulong curr_read_page = addr;
+void IPCLog::parser_ipc_log_page(std::shared_ptr<ipc_log> log_ptr){
+    ulong curr_read_page = log_ptr->nd_read_page;
+    ulong page_list = log_ptr->addr + field_offset(ipc_log_context,page_list);
     uint16_t write_offset = read_ushort(curr_read_page + field_offset(ipc_log_page,hdr)
             + field_offset(ipc_log_page_header,write_offset),"write_offset");
     uint16_t nd_read_offset = read_ushort(curr_read_page + field_offset(ipc_log_page,hdr)
@@ -179,14 +178,14 @@ void IPCLog::parser_ipc_log_page(ulong addr,ulong page_list){
             list = read_pointer(list,"list");
         }
         curr_read_page = list - field_offset(ipc_log_page_header,list) - field_offset(ipc_log_page,hdr);
-        if (curr_read_page == addr){
+        if (curr_read_page == log_ptr->nd_read_page){
             break;
         }
     }
     if (wrapped_around){
-        write_offset = read_ushort(addr + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,write_offset),"write_offset");
+        write_offset = read_ushort(log_ptr->nd_read_page + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,write_offset),"write_offset");
         bytes_to_copy = write_offset;
-        start_addr = addr + field_offset(ipc_log_page,data);
+        start_addr = log_ptr->nd_read_page + field_offset(ipc_log_page,data);
         data_buf = read_memory(start_addr,bytes_to_copy,"data");
         appendBuffer(ipcLogBuf, data_buf, bytes_to_copy);
         FREEBUF(data_buf);
@@ -235,7 +234,7 @@ void IPCLog::parser_ipc_log_page(ulong addr,ulong page_list){
             } else {
                 oss << "[ " << std::fixed << std::setprecision(9) << TimeStamp / 1000000000.0 << " 0x" << std::hex << TimeQtimer << "]   " << str_data << "\n";
             }
-            fprintf(fp, "%s",oss.str().c_str());
+            log_ptr->logs.push_back(oss.str());
             len += msg.size;
             dataPtr += msg.size;
         }
@@ -248,6 +247,36 @@ void IPCLog::appendBuffer(std::vector<char>& destBuf, void* sourceBuf, size_t le
     memcpy(destBuf.data() + currentSize, sourceBuf, length);
 }
 
+
+void IPCLog::save_ipc_log(){
+    for (const auto& log_ptr : ipc_list) {
+        uint32_t magic = read_ulong(log_ptr->nd_read_page + field_offset(ipc_log_page,hdr) + field_offset(ipc_log_page_header,magic),"magic");
+        if (magic != IPC_LOGGING_MAGIC_NUM){
+            continue;
+        }
+        if (log_ptr->logs.size() == 0){
+            parser_ipc_log_page(log_ptr);
+        }
+        std::string ipc_file_path;
+        char buffer[PATH_MAX];
+        if (getcwd(buffer, sizeof(buffer)) != nullptr) {
+            ipc_file_path = buffer;
+        }
+        ipc_file_path += "/ipc_log/";
+        mkdir(ipc_file_path.c_str(), 0777);
+        ipc_file_path += log_ptr->name;
+        FILE* ipc_file = fopen(ipc_file_path.c_str(), "wb");
+        if (!ipc_file) {
+            fprintf(fp, "Can't open %s\n", ipc_file_path.c_str());
+            return;
+        }
+        for (const auto& log : log_ptr->logs){
+            fwrite(log.c_str(),log.size(), 1, ipc_file);
+        }
+        fclose(ipc_file);
+    }
+}
+
 void IPCLog::parser_ipc_log(){
     if (!csymbol_exists("ipc_log_context_list")){
         fprintf(fp, "ipc_log_context_list doesn't exist in this kernel!\n");
@@ -258,19 +287,8 @@ void IPCLog::parser_ipc_log(){
         fprintf(fp, "ipc_log_context_list address is invalid!\n");
         return;
     }
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN)  << "ipc_log_context" << " "
-            << std::left << std::setw(10)           << "Magic"              << " "
-            << std::left << std::setw(7)            << "Version"            << " "
-            << std::left << std::setw(VADDR_PRLEN)  << "first_page"         << " "
-            << std::left << std::setw(VADDR_PRLEN)  << "last_page"          << " "
-            << std::left << std::setw(VADDR_PRLEN)  << "write_page"         << " "
-            << std::left << std::setw(VADDR_PRLEN)  << "read_page"          << " "
-            << std::left << "Name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
     int offset = field_offset(ipc_log_context, list);
     for (const auto& ctx_addr : for_each_list(list_head,offset)) {
-        std::string name = read_cstring(ctx_addr + field_offset(ipc_log_context,name),32, "name");
         void *ctx_buf = read_struct(ctx_addr,"ipc_log_context");
         if (!ctx_buf) {
             continue;
@@ -280,21 +298,39 @@ void IPCLog::parser_ipc_log(){
             FREEBUF(ctx_buf);
             continue;
         }
-        uint32_t version = UINT(ctx_buf + field_offset(ipc_log_context,version));
-        ulong first_page = ULONG(ctx_buf + field_offset(ipc_log_context,first_page));
-        ulong last_page = ULONG(ctx_buf + field_offset(ipc_log_context,last_page));
-        ulong write_page = ULONG(ctx_buf + field_offset(ipc_log_context,write_page));
-        ulong read_page = ULONG(ctx_buf + field_offset(ipc_log_context,read_page));
+        std::shared_ptr<ipc_log> log_ptr = std::make_shared<ipc_log>();
+        log_ptr->addr = ctx_addr;
+        log_ptr->name = read_cstring(ctx_addr + field_offset(ipc_log_context,name),32, "name");
+        log_ptr->version = UINT(ctx_buf + field_offset(ipc_log_context,version));
+        log_ptr->first_page = ULONG(ctx_buf + field_offset(ipc_log_context,first_page));
+        log_ptr->last_page = ULONG(ctx_buf + field_offset(ipc_log_context,last_page));
+        log_ptr->write_page = ULONG(ctx_buf + field_offset(ipc_log_context,write_page));
+        log_ptr->read_page = ULONG(ctx_buf + field_offset(ipc_log_context,read_page));
+        log_ptr->nd_read_page = ULONG(ctx_buf + field_offset(ipc_log_context,nd_read_page));
         FREEBUF(ctx_buf);
+        ipc_list.push_back(log_ptr);
+    }
+}
+
+void IPCLog::print_ipc_info(){
+    std::ostringstream oss_hd;
+    oss_hd  << std::left << std::setw(VADDR_PRLEN)  << "ipc_log_context" << " "
+            << std::left << std::setw(7)            << "Version"            << " "
+            << std::left << std::setw(VADDR_PRLEN)  << "first_page"         << " "
+            << std::left << std::setw(VADDR_PRLEN)  << "last_page"          << " "
+            << std::left << std::setw(VADDR_PRLEN)  << "write_page"         << " "
+            << std::left << std::setw(VADDR_PRLEN)  << "read_page"          << " "
+            << std::left << "Name";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    for (const auto& log_ptr : ipc_list) {
         std::ostringstream oss;
-        oss << std::left << std::setw(VADDR_PRLEN)  << std::hex << ctx_addr     << " "
-            << std::left << std::setw(10)           << std::hex << magic        << " "
-            << std::left << std::setw(7)            << std::dec << version      << " "
-            << std::left << std::setw(VADDR_PRLEN)  << std::hex << first_page   << " "
-            << std::left << std::setw(VADDR_PRLEN)  << std::hex << last_page    << " "
-            << std::left << std::setw(VADDR_PRLEN)  << std::hex << write_page   << " "
-            << std::left << std::setw(VADDR_PRLEN)  << std::hex << read_page    << " "
-            << std::left << name;
+        oss << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->addr         << " "
+            << std::left << std::setw(7)            << std::dec << log_ptr->version      << " "
+            << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->first_page   << " "
+            << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->last_page    << " "
+            << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->write_page   << " "
+            << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->read_page    << " "
+            << std::left << log_ptr->name;
         fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
