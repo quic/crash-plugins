@@ -112,7 +112,7 @@ public:
     void parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr);
     void parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr);
     void parser_dump_table(uint64_t paddr);
-    std::set<ulong> find_x29(const std::map<ulong, ulong>& key_value_map);
+    std::set<ulong> find_x29(const std::map<ulong, ulong>& addr_x29);
     void print_task_stack(int pid);
     void print_irq_stack(int cpu);
 };

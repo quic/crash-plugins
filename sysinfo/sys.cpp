@@ -66,6 +66,7 @@ SysInfo::SysInfo(){
         "\n",
     };
     initialize();
+    struct_init(socinfo);
 }
 
 void SysInfo::print_socinfo(){
@@ -82,7 +83,6 @@ void SysInfo::print_socinfo(){
     field_init(socinfo,nmodem_supported);
     field_init(socinfo,num_subset_parts);
     field_init(socinfo,nsubset_parts_array_offset);
-    struct_init(socinfo);
     ulong soc_addr = read_pointer(csymbol_value("socinfo"),"socinfo");
     if (!is_kvaddr(soc_addr)) {
         fprintf(fp, "socinfo address is invalid!\n");
@@ -204,8 +204,8 @@ void SysInfo::print_qsocinfo(){
 }
 
 void SysInfo::print_soc_info(){
-    if (THIS_KERNEL_VERSION <= LINUX(5,4,0)){
-        fprintf(fp,  "Not support for < kernel5.4 !\n");
+    if (struct_size(socinfo) == -1){
+        fprintf(fp,  "pls load the socinfo.ko at first\n");
         return;
     }
     // read_pmic_models();
