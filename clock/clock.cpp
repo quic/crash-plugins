@@ -88,7 +88,12 @@ Clock::Clock(){
     field_init(clk_core,enable_count);
     field_init(clk_core,prepare_count);
     field_init(clk_core,clks);
+    field_init(clk_rpmh_desc,clks);
+    field_init(clk_rpmh_desc,num_clks);
     struct_init(clk_core);
+    struct_init(qcom_cc);
+    struct_init(rpm_smd_clk_desc);
+    struct_init(clk_rpmh_desc);
     cmd_name = "ccf";
     help_str_list={
         "ccf",                            /* command name */
@@ -189,6 +194,27 @@ void Clock::parser_clk_hw_simple(std::shared_ptr<clk_provider> prov_ptr,ulong da
     prov_ptr->core_list.push_back(clk_core);
 }
 
+void Clock::parser_clk_rpmh(std::shared_ptr<clk_provider> prov_ptr,ulong data){
+    if(struct_size(clk_rpmh_desc) == -1){
+        fprintf(fp, "pls load clk-rpmh.ko at first\n");
+        return;
+    }
+    size_t clk_num = read_ulong(data + field_offset(clk_rpmh_desc,num_clks),"num_clks");
+    ulong clks = read_ulong(data + field_offset(clk_rpmh_desc,clks),"clks");
+    for (size_t i = 0; i < clk_num; i++){
+        ulong clk_addr = clks + i * sizeof(void *);
+        clk_addr = read_ulong(clk_addr,"clk");
+        if (!is_kvaddr(clk_addr)) {
+            continue;
+        }
+        ulong clk_core = read_ulong(clk_addr + field_offset(clk_hw,core),"core");
+        if (!is_kvaddr(clk_core)) {
+            continue;
+        }
+        prov_ptr->core_list.push_back(clk_core);
+    }
+}
+
 void Clock::parser_clk_onecell(std::shared_ptr<clk_provider> prov_ptr,ulong data){
     size_t clk_num = read_ulong(data + field_offset(clk_onecell_data,clk_num),"clk_num");
     ulong clks = read_ulong(data + field_offset(clk_onecell_data,clks),"clks");
@@ -207,6 +233,10 @@ void Clock::parser_clk_onecell(std::shared_ptr<clk_provider> prov_ptr,ulong data
 }
 
 void Clock::parser_rpm_smd_clk(std::shared_ptr<clk_provider> prov_ptr,ulong data){
+    if(struct_size(rpm_smd_clk_desc) == -1){
+        fprintf(fp, "pls load rpm_smd_clk_desc.ko at first\n");
+        return;
+    }
     size_t num_clks = read_ulong(data + field_offset(rpm_smd_clk_desc,num_clks),"num_clks");
     ulong clks = read_ulong(data + field_offset(rpm_smd_clk_desc,clks),"clks");
     for (size_t i = 0; i < num_clks; i++){
@@ -224,6 +254,10 @@ void Clock::parser_rpm_smd_clk(std::shared_ptr<clk_provider> prov_ptr,ulong data
 }
 
 void Clock::parser_clk_qcom_cc(std::shared_ptr<clk_provider> prov_ptr,ulong data){
+    if(struct_size(qcom_cc) == -1){
+        fprintf(fp, "pls load clk-qcom.ko at first\n");
+        return;
+    }
     size_t num_rclks = read_ulong(data + field_offset(qcom_cc,num_rclks),"num_rclks");
     ulong rclks = read_ulong(data + field_offset(qcom_cc,rclks),"rclks");
     // fprintf(fp, "qcom_cc:%#lx num_rclks:%lu rclks:%#lx \n", data, num_rclks,rclks);
@@ -284,6 +318,9 @@ void Clock::print_enable_clock(){
           << std::left << "Rate";
     fprintf(fp, "%s \n",oss_h.str().c_str());
     for (const auto& provider : provider_list) {
+        if (provider->core_list.size() == 0){
+            continue;
+        }
         for (const auto& core_addr : provider->core_list) {
             std::string core_name;
             ulong name_addr = read_pointer(core_addr + field_offset(clk_core,name),"name addr");
@@ -316,6 +353,9 @@ void Clock::print_disable_clock(){
           << std::left << "Rate";
     fprintf(fp, "%s \n",oss_h.str().c_str());
     for (const auto& provider : provider_list) {
+        if (provider->core_list.size() == 0){
+            continue;
+        }
         for (const auto& core_addr : provider->core_list) {
             std::string core_name;
             ulong name_addr = read_pointer(core_addr + field_offset(clk_core,name),"name addr");
@@ -349,6 +389,9 @@ void Clock::print_prepare_clock(){
           << std::left << "Rate";
     fprintf(fp, "%s \n",oss_h.str().c_str());
     for (const auto& provider : provider_list) {
+        if (provider->core_list.size() == 0){
+            continue;
+        }
         for (const auto& core_addr : provider->core_list) {
             std::string core_name;
             ulong name_addr = read_pointer(core_addr + field_offset(clk_core,name),"name addr");
@@ -374,6 +417,9 @@ void Clock::print_prepare_clock(){
 void Clock::print_clk_tree(){
     int offset = field_offset(clk,clks_node);
     for (const auto& provider : provider_list) {
+        if (provider->core_list.size() == 0){
+            continue;
+        }
         fprintf(fp, "clk_provider:%s\n",provider->name.c_str());
         for (const auto& core_addr : provider->core_list) {
             std::string core_name;
@@ -411,6 +457,9 @@ void Clock::print_clk_tree(){
 
 void Clock::print_clk_providers(){
     for (const auto& provider : provider_list) {
+        if (provider->core_list.size() == 0){
+            continue;
+        }
         fprintf(fp, "clk_provider: %s\n",provider->name.c_str());
         std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN)   << "clk_core"  << " "
@@ -483,15 +532,19 @@ void Clock::parser_clk_providers(){
                 func_name = sp->name;
                 // fprintf(fp, " %s\n",func_name.c_str());
                 if (func_name.find("spmi_pmic_div_clk_hw_get") != std::string::npos) {
+                    // TODO
                     parser_clk_spmi_pmic(prov_ptr,data_addr);
                 }else if (func_name.find("qcom_cc_clk_hw_get") != std::string::npos){
                     parser_clk_qcom_cc(prov_ptr,data_addr);
                 }else if (func_name.find("of_clk_hw_virtio_get") != std::string::npos){
+                    // TODO
                     parser_clk_virtio(prov_ptr,data_addr);
                 }else if (func_name.find("qcom_smdrpm_clk_hw_get") != std::string::npos){
                     parser_rpm_smd_clk(prov_ptr,data_addr);
                 }else if (func_name.find("of_clk_hw_simple_get") != std::string::npos){
                     parser_clk_hw_simple(prov_ptr,data_addr);
+                }else if (func_name.find("of_clk_rpmh_hw_get") != std::string::npos){
+                    parser_clk_rpmh(prov_ptr,data_addr);
                 }
             }
         }

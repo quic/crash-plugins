@@ -33,7 +33,8 @@ public:
 
     void parser_clk_simple(std::shared_ptr<clk_provider> prov_ptr,ulong data);
     void parser_clk_hw_simple(std::shared_ptr<clk_provider> prov_ptr,ulong data);
-    void parser_clk_of_msm_provider(std::shared_ptr<clk_provider> prov_ptr,ulong data);
+    void parser_clk_rpmh(std::shared_ptr<clk_provider> prov_ptr, ulong data);
+    void parser_clk_of_msm_provider(std::shared_ptr<clk_provider> prov_ptr, ulong data);
     void parser_clk_onecell(std::shared_ptr<clk_provider> prov_ptr,ulong data);
     void parser_clk_spmi_pmic(std::shared_ptr<clk_provider> prov_ptr,ulong data);
     void parser_rpm_smd_clk(std::shared_ptr<clk_provider> prov_ptr,ulong data);
