@@ -445,71 +445,90 @@ void DebugImage::print_irq_stack(int cpu){
 #endif
 }
 
-std::set<ulong> DebugImage::find_x29(const std::map<ulong, ulong>& key_value_map) {
-    // Step 1: Build a set of values for fast lookup
-    std::set<ulong> values;
-    for (const auto& kv : key_value_map) {
-        values.insert(kv.second);
+std::set<ulong> DebugImage::find_x29(const std::map<ulong /* addr */, ulong /* x29 */>& addr_x29) {
+    // Step 1: Build a set of x29 for fast lookup
+    std::set<ulong> x29_sets;
+    for (const auto& kv : addr_x29) {
+        x29_sets.insert(kv.second);
     }
-    if(debug) fprintf(fp, "Total %zu unique values\n", values.size());
     // Step 2: Find the first key (starting from the largest) that exists in the value set
-    ulong start_key = 0;
+    ulong start_addr = 0;
     bool found_start = false;
-    if(debug) fprintf(fp, "Starting reverse search for initial key...\n");
     // Reverse iterate through the map (from largest key to smallest)
-    for (auto it = key_value_map.rbegin(); it != key_value_map.rend(); ++it) {
-        if(debug) fprintf(fp, "Checking if key: %#lx exists in value set...\n", it->first);
-        if (values.find(it->first) != values.end()) {
-                start_key = it->first;
-                found_start = true;
-                if(debug) fprintf(fp, "Yes! Selected as start key: %#lx\n", start_key);
-                break;
+    for (auto it = addr_x29.rbegin(); it != addr_x29.rend(); ++it) {
+        bool exists_in_x29 = (x29_sets.find(it->first) != x29_sets.end());
+        if(debug){
+            fprintf(fp, "Checking: %#lx - exists in x29? %s\n", it->first, (exists_in_x29 ? "YES" : "NO"));
         }
-        if(debug) fprintf(fp, "No\n");
+        if (exists_in_x29) {
+            start_addr = it->first;
+            found_start = true;
+            if(debug){
+                fprintf(fp, "!!! FOUND START ADDRESS: %#lx\n", start_addr);
+            }
+            break;
+        }
     }
     if (!found_start) {
-        if(debug) fprintf(fp, "Warning: No valid start key found!\n");
+        if(debug){
+            fprintf(fp, "No valid addr in x29\n");
+        }
         return {};
     }
-    // Step 3: Find all keys that map to the start_key
-    std::set<ulong> current_keys;
-    if(debug) fprintf(fp, "Finding all keys that map to start key: %#lx\n", start_key);
-    for (const auto& kv : key_value_map) {
-        if (kv.second == start_key) {
-            current_keys.insert(kv.first);
-            if(debug) fprintf(fp, "   Found key: %#lx -> value: %#lx\n", kv.first, kv.second);
+    // Step 3: save all addrs that x29 == start_addr
+    std::set<ulong> current_addrs;
+    for (const auto& kv : addr_x29) {
+        if (kv.second == start_addr) {
+            current_addrs.insert(kv.first);
+            if(debug){
+                fprintf(fp, "  Found mapping addr -> x29: %#lx -> %#lx\n", kv.first, kv.second);
+            }
         }
     }
-    if(debug) fprintf(fp, "     Found: %zu keys mapping to start key\n", current_keys.size());
-    // Step 4: Iteratively find terminal keys, strictly following decreasing order
-    std::set<ulong> terminal_keys;
+    if(debug){
+        fprintf(fp, "  Total mappings found: %zu\n\n", current_addrs.size());
+    }
+    // Step 4: Iteratively find final addrs, strictly following decreasing order
+    std::set<ulong> result_addrs;
     int iteration = 0;
-    while (!current_keys.empty()) {
+    while (!current_addrs.empty()) {
         iteration++;
-        if(debug) fprintf(fp, "     ===== Iteration # %d ===== (processing %zu keys) =====\n", iteration, current_keys.size());
-        std::set<ulong> next_keys;
-        for (ulong key : current_keys) {
-            if(debug) fprintf(fp, "     Processing key: %#lx \n", key);
+        if(debug){
+            fprintf(fp, "     loop: %d, processing %zu addrs\n", iteration, current_addrs.size());
+        }
+        std::set<ulong> next_addrs;
+        for (ulong addr : current_addrs) {
+            if(debug){
+                fprintf(fp, "  Processing address: %#lx\n", addr);
+            }
             bool found = false;
-            // Look for keys whose value equals the current key and are smaller than the current key
-            for (const auto& kv : key_value_map) {
-                if (kv.second == key && kv.first < key) {
-                    if(debug) fprintf(fp, "     Found mapping:: %#lx -> %#lx (new key < current key)\n", kv.first, kv.second);
-                    next_keys.insert(kv.first);
+            // Look for addrs whose value equals the current addr and are smaller than the current addr
+            for (const auto& kv : addr_x29) {
+                if (kv.second == addr && kv.first < addr) {
+                    if(debug){
+                        fprintf(fp, "    Found valid child addr -> x29: %#lx -> %#lx\n", kv.first, kv.second);
+                    }
+                    next_addrs.insert(kv.first);
                     found = true;
                 }
             }
-            // If not found, current key is a terminal key
+            // If not found, current addr is a final addr
             if (!found) {
-                if(debug) fprintf(fp, "No smaller key mapping to current key found, marked as terminal key\n");
-                terminal_keys.insert(key);
+                if(debug){
+                    fprintf(fp, "    No valid child found - marking as final address\n");
+                }
+                result_addrs.insert(addr);
             }
         }
-        if(debug) fprintf(fp, "     End of iteration, found: %zu keys for next round\n", next_keys.size());
-        current_keys = next_keys;
+        if(debug){
+            fprintf(fp, "  Found %zu addresses for next loop\n\n", next_addrs.size());
+        }
+        current_addrs = next_addrs;
     }
-    if(debug) fprintf(fp, "     ===== Search complete ===== (total %d iterations) ===== Found %zu terminal keys\n", iteration, terminal_keys.size());
-    return terminal_keys;
+    if(debug){
+        fprintf(fp, "Final addresses found: %zu\n\n", result_addrs.size());
+    }
+    return result_addrs;
 }
 
 #pragma GCC diagnostic pop
