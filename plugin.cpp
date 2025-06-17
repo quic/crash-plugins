@@ -74,6 +74,10 @@ ParserPlugin::ParserPlugin(){
     field_init(kset,kobj);
     field_init(kset,list);
     field_init(kobject, entry);
+    field_init(char_device_struct,next);
+    field_init(char_device_struct,cdev);
+    field_init(char_device_struct,name);
+    field_init(miscdevice,list);
     if (BITS64()){
         std::string config = get_config_val("CONFIG_ARM64_VA_BITS");
         int va_bits = std::stoi(config);
@@ -390,6 +394,51 @@ std::vector<ulong> ParserPlugin::for_each_vma(ulong& task_addr){
         vma_list = for_each_mptree(mm_mt_addr);
     }
     return vma_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_char_device(){
+    std::vector<ulong> chardev_list;
+    if (!csymbol_exists("chrdevs")){
+        return chardev_list;
+    }
+    size_t len = get_array_length(TO_CONST_STRING("chrdevs"), NULL, 0);
+    ulong devs_addr = csymbol_value("chrdevs");
+    for (size_t i = 0; i < len; i++){
+        ulong chardev_addr = read_pointer(devs_addr + (i * sizeof(void *)),"chardev_addr");
+        if (!is_kvaddr(chardev_addr)){
+            continue;
+        }
+        ulong next_dev_addr = chardev_addr;
+        while (is_kvaddr(next_dev_addr)){
+            chardev_list.push_back(next_dev_addr);
+            next_dev_addr = read_pointer(next_dev_addr + field_offset(char_device_struct,next),"next");
+        }
+    }
+    return chardev_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_cdev(){
+    std::vector<ulong> cdev_list;
+    for (const auto& addr : for_each_char_device()){
+        ulong cdev = read_pointer(addr + field_offset(char_device_struct,cdev),"cdev");
+        if (!is_kvaddr(cdev)){
+            continue;
+        }
+        cdev_list.push_back(cdev);
+    }
+    return cdev_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_misc_device(){
+    std::vector<ulong> dev_list;
+    if (!csymbol_exists("misc_list")){
+        return dev_list;
+    }
+    for (const auto& addr : for_each_list(csymbol_value("misc_list"), field_offset(miscdevice, list))) {
+        if (!is_kvaddr(addr)) continue;
+        dev_list.push_back(addr);
+    }
+    return dev_list;
 }
 
 std::vector<ulong> ParserPlugin::for_each_class(){

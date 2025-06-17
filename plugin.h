@@ -134,6 +134,9 @@ public:
     std::vector<ulong> for_each_process();
     std::vector<ulong> for_each_threads();
     std::vector<ulong> for_each_vma(ulong& task_addr);
+    std::vector<ulong> for_each_char_device();
+    std::vector<ulong> for_each_cdev();
+    std::vector<ulong> for_each_misc_device();
     std::vector<ulong> for_each_bus();
     std::vector<ulong> for_each_class();
     ulong get_bus_subsys_private(std::string bus_name);
