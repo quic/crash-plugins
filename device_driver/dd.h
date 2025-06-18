@@ -63,6 +63,8 @@ public:
     void print_device_list();
     void print_device_driver_for_bus(std::string bus_name);
     void print_device_driver_for_class(std::string class_name);
+    void print_char_device();
+    void print_misc_device();
     void print_device_list_for_driver(std::string driver_name);
     void print_driver_list();
     void parser_bus_info();

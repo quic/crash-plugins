@@ -39,7 +39,7 @@ void DDriver::cmd_main(void) {
             class_ptr->device_list = parser_class_device_list(class_ptr->name);
         }
     }
-    while ((c = getopt(argcnt, args, "bB:cC:dDs:")) != EOF) {
+    while ((c = getopt(argcnt, args, "bB:cC:dDl:rm")) != EOF) {
         switch(c) {
             case 'b': //list all bus
                 print_bus_info();
@@ -61,9 +61,15 @@ void DDriver::cmd_main(void) {
             case 'D'://list all driver
                 print_driver_list();
                 break;
-            case 's'://list all device under specified driver
+            case 'l'://list all device under specified driver
                 cppString.assign(optarg);
                 print_device_list_for_driver(cppString);
+                break;
+            case 'r'://list all char_device_struct
+                print_char_device();
+                break;
+            case 'm'://list all misc device
+                print_misc_device();
                 break;
             default:
                 argerrs++;
@@ -84,6 +90,14 @@ DDriver::DDriver(){
     field_init(device_driver,probe);
     field_init(device_driver,of_match_table);
     field_init(of_device_id,compatible);
+    field_init(char_device_struct,major);
+    field_init(char_device_struct,baseminor);
+    field_init(char_device_struct,minorct);
+    field_init(char_device_struct, cdev);
+    field_init(char_device_struct, name);
+    field_init(miscdevice,minor);
+    field_init(miscdevice,name);
+    field_init(miscdevice,fops);
     cmd_name = "dd";
     help_str_list={
         "dd",                            /* command name */
@@ -94,7 +108,9 @@ DDriver::DDriver(){
             "  dd -C <class name> \n"
             "  dd -d \n"
             "  dd -D \n"
-            "  dd -s <driver name> \n"
+            "  dd -l <driver name> \n"
+            "  dd -r \n"
+            "  dd -m \n"
             "  This command dumps the device driver info.",
         "\n",
         "EXAMPLES",
@@ -154,12 +170,27 @@ DDriver::DDriver(){
         "    c2072b68         watchdog                             platform            watchdog                   platform_drv_probe+0",
         "\n",
         "  Display all device for specified driver:",
-        "    %s> dd -s rpm-smd-regulator-resource",
+        "    %s> dd -l rpm-smd-regulator-resource",
         "    device     name",
         "    f60b8810   rpm-smd:rpm-regulator-smpa1",
         "    f60ba810   rpm-smd:rpm-regulator-smpa3",
         "    f60bac10   rpm-smd:rpm-regulator-smpa4",
         "    f60b8410   rpm-smd:rpm-regulator-smpa5",
+        "\n",
+        "  Display all char device:",
+        "    %s> dd -r ",
+        "    char_device_struct   major      minorct    cdev               name",
+        "    ffffff80095b5b00     1          256        ffffff800a3aac00   mem",
+        "    ffffff80095b5800     5          1          0                  /dev/tty",
+        "    ffffff80095bbe80     5          1          0                  /dev/console",
+        "    ffffff80099b7f80     10         256        ffffff800a39ec00   misc",
+        "\n",
+        "  Display all misc device:",
+        "    %s> dd -m ",
+        "    miscdevice           minor      ops                            name",
+        "    ffffffd0d7f763f0     124        gh_dev_fops                    gunyah",
+        "    ffffffd0dd022060     125        cpu_latency_qos_fops           cpu_dma_latency",
+        "    ffffffd0dd193370     127        ashmem_fops                    ashmem",
         "\n",
     };
     initialize();
@@ -329,6 +360,62 @@ void DDriver::print_device_driver_for_class(std::string class_name){
             }
             fprintf(fp, "%s \n",oss.str().c_str());
         }
+    }
+}
+
+void DDriver::print_char_device(){
+    std::ostringstream oss_hd;
+    oss_hd  << std::left << std::setw(20)           << "char_device_struct" << " "
+            << std::left << std::setw(10)           << "major"              << " "
+            << std::left << std::setw(10)           << "minorct"            << " "
+            << std::left << std::setw(VADDR_PRLEN  + 2)  << "cdev"          << " "
+            << std::left << "name";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    for (auto& addr : for_each_char_device()) {
+        uint32_t major = read_uint(addr + field_offset(char_device_struct,major),"major");
+        // uint32_t baseminor = read_uint(addr + field_offset(char_device_struct,baseminor),"baseminor");
+        uint32_t minorct = read_uint(addr + field_offset(char_device_struct,minorct),"minorct");
+        ulong cdev_addr = read_pointer(addr + field_offset(char_device_struct, cdev),"cdev");
+        std::string name = read_cstring(addr + field_offset(char_device_struct, name),64, "name");
+        std::ostringstream oss;
+        oss << std::left << std::setw(20)           << std::hex   << addr         << " "
+            << std::left << std::setw(10)           << std::dec   << major        << " "
+            << std::left << std::setw(10)           << std::dec   << minorct      << " "
+            << std::left << std::setw(VADDR_PRLEN + 2)  << std::hex   << cdev_addr<< " "
+            << std::left << name;
+        fprintf(fp, "%s \n",oss.str().c_str());
+    }
+}
+
+void DDriver::print_misc_device(){
+    std::ostringstream oss_hd;
+    oss_hd  << std::left << std::setw(20)           << "miscdevice" << " "
+            << std::left << std::setw(10)           << "minor"      << " "
+            << std::left << std::setw(30)           << "ops"        << " "
+            << std::left << "name";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    for (auto& addr : for_each_misc_device()) {
+        uint32_t minor = read_uint(addr + field_offset(miscdevice,minor),"minor");
+        std::string name = "";
+        size_t name_addr = read_pointer(addr + field_offset(miscdevice,name),"name addr");
+        if (is_kvaddr(name_addr)){
+            name = read_cstring(name_addr,64, "name");
+        }
+        std::string ops_name = "";
+        size_t ops_addr = read_pointer(addr + field_offset(miscdevice,fops),"fops addr");
+        if (is_kvaddr(ops_addr)){
+            ulong offset;
+            struct syment *sp = value_search(ops_addr, &offset);
+            if (sp) {
+                ops_name = sp->name;
+            }
+        }
+        std::ostringstream oss;
+        oss << std::left << std::setw(20)   << std::hex   << addr   << " "
+            << std::left << std::setw(10)   << std::dec   << minor  << " "
+            << std::left << std::setw(30)   << ops_name             << " "
+            << std::left << name;
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 
