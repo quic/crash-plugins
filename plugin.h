@@ -96,6 +96,9 @@ private:
 #if defined(ARM)
     ulong* pmd_page_addr(ulong pmd);
 #endif
+    std::vector<ulong> get_block_device_by_bdevs();
+    std::vector<ulong> get_block_device_by_class();
+    std::vector<ulong> get_block_device_by_bdevfs();
 
 protected:
     std::unordered_map<std::string, std::unique_ptr<Typeinfo>> typetable;
@@ -137,6 +140,7 @@ public:
     std::vector<ulong> for_each_char_device();
     std::vector<ulong> for_each_cdev();
     std::vector<ulong> for_each_misc_device();
+    std::vector<ulong> for_each_block_device();
     std::vector<ulong> for_each_bus();
     std::vector<ulong> for_each_class();
     ulong get_bus_subsys_private(std::string bus_name);

@@ -429,6 +429,62 @@ std::vector<ulong> ParserPlugin::for_each_cdev(){
     return cdev_list;
 }
 
+std::vector<ulong> ParserPlugin::get_block_device_by_bdevs(){
+    std::vector<ulong> dev_list;
+    if (!csymbol_exists("all_bdevs")){
+        return dev_list;
+    }
+    field_init(block_device, bd_list);
+    for (const auto& addr : for_each_list(csymbol_value("all_bdevs"), field_offset(block_device, bd_list))) {
+        if (!is_kvaddr(addr)) continue;
+        dev_list.push_back(addr);
+    }
+    return dev_list;
+}
+
+std::vector<ulong> ParserPlugin::get_block_device_by_class(){
+    std::vector<ulong> dev_list;
+    field_init(block_device, bd_device);
+    if (field_offset(block_device, bd_device) == -1){
+        return dev_list;
+    }
+    for (const auto& addr : for_each_device_for_class("block")) {
+        ulong bd_addr = addr - field_offset(block_device, bd_device);
+        if (!is_kvaddr(bd_addr)) continue;
+        dev_list.push_back(bd_addr);
+    }
+    return dev_list;
+}
+
+std::vector<ulong> ParserPlugin::get_block_device_by_bdevfs(){
+    std::vector<ulong> dev_list;
+    if (!csymbol_exists("blockdev_superblock")){
+        return dev_list;
+    }
+    field_init(super_block, s_inodes);
+    field_init(inode, i_sb_list);
+    field_init(bdev_inode, vfs_inode);
+    field_init(bdev_inode, bdev);
+    ulong sb_addr = read_pointer(csymbol_value("blockdev_superblock"),"blockdev_superblock");
+    ulong list_head = sb_addr + field_offset(super_block, s_inodes);
+    for (const auto& addr : for_each_list(list_head, field_offset(inode, i_sb_list))) {
+        ulong bd_addr = addr - field_offset(bdev_inode, vfs_inode) + field_offset(bdev_inode, bdev);
+        if (!is_kvaddr(bd_addr)) continue;
+        dev_list.push_back(bd_addr);
+    }
+    return dev_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_block_device(){
+    std::vector<ulong> dev_list = get_block_device_by_bdevs();
+    if (dev_list.size() == 0){
+        dev_list = get_block_device_by_class();
+    }else if (dev_list.size() == 0){
+        dev_list = get_block_device_by_bdevfs();
+    }
+    return dev_list;
+}
+
 std::vector<ulong> ParserPlugin::for_each_misc_device(){
     std::vector<ulong> dev_list;
     if (!csymbol_exists("misc_list")){
