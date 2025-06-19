@@ -39,7 +39,7 @@ void DDriver::cmd_main(void) {
             class_ptr->device_list = parser_class_device_list(class_ptr->name);
         }
     }
-    while ((c = getopt(argcnt, args, "bB:cC:dDl:rm")) != EOF) {
+    while ((c = getopt(argcnt, args, "bB:cC:lLs:amDdp:")) != EOF) {
         switch(c) {
             case 'b': //list all bus
                 print_bus_info();
@@ -55,21 +55,31 @@ void DDriver::cmd_main(void) {
                 cppString.assign(optarg);
                 print_device_driver_for_class(cppString);
                 break;
-            case 'd'://list all device
+            case 'l'://list all device
                 print_device_list();
                 break;
-            case 'D'://list all driver
+            case 'L'://list all driver
                 print_driver_list();
                 break;
-            case 'l'://list all device under specified driver
+            case 's'://list all device under specified driver
                 cppString.assign(optarg);
                 print_device_list_for_driver(cppString);
                 break;
-            case 'r'://list all char_device_struct
+            case 'a'://list all char_device_struct
                 print_char_device();
                 break;
             case 'm'://list all misc device
                 print_misc_device();
+                break;
+            case 'D'://list all block device
+                print_block_device();
+                break;
+            case 'd'://list all disk
+                print_gendisk();
+                break;
+            case 'p'://list all partition under specified disk
+                cppString.assign(optarg);
+                print_partition(cppString);
                 break;
             default:
                 argerrs++;
@@ -98,6 +108,37 @@ DDriver::DDriver(){
     field_init(miscdevice,minor);
     field_init(miscdevice,name);
     field_init(miscdevice,fops);
+    struct_init(gendisk);
+    field_init(gendisk,major);
+    field_init(gendisk,minors);
+    field_init(gendisk,disk_name);
+    field_init(gendisk,part_tbl);
+    field_init(disk_part_tbl,len);
+    field_init(disk_part_tbl,part);
+    struct_init(block_device);
+    field_init(block_device,bd_start_sect);
+    field_init(block_device,bd_nr_sectors);
+    field_init(block_device,bd_disk);
+    field_init(block_device,bd_mapping);
+    field_init(block_device,bd_meta_info);
+    field_init(block_device,bd_super);
+    field_init(block_device,bd_part);
+    field_init(block_device,bd_block_size);
+    field_init(block_device,bd_partno);
+    field_init(super_block,s_blocksize);
+    field_init(super_block,s_type);
+    field_init(super_block, s_list);
+    field_init(super_block,s_bdev);
+    field_init(file_system_type,name);
+    field_init(file_system_type,fs_flags);
+    struct_init(hd_struct);
+    field_init(hd_struct,info);
+    field_init(hd_struct,__dev);
+    field_init(hd_struct,start_sect);
+    field_init(hd_struct,nr_sects);
+    field_init(hd_struct,partno);
+    field_init(partition_meta_info,uuid);
+    field_init(partition_meta_info,volname);
     cmd_name = "dd";
     help_str_list={
         "dd",                            /* command name */
@@ -106,11 +147,14 @@ DDriver::DDriver(){
             "  dd -B <bus name> \n"
             "  dd -c \n"
             "  dd -C <class name> \n"
-            "  dd -d \n"
-            "  dd -D \n"
-            "  dd -l <driver name> \n"
-            "  dd -r \n"
+            "  dd -l \n"
+            "  dd -L \n"
+            "  dd -s <driver name> \n"
+            "  dd -a \n"
             "  dd -m \n"
+            "  dd -D \n"
+            "  dd -d \n"
+            "  dd -p <disk name> \n"
             "  This command dumps the device driver info.",
         "\n",
         "EXAMPLES",
@@ -156,7 +200,7 @@ DDriver::DDriver(){
         "    efaa4c68   rpmsg_ctrl2",
         "\n",
         "  Display all device info:",
-        "    %s> dd -d",
+        "    %s> dd -l",
         "    device     name                                                              Bus             driver     driver_name",
         "    f6410810   reg-dummy                                                         platform        c2074488   reg-dummy",
         "    f64a0410   soc                                                               platform",
@@ -164,13 +208,13 @@ DDriver::DDriver(){
         "    f64a2010   soc:timer                                                         platform",
         "\n",
         "  Display all driver info:",
-        "    %s> dd -D",
+        "    %s> dd -L",
         "    device_driver    name                                 Bus                 compatible                 probe func",
         "    c2071e88         dcc                                  platform            dcc-v2                     platform_drv_probe+0",
         "    c2072b68         watchdog                             platform            watchdog                   platform_drv_probe+0",
         "\n",
         "  Display all device for specified driver:",
-        "    %s> dd -l rpm-smd-regulator-resource",
+        "    %s> dd -s rpm-smd-regulator-resource",
         "    device     name",
         "    f60b8810   rpm-smd:rpm-regulator-smpa1",
         "    f60ba810   rpm-smd:rpm-regulator-smpa3",
@@ -178,7 +222,7 @@ DDriver::DDriver(){
         "    f60b8410   rpm-smd:rpm-regulator-smpa5",
         "\n",
         "  Display all char device:",
-        "    %s> dd -r ",
+        "    %s> dd -a ",
         "    char_device_struct   major      minorct    cdev               name",
         "    ffffff80095b5b00     1          256        ffffff800a3aac00   mem",
         "    ffffff80095b5800     5          1          0                  /dev/tty",
@@ -191,6 +235,27 @@ DDriver::DDriver(){
         "    ffffffd0d7f763f0     124        gh_dev_fops                    gunyah",
         "    ffffffd0dd022060     125        cpu_latency_qos_fops           cpu_dma_latency",
         "    ffffffd0dd193370     127        ashmem_fops                    ashmem",
+        "\n",
+        "  Display all block device:",
+        "    %s> dd -D ",
+        "    block_device      super_block       type  bsize devname         volname              UUID",
+        "    ffffff8809154280  ffffff885d8d4000  ext4  4096  mmcblk0p1       xbl_a                0c768d03-3a3c-a990-0600-daf94674e882",
+        "    ffffff8809156a40  ffffff885d32c000  ext4  4096  loop13          xbl_b                fcb4ebd9-7f11-c81c-ef48-43b90e410a24",
+        "    ffffff8818e60d80  ffffff885d32c000  ext4  4096  mmcblk0p5       shrm_a               4717f043-65f9-3aa8-0e23-877e2c76ca7f",
+        "\n",
+        "  Display all disk:",
+        "    %s> dd -d ",
+        "    gendisk            minor major partitions name",
+        "    ffffff8802ffa000   1     1     1          ram1",
+        "    ffffff8802ffb800   1     1     1          ram2",
+        "    ffffff8802ffe800   1     1     1          ram0",
+        "\n",
+        "  Display all partition for specified disk:",
+        "    %s> dd -p mmcblk0",
+        "    block_device      partno start_sect sectors    size       bsize  type   devname              volname              UUID",
+        "    ffffff8818e9a800  0      21364736   471040     230MB      0             mmcblk0p69           vm-persist           05bdafd5-4ec6-238c-7366-42ba33c98fb2",
+        "    ffffff8818ea1ac0  0      30670848   512        256KB      0             mmcblk0p82           apdp                 dafea201-493e-7f88-ae4b-590a34946832",
+        "    ffffff8818ea5d00  0      30539776   8          4KB        0             mmcblk0p81           devinfo              2e547183-c9aa-f37a-0bbc-84d081cc4394",
         "\n",
     };
     initialize();
@@ -383,6 +448,384 @@ void DDriver::print_char_device(){
             << std::left << std::setw(10)           << std::dec   << minorct      << " "
             << std::left << std::setw(VADDR_PRLEN + 2)  << std::hex   << cdev_addr<< " "
             << std::left << name;
+        fprintf(fp, "%s \n",oss.str().c_str());
+    }
+}
+
+void DDriver::print_gendisk(){
+    int major = 0;
+    int minor = 0;
+    int partition_cnt = 0;
+    std::string name = "";
+    std::ostringstream oss_hd;
+    oss_hd  << std::left << std::setw(VADDR_PRLEN + 2)   << "gendisk"    << " "
+            << std::left << std::setw(5)    << "minor"      << " "
+            << std::left << std::setw(5)    << "major"      << " "
+            << std::left << std::setw(10)    << "partitions" << " "
+            << std::left << "name";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    std::set<ulong> disk_list;
+    for (auto& addr : for_each_disk()) {
+        disk_list.insert(addr);
+    }
+    for (auto& addr : disk_list) {
+        major = read_uint(addr + field_offset(gendisk,major),"major");
+        minor = read_uint(addr + field_offset(gendisk,minors),"minors");
+        name = read_cstring(addr + field_offset(gendisk,disk_name),32, "name");
+        ulong tbl_addr = 0;
+        if (field_size(gendisk,part_tbl) == sizeof(void *)){
+            tbl_addr = read_pointer(addr + field_offset(gendisk,part_tbl),"part_tbl");
+            if (is_kvaddr(tbl_addr)){
+                partition_cnt = read_uint(tbl_addr + field_offset(disk_part_tbl,len),"len");
+            }
+        }else{
+            tbl_addr = addr + field_offset(gendisk,part_tbl);
+            std::vector<ulong> ptbl = for_each_xarray(tbl_addr);
+            partition_cnt = ptbl.size();
+        }
+        std::ostringstream oss;
+        oss  << std::left << std::setw(VADDR_PRLEN + 2)  << std::hex << addr             << " "
+            << std::left << std::setw(5)    << std::dec << minor            << " "
+            << std::left << std::setw(5)    << std::dec << major            << " "
+            << std::left << std::setw(10)   << std::dec << partition_cnt    << " "
+            << std::left << name;
+        fprintf(fp, "%s \n",oss.str().c_str());
+    }
+}
+
+void DDriver::print_partition(std::string disk_name){
+    std::vector<ulong> ptbl;
+    for (auto& addr : for_each_disk()) {
+        std::string name = read_cstring(addr + field_offset(gendisk,disk_name),32, "name");
+        if (name != disk_name){
+            continue;
+        }
+        ulong tbl_addr = 0;
+        if (field_size(gendisk,part_tbl) == sizeof(void *)){
+            tbl_addr = read_pointer(addr + field_offset(gendisk,part_tbl),"part_tbl");
+            if (!is_kvaddr(tbl_addr)){
+                break;
+            }
+            size_t len = read_uint(tbl_addr + field_offset(disk_part_tbl,len),"len");
+            ulong ptb_addr = tbl_addr + field_offset(disk_part_tbl,part);
+            for (size_t i = 0; i < len; i++){
+                ulong hd_addr = read_pointer(ptb_addr + (i * sizeof(void *)),"part");
+                if (!is_kvaddr(hd_addr)){
+                    continue;
+                }
+                ptbl.push_back(hd_addr);
+            }
+        }else{
+            tbl_addr = addr + field_offset(gendisk,part_tbl);
+            if (!is_kvaddr(tbl_addr)){
+                break;
+            }
+            ptbl = for_each_xarray(tbl_addr);
+        }
+    }
+    if (ptbl.size() == 0){
+        return;
+    }
+    std::vector<std::shared_ptr<partition>> part_list;
+    for (auto& addr : ptbl) {
+        std::shared_ptr<partition> part_ptr;
+        if (struct_size(hd_struct) != -1){
+            part_ptr = parser_hd_struct(addr);
+        }else{
+            part_ptr = parser_block_device(addr);
+        }
+        if (part_ptr == nullptr){
+            continue;
+        }
+        part_list.push_back(part_ptr);
+    }
+    std::sort(part_list.begin(), part_list.end(),[&](std::shared_ptr<partition> a, std::shared_ptr<partition> b){
+        return a->partno < b->partno;
+    });
+    if (struct_size(hd_struct) == -1 && field_offset(block_device,bd_nr_sectors) == -1){
+        for (size_t i = 1; i < part_list.size() - 1; i++){
+            part_list[i]->nr_sectors = part_list[i + 1]->start_sect - part_list[i]->start_sect;
+        }
+    }
+    std::ostringstream oss_hd;
+    if (struct_size(hd_struct) != -1){
+        oss_hd  << std::left << std::setw(17)   << "hd_struct"  << " "
+            << std::left << std::setw(6)        << "partno"     << " "
+            << std::left << std::setw(10)       << "start_sect" << " "
+            << std::left << std::setw(10)       << "sectors"    << " "
+            << std::left << std::setw(10)       << "size"       << " "
+            << std::left << std::setw(6)        << "bsize"      << " "
+            << std::left << std::setw(6)        << "type"    << " "
+            << std::left << std::setw(20)       << "devname"    << " "
+            << std::left << std::setw(20)       << "volname"    << " "
+            << std::left << "UUID";
+    }else{
+        oss_hd  << std::left << std::setw(17)   << "block_device"   << " "
+            << std::left << std::setw(6)        << "partno"         << " "
+            << std::left << std::setw(10)       << "start_sect"     << " "
+            << std::left << std::setw(10)       << "sectors"        << " "
+            << std::left << std::setw(10)       << "size"           << " "
+            << std::left << std::setw(6)        << "bsize"          << " "
+            << std::left << std::setw(6)        << "type"        << " "
+            << std::left << std::setw(20)       << "devname"        << " "
+            << std::left << std::setw(20)       << "volname"        << " "
+            << std::left << "UUID";
+    }
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    for (auto& part_ptr : part_list) {
+        std::ostringstream oss;
+        oss  << std::left << std::setw(17)  << std::hex << part_ptr->addr         << " "
+            << std::left << std::setw(6)    << std::dec << part_ptr->partno       << " "
+            << std::left << std::setw(10)   << std::dec << part_ptr->start_sect   << " "
+            << std::left << std::setw(10)   << std::dec << part_ptr->nr_sectors     << " "
+            << std::left << std::setw(10)   << std::dec << csize(part_ptr->nr_sectors*512)  << " "
+            << std::left << std::setw(6)    << std::dec << part_ptr->block_size     << " "
+            << std::left << std::setw(6)    << std::dec << part_ptr->fs_type        << " "
+            << std::left << std::setw(20)   << part_ptr->devname  << " "
+            << std::left << std::setw(20)   << part_ptr->volname  << " "
+            << std::left << part_ptr->uuid;
+        fprintf(fp, "%s \n",oss.str().c_str());
+    }
+}
+
+std::shared_ptr<partition> DDriver::parser_hd_struct(ulong addr){
+    std::shared_ptr<partition> part_ptr = std::make_shared<partition>();
+    part_ptr->addr = addr;
+    if (field_offset(hd_struct,start_sect) != -1){
+        part_ptr->start_sect = read_ulonglong(addr + field_offset(hd_struct,start_sect),"start_sect");
+    }
+    if (field_offset(hd_struct,nr_sects) != -1){
+        part_ptr->nr_sectors = read_ulonglong(addr + field_offset(hd_struct,nr_sects),"nr_sects");
+    }
+    if (field_offset(hd_struct,partno) != -1){
+        part_ptr->partno = read_uint(addr + field_offset(hd_struct,partno),"partno");
+    }
+    if (field_offset(hd_struct,info) != -1){
+        ulong meta_info_addr = read_pointer(addr + field_offset(hd_struct,info),"info");
+        if (is_kvaddr(meta_info_addr)){
+            part_ptr->uuid = read_cstring(meta_info_addr + field_offset(partition_meta_info,uuid),37, "uuid");
+            part_ptr->volname = read_cstring(meta_info_addr + field_offset(partition_meta_info,volname),64, "volname");
+        }
+    }
+    if (field_offset(hd_struct,__dev) != -1){
+        size_t name_addr = read_pointer(addr + field_offset(hd_struct,__dev) + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
+        if (is_kvaddr(name_addr)){
+            part_ptr->devname = read_cstring(name_addr,100, "device name");
+        }
+    }
+    //find the block_device for this hd_struct
+    for (auto& bd_addr : for_each_block_device()) {
+        ulong bd_part_addr = read_pointer(bd_addr + field_offset(block_device,bd_part),"bd_part");
+        if (bd_part_addr != addr){
+            continue;
+        }
+        ulong bd_super = 0;
+        if (field_offset(block_device,bd_super) != -1){
+            bd_super = read_pointer(bd_addr + field_offset(block_device,bd_super),"bd_super");
+        }
+        if (is_kvaddr(bd_super)){
+            if (field_offset(super_block,s_blocksize) != -1){
+                part_ptr->block_size = read_ulong(bd_super + field_offset(super_block,s_blocksize),"s_blocksize");
+            }
+            if (field_offset(super_block,s_type) != -1){
+                ulong fst_addr = read_pointer(bd_super + field_offset(super_block,s_type),"s_type");
+                if (is_kvaddr(fst_addr)){
+                    size_t name_addr = read_pointer(fst_addr + field_offset(file_system_type,name),"name addr");
+                    if (is_kvaddr(name_addr)){
+                        part_ptr->fs_type = read_cstring(name_addr,64, "name");
+                    }
+                }
+            }
+        }
+    }
+    return part_ptr;
+}
+
+std::shared_ptr<partition> DDriver::parser_block_device(ulong addr){
+    void *buf = read_struct(addr,"block_device");
+    if (!buf) {
+        return nullptr;
+    }
+    std::shared_ptr<partition> part_ptr = std::make_shared<partition>();
+    part_ptr->addr = addr;
+    if (field_offset(block_device,bd_start_sect) != -1){
+        part_ptr->start_sect = ULONGLONG(buf + field_offset(block_device,bd_start_sect));
+    }
+    if (field_offset(block_device,bd_nr_sectors) != -1){
+        part_ptr->nr_sectors = ULONGLONG(buf + field_offset(block_device,bd_nr_sectors));
+    }
+    if (field_offset(block_device,bd_meta_info) != -1){
+        ulong meta_info = ULONG(buf + field_offset(block_device,bd_meta_info));
+        if (is_kvaddr(meta_info)){
+            part_ptr->uuid = read_cstring(meta_info + field_offset(partition_meta_info,uuid),37, "uuid");
+            part_ptr->volname = read_cstring(meta_info + field_offset(partition_meta_info,volname),64, "volname");
+        }
+    }
+    if (field_offset(block_device,bd_block_size) != -1){
+        part_ptr->block_size = UINT(buf + field_offset(block_device,bd_block_size));
+    }
+    if (field_offset(block_device,bd_partno) != -1){
+        part_ptr->partno = USHORT(buf + field_offset(block_device,bd_partno));
+    }
+    if (field_offset(block_device,bd_device) != -1){
+        size_t name_addr = read_pointer(addr + field_offset(block_device,bd_device) + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
+        if (is_kvaddr(name_addr)){
+            part_ptr->devname = read_cstring(name_addr,64, "device name");
+        }
+    }
+    if (field_offset(block_device,bd_super) != -1){
+        ulong bd_super = ULONG(buf + field_offset(block_device,bd_super));
+        if (is_kvaddr(bd_super)){
+            if (field_offset(super_block,s_blocksize) != -1){
+                part_ptr->block_size = read_ulong(bd_super + field_offset(super_block,s_blocksize),"s_blocksize");
+            }
+            if (field_offset(super_block,s_type) != -1){
+                ulong fst_addr = read_pointer(bd_super + field_offset(super_block,s_type),"s_type");
+                if (is_kvaddr(fst_addr)){
+                    size_t name_addr = read_pointer(fst_addr + field_offset(file_system_type,name),"name addr");
+                    if (is_kvaddr(name_addr)){
+                        part_ptr->fs_type = read_cstring(name_addr,64, "name");
+                    }
+                }
+            }
+        }
+    }else{
+        //find the super_block for this block_device
+        ulong list_head = csymbol_value("super_blocks");
+        for (const auto& bd_super : for_each_list(list_head, field_offset(super_block, s_list))) {
+            ulong bd_addr = read_pointer(bd_super + field_offset(super_block,s_bdev),"s_bdev");
+            if (bd_addr != part_ptr->addr){
+                continue;
+            }
+            if (field_offset(super_block,s_blocksize) != -1){
+                part_ptr->block_size = read_ulong(bd_super + field_offset(super_block,s_blocksize),"s_blocksize");
+            }
+            if (field_offset(super_block,s_type) != -1){
+                ulong fst_addr = read_pointer(bd_super + field_offset(super_block,s_type),"s_type");
+                if (is_kvaddr(fst_addr)){
+                    size_t name_addr = read_pointer(fst_addr + field_offset(file_system_type,name),"name addr");
+                    if (is_kvaddr(name_addr)){
+                        part_ptr->fs_type = read_cstring(name_addr,64, "name");
+                    }
+                }
+            }
+        }
+    }
+    FREEBUF(buf);
+    return part_ptr;
+}
+
+void DDriver::print_block_device(){
+    uint64_t bd_block_size = 0;
+    ulong bd_meta_info = 0;
+    ulong bd_super = 0;
+    std::string fs_type = "";
+    std::string uuid = "";
+    std::string volname = "";
+    std::string devname = "";
+    std::ostringstream oss_hd;
+    std::set<ulong> bd_list;
+    for (auto& addr : for_each_block_device()) {
+        bd_list.insert(addr);
+    }
+    if (bd_list.size() == 0){
+        return;
+    }
+    oss_hd  << std::left << std::setw(17)   << "block_device"   << " "
+            << std::left << std::setw(17)   << "super_block"    << " "
+            << std::left << std::setw(5)    << "type"           << " "
+            << std::left << std::setw(5)    << "bsize"          << " "
+            << std::left << std::setw(15)   << "devname"        << " "
+            << std::left << std::setw(20)   << "volname"        << " "
+            << std::left << "UUID";
+    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    for (auto& addr : bd_list) {
+        void *buf = read_struct(addr,"block_device");
+        if (!buf) {
+            continue;
+        }
+        if (field_offset(block_device,bd_meta_info) != -1){
+            bd_meta_info = ULONG(buf + field_offset(block_device,bd_meta_info));
+            if (is_kvaddr(bd_meta_info)){
+                uuid = read_cstring(bd_meta_info + field_offset(partition_meta_info,uuid),37, "uuid");
+                volname = read_cstring(bd_meta_info + field_offset(partition_meta_info,volname),64, "volname");
+            }
+        }
+        if (field_offset(block_device,bd_super) != -1){
+            bd_super = ULONG(buf + field_offset(block_device,bd_super));
+            if (is_kvaddr(bd_super)){
+                if (field_offset(super_block,s_blocksize) != -1){
+                    bd_block_size = read_ulong(bd_super + field_offset(super_block,s_blocksize),"s_blocksize");
+                }
+                if (field_offset(super_block,s_type) != -1){
+                    ulong fst_addr = read_pointer(bd_super + field_offset(super_block,s_type),"s_type");
+                    if (is_kvaddr(fst_addr)){
+                        size_t name_addr = read_pointer(fst_addr + field_offset(file_system_type,name),"name addr");
+                        if (is_kvaddr(name_addr)){
+                            fs_type = read_cstring(name_addr,64, "name");
+                        }
+                    }
+                }
+            }
+        }else{
+            //find the super_block for this block_device
+            ulong list_head = csymbol_value("super_blocks");
+            for (const auto& sb_addr : for_each_list(list_head, field_offset(super_block, s_list))) {
+                ulong bd_addr = read_pointer(sb_addr + field_offset(super_block,s_bdev),"s_bdev");
+                if (bd_addr != addr){
+                    continue;
+                }
+                bd_super = sb_addr;
+                if (field_offset(super_block,s_blocksize) != -1){
+                    bd_block_size = read_ulong(sb_addr + field_offset(super_block,s_blocksize),"s_blocksize");
+                }
+                if (field_offset(super_block,s_type) != -1){
+                    ulong fst_addr = read_pointer(sb_addr + field_offset(super_block,s_type),"s_type");
+                    if (is_kvaddr(fst_addr)){
+                        size_t name_addr = read_pointer(fst_addr + field_offset(file_system_type,name),"name addr");
+                        if (is_kvaddr(name_addr)){
+                            fs_type = read_cstring(name_addr,64, "name");
+                        }
+                    }
+                }
+            }
+        }
+        if (field_offset(block_device,bd_part) != -1){
+            ulong bd_part = ULONGLONG(buf + field_offset(block_device,bd_part));
+            if (is_kvaddr(bd_part)){
+                if (field_offset(hd_struct,info) != -1){
+                    ulong meta_info_addr = read_pointer(bd_part + field_offset(hd_struct,info),"info");
+                    if (is_kvaddr(meta_info_addr)){
+                        uuid = read_cstring(meta_info_addr + field_offset(partition_meta_info,uuid),37, "uuid");
+                        volname = read_cstring(meta_info_addr + field_offset(partition_meta_info,volname),64, "volname");
+                    }
+                }
+                if (field_offset(hd_struct,__dev) != -1){
+                    size_t name_addr = read_pointer(bd_part + field_offset(hd_struct,__dev) + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
+                    if (is_kvaddr(name_addr)){
+                        devname = read_cstring(name_addr,100, "device name");
+                    }
+                }
+            }
+        }
+        if (field_offset(block_device,bd_block_size) != -1){
+            bd_block_size = UINT(buf + field_offset(block_device,bd_block_size));
+        }
+        if (field_offset(block_device,bd_device) != -1){
+            size_t name_addr = read_pointer(addr + field_offset(block_device,bd_device) + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
+            if (is_kvaddr(name_addr)){
+                devname = read_cstring(name_addr,100, "device name");
+            }
+        }
+        FREEBUF(buf);
+        std::ostringstream oss;
+        oss  << std::left << std::setw(17)  << std::hex     << addr         << " "
+            << std::left << std::setw(17)   << std::hex     << bd_super     << " "
+            << std::left << std::setw(5)    << fs_type                      << " "
+            << std::left << std::setw(5)    << std::dec     << bd_block_size<< " "
+            << std::left << std::setw(15)   << devname                      << " "
+            << std::left << std::setw(20)   << volname                      << " "
+            << std::left << uuid;
         fprintf(fp, "%s \n",oss.str().c_str());
     }
 }

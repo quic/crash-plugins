@@ -99,6 +99,9 @@ private:
     std::vector<ulong> get_block_device_by_bdevs();
     std::vector<ulong> get_block_device_by_class();
     std::vector<ulong> get_block_device_by_bdevfs();
+    std::vector<ulong> for_each_kobj_map(std::string map_name);
+    std::vector<ulong> get_disk_by_bdevmap();
+    std::vector<ulong> get_disk_by_block_device();
 
 protected:
     std::unordered_map<std::string, std::unique_ptr<Typeinfo>> typetable;
@@ -139,6 +142,7 @@ public:
     std::vector<ulong> for_each_vma(ulong& task_addr);
     std::vector<ulong> for_each_char_device();
     std::vector<ulong> for_each_cdev();
+    std::vector<ulong> for_each_disk();
     std::vector<ulong> for_each_misc_device();
     std::vector<ulong> for_each_block_device();
     std::vector<ulong> for_each_bus();

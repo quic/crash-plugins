@@ -417,16 +417,64 @@ std::vector<ulong> ParserPlugin::for_each_char_device(){
     return chardev_list;
 }
 
-std::vector<ulong> ParserPlugin::for_each_cdev(){
-    std::vector<ulong> cdev_list;
-    for (const auto& addr : for_each_char_device()){
-        ulong cdev = read_pointer(addr + field_offset(char_device_struct,cdev),"cdev");
-        if (!is_kvaddr(cdev)){
+std::vector<ulong> ParserPlugin::for_each_kobj_map(std::string map_name){
+    std::vector<ulong> dev_list;
+    if (!csymbol_exists(map_name)){
+        return dev_list;
+    }
+    field_init(kobj_map, probes);
+    field_init(probe, data);
+    field_init(probe, next);
+    size_t len = field_size(kobj_map,probes)/sizeof(void *);
+    ulong map_addr = read_pointer(csymbol_value(map_name),"map addr");
+    if (!is_kvaddr(map_addr)){
+        return dev_list;
+    }
+    for (size_t i = 0; i < len; i++){
+        ulong probe_addr = read_pointer(map_addr + (i * sizeof(void *)),"probe_addr");
+        if (!is_kvaddr(probe_addr)){
             continue;
         }
-        cdev_list.push_back(cdev);
+        ulong next_addr = probe_addr;
+        while (is_kvaddr(next_addr)){
+            ulong data = read_pointer(next_addr + field_offset(probe,data),"data");
+            if (is_kvaddr(data)){
+                dev_list.push_back(data);
+            }
+            next_addr = read_pointer(next_addr + field_offset(probe,next),"next");
+        }
     }
-    return cdev_list;
+    return dev_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_cdev(){
+    return for_each_kobj_map("cdev_map");
+}
+
+std::vector<ulong> ParserPlugin::get_disk_by_bdevmap(){
+    return for_each_kobj_map("bdev_map");
+}
+
+std::vector<ulong> ParserPlugin::get_disk_by_block_device(){
+    std::vector<ulong> dev_list;
+    field_init(block_device, bd_disk);
+    if (field_offset(block_device, bd_disk) == -1){
+        return dev_list;
+    }
+    for (auto& addr : for_each_block_device()) {
+        ulong bd_disk = read_pointer(addr + field_offset(block_device,bd_disk),"bd_disk");
+        if (!is_kvaddr(bd_disk)) continue;
+        dev_list.push_back(bd_disk);
+    }
+    return dev_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_disk(){
+    std::vector<ulong> dev_list = get_disk_by_bdevmap();
+    if (dev_list.size() == 0){
+        dev_list = get_disk_by_block_device();
+    }
+    return dev_list;
 }
 
 std::vector<ulong> ParserPlugin::get_block_device_by_bdevs(){

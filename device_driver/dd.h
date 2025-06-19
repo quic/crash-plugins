@@ -51,6 +51,18 @@ struct class_type {
     std::vector<std::shared_ptr<driver>> driver_list;
 };
 
+struct partition {
+    ulong addr;
+    int partno = 0;
+    int block_size = 0;
+    uint64_t start_sect = 0;
+    uint64_t nr_sectors = 0;
+    std::string uuid = "";
+    std::string volname = "";
+    std::string devname = "";
+    std::string fs_type = "";
+};
+
 class DDriver : public ParserPlugin {
 public:
     std::vector<std::shared_ptr<bus_type>> bus_list;
@@ -64,6 +76,11 @@ public:
     void print_device_driver_for_bus(std::string bus_name);
     void print_device_driver_for_class(std::string class_name);
     void print_char_device();
+    void print_gendisk();
+    void print_partition(std::string disk_name);
+    std::shared_ptr<partition> parser_hd_struct(ulong addr);
+    std::shared_ptr<partition> parser_block_device(ulong addr);
+    void print_block_device();
     void print_misc_device();
     void print_device_list_for_driver(std::string driver_name);
     void print_driver_list();
