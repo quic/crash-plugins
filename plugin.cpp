@@ -1302,38 +1302,6 @@ bool ParserPlugin::load_symbols(std::string& path, std::string name){
     return false;
 }
 
-std::unordered_map<ulong, ulong> ParserPlugin::parser_auvx_list(ulong mm_struct_addr, bool is_compat){
-    field_init(mm_struct, saved_auxv);
-    std::unordered_map <ulong, ulong> auxv_list;
-    size_t auxv_size = field_size(mm_struct, saved_auxv);
-    size_t data_size = BITS64() && !is_compat ? sizeof(Elf64_Auxv_t) : sizeof(Elf32_Auxv_t);
-    int auxv_cnt = auxv_size / data_size;
-    void* auxv_buf = read_memory(mm_struct_addr + field_offset(mm_struct, saved_auxv), auxv_size, "mm_struct saved_auxv");
-    if(!auxv_buf){
-        fprintf(fp, "get auxv info fail \n");
-        return {};
-    }
-    auto parseAuxv = [&](auto* elf_auxv) {
-        for (int i = 0; i < auxv_cnt; ++i) {
-            using T = decltype(elf_auxv->type);
-            T type = elf_auxv->type & vaddr_mask;
-            T val = elf_auxv->val & vaddr_mask;
-            if (type == 0) {
-                continue;
-            }
-            auxv_list[type] = val;
-            ++elf_auxv;
-        }
-    };
-    if (BITS64() && !is_compat) {
-        parseAuxv(reinterpret_cast<Elf64_Auxv_t*>(auxv_buf));
-    } else {
-        parseAuxv(reinterpret_cast<Elf32_Auxv_t*>(auxv_buf));
-    }
-    FREEBUF(auxv_buf);
-    return auxv_list;
-}
-
 void ParserPlugin::uwind_irq_back_trace(int cpu, ulong x30){
 #if defined(ARM64)
     ulong *cpus = get_cpumask_buf();

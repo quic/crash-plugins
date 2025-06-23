@@ -132,10 +132,10 @@ private:
                 match &= obj_callback(obj);
             }
             if (match){
-                fprintf(fp, "Found the match vtable, addr:%#" PRIxPTR " vtpr:%#" PRIxPTR "\n", (uintptr_t)addr, (uintptr_t)(vtable_ptr));
+                if(debug)fprintf(fp, "Found the match vtable, addr:%#" PRIxPTR " vtpr:%#" PRIxPTR "\n", (uintptr_t)addr, (uintptr_t)(vtable_ptr));
                 for (int i = 0; i < vtb_cnt; ++i){
                     ulong vfun_ptr = vtable[i] & vaddr_mask;
-                    fprintf(fp, "  vfunc[%d] addr:%#" PRIxPTR  "\n", i, (uintptr_t)vfun_ptr);
+                    if(debug)fprintf(fp, "  vfunc[%d] addr:%#" PRIxPTR  "\n", i, (uintptr_t)vfun_ptr);
                 }
                 return addr;
             }

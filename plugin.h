@@ -203,7 +203,6 @@ public:
     ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
 #endif
     bool load_symbols(std::string& path, std::string name);
-    std::unordered_map<ulong, ulong> parser_auvx_list(ulong mm_struct_addr, bool is_compat);
     void uwind_irq_back_trace(int cpu, ulong x30);
     void uwind_task_back_trace(int pid, ulong x30);
 };

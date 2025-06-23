@@ -53,6 +53,7 @@ if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
 list(APPEND PLUGIN_SOURCES
     plugins.cpp
+    utils/utask.cpp
     lib/lzo/lzo1x_decompress_safe.c
     lib/lz4/lz4_decompress.c
     binder/binder.cpp
@@ -159,7 +160,8 @@ add_library(procrank SHARED
             memory/swapinfo.cpp
             procrank/procrank.cpp
             lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c)
+            lib/lz4/lz4_decompress.c
+            utils/utask.cpp)
 set_target_properties(procrank PROPERTIES PREFIX "")
 target_link_libraries(procrank ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
 
@@ -237,6 +239,7 @@ target_link_libraries(swap ${ELF_LIBRARIES})
 # =================== build prop ===================
 add_library(prop SHARED
             ${PLUGIN_SOURCES}
+            utils/utask.cpp
             memory/zraminfo.cpp
             memory/swapinfo.cpp
             property/propinfo.cpp
@@ -249,6 +252,7 @@ target_link_libraries(prop ${ELF_LIBRARIES})
 # =================== build logcat ===================
 add_library(logcat SHARED
             ${PLUGIN_SOURCES}
+            utils/utask.cpp
             memory/zraminfo.cpp
             memory/swapinfo.cpp
             property/propinfo.cpp
@@ -276,6 +280,7 @@ set_target_properties(cpuinfo PROPERTIES PREFIX "")
 # =================== build core ===================
 add_library(core SHARED
             ${PLUGIN_SOURCES}
+            utils/utask.cpp
             memory/zraminfo.cpp
             memory/swapinfo.cpp
             coredump/coredump.cpp
@@ -353,6 +358,7 @@ set_target_properties(ccf PROPERTIES PREFIX "")
 # =================== build pstore ===================
 add_library(pstore SHARED
             ${PLUGIN_SOURCES}
+            utils/utask.cpp
             pstore/pstore.cpp)
 set_target_properties(pstore PROPERTIES PREFIX "")
 

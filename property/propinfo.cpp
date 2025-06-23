@@ -41,12 +41,7 @@ PropInfo::~PropInfo(){
 }
 
 PropInfo::PropInfo(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    field_init(vm_area_struct, vm_file);
-    field_init(vm_area_struct, vm_start);
-    field_init(vm_area_struct, vm_end);
-    field_init(file, f_path);
-    field_init(path, dentry);
-    field_init(path, mnt);
+
 }
 
 std::string PropInfo::get_symbol_file(std::string name){

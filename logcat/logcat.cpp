@@ -560,14 +560,6 @@ std::unordered_map<uint, std::string> event_tags_map = {
 
 bool Logcat::is_LE = false;
 Logcat::Logcat(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    field_init(vm_area_struct, vm_start);
-    field_init(vm_area_struct, vm_end);
-    field_init(vm_area_struct, vm_file);
-    field_init(vm_area_struct, vm_mm);
-    field_init(vm_area_struct, detached);
-    field_init(vm_area_struct, vm_flags);
-    field_init(file, f_vfsmnt);
-    field_init(thread_info, flags);
     for(ulong task_addr: for_each_process()){
         struct task_context *tc = task_to_context(task_addr);
         if (!tc){
@@ -660,12 +652,8 @@ void Logcat::print_logcat_log(LOG_ID id){
         if(vaild_msg.empty()){
              continue;
         }
-        size_t pos = 0;
-        while ((pos = vaild_msg.find('\0')) != std::string::npos) {
-            vaild_msg.replace(pos, 1, " ");
-        }
-        while ((pos = vaild_msg.find('\n')) != std::string::npos) {
-            vaild_msg.replace(pos, 1, " ");
+        while (vaild_msg.back() == ' ' || vaild_msg.back() == '\n' || vaild_msg.back() == '\r'){
+            vaild_msg.pop_back();
         }
         std::ostringstream oss;
         if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO

@@ -17,6 +17,7 @@
 #define PROCRANK_DEFS_H_
 #include "plugin.h"
 #include "memory/swapinfo.h"
+#include "../utils/utask.h"
 
 struct procrank{
     ulong vss;
@@ -30,6 +31,9 @@ struct procrank{
 };
 
 class Procrank : public ParserPlugin {
+private:
+    std::shared_ptr<UTask> task_ptr;
+
 public:
     Procrank();
     Procrank(std::shared_ptr<Swapinfo> swap);
@@ -37,7 +41,7 @@ public:
     void cmd_main(void) override;
     void parser_process_memory();
     void parser_process_name();
-    std::shared_ptr<procrank> parser_vma(ulong& vma_addr, ulong& task_addr);
+    std::shared_ptr<procrank> parser_vma(std::shared_ptr<vma_struct> vma_ptr);
     DEFINE_PLUGIN_INSTANCE(Procrank)
 
 private:

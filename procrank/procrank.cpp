@@ -92,25 +92,30 @@ void Procrank::parser_process_memory() {
     uint64_t total_swap = 0;
     if (procrank_list.size() == 0){
         for(ulong task_addr: for_each_process()){
-            auto procrank_result = std::make_shared<procrank>();
-            for(ulong vma_addr: for_each_vma(task_addr)){
-                auto procrank_ptr = parser_vma(vma_addr, task_addr);
-                procrank_result->vss += procrank_ptr->vss;
-                procrank_result->rss += procrank_ptr->rss;
-                procrank_result->pss += procrank_ptr->pss;
-                procrank_result->uss += procrank_ptr->uss;
-                procrank_result->swap += procrank_ptr->swap;
-            }
-            total_vss += procrank_result->vss;
-            total_rss += procrank_result->rss;
-            total_pss += procrank_result->pss;
-            total_uss += procrank_result->uss;
-            total_swap += procrank_result->swap;
             struct task_context *tc = task_to_context(task_addr);
-            procrank_result->pid = tc->pid;
+            if(!tc){
+                continue;
+            }
+            task_ptr = std::make_shared<UTask>(swap_ptr, task_addr);
+            auto proc_mem_ptr = std::make_shared<procrank>();
+            proc_mem_ptr->pid = tc->pid;
             // memcpy(procrank_result->comm, tc->comm, TASK_COMM_LEN + 1);
-            procrank_result->cmdline = swap_ptr->read_start_args(task_addr);
-            procrank_list.push_back(procrank_result);
+            proc_mem_ptr->cmdline = task_ptr->read_start_args();
+            for (const auto& vma_ptr : task_ptr->for_each_vma_list()) {
+                auto vma_mem_ptr = parser_vma(vma_ptr);
+                proc_mem_ptr->vss += vma_mem_ptr->vss;
+                proc_mem_ptr->rss += vma_mem_ptr->rss;
+                proc_mem_ptr->pss += vma_mem_ptr->pss;
+                proc_mem_ptr->uss += vma_mem_ptr->uss;
+                proc_mem_ptr->swap += vma_mem_ptr->swap;
+            }
+            total_vss += proc_mem_ptr->vss;
+            total_rss += proc_mem_ptr->rss;
+            total_pss += proc_mem_ptr->pss;
+            total_uss += proc_mem_ptr->uss;
+            total_swap += proc_mem_ptr->swap;
+            procrank_list.push_back(proc_mem_ptr);
+            task_ptr.reset();
         }
         std::sort(procrank_list.begin(), procrank_list.end(),[&](const std::shared_ptr<procrank>& a, const std::shared_ptr<procrank>& b){
             return a->rss > b->rss;
@@ -146,24 +151,12 @@ void Procrank::parser_process_memory() {
     fprintf(fp, "%s\n", oss_total.str().c_str());
 }
 
-std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr) {
+std::shared_ptr<procrank> Procrank::parser_vma(std::shared_ptr<vma_struct> vma_ptr) {
     auto procrank_ptr = std::make_shared<procrank>();
-    // read struct vm_area_struct
-    void *vma_struct = read_struct(vma_addr,"vm_area_struct");
-    if(vma_struct == nullptr){
-        return nullptr;
-    }
-    ulong vm_start = ULONG(vma_struct + field_offset(vm_area_struct, vm_start));
-    ulong vm_end = ULONG(vma_struct + field_offset(vm_area_struct, vm_end));
-    struct task_context *tc = task_to_context(task_addr);
-    if(tc == nullptr){
-        FREEBUF(vma_struct);
-        return nullptr;
-    }
-    for(ulong vaddr = vm_start; vaddr < vm_end; vaddr+= page_size){
+    for(ulong vaddr = vma_ptr->vm_start; vaddr < vma_ptr->vm_end; vaddr+= page_size){
         ulong page_vaddr = vaddr & page_mask;
         physaddr_t paddr;
-        if (!uvtop(tc, page_vaddr, &paddr, 0)) { //page not exists
+        if (!uvtop(task_ptr->get_task_context(), page_vaddr, &paddr, 0)) { //page not exists
             if(paddr == 0x0){ // pte == 0
                 continue;
             }
@@ -187,8 +180,7 @@ std::shared_ptr<procrank> Procrank::parser_vma(ulong& vma_addr, ulong& task_addr
         procrank_ptr->pss += page_size / page_count;
         procrank_ptr->uss += (page_count == 1) ? page_size : (0);
     }
-    procrank_ptr->vss += vm_end - vm_start;
-    FREEBUF(vma_struct);
+    procrank_ptr->vss += vma_ptr->vm_end - vma_ptr->vm_start;
     return procrank_ptr;
 }
 
@@ -200,16 +192,20 @@ void Procrank::parser_process_name() {
     for(ulong task_addr: for_each_process()){
         std::string cmdline;
         struct task_context *tc = task_to_context(task_addr);
+        if (!tc){
+            continue;
+        }
+        task_ptr = std::make_shared<UTask>(swap_ptr, task_addr);
         if (!swap_ptr->is_zram_enable()){
             cmdline = tc->comm;
         } else {
-            cmdline = swap_ptr->read_start_args(task_addr);
+            cmdline = task_ptr->read_start_args();
         }
         oss_hd << std::left << std::setw(8) << tc->pid << " "
                << std::left << std::setw(20) << tc->comm << " "
                << std::left << std::setw(10) << cmdline << "\n";
+        task_ptr.reset();
     }
-
     fprintf(fp, "%s \n", oss_hd.str().c_str());
 }
 

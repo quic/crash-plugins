@@ -198,9 +198,8 @@ void BootInfo::parser_pmic_pon_log_dev(ulong addr){
     bool is_important;
     field_init(pmic_pon_log_dev,log);
     field_init(pmic_pon_log_dev,log_len);
-    struct_init(pmic_pon_log_dev);
-    if(field_offset(pmic_pon_log_dev,log) == -1 || struct_size(pmic_pon_log_dev) == -1){
-        fprintf(fp, "pls load pmic_pon_log.ko at first !\n");
+    if(field_offset(pmic_pon_log_dev,log) == -1){
+        fprintf(fp, "pls load pmic_pon_log ko symbol !\n");
         return;
     }
     read_pmic_pon_trigger_maps();
@@ -326,7 +325,7 @@ void BootInfo::parser_pmic_pon_log_dev(ulong addr){
 
 void BootInfo::print_boot_log(){
     if (!csymbol_exists("boot_log_buf")){
-        fprintf(fp, "pls load logbuf_boot_log.ko first !\n");
+        fprintf(fp, "pls load logbuf_boot_log ko symbol !\n");
         return;
     }
     ulong logbuf_addr = read_pointer(csymbol_value("boot_log_buf"),"boot_log_buf");
