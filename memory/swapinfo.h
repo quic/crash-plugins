@@ -70,11 +70,6 @@ public:
     unsigned char uread_byte(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     bool uread_buffer(ulonglong task_addr, ulonglong uvaddr, char *result, int len, const std::string &note);
     bool is_swap_pte(ulong pte);
-    std::string read_start_args(ulong& task_addr);
-    uint64_t read_sections(std::string &section_name, std::string &libname, int *align);
-    uint64_t read_symbol(std::string &symbol_name, std::string &libname);
-    ulong get_file_min_vaddr(ulong task_addr, std::string libname);
-    ulong get_var_addr_by_bss(std::string var_name, ulong task_addr, std::string lib);
 };
 
 #endif // SWAP_INFO_DEFS_H_
