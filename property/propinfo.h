@@ -18,6 +18,7 @@
 
 #include "plugin.h"
 #include "memory/swapinfo.h"
+#include "../utils/utask.h"
 
 struct prop_area{
     uint32_t bytes_used_;
@@ -75,6 +76,7 @@ class PropInfo : public ParserPlugin {
 protected:
     bool debug = false;
     std::shared_ptr<Swapinfo> swap_ptr;
+    std::shared_ptr<UTask> task_ptr;
 
 public:
     std::unordered_map<std::string, std::string> prop_map; //<name, val>

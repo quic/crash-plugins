@@ -53,6 +53,9 @@ void Prop::cmd_main(void) {
                 if (prop_map.size() == 0){
                     parser_propertys();
                     parser_prop_by_init();
+                    if(task_ptr != nullptr){
+                        task_ptr.reset();
+                    }
                 }
                 print_propertys();
             }

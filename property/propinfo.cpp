@@ -26,6 +26,9 @@ std::string PropInfo::get_prop(std::string name){
     if (prop_map.size() == 0){
         parser_prop_by_init();
         parser_propertys();
+        if(task_ptr != nullptr){
+            task_ptr.reset();
+        }
     }
     if (prop_map.find(name) != prop_map.end()) {
         return prop_map[name];
@@ -44,30 +47,6 @@ PropInfo::PropInfo(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
     field_init(file, f_path);
     field_init(path, dentry);
     field_init(path, mnt);
-
-    for(ulong task_addr: for_each_process()){
-        struct task_context *tc = task_to_context(task_addr);
-        if (!tc){
-            continue;
-        }
-        std::string task_name = tc->comm;
-        if (task_name == "init" || tc->pid == 1){
-            tc_init = tc;
-            break;
-        }
-    }
-    if (!tc_init){
-        fprintf(fp, "Can't found init process !");
-        return;
-    }
-    field_init(thread_info,flags);
-    fill_thread_info(tc_init->thread_info);
-    if (BITS64() && field_offset(thread_info, flags) != -1){
-        ulong thread_info_flags = ULONG(tt->thread_info + field_offset(thread_info, flags));
-        if(thread_info_flags & (1 << 22)){
-            is_compat = true;
-        }
-    }
 }
 
 std::string PropInfo::get_symbol_file(std::string name){
@@ -135,39 +114,53 @@ void PropInfo::init_datatype_info(){
 }
 
 bool PropInfo::parser_propertys(){
+    for(ulong task_addr: for_each_process()){
+        struct task_context *tc = task_to_context(task_addr);
+        if (!tc){
+            continue;
+        }
+        std::string task_name = tc->comm;
+        if (task_name == "init" || tc->pid == 1){
+            tc_init = tc;
+            break;
+        }
+    }
     if (!tc_init){
-        fprintf(fp, "Not found init process ! \n");
+        fprintf(fp, "Can't found init process !");
         return false;
+    }
+    if(task_ptr == nullptr){
+        task_ptr = std::make_shared<UTask>(swap_ptr, tc_init->task);
     }
     std::string symbol_file = get_symbol_file("libc.so");
     if (symbol_file.empty() || symbol_file == ""){
         return false;
     }
     init_datatype_info();
-    size_t pa_size_addr = swap_ptr->get_var_addr_by_bss("pa_size_", tc_init->task, symbol_file);
+    size_t pa_size_addr = task_ptr->get_var_addr_by_bss(symbol_file, "pa_size_");
     if (!is_uvaddr(pa_size_addr,tc_init)){
         // fprintf(fp, "pa_size: %#zx is not invaild !\n",pa_size_addr);
         return false;
     }
     if (is_compat){
-        pa_size = swap_ptr->uread_uint(tc_init->task, pa_size_addr, "read pa_size");
+        pa_size = task_ptr->uread_uint(pa_size_addr) & vaddr_mask;
     }else{
-        pa_size = swap_ptr->uread_ulong(tc_init->task, pa_size_addr, "read pa_size") & vaddr_mask;
+        pa_size = task_ptr->uread_ulong(pa_size_addr) & vaddr_mask;
     }
     if(debug)fprintf(fp, "pa_size:%#zx --> %zu \n",pa_size_addr, pa_size);
 
-    size_t pa_data_size_addr = swap_ptr->get_var_addr_by_bss("pa_data_size_", tc_init->task, symbol_file);
+    size_t pa_data_size_addr = task_ptr->get_var_addr_by_bss(symbol_file, "pa_data_size_");
     if (!is_uvaddr(pa_data_size_addr,tc_init)){
         // fprintf(fp, "pa_data_size: %#zx is not invaild !\n",pa_data_size_addr);
         return false;
     }
     if (is_compat){
-        pa_data_size = swap_ptr->uread_uint(tc_init->task, pa_data_size_addr, "read pa_data_size");
+        pa_data_size = task_ptr->uread_uint(pa_data_size_addr) & vaddr_mask;
     }else{
-        pa_data_size = swap_ptr->uread_ulong(tc_init->task, pa_data_size_addr, "read pa_data_size") & vaddr_mask;
+        pa_data_size = task_ptr->uread_ulong(pa_data_size_addr) & vaddr_mask;
     }
     if(debug)fprintf(fp, "pa_data_size:%#zx --> %zu \n",pa_data_size_addr, pa_data_size);
-    size_t system_prop_addr = swap_ptr->get_var_addr_by_bss("system_properties", tc_init->task, symbol_file);
+    size_t system_prop_addr = task_ptr->get_var_addr_by_bss(symbol_file, "system_properties");
     if (!is_uvaddr(system_prop_addr,tc_init)){
         // fprintf(fp, "system_properties: %#zx is not invaild !\n",system_prop_addr);
         return false;
@@ -176,9 +169,9 @@ bool PropInfo::parser_propertys(){
     size_t contexts_addr = system_prop_addr + g_offset.SystemProperties_contexts_;
     if(debug)fprintf(fp, "contexts:%#zx offset: %d \n",contexts_addr, g_offset.SystemProperties_contexts_);
     if (is_compat){
-        contexts_addr = swap_ptr->uread_uint(tc_init->task, contexts_addr, "read Contexts");
+        contexts_addr = task_ptr->uread_uint(contexts_addr) & vaddr_mask;
     }else{
-        contexts_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr, "read Contexts") & vaddr_mask;
+        contexts_addr = task_ptr->uread_ulong(contexts_addr) & vaddr_mask;
     }
     if (!is_uvaddr(contexts_addr,tc_init)){
         // fprintf(fp, "ContextsSerialized: %#zx is not invaild !\n",contexts_addr);
@@ -187,13 +180,13 @@ bool PropInfo::parser_propertys(){
     if(debug)fprintf(fp, "ContextsSerialized: %#zx \n",contexts_addr);
     size_t num_context_nodes,context_nodes_addr,serial_prop_area_addr;
     if (is_compat){
-        num_context_nodes = swap_ptr->uread_uint(tc_init->task, contexts_addr + g_offset.ContextsSerialized_num_context_nodes_, "read num_context_nodes_");
-        context_nodes_addr = swap_ptr->uread_uint(tc_init->task, contexts_addr + g_offset.ContextsSerialized_context_nodes_, "read context_nodes_");
-        serial_prop_area_addr = swap_ptr->uread_uint(tc_init->task, contexts_addr + g_offset.ContextsSerialized_serial_prop_area_, "read serial_prop_area_");
+        num_context_nodes = task_ptr->uread_uint(contexts_addr + g_offset.ContextsSerialized_num_context_nodes_) & vaddr_mask;
+        context_nodes_addr = task_ptr->uread_uint(contexts_addr + g_offset.ContextsSerialized_context_nodes_) & vaddr_mask;
+        serial_prop_area_addr = task_ptr->uread_uint(contexts_addr + g_offset.ContextsSerialized_serial_prop_area_) & vaddr_mask;
     }else{
-        num_context_nodes = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_num_context_nodes_, "read num_context_nodes_") & vaddr_mask;
-        context_nodes_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_context_nodes_, "read context_nodes_") & vaddr_mask;
-        serial_prop_area_addr = swap_ptr->uread_ulong(tc_init->task, contexts_addr + g_offset.ContextsSerialized_serial_prop_area_, "read serial_prop_area_") & vaddr_mask;
+        num_context_nodes = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_num_context_nodes_) & vaddr_mask;
+        context_nodes_addr = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_context_nodes_) & vaddr_mask;
+        serial_prop_area_addr = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_serial_prop_area_) & vaddr_mask;
     }
     if (!is_uvaddr(serial_prop_area_addr,tc_init)){
         // fprintf(fp, "serial_prop_area: %#zx is not invaild !\n",serial_prop_area_addr);
@@ -215,16 +208,16 @@ bool PropInfo::parser_propertys(){
         }
         size_t prop_area_addr,context_addr,filename_addr;
         if (is_compat){
-            prop_area_addr = swap_ptr->uread_uint(tc_init->task, node_addr + g_offset.ContextNode_pa_, "read prop_area");
-            context_addr = swap_ptr->uread_uint(tc_init->task, node_addr + g_offset.ContextNode_context_, "read context_");
-            filename_addr = swap_ptr->uread_uint(tc_init->task, node_addr + g_offset.ContextNode_filename_, "read filename");
+            prop_area_addr = task_ptr->uread_uint(node_addr + g_offset.ContextNode_pa_) & vaddr_mask;
+            context_addr = task_ptr->uread_uint(node_addr + g_offset.ContextNode_context_) & vaddr_mask;
+            filename_addr = task_ptr->uread_uint(node_addr + g_offset.ContextNode_filename_) & vaddr_mask;
         }else{
-            prop_area_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_pa_, "read prop_area") & vaddr_mask;
-            context_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_context_, "read context_") & vaddr_mask;
-            filename_addr = swap_ptr->uread_ulong(tc_init->task, node_addr + g_offset.ContextNode_filename_, "read filename") & vaddr_mask;
+            prop_area_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_pa_) & vaddr_mask;
+            context_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_context_) & vaddr_mask;
+            filename_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_filename_) & vaddr_mask;
         }
-        std::string context = swap_ptr->uread_cstring(tc_init->task,context_addr,100, "prop context");
-        std::string filename = swap_ptr->uread_cstring(tc_init->task,filename_addr,100, "prop filename");
+        std::string context = task_ptr->uread_cstring(context_addr, 100);
+        std::string filename = task_ptr->uread_cstring(filename_addr,100);
         if(debug)fprintf(fp, "[%zu]ContextNode: %#zx prop_area:%#zx\n",i,node_addr,prop_area_addr);
         if (parser_prop_area(prop_area_addr) == false){
             continue;
@@ -238,12 +231,12 @@ bool PropInfo::parser_prop_area(size_t area_vaddr){
         // fprintf(fp, "prop_area: %#zx is not invaild !\n",area_vaddr);
         return false;
     }
-    char prop_area_buf[sizeof(prop_area)];
-    if(!swap_ptr->uread_buffer(tc_init->task,area_vaddr,prop_area_buf,sizeof(prop_area), "prop_area")){
+    std::vector<char> prop_area_buf = task_ptr->read_data(area_vaddr,sizeof(prop_area));
+    if(prop_area_buf.size() == 0){
         if(debug)fprintf(fp, "read prop_area fail at: %#zx !\n",area_vaddr);
         return false;
     }
-    prop_area area = *reinterpret_cast<prop_area*>(prop_area_buf);
+    prop_area area = *reinterpret_cast<prop_area*>(prop_area_buf.data());
     if (area.magic_ != 0x504f5250){
         // fprintf(fp, "prop_area magic not correct !\n");
         return false;
@@ -270,12 +263,12 @@ void PropInfo::parser_prop_bt(size_t root, size_t prop_bt_addr){
         // fprintf(fp, "   prop_bt: %#zx is not invaild !\n",prop_bt_addr);
         return;
     }
-    char prop_bt_buf[sizeof(prop_bt)];
-    if(!swap_ptr->uread_buffer(tc_init->task,prop_bt_addr,prop_bt_buf,sizeof(prop_bt), "prop_bt")){
+    std::vector<char> prop_bt_buf = task_ptr->read_data(prop_bt_addr,sizeof(prop_bt));
+    if(prop_bt_buf.size() == 0){
         if(debug)fprintf(fp, "   read prop_bt fail at: %#zx !\n",prop_bt_addr);
         return;
     }
-    prop_bt bt = *reinterpret_cast<prop_bt*>(prop_bt_buf);
+    prop_bt bt = *reinterpret_cast<prop_bt*>(prop_bt_buf.data());
     if(debug){
         std::ostringstream oss;
         oss << std::left << "   prop_bt:" << std::hex << prop_bt_addr << " "
@@ -304,14 +297,14 @@ void PropInfo::parser_prop_info(size_t prop_info_addr){
         // fprintf(fp, "   prop_info: %#zx is not invaild !\n",prop_info_addr);
         return;
     }
-    char prop_info_buf[sizeof(prop_info)];
-    if(!swap_ptr->uread_buffer(tc_init->task,prop_info_addr,prop_info_buf,sizeof(prop_info), "prop_info")){
+    std::vector<char> prop_info_buf = task_ptr->read_data(prop_info_addr,sizeof(prop_info));
+    if(prop_info_buf.size() == 0){
         if(debug)fprintf(fp, "   read prop_info fail at: %#zx !\n",prop_info_addr);
         return;
     }
-    prop_info info = *reinterpret_cast<prop_info*>(prop_info_buf);
+    prop_info info = *reinterpret_cast<prop_info*>(prop_info_buf.data());
     ulong name_addr = prop_info_addr + g_offset.prop_info_name;
-    std::string name = swap_ptr->uread_cstring(tc_init->task,name_addr,100, "prop name");
+    std::string name = task_ptr->uread_cstring(name_addr,100);
     if (!name.empty()){
         if(debug){
             std::ostringstream oss;
@@ -324,62 +317,49 @@ void PropInfo::parser_prop_info(size_t prop_info_addr){
 }
 
 void PropInfo::parser_prop_by_init(){
-    for(auto& task_addr : for_each_process()){
+    for(ulong task_addr: for_each_process()){
         struct task_context *tc = task_to_context(task_addr);
-        if (!tc || tc->pid != 1){
+        if (!tc){
             continue;
         }
-        std::set<std::string> prop_files;
-        // size_t index = 0;
-        for(const auto& vma_addr : for_each_vma(task_addr)){
-            void *vma_buf = read_struct(vma_addr, "vm_area_struct");
-            if (!vma_buf) {
-                continue;
-            }
-            ulong vm_file = ULONG(vma_buf + field_offset(vm_area_struct, vm_file));
-            ulong vm_start = ULONG(vma_buf + field_offset(vm_area_struct, vm_start));
-            ulong vm_end = ULONG(vma_buf + field_offset(vm_area_struct, vm_end));
-            size_t vma_len = vm_end - vm_start;
-            FREEBUF(vma_buf);
-            if (!is_kvaddr(vm_file)){
-                continue;
-            }
-            char buf[BUFSIZE];
-            char *file_buf = fill_file_cache(vm_file);
-            ulong dentry = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, dentry));
-            if (!is_kvaddr(dentry)){
-                continue;
-            }
-            if (field_offset(file, f_path) != -1 && field_offset(path, dentry) != -1 && field_offset(path, mnt) != -1) {
-                ulong vfsmnt = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, mnt));
-                get_pathname(dentry, buf, BUFSIZE, 1, vfsmnt);
-            } else {
-                get_pathname(dentry, buf, BUFSIZE, 1, 0);
-            }
-            std::string file_path = std::string(buf);
-            if (file_path.empty()){
-                continue;
-            }
-            if (file_path.find("u:object_r:") == std::string::npos) {
-                continue;
-            }
-            if (prop_files.find(file_path) != prop_files.end()) {
-                continue;
-            }
-            prop_files.insert(file_path);
-            char vma_data[vma_len];
-            if (!swap_ptr->uread_buffer(tc->task, vm_start, vma_data, vma_len, "read vma data for prop")) {
-                fprintf(fp, "uread_buffer fail in prop \n");
-            }
-            // if(index == 0){
-            //     prop_area pa = *reinterpret_cast<prop_area*>(vma_data);
-            //     fprintf(fp, "System Properties Magic:%#lx, Version:%#lx\n", pa.magic_, pa.version_);
-            // }
-            // index += 1;
-            prop_bt pb = *reinterpret_cast<prop_bt*>(vma_data + sizeof(prop_area));
-            if(pb.children != 0){
-                for_each_prop(pb.children, vma_len, vma_data);
-            }
+        std::string task_name = tc->comm;
+        if (task_name == "init" || tc->pid == 1){
+            tc_init = tc;
+            break;
+        }
+    }
+    if (!tc_init){
+        fprintf(fp, "Can't found init process !");
+        return;
+    }
+    if(task_ptr == nullptr){
+        task_ptr = std::make_shared<UTask>(swap_ptr, tc_init->task);
+    }
+    init_datatype_info();
+    std::set<std::string> prop_files;
+    // size_t index = 0;
+    for(const auto& vma_ptr : task_ptr->for_each_file_vma()){
+        if (vma_ptr->name.find("u:object_r:") == std::string::npos) {
+            continue;
+        }
+        if (prop_files.find(vma_ptr->name) != prop_files.end()) {
+            continue;
+        }
+        prop_files.insert(vma_ptr->name);
+        if(vma_ptr->vm_data == nullptr){
+            vma_ptr->vm_data = (char*)task_ptr->read_vma_data(vma_ptr);
+        }
+        if (!vma_ptr->vm_data){
+            continue;
+        }
+        // if(index == 0){
+        //     prop_area pa = *reinterpret_cast<prop_area*>(vma_data);
+        //     fprintf(fp, "System Properties Magic:%#lx, Version:%#lx\n", pa.magic_, pa.version_);
+        // }
+        // index += 1;
+        prop_bt pb = *reinterpret_cast<prop_bt*>(vma_ptr->vm_data + sizeof(prop_area));
+        if(pb.children != 0){
+            for_each_prop(pb.children, vma_ptr->vm_size, vma_ptr->vm_data);
         }
     }
 }
