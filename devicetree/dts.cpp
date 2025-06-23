@@ -167,7 +167,7 @@ void Dts::print_node(std::shared_ptr<device_node> node_ptr,int flag){
         fprintf(fp, "%s{\n",node_ptr->full_name.c_str());
     }
     bool is_symbol_node = false;
-    if (node_ptr->full_name.find("symbols") != std::string::npos) {
+    if (node_ptr->full_name.find("symbols") != std::string::npos || node_ptr->full_name.find("aliases") != std::string::npos) {
         is_symbol_node = true;
     }
     if (node_ptr->props.size() > 0){
@@ -236,7 +236,7 @@ void Dts::print_node(std::shared_ptr<device_node> node_ptr,int level,int flag){
         }
     }
     bool is_symbol_node = false;
-    if (node_ptr->full_name.find("symbols") != std::string::npos) {
+    if (node_ptr->full_name.find("symbols") != std::string::npos || node_ptr->full_name.find("aliases") != std::string::npos) {
         is_symbol_node = true;
     }
     if ((flag & DTS_SHOW) && node_ptr->props.size() > 0){
