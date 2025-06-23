@@ -19,23 +19,23 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 LogcatS::LogcatS(std::shared_ptr<Swapinfo> swap) : Logcat(swap){
-    init_datatype_info();
+
 }
 
 void LogcatS::init_datatype_info(){
     field_init(SerializedLogBuffer, logs_);
     if (field_offset(SerializedLogBuffer, logs_) == -1){
-        g_offset.SerializedLogBuffer_logs_ = (BITS64() && !is_compat) ? 96 : 48;
-        g_offset.SerializedLogBuffer_sequence_ = (BITS64() && !is_compat) ? 288 : 144;
-        g_offset.SerializedLogChunk_contents_ = (BITS64() && !is_compat) ? 0 : 0;
-        g_offset.SerializedLogChunk_write_offset_ = (BITS64() && !is_compat) ? 16 : 8;
-        g_offset.SerializedLogChunk_writer_active_ = (BITS64() && !is_compat) ? 24 : 16;
-        g_offset.SerializedLogChunk_compressed_log_ = (BITS64() && !is_compat) ? 40 : 32;
-        g_offset.SerializedData_size_ = (BITS64() && !is_compat) ? 8 : 4;
-        g_offset.SerializedData_data_ = (BITS64() && !is_compat) ? 0 : 0;
-        g_size.SerializedData = (BITS64() && !is_compat) ? 16 : 8;
-        g_size.SerializedLogChunk = (BITS64() && !is_compat) ? 80 : 56;
-        g_size.SerializedLogBuffer_logs_ = (BITS64() && !is_compat) ? 192 : 96;
+        g_offset.SerializedLogBuffer_logs_ = (BITS64() && !task_ptr->is_compat()) ? 96 : 48;
+        g_offset.SerializedLogBuffer_sequence_ = (BITS64() && !task_ptr->is_compat()) ? 288 : 144;
+        g_offset.SerializedLogChunk_contents_ = (BITS64() && !task_ptr->is_compat()) ? 0 : 0;
+        g_offset.SerializedLogChunk_write_offset_ = (BITS64() && !task_ptr->is_compat()) ? 16 : 8;
+        g_offset.SerializedLogChunk_writer_active_ = (BITS64() && !task_ptr->is_compat()) ? 24 : 16;
+        g_offset.SerializedLogChunk_compressed_log_ = (BITS64() && !task_ptr->is_compat()) ? 40 : 32;
+        g_offset.SerializedData_size_ = (BITS64() && !task_ptr->is_compat()) ? 8 : 4;
+        g_offset.SerializedData_data_ = (BITS64() && !task_ptr->is_compat()) ? 0 : 0;
+        g_size.SerializedData = (BITS64() && !task_ptr->is_compat()) ? 16 : 8;
+        g_size.SerializedLogChunk = (BITS64() && !task_ptr->is_compat()) ? 80 : 56;
+        g_size.SerializedLogBuffer_logs_ = (BITS64() && !task_ptr->is_compat()) ? 192 : 96;
         g_size.stdlist_node_size = (g_offset.SerializedLogBuffer_sequence_ - g_offset.SerializedLogBuffer_logs_) / 8;
     }else{
         field_init(SerializedLogBuffer, sequence_);
@@ -79,11 +79,9 @@ ulong LogcatS::parser_logbuf_addr(){
     }
     std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> start, end;
     std::chrono::duration<double> elapsed;
-    get_rw_vma_list();
-    fprintf(fp, "vma count:%zu, vaddr_mask:%#lx \n", rw_vma_list.size(), vaddr_mask);
 
     // 2. find the logbuf addr from register
-    if (BITS64() && !is_compat) {
+    if (BITS64() && !task_ptr->is_compat()) {
         fprintf(fp, "Looking for register\n");
         start = std::chrono::high_resolution_clock::now();
         logbuf_addr = get_logbuf_addr_from_register();
@@ -91,40 +89,135 @@ ulong LogcatS::parser_logbuf_addr(){
         elapsed = end - start;
         fprintf(fp, "time: %.6f s\n",elapsed.count());
         if (logbuf_addr != 0){
-            freeResource();
             return logbuf_addr;
         }
     }
 
     // 3. find the logbuf addr from vma
+    /*
+    *      Scan VMA         SerializedLogBuffer         Core
+    *   --------------    -->  -------------        --------------
+    *   |            |    |    |   vtbl    |----    |            |
+    *   |------------|test|    |-----------|   |in  |------------|
+    *   |  VMA (RW)  |-----    |-----------|   ---> | logd .text |
+    *   |------------|  |    --|reader_list|        |------------|
+    *   |  VMA (RW)  |---  --| |   tags    |        |            |
+    *   |------------|     | --|   stats   |        |------------|
+    *   |            |     |   |-----------|   ---> |    stack   |
+    *   --------------     |   -------------   |in  --------------
+    *                      |--------------------
+    * Find logbuf based on the class layout characteristics of SerializedLogBuffer
+    */
     fprintf(fp, "Looking for SerializedLogBuffer \n");
     start = std::chrono::high_resolution_clock::now();
-    if (BITS64() && !is_compat) {
-        logbuf_addr = get_SerializedLogBuffer_from_vma<SerializedLogBuffer64_t, uint64_t>();
-    } else {
-        logbuf_addr = get_SerializedLogBuffer_from_vma<SerializedLogBuffer32_t, uint32_t>();
-    }
+    logbuf_addr = get_SerializedLogBuffer_from_vma();
     end = std::chrono::high_resolution_clock::now();
     elapsed = end - start;
     fprintf(fp, "time: %.6f s\n",elapsed.count());
     if (logbuf_addr != 0){
-        freeResource();
         return logbuf_addr + g_offset.SerializedLogBuffer_logs_;
     }
 
     // 4. find the logbuf addr from std::list
     fprintf(fp, "Looking for std::list \n");
     start = std::chrono::high_resolution_clock::now();
-    logbuf_addr = get_stdlist_addr_from_vma();
+    auto vma_callback = [&](std::shared_ptr<vma_struct> vma_ptr) -> bool {
+        if (!(vma_ptr->vm_flags & VM_READ) || !(vma_ptr->vm_flags & VM_WRITE)) {
+            return false;
+        }
+        if (vma_ptr->name.find("alloc") == std::string::npos &&
+            vma_ptr->name.find("scudo:primary") == std::string::npos){
+            return false;
+        }
+        return true;
+    };
+    // check if this node is LogBufferElement
+    auto obj_callback = [&](ulong node_addr) -> bool {
+        if (!is_uvaddr(node_addr,tc_logd)){
+            return false;
+        }
+        ulong data_addr = node_addr + 2 * task_ptr->get_pointer_size();
+        std::vector<char> chunk_buf = task_ptr->read_data(data_addr,g_size.SerializedLogChunk);
+        if (chunk_buf.size() == 0){
+            return false;
+        }
+        ulong contents_data = 0;
+        ulong contents_size = 0;
+        ulong write_offset = 0;
+        bool write_active = 0;
+        ulong compressed_data = 0;
+        ulong compressed_size = 0;
+        if (BITS64() && !task_ptr->is_compat()) {
+            contents_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
+            contents_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & vaddr_mask;
+            write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
+            write_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ ) & vaddr_mask;
+            compressed_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
+            compressed_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+        }else{
+            contents_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
+            contents_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & vaddr_mask;
+            write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
+            write_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ ) & vaddr_mask;
+            compressed_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
+            compressed_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+        }
+        if (write_active == true && contents_data != 0 && contents_size != 0 &&
+            write_offset != 0 && write_offset < contents_size) { // uncompressed chunk
+            return true;
+        } else if (write_active == false && compressed_data != 0 &&
+            compressed_size != 0 && write_offset != 0 &&  compressed_size < write_offset) { // compressed chunk
+            return true;
+        }
+        return false;
+    };
+    logbuf_addr = get_stdlist(vma_callback, obj_callback);
     end = std::chrono::high_resolution_clock::now();
     elapsed = end - start;
     fprintf(fp, "time: %.6f s\n",elapsed.count());
     if (logbuf_addr != 0){
-        freeResource();
         return logbuf_addr;
     }
-    freeResource();
     return 0;
+}
+
+/*
+Find logbuf based virtual class
+*/
+size_t LogcatS::get_SerializedLogBuffer_from_vma() {
+    auto vma_callback = [&](std::shared_ptr<vma_struct> vma_ptr) -> bool {
+        if (!(vma_ptr->vm_flags & VM_WRITE)) {
+            return false;
+        }
+        return true;
+    };
+    std::string libname = task_ptr->uread_cstring(task_ptr->get_auxv(AT_EXECFN), 64);
+    // fprintf(fp, "libname:%s \n", libname);
+    if (BITS64() && !task_ptr->is_compat()) {
+        auto obj_callback = [&](SerializedLogBuffer64_t* obj) -> bool {
+            bool match = true;
+            std::shared_ptr<vma_struct> stack_vma_ptr = task_ptr->get_vma(task_ptr->get_auxv(AT_PLATFORM));
+            if(stack_vma_ptr){
+                match &= task_ptr->is_contains(stack_vma_ptr, obj->reader_list_);
+                match &= task_ptr->is_contains(stack_vma_ptr, obj->tags_);
+                match &= task_ptr->is_contains(stack_vma_ptr, obj->stats_);
+            }
+            return match;
+        };
+        return task_ptr->search_obj<SerializedLogBuffer64_t,uint64_t>(libname, false, vma_callback, obj_callback,10);
+    } else {
+        auto obj_callback = [&](SerializedLogBuffer32_t* obj) -> bool {
+            bool match = true;
+            std::shared_ptr<vma_struct> stack_vma_ptr = task_ptr->get_vma(task_ptr->get_auxv(AT_PLATFORM));
+            if(stack_vma_ptr){
+                match &= task_ptr->is_contains(stack_vma_ptr, obj->reader_list_);
+                match &= task_ptr->is_contains(stack_vma_ptr, obj->tags_);
+                match &= task_ptr->is_contains(stack_vma_ptr, obj->stats_);
+            }
+            return match;
+        };
+        return task_ptr->search_obj<SerializedLogBuffer32_t,uint32_t>(libname, false, vma_callback, obj_callback,10);
+    }
 }
 
 /*
@@ -176,10 +269,10 @@ bool LogcatS::check_SerializedLogChunk_list_array(ulong addr){
         ulong res_addr = 0;
         // Do not use
         ulong list_size = 0;
-        if (BITS64() && !is_compat) {
-            res_addr = check_stdlist64(log_list_addr, nullptr, list_size);
+        if (BITS64() && !task_ptr->is_compat()) {
+            res_addr = task_ptr->check_stdlist<list_node64_t, uint64_t>(log_list_addr, nullptr, list_size);
         } else {
-            res_addr = check_stdlist32(log_list_addr, nullptr, list_size);
+            res_addr = task_ptr->check_stdlist<list_node32_t, uint32_t>(log_list_addr, nullptr, list_size);
         }
         if (debug){
             fprintf(fp, "check Log:[%zu] from %#lx, res:%#lx \n", i, log_list_addr, res_addr);
@@ -193,215 +286,30 @@ bool LogcatS::check_SerializedLogChunk_list_array(ulong addr){
     return match;
 }
 
-/*
- *      Scan VMA         SerializedLogBuffer         Core
- *   --------------    -->  -------------        --------------
- *   |            |    |    |   vtbl    |----    |            |
- *   |------------|test|    |-----------|   |in  |------------|
- *   |  VMA (RW)  |-----    |-----------|   ---> | logd .text |
- *   |------------|  |    --|reader_list|        |------------|
- *   |  VMA (RW)  |---  --| |   tags    |        |            |
- *   |------------|     | --|   stats   |        |------------|
- *   |            |     |   |-----------|   ---> |    stack   |
- *   --------------     |   -------------   |in  --------------
- *                      |--------------------
- * Find logbuf based on the class layout characteristics of SerializedLogBuffer
- */
-template<typename T, typename U>
-size_t LogcatS::get_SerializedLogBuffer_from_vma() {
-    auto auxv_list = parser_auvx_list(tc_logd->mm_struct, is_compat);
-    ulong exec_text = auxv_list[AT_ENTRY];
-    ulong stack = auxv_list[AT_PLATFORM];
-    std::shared_ptr<vma_info> exec_vma_ptr;
-    std::shared_ptr<vma_info> stack_vma_ptr;
-    for (auto &vma_addr : for_each_vma(tc_logd->task)){
-        std::shared_ptr<vma_info> vma_ptr = parser_vma_info(vma_addr);
-        if (vma_ptr->vm_start <= exec_text && exec_text < vma_ptr->vm_end) {
-            exec_vma_ptr = vma_ptr;
-        }
-        if (vma_ptr->vm_start <= stack && stack < vma_ptr->vm_end) {
-            stack_vma_ptr = vma_ptr;
-        }
-    }
-    if (exec_vma_ptr == nullptr || stack_vma_ptr == nullptr){
-        return 0;
-    }
-    if(debug){
-        fprintf(fp, "exec_text:%#lx-%#lx, stack:%#lx-%#lx\n", exec_vma_ptr->vm_start, exec_vma_ptr->vm_end, stack_vma_ptr->vm_start, stack_vma_ptr->vm_end);
-    }
-    for (const auto& vma_ptr : rw_vma_list) {
-        if (!(vma_ptr->vm_flags & VM_WRITE)) {
-            continue;
-        }
-        for (size_t addr = vma_ptr->vm_start; addr < vma_ptr->vm_end; addr += sizeof(U)) {
-            bool match = true;
-            T* logbuffer = reinterpret_cast<T*>(vma_ptr->vm_data + (addr - vma_ptr->vm_start));
-            if (!is_uvaddr(logbuffer->vtpr, tc_logd) || !logbuffer->vtpr /* 0 */) {
-                continue;
-            }
-            U* vtbl = nullptr;
-            for (const auto& vma_ptr : rw_vma_list) {
-                if (logbuffer->vtpr >= vma_ptr->vm_start && logbuffer->vtpr < vma_ptr->vm_end){
-                    if((logbuffer->vtpr - vma_ptr->vm_start) + sizeof(vtbl_size * sizeof(U)) <= vma_ptr->vm_size){
-                        vtbl = reinterpret_cast<U*>(vma_ptr->vm_data + (logbuffer->vtpr - vma_ptr->vm_start));
-                    }
-                }
-            }
-            if (!vtbl) continue;
-            for (size_t i = 0; i < vtbl_size; ++i){
-                if (vtbl[i] == 0) continue;
-                if(!addrContains(exec_vma_ptr, vtbl[i])){
-                    match = false;
-                    break;
-                }
-            }
-            if (match){
-                if (debug) {
-                    fprintf(fp, "Found the match vtbl, addr:%#" PRIxPTR " vtpr:%#" PRIxPTR "\n", (uintptr_t)addr, (uintptr_t)(logbuffer->vtpr));
-                }
-                match &= addrContains(stack_vma_ptr, logbuffer->reader_list_);
-                match &= addrContains(stack_vma_ptr, logbuffer->tags_);
-                match &= addrContains(stack_vma_ptr, logbuffer->stats_);
-            }
-            if (match){
-                return addr;
-            }
-        }
-    }
-    return 0;
-}
-
-// Find logbuf based on the memory layout of std::list
-size_t LogcatS::get_stdlist_addr_from_vma(){
-    int index = 0;
-    for (const auto& vma_ptr : rw_vma_list) {
-        if (!(vma_ptr->vm_flags & VM_READ) || !(vma_ptr->vm_flags & VM_WRITE)) {
-            continue;
-        }
-        /*
-        log_buffer = new SerializedLogBuffer(&reader_list, &log_tags, &log_statistics);
-        total size (bytes):  296
-
-        check USE_SCUDO in the bionic/libc/Android.bp
-        in Scudo, size < 256K, use the Primary Allocator, otherwise use Secondary Allocator
-
-        Since the Android 11 release, scudo is used for all native code (except on low-memory devices, where jemalloc is still used)
-
-        libc_malloc --> jemalloc
-        bionic_alloc_small_objects --> malloc
-        scudo:primary
-        scudo:primary_reserve --> scudo
-        */
-        if (vma_ptr->vma_name.find("alloc") == std::string::npos && vma_ptr->vma_name.find("scudo:primary") == std::string::npos){
-            continue;
-        }
-        if (debug){
-            fprintf(fp, "check vma:[%d]%#lx-%#lx\n", index,vma_ptr->vm_start,vma_ptr->vm_end);
-        }
-        // check if this node is SerializedLogChunk
-        auto callback = [&](ulong node_addr) -> bool {
-            if (!is_uvaddr(node_addr,tc_logd)){
-                return false;
-            }
-            ulong data_addr = node_addr + 2 * pointer_size;
-            void* chunk_buf = std::malloc(g_size.SerializedLogChunk);
-            BZERO(chunk_buf, g_size.SerializedLogChunk);
-            if (!swap_ptr->uread_buffer(tc_logd->task, data_addr, (char*)chunk_buf, g_size.SerializedLogChunk, "read SerializedLogChunk")){
-                std::free(chunk_buf);
-                return false;
-            }
-            ulong contents_data = 0;
-            ulong contents_size = 0;
-            ulong write_offset = 0;
-            bool write_active = 0;
-            ulong compressed_data = 0;
-            ulong compressed_size = 0;
-            if (BITS64() && !is_compat) {
-                contents_data = ULONG(chunk_buf + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-                contents_size = ULONG(chunk_buf + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & vaddr_mask;
-                write_offset = UINT(chunk_buf + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
-                write_active = BOOL(chunk_buf + g_offset.SerializedLogChunk_writer_active_ ) & vaddr_mask;
-                compressed_data = ULONG(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-                compressed_size = ULONG(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
-            }else{
-                contents_data = UINT(chunk_buf + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-                contents_size = UINT(chunk_buf + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & vaddr_mask;
-                write_offset = UINT(chunk_buf + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
-                write_active = BOOL(chunk_buf + g_offset.SerializedLogChunk_writer_active_ ) & vaddr_mask;
-                compressed_data = UINT(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-                compressed_size = UINT(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
-            }
-            if (write_active == true && contents_data != 0 && contents_size != 0 &&
-                write_offset != 0 && write_offset < contents_size) { // uncompressed chunk
-                std::free(chunk_buf);
-                return true;
-            } else if (write_active == false && compressed_data != 0 &&
-                compressed_size != 0 && write_offset != 0 &&  compressed_size < write_offset) { // compressed chunk
-                std::free(chunk_buf);
-                return true;
-            }
-            std::free(chunk_buf);
-            return false;
-        };
-        ulong list_addr = vma_ptr->vm_start;
-        // save the search start addr;
-        // ulong search_addr = list_addr;
-        // search result addr will output by list_addr
-        if (search_stdlist_in_vma(vma_ptr,callback, list_addr)){
-            if (debug) fprintf(fp, "Found list at %#lx \n",list_addr);
-            if (check_SerializedLogChunk_list_array(list_addr)){
-                return list_addr;
-            }
-        }
-        index++;
-    }
-    return 0;
-}
-
-bool LogcatS::search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) {
-    for (size_t addr = start_addr; addr < vma_ptr->vm_end; addr += pointer_size) {
-        ulong list_addr = 0;
-        // Do not use
-        ulong list_size = 0;
-        if (BITS64() && !is_compat) {
-            list_addr = check_stdlist64(addr, callback, list_size);
-        } else {
-            list_addr = check_stdlist32(addr, callback, list_size);
-        }
-        // Found a likely list
-        if (list_addr != 0){
-            // this is a probility list addr
-            start_addr = list_addr;
-            return true;
-        }
-    }
-    return false;
-}
-
 // Find logbuf based on static address
 size_t LogcatS::get_logbuf_addr_from_bss(){
-    size_t logbuf_addr = swap_ptr->get_var_addr_by_bss("log_buffer", tc_logd->task, logd_symbol);
+    size_t logbuf_addr = task_ptr->get_var_addr_by_bss(logd_symbol, "log_buffer");
     if (!is_uvaddr(logbuf_addr,tc_logd)){
         return 0;
     }
     // static LogBuffer* log_buffer = nullptr
-    if (is_compat) {
-        logbuf_addr = swap_ptr->uread_uint(tc_logd->task, logbuf_addr, "read logbuf addr") & vaddr_mask;
+    if (task_ptr->is_compat()) {
+        logbuf_addr = task_ptr->uread_uint(logbuf_addr) & vaddr_mask;
     }else{
-        logbuf_addr = swap_ptr->uread_ulong(tc_logd->task, logbuf_addr, "read logbuf addr") & vaddr_mask;
+        logbuf_addr = task_ptr->uread_ulong(logbuf_addr) & vaddr_mask;
     }
     return logbuf_addr;
 }
 
 void LogcatS::parser_logbuf(ulong buf_addr){
     size_t log_size = g_size.SerializedLogBuffer_logs_ / 8;
-    if (debug){
+    // if (debug){
         fprintf(fp, "logs_addr:%#lx log_size:%zd\n",buf_addr,log_size);
-    }
+    // }
     for (size_t i = 0; i <= KERNEL; i++){
         if (i >= MAIN && i <= KERNEL) {
             ulong log_list_addr = buf_addr + i * log_size;
-            for(auto data_node: for_each_stdlist(log_list_addr)){
+            for(auto data_node: task_ptr->for_each_stdlist(log_list_addr)){
                 parser_SerializedLogChunk(static_cast<LOG_ID>(i), data_node);
             }
         }
@@ -417,41 +325,39 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
     bool writer_active = false;
     ulong compressed_data = 0;
     ulong compressed_size = 0;
-    void* chunk_buf = std::malloc(g_size.SerializedLogChunk);
-    BZERO(chunk_buf, g_size.SerializedLogChunk);
-    if (!swap_ptr->uread_buffer(tc_logd->task, vaddr, (char*)chunk_buf, g_size.SerializedLogChunk, "read SerializedLogChunk")){
-        std::free(chunk_buf);
+    std::vector<char> chunk_buf = task_ptr->read_data(vaddr,g_size.SerializedLogChunk);
+    if (chunk_buf.size() == 0){
         return;
     }
-    if (BITS64() && !is_compat) {
-        contents_data = ULONG(chunk_buf + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-        write_offset = UINT(chunk_buf + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
-        writer_active = BOOL(chunk_buf + g_offset.SerializedLogChunk_writer_active_ );
-        compressed_data = ULONG(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-        compressed_size = ULONG(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+    if (BITS64() && !task_ptr->is_compat()) {
+        contents_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
+        write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
+        writer_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ );
+        compressed_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
+        compressed_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
     }else{
-        contents_data = UINT(chunk_buf + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-        write_offset = UINT(chunk_buf + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
-        writer_active = BOOL(chunk_buf + g_offset.SerializedLogChunk_writer_active_ );
-        compressed_data = UINT(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-        compressed_size = UINT(chunk_buf + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+        contents_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
+        write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
+        writer_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ );
+        compressed_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
+        compressed_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
     }
-    std::free(chunk_buf);
     if (writer_active == false){
         if (!is_uvaddr(compressed_data,tc_logd) || compressed_size == 0){
             return;
         }
-        char compressed_log[compressed_size];
-        if(!swap_ptr->uread_buffer(tc_logd->task,compressed_data,compressed_log,compressed_size, "compressed_log")){
+        std::vector<char> compressed_log = task_ptr->read_data(compressed_data,compressed_size);
+        if (compressed_log.size() == 0){
+            fprintf(fp, "compressed_log \n");
             return;
         }
-        size_t const rBuffSize = ZSTD_getFrameContentSize(compressed_log, compressed_size);
+        size_t const rBuffSize = ZSTD_getFrameContentSize(compressed_log.data(), compressed_size);
         if (rBuffSize == ZSTD_CONTENTSIZE_ERROR || rBuffSize == ZSTD_CONTENTSIZE_UNKNOWN) {
             if(debug) fprintf(fp, "Error determining the content size: %#lx of the compressed data.\n", compressed_size);
             return;
         }
         std::vector<char> buffer(rBuffSize);
-        size_t const dSize = ZSTD_decompress(buffer.data(), buffer.size(), compressed_log, compressed_size);
+        size_t const dSize = ZSTD_decompress(buffer.data(), buffer.size(), compressed_log.data(), compressed_size);
         if (ZSTD_isError(dSize)) {
             if(debug) fprintf(fp, "Failed to decompress data: %s \n", ZSTD_getErrorName(dSize));
             return;
@@ -463,12 +369,11 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
             return;
         }
         uint32_t log_len = write_offset;
-        char log_data[log_len];
-        BZERO(log_data, log_len);
-        if(!swap_ptr->uread_buffer(tc_logd->task, contents_data, log_data, log_len, "contents_log")){
+        std::vector<char> log_data = task_ptr->read_data(contents_data,log_len);
+        if (log_data.size() == 0){
             return;
         }
-        parser_SerializedLogEntry(log_id, log_data, log_len);
+        parser_SerializedLogEntry(log_id, log_data.data(), log_len);
     }
 }
 
@@ -503,9 +408,6 @@ void LogcatS::parser_SerializedLogEntry(LOG_ID log_id, char* log_data, uint32_t 
             fclose(file);
             break;
         }
-        // char log_msg[msg_len + 1];
-        // BZERO(log_msg, msg_len + 1);
-        // memcpy(log_msg, logbuf, msg_len);
         if (log_id == MAIN || log_id == SYSTEM || log_id == RADIO || log_id == CRASH || log_id == KERNEL){
             parser_system_log(log_ptr, (char *)logbuf, entry->msg_len);
         }else{

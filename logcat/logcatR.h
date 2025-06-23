@@ -43,9 +43,7 @@ private:
 public:
     LogcatR(std::shared_ptr<Swapinfo> swap);
     void parser_logbuf(ulong buf_addr) override;
-    size_t get_stdlist_addr_from_vma() override;
     size_t get_logbuf_addr_from_bss() override;
-    bool search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) override;
 };
 
 #endif // LOGCAT_R_DEFS_H_

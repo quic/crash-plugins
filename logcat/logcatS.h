@@ -75,14 +75,10 @@ private:
     struct logcat_size_table g_size;
     void init_datatype_info();
     ulong parser_logbuf_addr() override;
-    size_t get_stdlist_addr_from_vma() override;
+    size_t get_SerializedLogBuffer_from_vma();
     size_t get_logbuf_addr_from_bss() override;
-    bool search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr) override;
-
     size_t get_logbuf_addr_from_register();
     bool check_SerializedLogChunk_list_array(ulong addr);
-    template<typename T, typename U>
-    size_t get_SerializedLogBuffer_from_vma();
     void parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr);
     void parser_SerializedLogEntry(LOG_ID log_id, char *log_data, uint32_t data_len);
 

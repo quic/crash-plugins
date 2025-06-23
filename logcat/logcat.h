@@ -18,6 +18,7 @@
 
 #include "plugin.h"
 #include "memory/swapinfo.h"
+#include "../utils/utask.h"
 #include <array>
 #include <chrono>
 
@@ -105,28 +106,6 @@ struct log_time {
     uint32_t tv_nsec;
 };
 
-struct vma_info {
-    ulong vm_start;
-    ulong vm_end;
-    ulong vm_size;
-    ulong vm_file;
-    ulong vm_flags;
-    std::string vma_name;
-    void* vm_data;
-};
-
-typedef struct{
-    uint32_t prev;
-    uint32_t next;
-    uint32_t data;
-} list_node32_t;
-
-typedef struct{
-    uint64_t prev;
-    uint64_t next;
-    uint64_t data;
-} list_node64_t;
-
 class Logcat : public ParserPlugin {
 protected:
     const std::array<LogLevel, 9> priorityMap = {{
@@ -140,25 +119,12 @@ protected:
         LogLevel::LOG_FATAL,
         LogLevel::LOG_SILENT
     }};
-    uint pointer_size = 0;
-    ulong min_rw_vma_addr = ULONG_MAX;
-    ulong max_rw_vma_addr = 0;
-    std::vector<std::shared_ptr<vma_info>> rw_vma_list;
-    void get_rw_vma_list();
-    void freeResource();
-    std::shared_ptr<vma_info> parser_vma_info(ulong vma_addr);
-    bool addrContains(std::shared_ptr<vma_info> vma_ptr, ulong addr);
-    char* read_node(ulong addr, uint len);
-    ulong check_stdlist64(ulong addr, std::function<bool (ulong)> callback, ulong &list_size);
-    ulong check_stdlist32(ulong addr, std::function<bool (ulong)> callback, ulong &list_size);
-    template<typename T, typename U>
-    ulong check_stdlist(ulong addr,std::function<bool (ulong)> callback, ulong &list_size);
+    std::shared_ptr<UTask> task_ptr;
     std::string remove_invalid_chars(const std::string &str);
 
 public:
     static bool is_LE;
     bool debug = false;
-    bool is_compat = false;
     Logcat(std::shared_ptr<Swapinfo> swap);
     ~Logcat();
     std::vector<std::shared_ptr<LogEntry>> log_list;
@@ -175,13 +141,10 @@ public:
     void parser_system_log(std::shared_ptr<LogEntry> log_ptr, char *logbuf, uint16_t msg_len);
     void parser_event_log(std::shared_ptr<LogEntry> log_ptr, char *logbuf, uint16_t msg_len);
     std::string getLogLevelChar(LogLevel level);
-    std::vector<size_t> for_each_stdlist(ulong& stdlist_addr);
-
+    size_t get_stdlist(std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (ulong)> obj_callback);
     virtual ulong parser_logbuf_addr()=0;
     virtual void parser_logbuf(ulong buf_addr)=0;
-    virtual size_t get_stdlist_addr_from_vma()=0;
     virtual size_t get_logbuf_addr_from_bss()=0;
-    virtual bool search_stdlist_in_vma(std::shared_ptr<vma_info> vma_ptr, std::function<bool (ulong)> callback, ulong& start_addr)=0;
 };
 
 #endif // LOGCAT_DEFS_H_

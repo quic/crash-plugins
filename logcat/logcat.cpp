@@ -576,23 +576,9 @@ Logcat::Logcat(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
         std::string name = tc->comm;
         if (name == "logd"){
             tc_logd = tc;
-            break;
+            return;
         }
     }
-    if (tc_logd){
-        field_init(thread_info,flags);
-        fill_thread_info(tc_logd->thread_info);
-        if (BITS64() && field_offset(thread_info, flags) != -1){
-            ulong thread_info_flags = ULONG(tt->thread_info + field_offset(thread_info, flags));
-            if(thread_info_flags & (1 << 22)){
-                is_compat = true;
-                vaddr_mask = 0xffffffff;
-            }
-        }
-    }else{
-        fprintf(fp, "Can't found logd process !");
-    }
-    pointer_size = (BITS64() && !is_compat) ? 8 : 4;
 }
 
 Logcat::~Logcat(){
@@ -618,9 +604,14 @@ std::string Logcat::getLogLevelChar(LogLevel level) {
 }
 
 void Logcat::parser_logcat_log(){
+    if (!tc_logd){
+        fprintf(fp, "Can't found logd process !");
+        return;
+    }
     if (log_list.size() > 0){
         return;
     }
+    task_ptr = std::make_shared<UTask>(swap_ptr, tc_logd->task);
     ulong logbuf_vaddr = parser_logbuf_addr();
     if (!is_uvaddr(logbuf_vaddr,tc_logd)){
         fprintf(fp, "invaild vaddr:0x%lx \n",logbuf_vaddr);
@@ -631,6 +622,7 @@ void Logcat::parser_logcat_log(){
     std::list<SerializedLogChunk> logs_[LOG_ID_MAX] GUARDED_BY(logd_lock);
     */
     parser_logbuf(logbuf_vaddr);
+    task_ptr.reset();
 }
 
 // Remove invalid characters
@@ -787,39 +779,23 @@ std::string Logcat::formatTime(uint32_t tv_sec, long tv_nsec) {
     return oss.str();
 }
 
-std::vector<size_t> Logcat::for_each_stdlist(ulong& stdlist_addr){
-    std::vector<size_t> node_list;
-    int data_size =(BITS64() && !is_compat) ? 8 : 4;
-    size_t tail_node, next_node, list_size;
-    if (BITS64() && !is_compat) {
-        tail_node = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 0 * data_size, "read tail_node") & vaddr_mask;;
-        next_node = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 1 * data_size, "read next_node") & vaddr_mask;;
-        list_size = swap_ptr->uread_ulong(tc_logd->task, stdlist_addr + 2 * data_size, "read list_size") & vaddr_mask;;
-    } else {
-        tail_node = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 0 * data_size, "read tail_node") & vaddr_mask;;
-        next_node = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 1 * data_size, "read next_node") & vaddr_mask;;
-        list_size = swap_ptr->uread_uint(tc_logd->task, stdlist_addr + 2 * data_size, "read list_size") & vaddr_mask;;
-    }
-    size_t prev_node = 0;
-    size_t current = next_node;
-    // fprintf(fp, "addr:0x%lx tail_node:0x%zx next_node:0x%zx list_size:%zu\n",stdlist_addr,tail_node,next_node,list_size);
-    for (size_t i = 1; i <= list_size && is_uvaddr(current, tc_logd); ++i) {
-        if (BITS64() && !is_compat) {
-            prev_node = swap_ptr->uread_ulong(tc_logd->task, current + 0 * data_size, "read prev_node") & vaddr_mask;;
-            next_node = swap_ptr->uread_ulong(tc_logd->task, current + 1 * data_size, "read next_node") & vaddr_mask;;
-        } else {
-            prev_node = swap_ptr->uread_uint(tc_logd->task, current + 0 * data_size, "read prev_node") & vaddr_mask;;
-            next_node = swap_ptr->uread_uint(tc_logd->task, current + 1 * data_size, "read next_node") & vaddr_mask;;
+size_t Logcat::get_stdlist(std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (ulong)> obj_callback){
+    int index = 0;
+    for (const auto& vma_ptr : task_ptr->for_each_anon_vma()) {
+        if (vma_callback && !vma_callback(vma_ptr)) {
+            continue;
         }
-        ulong data_node = current + 2 * data_size;
-        // fprintf(fp, "[%zu]addr:0x%zx prev_node:0x%zx next_node:0x%zx data_node:0x%lx\n",i,current,prev_node,next_node,data_node);
-        if (next_node == 0 || prev_node == tail_node) {
-            break;
+        if (debug){
+            fprintf(fp, "check vma:[%d]%#lx-%#lx\n", index,vma_ptr->vm_start,vma_ptr->vm_end);
         }
-        node_list.push_back(data_node);
-        current = next_node;
+        ulong list_addr = task_ptr->search_stdlist(vma_ptr,vma_ptr->vm_start, obj_callback);
+        if (list_addr > 0){
+            if (debug) fprintf(fp, "Found list at %#lx \n", list_addr);
+            return list_addr;
+        }
+        index++;
     }
-    return node_list;
+    return 0;
 }
 
 //   --------------------------------------------------------
@@ -895,193 +871,4 @@ void Logcat::parser_event_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, ui
     }
 }
 
-void Logcat::get_rw_vma_list(){
-    field_init(vm_area_struct, anon_name);
-    field_init(anon_vma_name, name);
-    for (auto &vma_addr : for_each_vma(tc_logd->task)){
-        std::shared_ptr<vma_info> vma_ptr = parser_vma_info(vma_addr);
-        if (vma_ptr == nullptr) {
-            continue;
-        }
-        if(!Logcat::is_LE && vma_ptr->vma_name.find("proper") != std::string::npos){
-            continue;
-        }
-        if(is_kvaddr(vma_ptr->vm_file) && vma_ptr->vma_name.find("logd") == std::string::npos){
-            continue;
-        }
-        min_rw_vma_addr = std::min(min_rw_vma_addr,vma_ptr->vm_start);
-        max_rw_vma_addr = std::max(max_rw_vma_addr,vma_ptr->vm_end);
-        if (debug) fprintf(fp, "[%#lx-%#lx]: %s \n",vma_ptr->vm_start,vma_ptr->vm_end,vma_ptr->vma_name.c_str());
-        vma_ptr->vm_data = std::malloc(vma_ptr->vm_size);
-        BZERO(vma_ptr->vm_data, vma_ptr->vm_size);
-        swap_ptr->uread_buffer(tc_logd->task, vma_ptr->vm_start, (char*)vma_ptr->vm_data, vma_ptr->vm_size, "read vma data");
-        rw_vma_list.push_back(vma_ptr);
-    }
-    if (debug){
-        fprintf(fp, "min_rw_vma_addr:%#lx \n", min_rw_vma_addr);
-        fprintf(fp, "max_rw_vma_addr:%#lx \n", max_rw_vma_addr);
-    }
-}
-
-std::shared_ptr<vma_info> Logcat::parser_vma_info(ulong vma_addr){
-    void *vma_buf = read_struct(vma_addr, "vm_area_struct");
-    if (!vma_buf) {
-        return nullptr;
-    }
-    field_init(file, f_path);
-    field_init(path, dentry);
-    field_init(path, mnt);
-    std::shared_ptr<vma_info> vma_ptr = std::make_shared<vma_info>();
-    vma_ptr->vm_file = ULONG(vma_buf + field_offset(vm_area_struct, vm_file));
-    vma_ptr->vm_start = ULONG(vma_buf + field_offset(vm_area_struct, vm_start));
-    vma_ptr->vm_end = ULONG(vma_buf + field_offset(vm_area_struct, vm_end));
-    vma_ptr->vm_size = vma_ptr->vm_end - vma_ptr->vm_start;
-    vma_ptr->vm_flags = ULONG(vma_buf + field_offset(vm_area_struct, vm_flags));
-    ulong anon_name = ULONG(vma_buf + field_offset(vm_area_struct, anon_name));
-    FREEBUF(vma_buf);
-    if (is_kvaddr(vma_ptr->vm_file)){ // file page
-        char *file_buf = fill_file_cache(vma_ptr->vm_file);
-        ulong dentry = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, dentry));
-        if(is_kvaddr(dentry)){
-            char buf[BUFSIZE];
-            if (field_offset(file, f_path) != -1 && field_offset(path, dentry) != -1 && field_offset(path, mnt) != -1) {
-                ulong vfsmnt = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, mnt));
-                get_pathname(dentry, buf, BUFSIZE, 1, vfsmnt);
-            } else {
-                get_pathname(dentry, buf, BUFSIZE, 1, 0);
-            }
-            vma_ptr->vma_name = buf;
-        }
-    } else if (is_kvaddr(anon_name)){ // anon page, kernel 5.15 in kernelspace
-        if (field_offset(anon_vma_name, name) != -1) {
-            vma_ptr->vma_name = read_cstring(anon_name + field_offset(anon_vma_name, name),page_size,"anon_name");
-        }else{
-            vma_ptr->vma_name = read_cstring(anon_name,page_size, "anon_name");
-        }
-    }else if (is_uvaddr(anon_name,tc_logd) && swap_ptr.get() != nullptr){ // kernel 5.4 in userspace
-#if defined(ARM64)
-        anon_name &= (USERSPACE_TOP - 1);
-#endif
-        vma_ptr->vma_name = swap_ptr->uread_cstring(tc_logd->task,anon_name, page_size, "anon_name");
-    }
-    return vma_ptr;
-}
-
-ulong Logcat::check_stdlist64(ulong addr,std::function<bool (ulong)> callback, ulong &list_size) {
-    return check_stdlist<list_node64_t, uint64_t>(addr, callback, list_size);
-}
-
-ulong Logcat::check_stdlist32(ulong addr,std::function<bool (ulong)> callback, ulong &list_size) {
-    return check_stdlist<list_node32_t, uint32_t>(addr, callback, list_size);
-}
-
-/*
-               +----------------------------------------------------+
-               |                                                    |
-               v                                                    |
-    +----------+<-+   +---->+----------+<--+  +----->+----------+<--|----+
-+---|taild_node|  +---|--+  |prev_node |   |  |      |prev_node |   |    |
-|   +----------+      |  |  +----------+   +--|------+----------+   |    |
-|   |head_node |------+  +--|head_node |------+      |head_node |---+    |
-|   +----------+            +----------+             +----------+        |
-|   |list_count|            |chunk     |             |chunk     |        |
-|   +----------+            +----------+             +----------+        |
-|                                                                        |
-+------------------------------------------------------------------------+
-*/
-template<typename T, typename U>
-inline ulong Logcat::check_stdlist(ulong addr, std::function<bool (ulong)> callback, ulong &list_size) {
-    auto* head_node = reinterpret_cast<T*>(read_node(addr,sizeof(T)));
-    if (!head_node) {
-        return 0;
-    }
-    /* operation pointer, mask the dirty data*/
-    U tmp_next = head_node->next & vaddr_mask;
-    U tmp_prev = head_node->prev & vaddr_mask;
-    U tmp_data = head_node->data & vaddr_mask;
-    if (debug) {
-        fprintf(fp, "  addr:%#" PRIxPTR " tail_node:%#" PRIxPTR " next_node:%#" PRIxPTR " list_size:%#" PRIxPTR "\n",
-            (uintptr_t)addr,
-            (uintptr_t)(tmp_prev),
-            (uintptr_t)(tmp_next),
-            (uintptr_t)(tmp_data));
-    }
-    if (!(tmp_prev >= min_rw_vma_addr && tmp_prev <= max_rw_vma_addr)
-        || !(tmp_next >= min_rw_vma_addr && tmp_next <= max_rw_vma_addr)) {
-            return 0;
-    }
-    // tail node
-    if (tmp_prev == tmp_next) {
-        /*
-            for R, We will skip the empty std::list.
-            for S, It's normal even the std::list is empty, because the list size is 8.
-        */
-        list_size = tmp_data;
-        return addr;
-    }
-    U index = 0;
-    uintptr_t head_node_addr = addr;
-    uintptr_t prev_node_addr = addr;
-    uintptr_t next_node_addr = tmp_next;
-    while (is_uvaddr(next_node_addr, tc_logd) && index < head_node->data /* list_size */) {
-        auto* next_node = reinterpret_cast<T*>(read_node(next_node_addr,sizeof(T)));
-        if (!next_node) {
-            break;
-        }
-        tmp_next = next_node->next & vaddr_mask;
-        tmp_prev = next_node->prev & vaddr_mask;
-        tmp_data = next_node->data & vaddr_mask;
-        if (debug) {
-            fprintf(fp, "    addr:%#" PRIxPTR " prev_node:%#" PRIxPTR " next_node:%#" PRIxPTR " data:%#" PRIxPTR "\n",
-                (uintptr_t)next_node_addr,
-                (uintptr_t)tmp_prev,
-                (uintptr_t)tmp_next,
-                (uintptr_t)tmp_data);
-        }
-        if (!(tmp_prev >= min_rw_vma_addr && tmp_prev <= max_rw_vma_addr)
-            || !(tmp_next >= min_rw_vma_addr && tmp_next <= max_rw_vma_addr)) {
-            break;
-        }
-        if (callback && !callback(next_node_addr)){
-            break;
-        }
-        if (tmp_prev != prev_node_addr) {
-            break;
-        }
-        if (tmp_next == head_node_addr) {
-            list_size = tmp_data;
-            return head_node_addr;
-        }
-        prev_node_addr = next_node_addr;
-        next_node_addr = tmp_next;
-        index++;
-    }
-    return 0;
-}
-
-char* Logcat::read_node(ulong addr, uint len){
-    for (const auto& vma_ptr : rw_vma_list) {
-        if (addr >= vma_ptr->vm_start && addr < vma_ptr->vm_end){
-            if((addr - vma_ptr->vm_start) + len > vma_ptr->vm_size){
-                return nullptr;
-            }
-            return (char*)vma_ptr->vm_data + (addr - vma_ptr->vm_start);
-        }
-    }
-    return nullptr;
-}
-
-void Logcat::freeResource(){
-    for (const auto& vma_ptr : rw_vma_list) {
-        if (vma_ptr->vm_data){
-            std::free(vma_ptr->vm_data);
-            vma_ptr->vm_data = nullptr;
-        }
-    }
-    rw_vma_list.clear();
-}
-
-bool Logcat::addrContains(std::shared_ptr<vma_info> vma_ptr, ulong addr){
-    return (vma_ptr->vm_start <= addr && addr < vma_ptr->vm_end);
-}
 #pragma GCC diagnostic pop
