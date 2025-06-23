@@ -145,7 +145,7 @@ void Arm::parser_prpsinfo() {
     } else {
         state = read_int(tc->task + field_offset(task_struct, __state), "task_struct __state");
     }
-    std::string args = swap_ptr->read_start_args(tc->task);
+    std::string args = task_ptr->read_start_args();
     copy_and_fill_char(prpsinfo->pr_psargs, args.c_str(), args.size());
     ulong real_parent_addr = read_pointer(tc->task + field_offset(task_struct, real_parent), "task_struct real_parent");
     prpsinfo->pr_ppid = read_int(real_parent_addr + field_offset(task_struct, pid), "task_struct real_parent pid");

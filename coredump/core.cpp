@@ -24,7 +24,6 @@ std::string Core::symbols_path;
 void Core::cmd_main(void) {}
 
 Core::Core(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    field_init(thread_info, flags);
     field_init(user_regset_view,name);
     field_init(user_regset_view,regsets);
     field_init(user_regset_view,n);
@@ -44,37 +43,9 @@ Core::Core(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
     field_init(task_struct, thread_pid);
     field_init(task_struct, signal);
     field_init(task_struct, thread_node);
-    field_init(task_struct, thread_info);
     field_init(mm_struct, saved_auxv);
-    field_init(mm_struct, mm_count);
-    field_init(mm_struct, start_code);
-    field_init(mm_struct, end_code);
-    field_init(mm_struct, start_data);
-    field_init(mm_struct, end_data);
-    field_init(mm_struct, start_brk);
-    field_init(mm_struct, brk);
-    field_init(mm_struct, start_stack);
-    field_init(mm_struct, env_start);
-    field_init(mm_struct, env_end);
-    field_init(mm_struct, flags);
     field_init(cred, uid);
     field_init(cred, gid);
-    field_init(vm_area_struct, vm_mm);
-    field_init(vm_area_struct, vm_start);
-    field_init(vm_area_struct, vm_end);
-    field_init(vm_area_struct, vm_pgoff);
-    field_init(vm_area_struct, anon_name);
-    field_init(vm_area_struct, anon_vma);
-    field_init(vm_area_struct, vm_flags);
-    field_init(vm_area_struct, vm_file);
-    field_init(vm_area_struct, detached);
-    field_init(file, f_vfsmnt);
-    field_init(file, f_dentry);
-    field_init(file, f_path);
-    field_init(file, f_mapping);
-    field_init(file, f_inode);
-    field_init(path, dentry);
-    field_init(path, mnt);
     field_init(signal_struct, pids);
     field_init(signal_struct, thread_head);
     field_init(pid, level);
@@ -87,18 +58,6 @@ Core::Core(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
     field_init(inode, i_flags);
     field_init(address_space, host);
     field_init(inode, i_nlink);
-    if (BITS64()){
-        if (field_offset(thread_info, flags) != -1){
-            thread_info_flags = ULONG(tt->thread_info + field_offset(thread_info, flags)); // fill_thread_info should be called at first
-            if(thread_info_flags & (1 << 22)){
-                is_compat = true;
-            }
-        }
-        user_view_var_name = is_compat ? "user_aarch32_view" : "user_aarch64_view";
-    }else{
-        user_view_var_name = "user_arm_view";
-    }
-    parser_user_regset_view();
 }
 
 Core::~Core(){
@@ -120,23 +79,29 @@ void Core::parser_core_dump(void) {
         fprintf(fp, "Can't open %s\n", full_core_path.c_str());
         return;
     }
-    parser_mm_struct(core_pid);
-    parser_vma_list(tc->task);
+    task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
+    if (BITS64()){
+        user_view_var_name = task_ptr->is_compat() ? "user_aarch32_view" : "user_aarch64_view";
+    }else{
+        user_view_var_name = "user_arm_view";
+    }
+    parser_user_regset_view();
     parser_prpsinfo();
     parser_siginfo();
     parser_nt_file();
     parser_auvx();
-    parser_exec_name(auxv_list[AT_EXECFN]);
+    parser_exec_name(task_ptr->get_auxv(AT_EXECFN));
     parser_thread_core_info();
     write_core_file();
     fprintf(fp, "\ncore_path:%s \n", full_core_path.c_str());
     core_path.clear();
     Core::symbols_path.clear();
+    task_ptr.reset();
 }
 
 void Core::parser_exec_name(ulong addr){
     if (IS_UVADDR(addr, tc)){
-        exe_name = swap_ptr->uread_cstring(tc->task, addr, 64, "exec name");
+        exe_name = task_ptr->uread_cstring(addr, 64);
     }else{
         exe_name = tc->comm;
     }
@@ -229,9 +194,9 @@ bool Core::write_pt_note(void) {
                 signote.reset();
             }
             if(auxv != nullptr){
-                if (BITS64() && !is_compat){
+                if (BITS64() && !task_ptr->is_compat()){
                     Elf64_Auxv_t* elf_auxv = (Elf64_Auxv_t*)auxv->data;
-                    for (const auto& auxv : auxv_list) {
+                    for (const auto& auxv : task_ptr->for_each_auxv()) {
                         elf_auxv->type = auxv.first;
                         elf_auxv->val = auxv.second;
                         elf_auxv++;
@@ -240,7 +205,7 @@ bool Core::write_pt_note(void) {
                     elf_auxv->val = 0;
                 }else{
                     Elf32_Auxv_t* elf_auxv = (Elf32_Auxv_t*)auxv->data;
-                    for (const auto& auxv : auxv_list) {
+                    for (const auto& auxv : task_ptr->for_each_auxv()) {
                         elf_auxv->type = auxv.first;
                         elf_auxv->val = auxv.second;
                         elf_auxv++;
@@ -266,7 +231,7 @@ bool Core::write_pt_note(void) {
     return true;
 }
 
-bool Core::write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& data_pos) {
+bool Core::write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, size_t& data_pos) {
     size_t p_flags = 0;
     if (vma_ptr->vm_flags & VM_READ){
         p_flags |= PF_R;
@@ -277,7 +242,7 @@ bool Core::write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& 
     if (vma_ptr->vm_flags & VM_EXEC){
         p_flags |= PF_X;
     }
-    size_t p_memsz = vma_ptr->vm_end - vma_ptr->vm_start;
+    size_t p_memsz = vma_ptr->vm_size;
     size_t p_filesz = 0;
     if(!vma_dump_size(vma_ptr)){
         p_filesz = p_memsz;
@@ -306,7 +271,7 @@ bool Core::write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& 
         get the runtime address of the dynamic segment.
         */
         if ((vma_ptr->name.find(exe_name) != std::string::npos || vma_ptr->name == exe_name) &&
-            (vma_ptr->vm_start <= auxv_list[AT_PHDR] && vma_ptr->vm_end > auxv_list[AT_PHDR])){
+            (vma_ptr->vm_start <= task_ptr->get_auxv(AT_PHDR) && vma_ptr->vm_end > task_ptr->get_auxv(AT_PHDR))){
                 size_t replace_size = replace_phdr_load(vma_ptr);
                 if(replace_size > 0){
                     data_pos += replace_size;
@@ -318,51 +283,60 @@ bool Core::write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& 
         /*
         replace all symbol info to core base on l_addr
         */
-        for (auto& pair : lib_map) {
-            const auto& vma_name = pair.first;
-            const auto& symbol = pair.second;
-            if (!symbol) continue;
-            if(get_phdr_vma(symbol->vma_load_list) == vma_ptr){
-                size_t memsz = vma_ptr->vm_end - vma_ptr->vm_start;
-                size_t pgoff = vma_ptr->vm_pgoff << 12;
-                fwrite(reinterpret_cast<char*>(symbol->map_addr) + pgoff, memsz, 1, corefile);
-                if(debug){
-                    fprintf(fp, "overwrite %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
-                        vma_name.c_str(), memsz,vma_ptr->vm_pgoff << 12, vma_ptr->vm_start, vma_ptr->vm_end);
-                } else {
-                    std::cout << "overwrite " << vma_name
+        for (const auto& name : lib_list) {
+            std::string filepath;
+            if(!SearchFile(Core::symbols_path, name, filepath)){
+                continue;
+            }
+            std::shared_ptr<vma_struct> phdr_vma_ptr = task_ptr->get_phdr_vma(name);
+            if(phdr_vma_ptr == nullptr || phdr_vma_ptr != vma_ptr){
+                continue;
+            }
+            size_t map_size = 0;
+            void *map = map_elf_file(filepath, map_size);
+            if (map == nullptr){
+                continue;
+            }
+            size_t memsz = vma_ptr->vm_end - vma_ptr->vm_start;
+            size_t pgoff = vma_ptr->vm_pgoff << 12;
+            fwrite(reinterpret_cast<char*>(map) + pgoff, memsz, 1, corefile);
+            if(debug){
+                fprintf(fp, "overwrite %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
+                    vma_ptr->name.c_str(), memsz,vma_ptr->vm_pgoff << 12, vma_ptr->vm_start, vma_ptr->vm_end);
+            } else {
+                std::cout << "overwrite " << vma_ptr->name
                     << ":[size:" << std::hex << std::showbase << memsz
                     << " off:" << std::hex << std::showbase << (vma_ptr->vm_pgoff << 12)
                     << " to core:[" << std::hex << std::showbase << vma_ptr->vm_start
                     << " - " << std::hex << std::showbase << vma_ptr->vm_end
                     << "]\n";
-                }
-
-                data_pos += memsz;
-                replace = true;
             }
+            munmap(map, map_size);
+            data_pos += memsz;
+            replace = true;
         }
     }
     if(replace == false){
-        char page_data[page_size];
-        for(ulong addr = vma_ptr->vm_start; addr < vma_ptr->vm_end; addr += page_size){
-            if(!swap_ptr->uread_buffer(tc->task, addr, page_data, page_size, "read page for core")){
-                BZERO(page_data, page_size);
-            }
-            fwrite(page_data, page_size, 1, corefile);
-            data_pos += page_size;
+        void* vma_data = task_ptr->read_vma_data(vma_ptr);
+        if (vma_data){
+            fwrite(vma_data, vma_ptr->vm_size, 1, corefile);
+            std::free(vma_data);
         }
+        data_pos += vma_ptr->vm_size;
     }
     return true;
 }
 
-size_t Core::replace_phdr_load(std::shared_ptr<vma> vma_ptr){
-    std::shared_ptr<symbol_info> lib_ptr = lib_map[vma_ptr->name];
-    if(!lib_ptr){
+size_t Core::replace_phdr_load(std::shared_ptr<vma_struct> vma_ptr){
+    if (Core::symbols_path.empty()){
+        return -1;
+    }
+    std::string filepath;
+    if(!SearchFile(Core::symbols_path, vma_ptr->name, filepath)){
         return -1;
     }
     size_t map_size = 0;
-    void *map = map_elf_file(lib_ptr->lib_path, map_size);
+    void *map = map_elf_file(filepath, map_size);
     if (map == nullptr){
         return -1;
     }
@@ -398,9 +372,9 @@ void Core::write_core_file(void) {
             }
         }
     }
-    int segs = vma_list.size() + 1; // for PT_NOTE
+    int segs = task_ptr->for_each_vma_list().size() + 1; // for PT_NOTE
     if (Core::cmd_flags & CORE_FAKE_LINKMAP){
-        segs += lib_map.size() ? 1 : 0; // for Fake
+        segs += lib_list.size() ? 1 : 0; // for Fake
     }
     int e_phnum = segs > PN_XNUM ? PN_XNUM : segs;
     // ===========================================
@@ -425,10 +399,10 @@ void Core::write_core_file(void) {
         return;
     }
     if (Core::cmd_flags & CORE_FAKE_LINKMAP){
-        if(lib_map.size()){ //update before write fake vma
-            size_t hdr_size = (BITS64() && !is_compat) ? sizeof(Elf64_Ehdr) : sizeof(Elf32_Ehdr);
-            auxv_list[AT_PHDR] = FAKE_AUXV_PHDR + hdr_size;
-            auxv_list[AT_EXECFN] = 0;
+        if(lib_list.size()){ //update before write fake vma
+            size_t hdr_size = (BITS64() && !task_ptr->is_compat()) ? sizeof(Elf64_Ehdr) : sizeof(Elf32_Ehdr);
+            task_ptr->set_auxv(AT_PHDR,FAKE_AUXV_PHDR + hdr_size);
+            task_ptr->set_auxv(AT_EXECFN,0);
         }
     }
     write_phdr(PT_NOTE, get_pt_note_data_start(), 0, pt_note_size, 0, 0, 0);
@@ -443,7 +417,7 @@ void Core::write_core_file(void) {
     //  ===========================================
     size_t load_data_pos = roundup((get_pt_note_data_start() + pt_note_size), page_size);
     if (Core::cmd_flags & CORE_FAKE_LINKMAP){
-        if(lib_map.size()){
+        if(lib_list.size()){
             phdr_pos += get_phdr_size(); // header note
             write_fake_data(load_data_pos, phdr_pos);
         }
@@ -453,8 +427,8 @@ void Core::write_core_file(void) {
     //  Writing PT LOAD
     //  ===========================================
     // auto start = std::chrono::high_resolution_clock::now();
-    size_t vma_count = vma_list.size();
-    for (const auto& vma_ptr : vma_list) {
+    size_t vma_count = task_ptr->for_each_vma_list().size();
+    for (const auto& vma_ptr : task_ptr->for_each_vma_list()) {
         phdr_pos += get_phdr_size();
         if (!write_pt_load(vma_ptr,phdr_pos,load_data_pos)){
             continue;
@@ -462,19 +436,18 @@ void Core::write_core_file(void) {
         if(debug){
             fprintf(fp, "Written page to core file. Remaining VMA count: %zd\n", --vma_count);
         } else {
-            std::cout << "Written page to core file. Remaining VMA count: " << --vma_count << std::endl;
+            std::cout << "Written page to core file. Remaining VMA count: " << std::dec << --vma_count << std::endl;
         }
     }
     // auto end = std::chrono::high_resolution_clock::now();
     // std::chrono::duration<double> elapsed = end - start;
     // fprintf(fp, "time: %.6f s\n",elapsed.count());
-    free_lib_map();
     fclose(corefile);
     std::free(hdr_ptr);
     return;
 }
 
-int Core::vma_dump_size(std::shared_ptr<vma> vma_ptr) {
+int Core::vma_dump_size(std::shared_ptr<vma_struct> vma_ptr) {
     int filter_flags = FILTER_SANITIZER_SHADOW_VMA | FILTER_NON_READ_VMA;
     if (filter_flags & FILTER_SPECIAL_VMA) {
         if (vma_ptr->name.find("binder") != std::string::npos || vma_ptr->name.find("mali0") != std::string::npos){
@@ -504,26 +477,6 @@ int Core::vma_dump_size(std::shared_ptr<vma> vma_ptr) {
         }
     }
     return 0;
-}
-
-bool Core::parser_mm_struct(int pid) {
-    void *buf = read_struct(tc->mm_struct,"mm_struct");
-    if (!buf) return false;
-    mm.mm_count = ULONG(buf + field_offset(mm_struct,mm_count));
-    mm.start_code = ULONG(buf + field_offset(mm_struct,start_code));
-    mm.end_code = ULONG(buf + field_offset(mm_struct,end_code));
-    mm.start_data = ULONG(buf + field_offset(mm_struct,start_data));
-    mm.end_data = ULONG(buf + field_offset(mm_struct,end_data));
-    mm.start_brk = ULONG(buf + field_offset(mm_struct,start_brk));
-    mm.brk = ULONG(buf + field_offset(mm_struct,brk));
-    mm.start_stack = ULONG(buf + field_offset(mm_struct,start_stack));
-    mm.arg_start = ULONG(buf + field_offset(mm_struct,arg_start));
-    mm.arg_end = ULONG(buf + field_offset(mm_struct,arg_end));
-    mm.env_start = ULONG(buf + field_offset(mm_struct,env_start));
-    mm.env_end = ULONG(buf + field_offset(mm_struct,env_end));
-    mm.flags = ULONG(buf + field_offset(mm_struct,flags));
-    FREEBUF(buf);
-    return true;
 }
 
 bool Core::parser_user_regset_view(void) {
@@ -576,8 +529,8 @@ std::string Core::vma_flags_to_str(unsigned long flags) {
 
 void Core::print_proc_mapping(){
     tc = pid_to_context(core_pid);
-    parser_vma_list(tc->task);
-    for (auto &vma_ptr : vma_list){
+    task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
+    for (auto &vma_ptr : task_ptr->for_each_vma_list()){
         std::ostringstream oss;
         oss << std::left << "VMA:" << std::hex << vma_ptr->addr << " ["
             << std::hex << vma_ptr->vm_start
@@ -589,82 +542,7 @@ void Core::print_proc_mapping(){
             << vma_ptr->name;
         fprintf(fp, "%s \n",oss.str().c_str());
     }
-}
-
-void Core::parser_vma_list(ulong task_addr){
-    if(vma_list.size()){
-        vma_list.clear();
-    }
-    char buf[BUFSIZE];
-    int ANON_BUFSIZE = 1024;
-    char *file_buf = nullptr;
-    for (auto &vma_addr : for_each_vma(task_addr)){
-        void *vma_buf = read_struct(vma_addr, "vm_area_struct");
-        if (!vma_buf) {
-            fprintf(fp, "Failed to read vm_area_struct at address %lx\n", vma_addr);
-            continue;
-        }
-        ulong vm_mm = ULONG(vma_buf + field_offset(vm_area_struct, vm_mm));
-        if (!is_kvaddr(vm_mm) || tc->mm_struct != vm_mm){
-            fprintf(fp, "skip vma %lx, reason vma.vm_mm != task.mm\n", vma_addr);
-            FREEBUF(vma_buf);
-            continue;
-        }
-        if (field_offset(vm_area_struct, detached) != -1){
-            bool detached = BOOL(vma_buf + field_offset(vm_area_struct, detached));
-            if (detached){
-                fprintf(fp, "skip vma %lx, reason detached\n", vma_addr);
-                FREEBUF(vma_buf);
-                continue;
-            }
-        }
-        std::shared_ptr<vma> vma_ptr = std::make_shared<vma>();
-        vma_ptr->addr = vma_addr;
-        vma_ptr->vm_start = ULONG(vma_buf + field_offset(vm_area_struct, vm_start));
-        vma_ptr->vm_end = ULONG(vma_buf + field_offset(vm_area_struct, vm_end));
-        vma_ptr->vm_pgoff = ULONG(vma_buf + field_offset(vm_area_struct, vm_pgoff));
-        vma_ptr->anon_name = ULONG(vma_buf + field_offset(vm_area_struct, anon_name));
-        vma_ptr->anon_vma = ULONG(vma_buf + field_offset(vm_area_struct, anon_vma));
-        vma_ptr->vm_mm = vm_mm;
-        vma_ptr->vm_flags = ULONG(vma_buf + field_offset(vm_area_struct, vm_flags));
-        vma_ptr->vm_file = ULONG(vma_buf + field_offset(vm_area_struct, vm_file));
-        FREEBUF(vma_buf);
-        if (is_kvaddr(vma_ptr->vm_file)){ //file vma
-            file_buf = fill_file_cache(vma_ptr->vm_file);
-            ulong dentry = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, dentry));
-            if(is_kvaddr(dentry)){
-                if (field_offset(file, f_path) != -1 && field_offset(path, dentry) != -1 && field_offset(path, mnt) != -1) {
-                    ulong vfsmnt = ULONG(file_buf + field_offset(file, f_path) + field_offset(path, mnt));
-                    get_pathname(dentry, buf, BUFSIZE, 1, vfsmnt);
-                } else {
-                    get_pathname(dentry, buf, BUFSIZE, 1, 0);
-                }
-                vma_ptr->name = buf;
-            }
-        }else if (vma_ptr->anon_name) { //anon vma
-            if (is_kvaddr(vma_ptr->anon_name)){ // // kernel 5.15 in kernelspace
-                if (field_offset(anon_vma_name, name) != -1) {
-                    vma_ptr->name = "[anon:" + read_cstring(vma_ptr->anon_name + field_offset(anon_vma_name, name),ANON_BUFSIZE,"anon_name") + "]";
-                }else{
-                    vma_ptr->name = "[anon:" + read_cstring(vma_ptr->anon_name,ANON_BUFSIZE,"anon_name") + "]";
-                }
-            }else if (is_uvaddr(vma_ptr->anon_name,tc) && swap_ptr.get() != nullptr){ // kernel 5.4 in userspace
-#if defined(ARM64)
-                vma_ptr->anon_name &= (USERSPACE_TOP - 1);
-#endif
-                vma_ptr->name = "[anon:" + swap_ptr->uread_cstring(tc->task,vma_ptr->anon_name, ANON_BUFSIZE, "anon_name") + "]";
-            }
-        } else {
-            if (vma_ptr->vm_end > mm.start_brk && vma_ptr->vm_start < mm.brk){
-                vma_ptr->name = "[heap]";
-            }
-            if (vma_ptr->vm_end >= mm.start_stack && vma_ptr->vm_start <=  mm.start_stack){
-                vma_ptr->name = "[stack]";
-            }
-        }
-        vma_ptr->name += '\0';
-        vma_list.push_back(vma_ptr);
-    }
+    task_ptr.reset();
 }
 
 void Core::parser_thread_core_info() {
@@ -770,15 +648,11 @@ void Core::parser_thread_core_info() {
 
 void Core::parser_auvx(){
     size_t auxv_size = field_size(mm_struct, saved_auxv);
-    void* auxv_buf = read_memory(tc->mm_struct + field_offset(mm_struct, saved_auxv), auxv_size, "mm_struct saved_auxv");
+    void* auxv_buf = task_ptr->read_auxv();
     if(!auxv_buf){
         fprintf(fp, "fill_auvx_note auxv_buf is NULL \n");
         return;
     }
-    if(auxv_list.size()){
-        auxv_list.clear();
-    }
-    auxv_list = parser_auvx_list(tc->mm_struct, is_compat);
     auxv = std::make_shared<memelfnote>();
     auxv->name = "CORE";
     auxv->type = NT_AUXV;
@@ -795,63 +669,30 @@ void Core::parser_auvx(){
 void Core::parser_nt_file() {
     std::unique_ptr<std::vector<char>> data_ptr = std::make_unique<std::vector<char>>();
     size_t files_count = 0;
-    int size_data = BITS64() ? (is_compat ? 4 : sizeof(long)) : sizeof(long);
+    int size_data = BITS64() ? (task_ptr->is_compat() ? 4 : sizeof(long)) : sizeof(long);
     size_t total_vma_size = 0;
     size_t total_filename_size = 0;
-
-    free_lib_map();
-    for (const auto& vma : vma_list) {
-        if (!is_kvaddr(vma->vm_file)) {
-            continue;
-        }
+    for (const auto& vma : task_ptr->for_each_file_vma()) {
         total_vma_size += 3 * size_data;
-        total_filename_size += vma->name.size();
-        files_count++;
-
         if (!Core::symbols_path.empty()){
             std::string filepath;
-            if(!SearchFile(Core::symbols_path, vma->name, filepath)){
-                continue;
-            }
-            std::shared_ptr<symbol_info> lib_ptr;
-            if (lib_map.find(vma->name) != lib_map.end()) { //exists
-                lib_ptr = lib_map[vma->name];
-            } else {
-                lib_ptr = std::make_shared<symbol_info>();
-                lib_ptr->lib_path = filepath;
-                // get the elf symbol info, including mmap_addr, phdr, pt_dynamic
-                if(!read_elf_file(lib_ptr)){
-                    continue;
-                }
-                lib_map[vma->name] = lib_ptr;
-            }
-            lib_ptr->vma_load_list.push_back(vma);
-            vma->symbol_ptr = lib_ptr;
+            if(SearchFile(Core::symbols_path, vma->name, filepath)){
+                lib_list.insert(vma->name);
+	        }
         }
-    }
-    if(debug){
-        for (const auto& pair : lib_map) {
-            fprintf(fp, "%s \n", pair.second->lib_path.c_str());
-            for (const auto& vma : pair.second->vma_load_list) {
-                fprintf(fp, "   [%#lx ~ %#lx] \n", vma->vm_start, vma->vm_end);
-            }
-        }
+        vma->name += '\0';
+        total_filename_size += vma->name.size();
+        files_count++;
     }
     data_ptr->reserve(2 * size_data + total_vma_size + total_filename_size);
     data_ptr->insert(data_ptr->end(), reinterpret_cast<const char*>(&files_count), reinterpret_cast<const char*>(&files_count) + size_data);
     data_ptr->insert(data_ptr->end(), reinterpret_cast<const char*>(&page_size), reinterpret_cast<const char*>(&page_size) + size_data);
-    for (const auto& vma : vma_list) {
-        if (!is_kvaddr(vma->vm_file)) {
-            continue;
-        }
+    for (const auto& vma : task_ptr->for_each_file_vma()) {
         data_ptr->insert(data_ptr->end(), reinterpret_cast<const char*>(&vma->vm_start), reinterpret_cast<const char*>(&vma->vm_start) + size_data);
         data_ptr->insert(data_ptr->end(), reinterpret_cast<const char*>(&vma->vm_end), reinterpret_cast<const char*>(&vma->vm_end) + size_data);
         data_ptr->insert(data_ptr->end(), reinterpret_cast<const char*>(&vma->vm_pgoff), reinterpret_cast<const char*>(&vma->vm_pgoff) + size_data);
     }
-    for (const auto& vma : vma_list) {
-        if (!is_kvaddr(vma->vm_file)) {
-            continue;
-        }
+    for (const auto& vma : task_ptr->for_each_file_vma()) {
         data_ptr->insert(data_ptr->end(), vma->name.begin(), vma->name.end());
     }
     if (debug) {
@@ -932,7 +773,7 @@ ulong Core::task_pid_ptr(ulong task_addr, long type) {
 }
 
 void Core::write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_filesz, size_t p_memsz, size_t p_flags, size_t p_align) {
-    size_t data_size = BITS64() && !is_compat ? sizeof(Elf64_Phdr) : sizeof(Elf32_Phdr);
+    size_t data_size = BITS64() && !task_ptr->is_compat() ? sizeof(Elf64_Phdr) : sizeof(Elf32_Phdr);
     std::unique_ptr<char[]> phdr(new char[data_size]);
     BZERO(phdr.get(), data_size);
 
@@ -948,7 +789,7 @@ void Core::write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_f
         fwrite(elf_phdr, data_size, 1, corefile);
     };
 
-    if (BITS64() && !is_compat) {
+    if (BITS64() && !task_ptr->is_compat()) {
         Elf64_Phdr* elf_phdr = reinterpret_cast<Elf64_Phdr*>(phdr.get());
         set_phdr(elf_phdr);
     } else {
@@ -958,14 +799,14 @@ void Core::write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_f
 }
 
 int Core::notesize(std::shared_ptr<memelfnote> note_ptr){
-    size_t total_size = BITS64() && !is_compat ? sizeof(Elf64_Nhdr) : sizeof(Elf32_Nhdr);
+    size_t total_size = BITS64() && !task_ptr->is_compat() ? sizeof(Elf64_Nhdr) : sizeof(Elf32_Nhdr);
     total_size += roundup(note_ptr->name.size() + 1,4);
     total_size += roundup(note_ptr->datasz,4);
     return total_size;
 }
 
 void Core::writenote(std::shared_ptr<memelfnote> note_ptr) {
-    size_t data_size = BITS64() && !is_compat ? sizeof(Elf64_Nhdr) : sizeof(Elf32_Nhdr);
+    size_t data_size = BITS64() && !task_ptr->is_compat() ? sizeof(Elf64_Nhdr) : sizeof(Elf32_Nhdr);
     std::unique_ptr<char[]> note(new char[data_size]);
     BZERO(note.get(), data_size);
 
@@ -982,7 +823,7 @@ void Core::writenote(std::shared_ptr<memelfnote> note_ptr) {
         dump_align(ftell(corefile), 4);
     };
 
-    if (BITS64() && !is_compat) {
+    if (BITS64() && !task_ptr->is_compat()) {
         write_note(reinterpret_cast<Elf64_Nhdr*>(note.get()));
     } else {
         write_note(reinterpret_cast<Elf32_Nhdr*>(note.get()));
@@ -990,8 +831,8 @@ void Core::writenote(std::shared_ptr<memelfnote> note_ptr) {
 }
 
 void* Core::fill_elf_header(int type, int phnum, size_t& hdr_size) {
-    hdr_size = BITS64() && !is_compat ? sizeof(Elf64_Ehdr) : sizeof(Elf32_Ehdr);
-    size_t phdr_size = BITS64() && !is_compat ? sizeof(Elf64_Phdr) : sizeof(Elf32_Phdr);
+    hdr_size = BITS64() && !task_ptr->is_compat() ? sizeof(Elf64_Ehdr) : sizeof(Elf32_Ehdr);
+    size_t phdr_size = BITS64() && !task_ptr->is_compat() ? sizeof(Elf64_Phdr) : sizeof(Elf32_Phdr);
     void* hdr = std::malloc(hdr_size);
     BZERO(hdr, hdr_size);
     auto set_elf_header = [&](auto* elf_hdr) {
@@ -1013,7 +854,7 @@ void* Core::fill_elf_header(int type, int phnum, size_t& hdr_size) {
             fprintf(fp, "%s", hexdump(0, (char*)elf_hdr, hdr_size).c_str());
         }
     };
-    if (BITS64() && !is_compat) {
+    if (BITS64() && !task_ptr->is_compat()) {
         Elf64_Ehdr* elf_hdr = reinterpret_cast<Elf64_Ehdr*>(hdr);
         set_elf_header(elf_hdr);
     } else {
@@ -1024,50 +865,21 @@ void* Core::fill_elf_header(int type, int phnum, size_t& hdr_size) {
 }
 
 int Core::get_phdr_start() {
-    return (BITS64() && !is_compat) ?
+    return (BITS64() && !task_ptr->is_compat()) ?
            reinterpret_cast<Elf64_Ehdr*>(hdr_ptr)->e_phoff :
            reinterpret_cast<Elf32_Ehdr*>(hdr_ptr)->e_phoff;
 }
 
 int Core::get_pt_note_data_start() {
-    return (BITS64() && !is_compat) ?
+    return (BITS64() && !task_ptr->is_compat()) ?
            reinterpret_cast<Elf64_Ehdr*>(hdr_ptr)->e_ehsize + (reinterpret_cast<Elf64_Ehdr*>(hdr_ptr)->e_phnum * reinterpret_cast<Elf64_Ehdr*>(hdr_ptr)->e_phentsize) :
            reinterpret_cast<Elf32_Ehdr*>(hdr_ptr)->e_ehsize + (reinterpret_cast<Elf32_Ehdr*>(hdr_ptr)->e_phnum * reinterpret_cast<Elf32_Ehdr*>(hdr_ptr)->e_phentsize);
 }
 
 int Core::get_phdr_size() {
-    return (BITS64() && !is_compat) ?
+    return (BITS64() && !task_ptr->is_compat()) ?
            reinterpret_cast<Elf64_Ehdr*>(hdr_ptr)->e_phentsize :
            reinterpret_cast<Elf32_Ehdr*>(hdr_ptr)->e_phentsize;
-}
-
-std::shared_ptr<vma> Core::get_phdr_vma(std::vector<std::shared_ptr<vma>> vma_list){
-    std::vector<std::shared_ptr<vma>> tmps_vma;
-    if(vma_list.size() == 0){
-        return nullptr;
-    }
-    // std::sort(vma_list.begin(), vma_list.end(),[&](const std::shared_ptr<vma>& a, const std::shared_ptr<vma>& b){
-    //     return a->vm_start > b->vm_start;
-    // });
-    for (const auto& vma_ptr : vma_list) {
-        if (vma_ptr->vm_flags & VM_EXEC){ // R .text
-            if (tmps_vma.empty()) {
-                return vma_ptr;
-            }
-            for (const auto& ptr : tmps_vma){
-                ulong cloc_vaddr = vma_ptr->vm_start - (vma_ptr->vm_pgoff << 12) + (ptr->vm_pgoff << 12);
-                if(ptr->vm_start > cloc_vaddr){
-                    continue;
-                }
-                if(ptr->vm_start <= cloc_vaddr){
-                    return ptr;
-                }
-            }
-        } else {
-            tmps_vma.push_back(vma_ptr);
-        }
-    }
-    return vma_list[0];
 }
 
 void* Core::map_elf_file(std::string filepath, size_t& len){
@@ -1103,7 +915,7 @@ bool Core::check_elf_file(void* map){
         }
         return true;
     };
-    if (BITS64() && !is_compat) {
+    if (BITS64() && !task_ptr->is_compat()) {
         Elf64_Ehdr* elf_hdr = reinterpret_cast<Elf64_Ehdr*>(map);
         return check_header(elf_hdr);
     } else {
@@ -1112,30 +924,31 @@ bool Core::check_elf_file(void* map){
     }
 }
 
-bool Core::read_elf_file(std::shared_ptr<symbol_info> lib_ptr){
+std::shared_ptr<symbol_info> Core::read_elf_file(std::string file_path){
     size_t map_size = 0;
-    void* map = map_elf_file(lib_ptr->lib_path, map_size);
+    std::shared_ptr<symbol_info> sym_info = std::make_shared<symbol_info>();
+    void* map = map_elf_file(file_path, map_size);
     if (map == nullptr) {
-        return false;
+        return nullptr;
     }
     if (!check_elf_file(map)) {
         munmap(map, map_size);
-        return false;
+        return nullptr;
     }
     auto process_phdrs = [&](auto* elf_hdr, auto* phdr_table) {
         for (size_t i = 0; i < elf_hdr->e_phnum; ++i) {
             auto& phdr = phdr_table[i];
             if (phdr.p_type == PT_DYNAMIC) {
-                lib_ptr->dynamic_offset = phdr.p_offset;
-                lib_ptr->dynamic_vaddr = phdr.p_vaddr;
+                sym_info->dynamic_offset = phdr.p_offset;
+                sym_info->dynamic_vaddr = phdr.p_vaddr;
             }
             if (phdr.p_type == PT_PHDR) {
-                lib_ptr->phdr_offset = phdr.p_offset;
-                lib_ptr->phdr_vaddr = phdr.p_vaddr;
+                sym_info->phdr_offset = phdr.p_offset;
+                sym_info->phdr_vaddr = phdr.p_vaddr;
             }
         }
     };
-    if (BITS64() && !is_compat) {
+    if (BITS64() && !task_ptr->is_compat()) {
         Elf64_Ehdr* elf_hdr = reinterpret_cast<Elf64_Ehdr*>(map);
         Elf64_Phdr* phdr_table = reinterpret_cast<Elf64_Phdr*>(reinterpret_cast<char*>(map) + elf_hdr->e_phoff);
         process_phdrs(elf_hdr, phdr_table);
@@ -1144,25 +957,9 @@ bool Core::read_elf_file(std::shared_ptr<symbol_info> lib_ptr){
         Elf32_Phdr* phdr_table = reinterpret_cast<Elf32_Phdr*>(reinterpret_cast<char*>(map) + elf_hdr->e_phoff);
         process_phdrs(elf_hdr, phdr_table);
     }
-    lib_ptr->map_addr = map;
-    lib_ptr->map_size = map_size;
-    return true;
-}
-
-void Core::free_lib_map() {
-    for (auto& pair : lib_map) {
-        const auto& symbol = pair.second;
-        if (!symbol) continue;
-        if (symbol->map_addr != nullptr && symbol->map_size > 0) {
-            if (munmap(symbol->map_addr, symbol->map_size) == -1) {
-                fprintf(fp, "munmap failed \n");
-            }
-            symbol->map_addr = nullptr;
-            symbol->map_size = 0;
-        }
-        symbol->vma_load_list.clear();
-    }
-    lib_map.clear();
+    sym_info->map_addr = map;
+    sym_info->map_size = map_size;
+    return sym_info;
 }
 
 /*
@@ -1189,6 +986,9 @@ void Core::free_lib_map() {
         +-----------------+
 */
 void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
+    if (Core::symbols_path.empty()){
+        return;
+    }
     if (fseek(corefile, data_pos, SEEK_SET) != 0) {
         fclose(corefile);
         return;
@@ -1237,8 +1037,8 @@ void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
     data_pos += page_size;
 
     size_t cur_linkmap_vaddr = r_debug.map;
-    // size_t linkmap_size = roundup(sizeof(linkmap_t) * (lib_map.size() + 1/* FAKECORE */), page_size);
-    size_t linkmap_size = sizeof(linkmap_t) * (lib_map.size() + 1/* FAKECORE */);
+    // size_t linkmap_size = roundup(sizeof(linkmap_t) * (lib_list.size() + 1/* FAKECORE */), page_size);
+    size_t linkmap_size = sizeof(linkmap_t) * (lib_list.size() + 1/* FAKECORE */);
     std::unique_ptr<char[]> linkmap_buf(new char[linkmap_size]);
     BZERO(linkmap_buf.get(), linkmap_size);
 
@@ -1257,33 +1057,39 @@ void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
     linkmap->next = cur_linkmap_vaddr + sizeof(linkmap_t);
     linkmap->prev = 0x0;
     cur_strtab_vaddr += name.length();
-    for (const auto& pair : lib_map) {
-        std::shared_ptr<symbol_info> lib_ptr = pair.second;
-        if(lib_ptr == nullptr){
+    for (const auto& name : lib_list) {
+        std::string filepath;
+        if(!SearchFile(Core::symbols_path, name, filepath)){
             continue;
         }
-        std::shared_ptr<vma> base_vma_ptr = get_phdr_vma(lib_ptr->vma_load_list);
-        if(base_vma_ptr == nullptr){
+        // get the elf symbol info, including mmap_addr, phdr, pt_dynamic
+        std::shared_ptr<symbol_info> sym_ptr = read_elf_file(filepath);
+        if(sym_ptr == nullptr){
+            continue;
+        }
+        std::shared_ptr<vma_struct> phdr_vma_ptr = task_ptr->get_phdr_vma(name);
+        if(phdr_vma_ptr == nullptr){
             continue;
         }
         linkmap++;
         // the base addr of library
-        linkmap->addr = base_vma_ptr->vm_start;
-        if (lib_ptr->phdr_offset != lib_ptr->phdr_vaddr){
-            linkmap->addr += (lib_ptr->phdr_offset - lib_ptr->phdr_vaddr);
+        linkmap->addr = phdr_vma_ptr->vm_start;
+        if (sym_ptr->phdr_offset != sym_ptr->phdr_vaddr){
+            linkmap->addr += (sym_ptr->phdr_offset - sym_ptr->phdr_vaddr);
         }
         // the addr of dynamic
-        linkmap->ld = linkmap->addr + lib_ptr->dynamic_vaddr;
+        linkmap->ld = linkmap->addr + sym_ptr->dynamic_vaddr;
         if (debug){
-            fprintf(fp, "linkmap->addr:%#lx linkmap->ld:%#lx %s\n", linkmap->addr,linkmap->ld,base_vma_ptr->name.c_str());
+            fprintf(fp, "linkmap->addr:%#lx linkmap->ld:%#lx %s\n", linkmap->addr,linkmap->ld,phdr_vma_ptr->name.c_str());
         }
         linkmap->name = cur_strtab_vaddr;
         linkmap->prev = cur_linkmap_vaddr;
         cur_linkmap_vaddr = cur_linkmap_vaddr + sizeof(linkmap_t);
         linkmap->next = cur_linkmap_vaddr + sizeof(linkmap_t);
 
-        strtab << base_vma_ptr->name;
-        cur_strtab_vaddr += base_vma_ptr->name.length();
+        strtab << phdr_vma_ptr->name;
+        cur_strtab_vaddr += phdr_vma_ptr->name.length();
+        munmap(sym_ptr->map_addr, sym_ptr->map_size);
     }
     linkmap->next = 0;
     // strtab_len = roundup(strtab.str().size(), page_size);
@@ -1322,7 +1128,13 @@ void Core::print_linkmap(){
 #elif defined(ARM64)
 #define Elf(type) Elf64_##type
 #endif
-    if (BITS64() && is_compat) {
+    tc = pid_to_context(core_pid);
+    if (!tc) {
+        fprintf(fp, "pid_to_context failed\n");
+        return;
+    }
+    task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
+    if (BITS64() && task_ptr->is_compat()) {
         /*
          * If you want to enable compatibility, you need to add the following code:
          * Every struct should use 32-bit(uint32_t and Elf32_type), including all parameters passed in swapinfo.
@@ -1330,19 +1142,11 @@ void Core::print_linkmap(){
         fprintf(fp, "We do not support compat for the linkmap feature\n");
         return;
     }
-    tc = pid_to_context(core_pid);
-    if (!tc) {
-        fprintf(fp, "pid_to_context failed\n");
-        return;
-    }
-    parser_auvx();
-    std::free(auxv->data);
-    auxv.reset();
-    size_t at_phdr = auxv_list[AT_PHDR];
-    size_t at_phnum = auxv_list[AT_PHNUM];
-    size_t at_phent = auxv_list[AT_PHENT];
-    size_t at_entry = auxv_list[AT_ENTRY];
-    parser_exec_name(auxv_list[AT_EXECFN]);
+    size_t at_phdr = task_ptr->get_auxv(AT_PHDR);
+    size_t at_phnum = task_ptr->get_auxv(AT_PHNUM);
+    size_t at_phent = task_ptr->get_auxv(AT_PHENT);
+    size_t at_entry = task_ptr->get_auxv(AT_ENTRY);
+    parser_exec_name(task_ptr->get_auxv(AT_EXECFN));
     std::string exec_file_path;
     if(!SearchFile(Core::symbols_path, exe_name, exec_file_path)){
         fprintf(fp, "can't find %s\n",exe_name.c_str());
@@ -1364,14 +1168,8 @@ void Core::print_linkmap(){
     }
     Elf(Ehdr)* ehdr = reinterpret_cast<Elf(Ehdr)*>(exec_map);
     Elf(Phdr)* phdr = reinterpret_cast<Elf(Phdr)*>((static_cast<char*>(exec_map) + ehdr->e_phoff));
-    char* core_phdr = static_cast<char*>(std::malloc(at_phnum * at_phent));
-    if (!core_phdr) {
-        munmap(exec_map, st.st_size);
-        close(fd);
-        return;
-    }
-    if (!swap_ptr->uread_buffer(tc->task, at_phdr, core_phdr, at_phnum * at_phent, "read page for core phdr")) {
-        std::free(core_phdr);
+    std::vector<char> core_phdr = task_ptr->read_data(at_phdr,at_phnum * at_phent);
+    if(core_phdr.size() == 0){
         munmap(exec_map, st.st_size);
         close(fd);
         return;
@@ -1403,43 +1201,28 @@ void Core::print_linkmap(){
             }
             if (dyn[count].d_tag == DT_DEBUG) {
                 ulong dyn_ptr = exec_displacement + exec_dynamic_vaddr + count * sizeof(Elf(Dyn)) + sizeof(void*) /* 8 & 4*/;
-                linkmap_addr = swap_ptr->uread_ulong(tc->task, dyn_ptr, "read page for dyn");
+                linkmap_addr = task_ptr->uread_ulong(dyn_ptr);
                 // fprintf(fp, "dyn_ptr: %#lx, base:%#lx\n", dyn_ptr, linkmap_addr);
             }
         }
     }
-
     if (!is_uvaddr(linkmap_addr, tc)) {
         fprintf(fp, "linkmap addr not uvaddr:%#lx\n", linkmap_addr);
-        std::free(core_phdr);
         munmap(exec_map, st.st_size);
         close(fd);
         return;
     }
-
     linkmap_addr += sizeof(void*);
-    linkmap_addr = swap_ptr->uread_ulong(tc->task, linkmap_addr, "read page for fisrt linkmap");
+    linkmap_addr = task_ptr->uread_ulong(linkmap_addr);
     // fprintf(fp, "the fisrt linkmap: %#lx\n", linkmap_addr);
-
-    char* lp = static_cast<char*>(std::malloc(sizeof(linkmap_t)));
-    if (!lp) {
+    std::vector<char> lp = task_ptr->read_data(linkmap_addr,sizeof(linkmap_t));
+    if(lp.size() == 0){
         fprintf(fp, "linkmap: read fail\n");
-        free(core_phdr);
         munmap(exec_map, st.st_size);
         close(fd);
         return;
     }
-
-    if (!swap_ptr->uread_buffer(tc->task, linkmap_addr, lp, sizeof(linkmap_t), "read page for linkmap")) {
-        fprintf(fp, "linkmap: read fail\n");
-        std::free(lp);
-        std::free(core_phdr);
-        munmap(exec_map, st.st_size);
-        close(fd);
-        return;
-    }
-
-    linkmap_t* linkmap = reinterpret_cast<linkmap_t*>(lp);
+    linkmap_t* linkmap = reinterpret_cast<linkmap_t*>(lp.data());
     std::ostringstream oss;
     oss << std::left
         << std::setw(20)  << "addr"
@@ -1452,36 +1235,31 @@ void Core::print_linkmap(){
         << std::setw(20) << linkmap->ld
         << std::setw(20) << linkmap->next
         << std::setw(20) << linkmap->prev
-        << std::setw(20) << swap_ptr->uread_cstring(tc->task, linkmap->name, 128, "linkmap name")
+        << std::setw(20) << task_ptr->uread_cstring(linkmap->name, 128)
         << "\n";
-
     while (linkmap->next) {
         ulong linkmap_next = linkmap->next;
         if (!is_uvaddr(linkmap_next, tc)) {
             fprintf(fp, "linkmap addr not uvaddr:%#lx\n", linkmap_next);
             break;
         }
-
-        BZERO(lp, sizeof(linkmap_t));
-        if (!swap_ptr->uread_buffer(tc->task, linkmap_next, lp, sizeof(linkmap_t), "read page for linkmap next")) {
+        std::vector<char> lp = task_ptr->read_data(linkmap_next,sizeof(linkmap_t));
+        if(lp.size() == 0){
             fprintf(fp, "linkmap: read fail\n");
             break;
         }
-
-        linkmap = reinterpret_cast<linkmap_t*>(lp);
+        linkmap = reinterpret_cast<linkmap_t*>(lp.data());
         oss << std::setw(20) << linkmap->addr
             << std::setw(20) << linkmap->ld
             << std::setw(20) << linkmap->next
             << std::setw(20) << linkmap->prev
-            << std::setw(20) << swap_ptr->uread_cstring(tc->task, linkmap->name, 128, "linkmap name")
+            << std::setw(20) << task_ptr->uread_cstring(linkmap->name, 128)
             << "\n";
     }
-    std::free(lp);
     fprintf(fp, "%s", oss.str().c_str());
-
-    std::free(core_phdr);
     munmap(exec_map, st.st_size);
     close(fd);
+    task_ptr.reset();
 }
 #pragma GCC diagnostic pop
  

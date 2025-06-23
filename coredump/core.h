@@ -20,6 +20,7 @@
 #include <elf.h>
 #include <linux/types.h>
 #include "memory/swapinfo.h"
+#include "../utils/utask.h"
 #include <sys/stat.h>
 #include <exception>
 
@@ -125,10 +126,7 @@ struct elf_siginfo {
 };
 #endif
 
-struct vma;
-
 struct symbol_info {
-    std::vector<std::shared_ptr<vma>> vma_load_list;
     uintmax_t dynamic_offset;
     uintmax_t dynamic_vaddr;
     uintmax_t phdr_offset;
@@ -136,20 +134,6 @@ struct symbol_info {
     std::string lib_path;
     void* map_addr;
     size_t map_size;
-};
-
-struct vma {
-    ulong addr;
-    ulong vm_start;
-    ulong vm_end;
-    ulong vm_mm;
-    ulong vm_flags;
-    ulong vm_file;
-    ulong vm_pgoff;
-    ulong anon_name;
-    ulong anon_vma;
-    std::string name;
-    std::shared_ptr<symbol_info> symbol_ptr;
 };
 
 struct user_regset {
@@ -180,22 +164,6 @@ struct elf_thread_info {
     ulong task_addr;
     std::shared_ptr<memelfnote> prstatus_ptr;
     std::vector<std::shared_ptr<memelfnote>> note_list;
-};
-
-struct mm_info {
-    int mm_count;
-    ulong start_code;
-    ulong end_code;
-    ulong start_data;
-    ulong end_data;
-    ulong start_brk;
-    ulong brk;
-    ulong start_stack;
-    ulong arg_start;
-    ulong arg_end;
-    ulong env_start;
-    ulong env_end;
-    ulong flags;
 };
 
 struct user_pt_regs {
@@ -256,11 +224,11 @@ public:
     static std::string symbols_path;
     static const int CORE_REPLACE_HEAD = 0x0001;
     static const int CORE_FAKE_LINKMAP = 0x0002;
+    std::shared_ptr<UTask> task_ptr;
 
 protected:
     void* hdr_ptr;
     bool debug = false;
-    bool is_compat = false;
     int core_pid;
     FILE* corefile;
     ulong thread_info_flags;
@@ -268,11 +236,8 @@ protected:
     std::string exe_name;
     std::string user_view_var_name;
     std::shared_ptr<user_regset_view> urv_ptr;
-    std::vector<std::shared_ptr<vma>> vma_list;
-    std::unordered_map<std::string, std::shared_ptr<symbol_info>> lib_map;
-    std::unordered_map <ulong, ulong> auxv_list; // <type, val>
+    std::set<std::string> lib_list;
     struct task_context *tc;
-    struct mm_info mm;
     std::vector<std::shared_ptr<elf_thread_info>> thread_list;
     std::shared_ptr<memelfnote> psinfo;
     std::shared_ptr<memelfnote> signote;
@@ -302,9 +267,8 @@ public:
     void ListFiles(const std::string &directory, std::string name, std::string &result);
     void print_linkmap();
     bool write_pt_note(void);
-    bool write_pt_load(std::shared_ptr<vma> vma_ptr, size_t phdr_pos, size_t& data_pos);
+    bool write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, size_t& data_pos);
     void write_core_file(void);
-    bool parser_mm_struct(int pid);
     bool parser_user_regset_view(void);
     std::string vma_flags_to_str(unsigned long flags);
     void print_proc_mapping();
@@ -314,23 +278,21 @@ public:
     ulong ns_of_pid(ulong thread_pid_addr);
     ulong task_pid_ptr(ulong task_addr, long type);
     void write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_filesz, size_t p_memsz, size_t p_flags, size_t p_align);
-    void parser_vma_list(ulong task_addr);
     void parser_nt_file();
     void parser_thread_core_info();
     void parser_auvx();
-    int vma_dump_size(std::shared_ptr<vma> vma_ptr);
+    int vma_dump_size(std::shared_ptr<vma_struct> vma_ptr);
     void dump_align(std::streampos position, std::streamsize align);
     void writenote(std::shared_ptr<memelfnote> note_ptr);
     void *fill_elf_header(int type, int phnum, size_t &hdr_size);
     int notesize(std::shared_ptr<memelfnote> note_ptr);
     int get_phdr_start();
     int get_phdr_size();
-    std::shared_ptr<vma> get_phdr_vma(std::vector<std::shared_ptr<vma>> vma_list);
     void *map_elf_file(std::string filepath, size_t &len);
     bool check_elf_file(void * map);
-    bool read_elf_file(std::shared_ptr<symbol_info> lib_ptr);
+    std::shared_ptr<symbol_info> read_elf_file(std::string file_path);
     void free_lib_map();
-    size_t replace_phdr_load(std::shared_ptr<vma> vma_ptr);
+    size_t replace_phdr_load(std::shared_ptr<vma_struct> vma_ptr);
     void write_fake_data(size_t &data_pos, size_t phdr_pos);
     int get_pt_note_data_start();
 
