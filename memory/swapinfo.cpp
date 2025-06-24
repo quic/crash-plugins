@@ -55,13 +55,6 @@ void Swapinfo::init_command(){
     field_init(address_space,i_pages);
     field_init(address_space,page_tree);
     struct_init(address_space);
-
-    field_init(vm_area_struct,vm_start);
-    field_init(vm_area_struct,vm_file);
-    field_init(file,f_vfsmnt);
-    field_init(file, f_path);
-    field_init(path, dentry);
-    field_init(path, mnt);
     parser_swap_info();
 }
 

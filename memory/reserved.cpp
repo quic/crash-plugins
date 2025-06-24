@@ -81,14 +81,12 @@ void Reserved::parser_reserved_mem(){
         fprintf(fp, "reserved_mem address is invalid!\n");
         return;
     }
-    ulong reserved_mem_count = read_pointer(csymbol_value("reserved_mem_count"),"reserved_mem_count");
-    int cnt = reserved_mem_count == 0 ? get_array_length(TO_CONST_STRING("reserved_mem"), NULL, 0) : reserved_mem_count;
+    int cnt = get_symbol_length(TO_CONST_STRING("reserved_mem")) / struct_size(reserved_mem);
     for (int i = 0; i < cnt; ++i) {
         ulong reserved_addr = reserved_mem_addr + i * struct_size(reserved_mem);
+        if (!is_kvaddr(reserved_addr)) continue;
         void *reserved_mem_buf = read_struct(reserved_addr,"reserved_mem");
-        if (!reserved_mem_buf) {
-            continue;
-        }
+        if (!reserved_mem_buf) continue;
         uint64_t base = 0;
         uint64_t size = 0;
         if(get_config_val("CONFIG_PHYS_ADDR_T_64BIT") == "y"){
@@ -98,7 +96,7 @@ void Reserved::parser_reserved_mem(){
             base = ULONG(reserved_mem_buf + field_offset(reserved_mem,base));
             size = ULONG(reserved_mem_buf + field_offset(reserved_mem,size));
         }
-        if (size == 0) {
+        if (base ==0 || size == 0) {
             FREEBUF(reserved_mem_buf);
             continue;
         }

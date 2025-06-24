@@ -53,6 +53,7 @@ private:
         "label",
         "fsmgr_flags",
         "regulator-type",
+        "iommu-faults",
         "pins",
         "parts",
         "serial",

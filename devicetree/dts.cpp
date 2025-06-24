@@ -210,7 +210,7 @@ void Dts::read_dtb(std::string& path){
         return;
     }
     // fprintf(fp, "magic:%x\n",magic);
-    fprintf(fp, "dtb addr:%lx, size:%ld\n",initial_boot_params,db_size);
+    fprintf(fp, "dtb addr:%#lx, size:%ld\n",initial_boot_params,db_size);
     FREEBUF(header);
     FILE *file = fopen(path.c_str(), "wb");
     if (file == nullptr) {
@@ -273,28 +273,40 @@ void Dts::print_properties(std::vector<std::shared_ptr<Property>> props,int leve
         for (int i = 0; i < prop_level; i++) {
             fprintf(fp, "\t");
         }
-        if (is_symbol || is_str_prop(prop_name)){
+        if (prop_length == 0){
             if (flag & DTS_ADDR){
-                fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+                fprintf(fp, "%#lx:%s;\n",prop_addr,prop_name.c_str());
             }else{
-                fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
+                fprintf(fp, "%s;\n",prop_name.c_str());
             }
-        }else if (is_int_prop(prop_name) || ((prop_length % 4) == 0)){
-            if (flag & DTS_ADDR){
-                fprintf(fp, "%#lx:%s=< ",prop_addr,prop_name.c_str());
-            }else{
-                fprintf(fp, "%s=< ",prop_name.c_str());
-            }
-            for (int i = 0; i < (prop_length / 4); ++i) {
-                int val = UINT(prop_val + i * sizeof(int));
-                fprintf(fp, "%x ",ntohl(val));
-            }
-            fprintf(fp, ">;\n");
         }else{
-            if (flag & DTS_ADDR){
-                fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+            if (is_symbol || is_str_prop(prop_name)){
+                if (flag & DTS_ADDR){
+                    fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+                }else{
+                    fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
+                }
+            }else if (is_int_prop(prop_name) || ((prop_length % 4) == 0)){
+                if (flag & DTS_ADDR){
+                    fprintf(fp, "%#lx:%s=<",prop_addr,prop_name.c_str());
+                }else{
+                    fprintf(fp, "%s=<",prop_name.c_str());
+                }
+                for (int i = 0; i < (prop_length / 4); ++i) {
+                    int val = UINT(prop_val + i * sizeof(int));
+                    if (i == (prop_length / 4)-1){
+                        fprintf(fp, "%#x",ntohl(val));
+                    }else{
+                        fprintf(fp, "%#x ",ntohl(val));
+                    }
+                }
+                fprintf(fp, ">;\n");
             }else{
-                fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
+                if (flag & DTS_ADDR){
+                    fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+                }else{
+                    fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
+                }
             }
         }
     }
