@@ -293,7 +293,7 @@ ulong Meminfo::get_available(ulong freeram)
         + node_page_state[enums[(THIS_KERNEL_VERSION >= LINUX(5, 9, 0))?"NR_SLAB_RECLAIMABLE_B":"NR_SLAB_RECLAIMABLE"]];
     available += reclaimable - std::min(reclaimable / 2, wmark_low);
 
-    return (available < 0)?0:available;;
+    return (available < 0)?0:available;
 }
 
 ulong Meminfo::get_blockdev_nr_pages(void){

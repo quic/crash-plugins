@@ -40,6 +40,7 @@ UTask::UTask(std::shared_ptr<Swapinfo> swap, ulong addr): swap_ptr(swap){
     init_mm_struct();
     init_auxv();
     init_vma();
+    init_files();
     for (const auto& vma_ptr : for_each_anon_vma()) {
         min_rw_vma_addr = std::min(min_rw_vma_addr,vma_ptr->vm_start);
         max_rw_vma_addr = std::max(max_rw_vma_addr,vma_ptr->vm_end);
@@ -92,6 +93,10 @@ void UTask::init_offset() {
     field_init(file, f_path);
     field_init(file, f_mapping);
     field_init(file, f_inode);
+    field_init(task_struct,files);
+    field_init(fdtable,max_fds);
+    field_init(fdtable,fd);
+    field_init(files_struct,fdt);
     field_init(path, dentry);
     field_init(path, mnt);
     field_init(anon_vma_name, name);
@@ -129,6 +134,37 @@ void UTask::init_mm_struct() {
 
 bool UTask::is_compat(){
     return compat;
+}
+
+void UTask::init_files(){
+    ulong files_addr = read_pointer(tc->task + field_offset(task_struct,files), "task_struct_files");
+    if (!is_kvaddr(files_addr)){
+        return;
+    }
+    // fprintf(fp, "files_addr: %#lx \n", files_addr);
+    ulong fdt_addr = read_pointer(files_addr + field_offset(files_struct,fdt), "fdt");
+    if (!is_kvaddr(fdt_addr)){
+        return;
+    }
+    // fprintf(fp, "fdt_addr: %#lx \n", fdt_addr);
+    size_t max_fds = read_uint(fdt_addr + field_offset(fdtable,max_fds), "max_fds");
+    ulong fd_array = read_pointer(fdt_addr + field_offset(fdtable,fd), "fd");
+    if (!is_kvaddr(fd_array)){
+        return;
+    }
+    task_files.resize(max_fds);
+    // fprintf(fp, "fd_array: %#lx \n", fd_array);
+    for (size_t i = 0; i < max_fds; i++){
+        ulong file = read_pointer(fd_array + i * sizeof(void *), "file");
+        if (!is_kvaddr(file)){
+            task_files[i] = 0;
+            continue;
+        }
+        task_files[i] = file;
+    }
+    // for(const auto& file : task_files){
+    //     fprintf(fp, "file: %#lx \n", file);
+    // }
 }
 
 void UTask::init_vma(){
@@ -234,6 +270,10 @@ void UTask::init_auxv(){
         parseAuxv(reinterpret_cast<Elf32_Auxv_t*>(auxv_buf));
     }
     FREEBUF(auxv_buf);
+}
+
+std::vector<ulong> UTask::for_each_file(){
+    return task_files;
 }
 
 std::vector<std::shared_ptr<vma_struct>> UTask::for_each_vma_list(){
@@ -637,7 +677,6 @@ ulong UTask::get_file_min_vaddr(std::string libname){
 }
 
 ulong UTask::get_var_addr_by_bss(std::string libname, std::string var_name){
-    int verbose = 0;
     std::string filename = libname;
     size_t pos = libname.find_last_of("/\\");
     if (pos != std::string::npos) {
@@ -645,21 +684,21 @@ ulong UTask::get_var_addr_by_bss(std::string libname, std::string var_name){
     }
     // get the min vaddr of the lib
     ulong vraddr = get_file_min_vaddr(filename);
-    if (verbose){
+    if (debug){
         fprintf(fp, "Min vaddr:0x%lx \n",vraddr);
     }
     // get the static addr of bss.
     int bss_align = 0;
     std::string section_name = ".bss";
     size_t bss_saddr = read_sections(section_name,libname,&bss_align);
-    if (verbose){
+    if (debug){
         fprintf(fp, "bss_saddr:%#zx \n",bss_saddr);
         fprintf(fp, "bss_align:%d \n",bss_align);
     }
     // calc the runtime addr of bss for lib
     size_t bss_vaddr = vraddr + bss_saddr;
     bss_vaddr = roundup(bss_vaddr,bss_align);
-    if (verbose){
+    if (debug){
         fprintf(fp, "bss_vaddr:%#zx \n",bss_vaddr);
     }
     // get the static addr of var_name
@@ -667,12 +706,12 @@ ulong UTask::get_var_addr_by_bss(std::string libname, std::string var_name){
     if (var_saddr == 0){
         return 0;
     }
-    if (verbose){
+    if (debug){
         fprintf(fp, "var_saddr:%#zx \n",var_saddr);
     }
     // calc the runtime addr of var_name
     size_t var_vaddr = bss_vaddr + (var_saddr - bss_saddr);
-    if (verbose){
+    if (debug){
         fprintf(fp, "var_vaddr:%#zx \n",var_vaddr);
     }
     if (!is_uvaddr(var_vaddr,tc)){

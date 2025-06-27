@@ -79,6 +79,7 @@ private:
     std::vector<std::shared_ptr<vma_struct>> anon_list;
     std::vector<std::shared_ptr<vma_struct>> bss_list;
     std::vector<std::shared_ptr<vma_struct>> file_list;
+    std::vector<ulong> task_files;
     std::unordered_map <ulong, ulong> auxv_list; // <type, val>
     std::unordered_map<std::string, std::shared_ptr<file_vma>> file_map;
     void init_mm_struct();
@@ -149,6 +150,7 @@ public:
     std::vector<std::shared_ptr<vma_struct>> for_each_vma_list();
     std::vector<std::shared_ptr<vma_struct>> for_each_anon_vma();
     std::vector<std::shared_ptr<vma_struct>> for_each_bss_vma();
+    std::vector<ulong> for_each_file();
     std::shared_ptr<vma_struct> get_text_vma(std::string filename);
     std::vector<std::shared_ptr<vma_struct>> for_each_data_vma(std::string filename);
     std::shared_ptr<vma_struct> get_phdr_vma(std::string filename);
@@ -174,6 +176,7 @@ public:
     struct task_context* get_task_context();
     void set_auxv(ulong name, ulong val);
     bool is_compat();
+    void init_files();
     bool is_contains(std::shared_ptr<vma_struct> vma_ptr, ulong addr);
     ~UTask();
     std::string read_start_args();
@@ -211,7 +214,7 @@ public:
         return 0;
     };
     void cmd_main(void) override;
-            /*
+    /*
                 +----------------------------------------------------+
                 |                                                    |
                 v                                                    |

@@ -552,7 +552,7 @@ std::shared_ptr<zram> Zraminfo::parser_zram(ulong addr){
         }
     }
     ulong disk_name_addr = ULONG(zram_buf + field_offset(zram,disk)) + field_offset(gendisk,disk_name);
-    zram_ptr->disk_name = read_cstring(disk_name_addr,32,"disk_name");;
+    zram_ptr->disk_name = read_cstring(disk_name_addr,32,"disk_name");
     // fprintf(fp, "disk_name:%s\n", zram_ptr->disk_name.c_str());
     if (field_offset(zram,compressor) != -1){
         char compressor_name[128];

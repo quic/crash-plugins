@@ -28,11 +28,22 @@ struct cpu_policy{
     std::vector<ulong> freq_table;
 };
 
+struct cpu_data {
+    bool            is_busy;
+    unsigned int    busy_pct;
+    unsigned int    cpu;
+    bool            not_preferred;
+    void            *cluster;
+    struct kernel_list_head    sib;
+    bool            disabled;
+};
+
 class CpuInfo : public ParserPlugin {
 public:
     CpuInfo();
     std::vector<std::shared_ptr<cpu_policy>> cpu_infos;
     void print_cpu_policy();
+    void print_cpu_state();
     void print_freq_table();
     void parser_cpu_policy();
     void cmd_main(void) override;
