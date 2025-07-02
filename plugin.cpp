@@ -1221,6 +1221,16 @@ std::string ParserPlugin::hexdump(uint64_t addr, const char* buf, size_t length,
     return sio.str();
 }
 
+std::stringstream ParserPlugin::get_curpath() {
+    std::stringstream ss;
+    char tmp_buf[PATH_MAX];
+    if (getcwd(tmp_buf, sizeof(tmp_buf)) != nullptr) {
+        ss << tmp_buf;
+    }
+    return ss;
+}
+
+
 #if defined(ARM)
 ulong* ParserPlugin::pmd_page_addr(ulong pmd){
     ulong ptr;

@@ -66,17 +66,11 @@ Core::~Core(){
 
 void Core::parser_core_dump(void) {
     tc = pid_to_context(core_pid);
-    std::string core_path;
-    char buffer[PATH_MAX];
-    if (getcwd(buffer, sizeof(buffer))) {
-        core_path = buffer;
-    }
-    char filename[32];
-    snprintf(filename, sizeof(filename), "core.%ld.%s", tc->pid, tc->comm);
-    std::string full_core_path = core_path + "/" + std::string(filename);
-    corefile = fopen(full_core_path.c_str(), "wb");
+    std::stringstream ss = get_curpath();
+    ss << "/core." << std::dec << tc->pid << "." << tc->comm;
+    corefile = fopen(ss.str().c_str(), "wb");
     if (!corefile) {
-        fprintf(fp, "Can't open %s\n", full_core_path.c_str());
+        fprintf(fp, "Can't open %s\n", ss.str().c_str());
         return;
     }
     task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
@@ -93,8 +87,7 @@ void Core::parser_core_dump(void) {
     parser_exec_name(task_ptr->get_auxv(AT_EXECFN));
     parser_thread_core_info();
     write_core_file();
-    fprintf(fp, "\ncore_path:%s \n", full_core_path.c_str());
-    core_path.clear();
+    fprintf(fp, "\ncore_path:%s \n", ss.str().c_str());
     Core::symbols_path.clear();
     task_ptr.reset();
 }

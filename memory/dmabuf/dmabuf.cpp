@@ -386,11 +386,7 @@ void Dmabuf::save_dma_buf(std::string addr){
     }
     for (const auto& buf_ptr : buf_list) {
         if (buf_ptr->addr == number) {
-            std::stringstream ss;
-            char tmp_buf[PATH_MAX];
-            if (getcwd(tmp_buf, sizeof(tmp_buf)) != nullptr) {
-                ss << tmp_buf;
-            }
+            std::stringstream ss = get_curpath();
             ss << "/dma_buf@" << std::hex << buf_ptr->addr << ".data";
             FILE* dma_file = fopen(ss.str().c_str(), "wb");
             if (!dma_file) {

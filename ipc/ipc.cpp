@@ -82,6 +82,7 @@ IPCLog::IPCLog(){
         "dump ipc log",        /* short description */
         "-a \n"
             "  ipc -l <ipc module name>\n"
+            "  ipc -s \n"
             "  This command dumps the ipc module log.",
         "\n",
         "EXAMPLES",
@@ -101,6 +102,10 @@ IPCLog::IPCLog(){
         "    [ 161.475913096 0x90dee5fdb85]   [glink_pkt_rpdev_copy_cb]: Data received on:ss_bt_ctrl len:60",
         "    [ 161.475946481 0x90dee5fde06]   [glink_pkt_rpdev_copy_cb]: Data queued on:ss_bt_ctrl len:60",
         "    [ 161.475976325 0x90dee5fe043]   [glink_pkt_poll]: Wait for pkt on channel:ss_bt_ctrl",
+        "\n",
+        "  Save all ipc log",
+        "    %s> ipc -s",
+        "    Save mmc0 to /xxx/ipc_log/mmc0",
         "\n",
     };
     initialize();
@@ -257,23 +262,20 @@ void IPCLog::save_ipc_log(){
         if (log_ptr->logs.size() == 0){
             parser_ipc_log_page(log_ptr);
         }
-        std::string ipc_file_path;
-        char buffer[PATH_MAX];
-        if (getcwd(buffer, sizeof(buffer)) != nullptr) {
-            ipc_file_path = buffer;
-        }
-        ipc_file_path += "/ipc_log/";
-        mkdir(ipc_file_path.c_str(), 0777);
-        ipc_file_path += log_ptr->name;
-        FILE* ipc_file = fopen(ipc_file_path.c_str(), "wb");
+        std::stringstream ipc_file_path = get_curpath();
+        ipc_file_path << "/ipc_log/";
+        mkdir(ipc_file_path.str().c_str(), 0777);
+        ipc_file_path << log_ptr->name;
+        FILE* ipc_file = fopen(ipc_file_path.str().c_str(), "wb");
         if (!ipc_file) {
-            fprintf(fp, "Can't open %s\n", ipc_file_path.c_str());
+            fprintf(fp, "Can't open %s\n", ipc_file_path.str().c_str());
             return;
         }
         for (const auto& log : log_ptr->logs){
             fwrite(log.c_str(),log.size(), 1, ipc_file);
         }
         fclose(ipc_file);
+        fprintf(fp, "Save %s to %s\n", log_ptr->name.c_str(),ipc_file_path.str().c_str());
     }
 }
 

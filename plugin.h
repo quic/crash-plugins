@@ -200,6 +200,7 @@ public:
     char get_printable(uint8_t d);
     std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
     std::string hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian = true);
+    std::stringstream get_curpath();
 #if defined(ARM)
     ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
 #endif

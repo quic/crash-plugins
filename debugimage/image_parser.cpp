@@ -59,19 +59,13 @@ uint64_t ImageParser::pac_ignore(uint64_t data) {
 }
 
 std::string ImageParser::get_cmm_path(std::string name, bool secure){
-    std::string reg_file_path;
-    char buffer[PATH_MAX];
-    if (getcwd(buffer, sizeof(buffer)) != nullptr) {
-        reg_file_path = buffer;
-    }
-    char filename[32];
+    std::stringstream ss = get_curpath();
     if (secure){
-        snprintf(filename, sizeof(filename), "secure_world_%s_regs.cmm",name.c_str());
+        ss << "/secure_world_." << name << "_regs.cmm";
     }else{
-        snprintf(filename, sizeof(filename), "%s_regs.cmm",name.c_str());
+        ss << "/" << name << "_regs.cmm";
     }
-    reg_file_path += "/" + std::string(filename);
-    // fprintf(fp, "reg_file_path:%s\n", reg_file_path.c_str());
-    return reg_file_path;
+    // fprintf(fp, "reg_file_path:%s\n", ss.str());
+    return ss.str();
 }
 #pragma GCC diagnostic pop
