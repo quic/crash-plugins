@@ -316,7 +316,11 @@ public:
     };
 
     ulong search_stdlist(std::shared_ptr<vma_struct> vma_ptr, ulong start_addr, std::function<bool (ulong)> node_callback);
-    std::vector<size_t> for_each_stdlist(ulong& stdlist_addr);
+    std::vector<size_t> for_each_stdlist(ulong stdlist_addr);
+    std::vector<size_t> for_each_stdvector(ulong std_vec_addr, size_t key_size);
+    std::string for_each_stdstring(ulong std_string_addr);
+    std::unordered_map<size_t, size_t> for_each_stdunmap(ulong std_un_map_addr, size_t key_size);
+    std::map<size_t, size_t> for_each_stdmap(ulong std_map_addr, size_t key_size);
 };
 
 #endif // TASK_DEFS_H_

@@ -485,7 +485,7 @@ ulong UTask::search_stdlist(std::shared_ptr<vma_struct> vma_ptr, ulong start_add
     return 0;
 }
 
-std::vector<size_t> UTask::for_each_stdlist(ulong& stdlist_addr){
+std::vector<size_t> UTask::for_each_stdlist(ulong stdlist_addr){
     std::vector<size_t> node_list;
     size_t tail_node, next_node, list_size;
     if (BITS64() && !is_compat()) {
@@ -517,6 +517,91 @@ std::vector<size_t> UTask::for_each_stdlist(ulong& stdlist_addr){
         current = next_node;
     }
     return node_list;
+}
+
+std::vector<size_t> UTask::for_each_stdvector(ulong std_vec_addr, size_t key_size){
+    std::vector<size_t> vec;
+    size_t begin = uread_pointer(std_vec_addr + 0 * pointer_size) & vaddr_mask;
+    size_t end = uread_pointer(std_vec_addr + 1 * pointer_size) & vaddr_mask;
+    // fprintf(fp, "addr:%#lx begin:0x%zx end:0x%zx\n", std_vec_addr, begin, end);
+    for (size_t addr = begin; addr < end && is_uvaddr(addr, tc) && addr != 0; addr += key_size) {
+        vec.push_back(addr);
+    }
+    return vec;
+}
+
+std::string UTask::for_each_stdstring(ulong std_string_addr){
+    size_t len = 0;
+    int data = uread_byte(std_string_addr);
+    bool is_long = data & 0x1;
+    if(is_long){
+        len = uread_uint(std_string_addr + 1 * pointer_size) & vaddr_mask;
+        std_string_addr = uread_pointer(std_string_addr + 2 * pointer_size) & vaddr_mask;
+    }else{
+        len = data >> 1;
+        std_string_addr = std_string_addr + 1;
+    }
+    // fprintf(fp, "is_long:%d len:%zu std_string_addr:%#lx \n", is_long, len, std_string_addr);
+    std::vector<char> str= read_data(std_string_addr, len);
+    if (!str.empty()) {
+        return std::string(str.begin(), str.end());
+    } else {
+        return std::string();
+    }
+}
+
+std::unordered_map<size_t, size_t> UTask::for_each_stdunmap(ulong std_un_map_addr, size_t key_size){
+    std::unordered_map<size_t, size_t> map;
+    size_t node_addr = uread_pointer(std_un_map_addr + 2 * pointer_size) & vaddr_mask;
+    size_t map_size = uread_uint(std_un_map_addr + 2 * pointer_size + pointer_size) & vaddr_mask;
+    for (size_t i = 0; i <= map_size && is_uvaddr(node_addr, tc) && node_addr != 0; i++) {
+        size_t key_addr = (node_addr + 2 * pointer_size) & vaddr_mask;
+        size_t value_addr = (node_addr + 2 * pointer_size + key_size) & vaddr_mask;
+        if(is_uvaddr(key_addr, tc) && is_uvaddr(value_addr, tc)){
+            map.emplace(std::make_pair(key_addr, value_addr));
+        }
+        node_addr = uread_pointer(node_addr) & vaddr_mask;
+    }
+    return map;
+}
+
+std::map<size_t, size_t> UTask::for_each_stdmap(ulong std_map_addr, size_t key_size){
+    std::map<size_t, size_t> map;
+    size_t root = uread_pointer(std_map_addr + pointer_size) & vaddr_mask;
+    size_t map_size = uread_uint(std_map_addr + 2 * pointer_size) & vaddr_mask;
+    // fprintf(fp, "addr:%#lx map_size:%zu root:0x%zx \n", std_map_addr, map_size, root);
+    if(map_size == 0 || !root || !is_uvaddr(root, tc)){
+        return map;
+    }
+    size_t key_addr = (root + 4 * pointer_size) & vaddr_mask;
+    size_t value_addr = (root + 4 * pointer_size + key_size) & vaddr_mask;
+    if(is_uvaddr(key_addr, tc) && is_uvaddr(value_addr, tc)){
+        map.emplace(std::make_pair(key_addr, value_addr));
+    }
+    std::vector<size_t> node_stack;
+    node_stack.push_back(root);
+    while(!node_stack.empty()){
+        size_t root_addr = node_stack.back();
+        node_stack.pop_back();
+        size_t left_addr = uread_pointer(root_addr + 0 * pointer_size) & vaddr_mask;
+        size_t right_addr = uread_pointer(root_addr + 1 * pointer_size) & vaddr_mask;
+        key_addr = (root_addr + 4 * pointer_size) & vaddr_mask;
+        value_addr = (root_addr + 4 * pointer_size + key_size) & vaddr_mask;
+        if(is_uvaddr(key_addr, tc) && is_uvaddr(value_addr, tc)){
+            map.emplace(std::make_pair(key_addr, value_addr));
+        }
+        // fprintf(fp, "child root:0x%zx left_addr:0x%zx right_addr:0x%zx \n", root_addr, left_addr, right_addr);
+        if(right_addr && is_uvaddr(right_addr, tc)){
+            node_stack.push_back(right_addr);
+        }
+        if(left_addr && is_uvaddr(left_addr, tc)){
+            node_stack.push_back(left_addr);
+        }
+    }
+    if(map_size != map.size()){
+        fprintf(fp, "map size is mismatch, memory size:%zu, real size:%zu \n", map_size, map.size());
+    }
+    return map;
 }
 
 uint64_t UTask::read_sections(std::string& section_name,std::string& libname, int *align) {
