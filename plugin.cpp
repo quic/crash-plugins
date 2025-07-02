@@ -23,7 +23,10 @@ ParserPlugin::ParserPlugin(){
     field_init(task_struct, mm);
     field_init(task_struct, tasks);
     struct_init(task_struct);
-
+    field_init(task_struct,files);
+    field_init(files_struct,fdt);
+    field_init(fdtable,max_fds);
+    field_init(fdtable,fd);
     field_init(mm_struct, pgd);
     field_init(mm_struct, arg_start);
     field_init(mm_struct, arg_end);
@@ -728,6 +731,36 @@ std::vector<ulong> ParserPlugin::for_each_driver(std::string bus_name){
         driver_list.push_back(driver_addr);
     }
     return driver_list;
+}
+
+std::vector<ulong> ParserPlugin::for_each_task_files(struct task_context *tc){
+    std::vector<ulong> file_table;
+    if (!tc){
+        return file_table;
+    }
+    ulong files = read_pointer(tc->task + field_offset(task_struct,files),"files");
+    if (!is_kvaddr(files)){
+        return file_table;
+    }
+    ulong fdt = read_pointer(files + field_offset(files_struct,fdt),"fdt");
+    if (!is_kvaddr(fdt)){
+        return file_table;
+    }
+    uint max_fds = read_uint(fdt + field_offset(fdtable,max_fds),"max_fds");
+    ulong fds = read_pointer(fdt + field_offset(fdtable,fd),"fds");
+    if (!is_kvaddr(fds)){
+        return file_table;
+    }
+    file_table.resize(max_fds);
+    for (size_t i = 0; i < max_fds; i++){
+        ulong file_addr = read_pointer(fds + i * sizeof(struct file *),"fd");
+        if (!is_kvaddr(file_addr)){
+            file_table[i] = 0;
+            continue;
+        }
+        file_table[i] = file_addr;
+    }
+    return file_table;
 }
 
 ulonglong ParserPlugin::read_structure_field(ulong addr,const std::string& type,const std::string& field,bool virt){

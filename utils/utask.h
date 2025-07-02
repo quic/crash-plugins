@@ -65,6 +65,7 @@ typedef struct{
 struct file_vma {
     std::shared_ptr<vma_struct> text;
     std::vector<std::shared_ptr<vma_struct>> data;
+    std::shared_ptr<vma_struct> bss;
 };
 
 class UTask : public ParserPlugin {
@@ -77,7 +78,6 @@ private:
     std::shared_ptr<mm_struct> mm_ptr;
     std::vector<std::shared_ptr<vma_struct>> vma_list;
     std::vector<std::shared_ptr<vma_struct>> anon_list;
-    std::vector<std::shared_ptr<vma_struct>> bss_list;
     std::vector<std::shared_ptr<vma_struct>> file_list;
     std::vector<ulong> task_files;
     std::unordered_map <ulong, ulong> auxv_list; // <type, val>
@@ -149,7 +149,6 @@ public:
     UTask(std::shared_ptr<Swapinfo> swap, ulong task_addr);
     std::vector<std::shared_ptr<vma_struct>> for_each_vma_list();
     std::vector<std::shared_ptr<vma_struct>> for_each_anon_vma();
-    std::vector<std::shared_ptr<vma_struct>> for_each_bss_vma();
     std::vector<ulong> for_each_file();
     std::shared_ptr<vma_struct> get_text_vma(std::string filename);
     std::vector<std::shared_ptr<vma_struct>> for_each_data_vma(std::string filename);
@@ -171,18 +170,18 @@ public:
     ulong uread_pointer(ulonglong addr);
     unsigned char uread_byte(ulonglong addr);
     int get_pointer_size();
-    void* read_auxv();
+    std::shared_ptr<vma_struct> get_bss_vma(std::string filename);
+    void *read_auxv();
     ulong get_auxv(ulong name);
     struct task_context* get_task_context();
     void set_auxv(ulong name, ulong val);
     bool is_compat();
-    void init_files();
     bool is_contains(std::shared_ptr<vma_struct> vma_ptr, ulong addr);
     ~UTask();
     std::string read_start_args();
     uint64_t read_sections(std::string &section_name, std::string &libname, int *align);
     uint64_t read_symbol(std::string &symbol_name, std::string &libname);
-    ulong get_file_min_vaddr(std::string libname);
+    ulong get_min_vma_start(std::string libname);
     ulong get_var_addr_by_bss(std::string libname, std::string var_name);
     template<typename T>
     T* uread_obj(ulonglong addr){
@@ -199,9 +198,27 @@ public:
                 fprintf(fp, "%s data:[%#lx-%#lx] \n", libname.c_str(), data_ptr->vm_start, data_ptr->vm_end);
             }
             std::shared_ptr<vma_struct> text_ptr = get_text_vma(libname);
-            fprintf(fp, "%s text:[%#lx-%#lx] \n", libname.c_str(), text_ptr->vm_start, text_ptr->vm_end);
+            if (text_ptr != nullptr){
+                fprintf(fp, "%s text:[%#lx-%#lx] \n", libname.c_str(), text_ptr->vm_start, text_ptr->vm_end);
+            }
+            std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
+            if (bss_ptr != nullptr){
+                fprintf(fp, "%s bss:[%#lx-%#lx] \n", libname.c_str(), bss_ptr->vm_start, bss_ptr->vm_end);
+            }
         }
-        std::vector<std::shared_ptr<vma_struct>> vm_list = is_static ? for_each_bss_vma() : for_each_anon_vma();
+        std::vector<std::shared_ptr<vma_struct>> vm_list;
+        vm_list.clear();
+        if (is_static){
+            std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
+            if (bss_ptr){
+                vm_list.push_back(bss_ptr);
+            }
+        }else{
+            vm_list = for_each_anon_vma();
+        }
+        if (vm_list.size() == 0){
+            return 0;
+        }
         for (const auto& vma_ptr : vm_list) {
             if (vma_callback && !vma_callback(vma_ptr)) {
                 continue;

@@ -76,6 +76,7 @@ public:
     Dmabuf();
     void cmd_main(void) override;
     void parser_dma_bufs();
+    std::shared_ptr<dma_buf> parser_dma_buf(ulong addr);
     void parser_buffer(std::shared_ptr<dma_buf> buf_ptr);
     bool sg_is_chain(ulong page_link);
     bool sg_is_last(ulong page_link);
@@ -84,7 +85,6 @@ public:
     void parser_sg_table(std::shared_ptr<dma_buf> buf_ptr);
     void get_dmabuf_from_proc();
     void get_proc_info(std::shared_ptr<dma_buf> buf_ptr);
-    std::vector<ulong> task_files(task_context *tc);
     std::vector<std::shared_ptr<attachment>> parser_attachments(ulong list_head);
     void print_dma_buf_list();
     void print_attachment(std::shared_ptr<dma_buf> buf_ptr);

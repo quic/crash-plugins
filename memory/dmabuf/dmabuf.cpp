@@ -44,10 +44,6 @@ Dmabuf::Dmabuf(){
     field_init(device,driver);
     field_init(kobject,name);
     field_init(device_driver,name);
-    field_init(task_struct,files);
-    field_init(files_struct,fdt);
-    field_init(fdtable,max_fds);
-    field_init(fdtable,fd);
     field_init(file,private_data);
     field_init(file,f_op);
     field_init(file,f_count);
@@ -86,46 +82,56 @@ void Dmabuf::parser_dma_bufs(){
         fprintf(fp, "db_list doesn't exist in this kernel!\n");
         return;
     }
-    int offset = field_offset(dma_buf,list_node);
-    char buf[BUFSIZE];
-    for (const auto& buf_addr : for_each_list(db_list_addr,offset)) {
-        void *dmabuf = read_struct(buf_addr,"dma_buf");
-        if(dmabuf == nullptr) continue;
-        std::shared_ptr<dma_buf> buf_ptr = std::make_shared<dma_buf>();
-        buf_ptr->addr = buf_addr;
-        buf_ptr->size = INT(dmabuf + field_offset(dma_buf,size));
-        buf_ptr->priv = ULONG(dmabuf + field_offset(dma_buf,priv));
-        parser_buffer(buf_ptr);
-        ulong file_addr = ULONG(dmabuf + field_offset(dma_buf,file));
-        if (is_kvaddr(file_addr)){
-            buf_ptr->f_count = read_long(file_addr + field_offset(file,f_count),"file_f_count");
-            if (field_offset(file, f_vfsmnt) != -1) {
-                get_pathname(file_to_dentry(file_addr), buf, BUFSIZE, 1, file_to_vfsmnt(file_addr));
-            } else {
-                get_pathname(file_to_dentry(file_addr), buf, BUFSIZE, 1, 0);
-            }
-            buf_ptr->file = buf;
+    for (const auto& buf_addr : for_each_list(db_list_addr,field_offset(dma_buf,list_node))) {
+        std::shared_ptr<dma_buf> buf_ptr = parser_dma_buf(buf_addr);
+        if (buf_ptr == nullptr){
+            continue;
         }
-        ulong name_addr = ULONG(dmabuf + field_offset(dma_buf,name));
-        if (is_kvaddr(name_addr)){
-             buf_ptr->name = read_cstring(name_addr,64,"dma_buf_name");
-        }
-        name_addr = ULONG(dmabuf + field_offset(dma_buf,exp_name));
-        if (is_kvaddr(name_addr)){
-             buf_ptr->exp_name = read_cstring(name_addr,64,"dma_buf_exp_name");
-        }
-        ulong ops_addr = ULONG(dmabuf + field_offset(dma_buf,ops));
-        ulong offset;
-        struct syment *sp = value_search(ops_addr, &offset);
-        if (sp) {
-            buf_ptr->ops_name = sp->name;
-        }
-        FREEBUF(dmabuf);
         ulong attachments_head = buf_addr + field_offset(dma_buf,attachments);
         buf_ptr->attachments = parser_attachments(attachments_head);
         get_proc_info(buf_ptr);
         buf_list.push_back(buf_ptr);
     }
+}
+
+std::shared_ptr<dma_buf> Dmabuf::parser_dma_buf(ulong addr){
+    if (!is_kvaddr(addr)){
+        return nullptr;
+    }
+    void *dmabuf = read_struct(addr,"dma_buf");
+    if(dmabuf == nullptr) return nullptr;
+    std::shared_ptr<dma_buf> buf_ptr = std::make_shared<dma_buf>();
+    buf_ptr->addr = addr;
+    buf_ptr->size = INT(dmabuf + field_offset(dma_buf,size));
+    buf_ptr->priv = ULONG(dmabuf + field_offset(dma_buf,priv));
+    parser_buffer(buf_ptr);
+    ulong file_addr = ULONG(dmabuf + field_offset(dma_buf,file));
+    if (is_kvaddr(file_addr)){
+        char buf[BUFSIZE];
+        buf_ptr->f_count = read_long(file_addr + field_offset(file,f_count),"file_f_count");
+        if (field_offset(file, f_vfsmnt) != -1) {
+            get_pathname(file_to_dentry(file_addr), buf, BUFSIZE, 1, file_to_vfsmnt(file_addr));
+        } else {
+            get_pathname(file_to_dentry(file_addr), buf, BUFSIZE, 1, 0);
+        }
+        buf_ptr->file = buf;
+    }
+    ulong name_addr = ULONG(dmabuf + field_offset(dma_buf,name));
+    if (is_kvaddr(name_addr)){
+        buf_ptr->name = read_cstring(name_addr,64,"dma_buf_name");
+    }
+    name_addr = ULONG(dmabuf + field_offset(dma_buf,exp_name));
+    if (is_kvaddr(name_addr)){
+        buf_ptr->exp_name = read_cstring(name_addr,64,"dma_buf_exp_name");
+    }
+    ulong ops_addr = ULONG(dmabuf + field_offset(dma_buf,ops));
+    ulong offset;
+    struct syment *sp = value_search(ops_addr, &offset);
+    if (sp) {
+        buf_ptr->ops_name = sp->name;
+    }
+    FREEBUF(dmabuf);
+    return buf_ptr;
 }
 
 void Dmabuf::parser_buffer(std::shared_ptr<dma_buf> buf_ptr){
@@ -207,8 +213,11 @@ void Dmabuf::get_dmabuf_from_proc(){
             continue;
         }
         std::unordered_map<ulong, int> map;
-        std::vector<ulong> files = task_files(tc);
+        std::vector<ulong> files = for_each_task_files(tc);
         for (size_t i = 0; i < files.size(); i++){
+            if (!is_kvaddr(files[i])){
+                continue;
+            }
             ulong f_op = read_pointer(files[i] + field_offset(file,f_op),"f_op");
             if (f_op != dma_buf_fops){
                 continue;
@@ -238,33 +247,7 @@ void Dmabuf::get_proc_info(std::shared_ptr<dma_buf> buf_ptr){
     }
 }
 
-std::vector<ulong> Dmabuf::task_files(struct task_context *tc){
-    std::vector<ulong> file_table;
-    if (!tc){
-        return file_table;
-    }
-    ulong files = read_pointer(tc->task + field_offset(task_struct,files),"files");
-    if (!is_kvaddr(files)){
-        return file_table;
-    }
-    ulong fdt = read_pointer(files + field_offset(files_struct,fdt),"fdt");
-    if (!is_kvaddr(fdt)){
-        return file_table;
-    }
-    uint max_fds = read_uint(fdt + field_offset(fdtable,max_fds),"max_fds");
-    ulong fds = read_pointer(fdt + field_offset(fdtable,fd),"fds");
-    if (!is_kvaddr(fds)){
-        return file_table;
-    }
-    for (size_t i = 0; i < max_fds; i++){
-        ulong file_addr = read_pointer(fds + i * sizeof(struct file *),"fd");
-        if (!is_kvaddr(file_addr)){
-            continue;
-        }
-        file_table.push_back(file_addr);
-    }
-    return file_table;
-}
+
 
 std::vector<std::shared_ptr<attachment>> Dmabuf::parser_attachments(ulong list_head){
     std::vector<std::shared_ptr<attachment>> res;
