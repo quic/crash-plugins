@@ -96,10 +96,11 @@ Support module:
 | socinfo       | √         | √         | parser socinfo and commandline                       |
 | sched         | √         | √         | parser task sched info                               |
 
-|  module       |   Android-11.0(30)  |  >Android-12.0(31)  |      comment             |
-|  --------     | ------------------- | ------------------- | -------------------      |
-| property      | √                   | √                   |   parser property info   |
-| logcat        | √                   | √                   |   parser logcat log      |
+|  module       |   Android-11.0(30)  |  >Android-12.0(31)  |      comment               |
+|  --------     | ------------------- | ------------------- | -------------------        |
+| property      | √                   | √                   |   parser property info     |
+| logcat        | √                   | √                   |   parser logcat log        |
+| surfaceflinger| √                   | √                   |   parser the layer info    |
 
 ## usage
 See [USAGE.md](USAGE.md)
