@@ -84,9 +84,9 @@ ParserPlugin::ParserPlugin(){
     if (BITS64()){
         std::string config = get_config_val("CONFIG_ARM64_VA_BITS");
         int va_bits = std::stoi(config);
-        vaddr_mask = GENMASK_ULL((va_bits ? va_bits : 39) - 1, 0);
+        kaddr_mask = GENMASK_ULL((va_bits ? va_bits : 39) - 1, 0);
     }else{
-        vaddr_mask = GENMASK_ULL(32 - 1, 0);
+        kaddr_mask = GENMASK_ULL(32 - 1, 0);
     }
     //print_table();
 }

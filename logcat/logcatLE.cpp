@@ -81,7 +81,7 @@ size_t LogcatLE::get_logbuf_addr_from_bss(){
         return 0;
     }
     // static LogBuffer* logBuf = nullptr
-    logbuf_addr = task_ptr->uread_ulong(logbuf_addr)& vaddr_mask;
+    logbuf_addr = task_ptr->uread_ulong(logbuf_addr);
     return logbuf_addr;
 }
 
@@ -90,7 +90,7 @@ void LogcatLE::parser_logbuf(ulong buf_addr){
     fprintf(fp, "LogBuffer:%#lx \n", LogElements_list_addr);
     ulong LogBufferElement_addr = 0;
     for(auto data_node: task_ptr->for_each_stdlist(LogElements_list_addr)){
-        LogBufferElement_addr = task_ptr->uread_ulong(data_node) & vaddr_mask;
+        LogBufferElement_addr = task_ptr->uread_ulong(data_node);
         parser_LogBufferElement(LogBufferElement_addr);
     }
 }

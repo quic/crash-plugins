@@ -148,19 +148,19 @@ ulong LogcatS::parser_logbuf_addr(){
         ulong compressed_data = 0;
         ulong compressed_size = 0;
         if (BITS64() && !task_ptr->is_compat()) {
-            contents_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-            contents_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & vaddr_mask;
-            write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
-            write_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ ) & vaddr_mask;
-            compressed_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-            compressed_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+            contents_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+            contents_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & task_ptr->vaddr_mask;
+            write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & task_ptr->vaddr_mask;
+            write_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ ) & task_ptr->vaddr_mask;
+            compressed_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+            compressed_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & task_ptr->vaddr_mask;
         }else{
-            contents_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-            contents_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & vaddr_mask;
-            write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
-            write_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ ) & vaddr_mask;
-            compressed_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-            compressed_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+            contents_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+            contents_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_size_) & task_ptr->vaddr_mask;
+            write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & task_ptr->vaddr_mask;
+            write_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ ) & task_ptr->vaddr_mask;
+            compressed_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+            compressed_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & task_ptr->vaddr_mask;
         }
         if (write_active == true && contents_data != 0 && contents_size != 0 &&
             write_offset != 0 && write_offset < contents_size) { // uncompressed chunk
@@ -230,10 +230,10 @@ size_t LogcatS::get_logbuf_addr_from_register(){
     if (debug){
         fprintf(fp, "user_pt_regs:%#lx \n", pt_regs_addr);
         for (int i = 0; i < 31; i++){
-            fprintf(fp, "regs[%d]:%#lx \n", i,regs[i] & vaddr_mask );
+            fprintf(fp, "regs[%d]:%#lx \n", i,regs[i] & task_ptr->vaddr_mask );
         }
     }
-    uint64_t x21 = regs[21] & vaddr_mask;
+    uint64_t x21 = regs[21] & task_ptr->vaddr_mask;
     if (x21 > 0 && is_uvaddr(x21, tc_logd)){
         x21 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x21)){
@@ -241,7 +241,7 @@ size_t LogcatS::get_logbuf_addr_from_register(){
             return x21;
         }
     }
-    uint64_t x22 = regs[22] & vaddr_mask;
+    uint64_t x22 = regs[22] & task_ptr->vaddr_mask;
     if (x22 > 0 && is_uvaddr(x22, tc_logd)){
         x22 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x22)){
@@ -249,7 +249,7 @@ size_t LogcatS::get_logbuf_addr_from_register(){
             return x22;
         }
     }
-    uint64_t x23 = regs[23] & vaddr_mask;
+    uint64_t x23 = regs[23] & task_ptr->vaddr_mask;
     if (x23 > 0 && is_uvaddr(x23, tc_logd)){
         x23 += g_offset.SerializedLogBuffer_logs_;
         if (check_SerializedLogChunk_list_array(x23)){
@@ -293,19 +293,15 @@ size_t LogcatS::get_logbuf_addr_from_bss(){
         return 0;
     }
     // static LogBuffer* log_buffer = nullptr
-    if (task_ptr->is_compat()) {
-        logbuf_addr = task_ptr->uread_uint(logbuf_addr) & vaddr_mask;
-    }else{
-        logbuf_addr = task_ptr->uread_ulong(logbuf_addr) & vaddr_mask;
-    }
+    logbuf_addr = task_ptr->uread_ulong(logbuf_addr);
     return logbuf_addr;
 }
 
 void LogcatS::parser_logbuf(ulong buf_addr){
     size_t log_size = g_size.SerializedLogBuffer_logs_ / 8;
-    // if (debug){
+    if (debug){
         fprintf(fp, "logs_addr:%#lx log_size:%zd\n",buf_addr,log_size);
-    // }
+    }
     for (size_t i = 0; i <= KERNEL; i++){
         if (i >= MAIN && i <= KERNEL) {
             ulong log_list_addr = buf_addr + i * log_size;
@@ -330,17 +326,17 @@ void LogcatS::parser_SerializedLogChunk(LOG_ID log_id, ulong vaddr){
         return;
     }
     if (BITS64() && !task_ptr->is_compat()) {
-        contents_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-        write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
+        contents_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+        write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & task_ptr->vaddr_mask;
         writer_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ );
-        compressed_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-        compressed_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+        compressed_data = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+        compressed_size = ULONG(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & task_ptr->vaddr_mask;
     }else{
-        contents_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & vaddr_mask;
-        write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & vaddr_mask;
+        contents_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_contents_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+        write_offset = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_write_offset_ ) & task_ptr->vaddr_mask;
         writer_active = BOOL(chunk_buf.data() + g_offset.SerializedLogChunk_writer_active_ );
-        compressed_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & vaddr_mask;
-        compressed_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & vaddr_mask;
+        compressed_data = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_data_) & task_ptr->vaddr_mask;
+        compressed_size = UINT(chunk_buf.data() + g_offset.SerializedLogChunk_compressed_log_ + g_offset.SerializedData_size_) & task_ptr->vaddr_mask;
     }
     if (writer_active == false){
         if (!is_uvaddr(compressed_data,tc_logd) || compressed_size == 0){

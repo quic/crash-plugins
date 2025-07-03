@@ -137,11 +137,7 @@ bool PropInfo::parser_propertys(){
         // fprintf(fp, "pa_size: %#zx is not invaild !\n",pa_size_addr);
         return false;
     }
-    if (is_compat){
-        pa_size = task_ptr->uread_uint(pa_size_addr) & vaddr_mask;
-    }else{
-        pa_size = task_ptr->uread_ulong(pa_size_addr) & vaddr_mask;
-    }
+    pa_size = task_ptr->uread_ulong(pa_size_addr);
     if(debug)fprintf(fp, "pa_size:%#zx --> %zu \n",pa_size_addr, pa_size);
 
     size_t pa_data_size_addr = task_ptr->get_var_addr_by_bss(symbol_file, "pa_data_size_");
@@ -149,11 +145,7 @@ bool PropInfo::parser_propertys(){
         // fprintf(fp, "pa_data_size: %#zx is not invaild !\n",pa_data_size_addr);
         return false;
     }
-    if (is_compat){
-        pa_data_size = task_ptr->uread_uint(pa_data_size_addr) & vaddr_mask;
-    }else{
-        pa_data_size = task_ptr->uread_ulong(pa_data_size_addr) & vaddr_mask;
-    }
+    pa_data_size = task_ptr->uread_ulong(pa_data_size_addr);
     if(debug)fprintf(fp, "pa_data_size:%#zx --> %zu \n",pa_data_size_addr, pa_data_size);
     size_t system_prop_addr = task_ptr->get_var_addr_by_bss(symbol_file, "system_properties");
     if (!is_uvaddr(system_prop_addr,tc_init)){
@@ -163,26 +155,15 @@ bool PropInfo::parser_propertys(){
     if(debug)fprintf(fp, "system_properties: %#zx \n",system_prop_addr);
     size_t contexts_addr = system_prop_addr + g_offset.SystemProperties_contexts_;
     if(debug)fprintf(fp, "contexts:%#zx offset: %d \n",contexts_addr, g_offset.SystemProperties_contexts_);
-    if (is_compat){
-        contexts_addr = task_ptr->uread_uint(contexts_addr) & vaddr_mask;
-    }else{
-        contexts_addr = task_ptr->uread_ulong(contexts_addr) & vaddr_mask;
-    }
+    contexts_addr = task_ptr->uread_ulong(contexts_addr) & task_ptr->vaddr_mask;
     if (!is_uvaddr(contexts_addr,tc_init)){
         // fprintf(fp, "ContextsSerialized: %#zx is not invaild !\n",contexts_addr);
         return false;
     }
     if(debug)fprintf(fp, "ContextsSerialized: %#zx \n",contexts_addr);
-    size_t num_context_nodes,context_nodes_addr,serial_prop_area_addr;
-    if (is_compat){
-        num_context_nodes = task_ptr->uread_uint(contexts_addr + g_offset.ContextsSerialized_num_context_nodes_) & vaddr_mask;
-        context_nodes_addr = task_ptr->uread_uint(contexts_addr + g_offset.ContextsSerialized_context_nodes_) & vaddr_mask;
-        serial_prop_area_addr = task_ptr->uread_uint(contexts_addr + g_offset.ContextsSerialized_serial_prop_area_) & vaddr_mask;
-    }else{
-        num_context_nodes = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_num_context_nodes_) & vaddr_mask;
-        context_nodes_addr = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_context_nodes_) & vaddr_mask;
-        serial_prop_area_addr = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_serial_prop_area_) & vaddr_mask;
-    }
+    size_t num_context_nodes = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_num_context_nodes_);
+    size_t context_nodes_addr = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_context_nodes_) & task_ptr->vaddr_mask;
+    size_t serial_prop_area_addr = task_ptr->uread_ulong(contexts_addr + g_offset.ContextsSerialized_serial_prop_area_) & task_ptr->vaddr_mask;
     if (!is_uvaddr(serial_prop_area_addr,tc_init)){
         // fprintf(fp, "serial_prop_area: %#zx is not invaild !\n",serial_prop_area_addr);
         return false;
@@ -201,16 +182,9 @@ bool PropInfo::parser_propertys(){
             // fprintf(fp, "ContextNode: %#zx is not invaild !\n",node_addr);
             continue;
         }
-        size_t prop_area_addr,context_addr,filename_addr;
-        if (is_compat){
-            prop_area_addr = task_ptr->uread_uint(node_addr + g_offset.ContextNode_pa_) & vaddr_mask;
-            context_addr = task_ptr->uread_uint(node_addr + g_offset.ContextNode_context_) & vaddr_mask;
-            filename_addr = task_ptr->uread_uint(node_addr + g_offset.ContextNode_filename_) & vaddr_mask;
-        }else{
-            prop_area_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_pa_) & vaddr_mask;
-            context_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_context_) & vaddr_mask;
-            filename_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_filename_) & vaddr_mask;
-        }
+        size_t prop_area_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_pa_) & task_ptr->vaddr_mask;
+        size_t context_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_context_) & task_ptr->vaddr_mask;
+        size_t filename_addr = task_ptr->uread_ulong(node_addr + g_offset.ContextNode_filename_) & task_ptr->vaddr_mask;
         std::string context = task_ptr->uread_cstring(context_addr, 100);
         std::string filename = task_ptr->uread_cstring(filename_addr,100);
         if(debug)fprintf(fp, "[%zu]ContextNode: %#zx prop_area:%#zx\n",i,node_addr,prop_area_addr);

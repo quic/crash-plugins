@@ -114,7 +114,7 @@ public:
     const size_t page_size = PAGESIZE();
     const size_t page_shift = PAGESHIFT();
     const size_t page_mask = ~(page_size - 1);
-    ulong vaddr_mask = 0;
+    ulong kaddr_mask = 0;
     std::string cmd_name;
     std::vector<std::string> help_str_list;
     char** cmd_help;

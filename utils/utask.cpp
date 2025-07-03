@@ -130,6 +130,13 @@ void UTask::init_mm_struct() {
         }
     }
     pointer_size = (BITS64() && !is_compat()) ? 8 : 4;
+    if (BITS64() && !is_compat()){
+        std::string config = get_config_val("CONFIG_ARM64_VA_BITS");
+        int va_bits = std::stoi(config);
+        vaddr_mask = GENMASK_ULL((va_bits ? va_bits : 39) - 1, 0);
+    }else{
+        vaddr_mask = GENMASK_ULL(32 - 1, 0);
+    }
 }
 
 bool UTask::is_compat(){
@@ -382,7 +389,7 @@ long UTask::uread_long(ulonglong addr){
 }
 
 ulong UTask::uread_ulong(ulonglong addr){
-    std::vector<char> buf = read_data(addr,sizeof(ulong));
+    std::vector<char> buf = read_data(addr,pointer_size);
     if(buf.size() == 0){
         return 0;
     }
@@ -414,7 +421,7 @@ short UTask::uread_short(ulonglong addr){
 }
 
 ulong UTask::uread_pointer(ulonglong addr){
-    std::vector<char> buf = read_data(addr,sizeof(void *));
+    std::vector<char> buf = read_data(addr,pointer_size);
     if(buf.size() == 0){
         return 0;
     }
@@ -487,27 +494,15 @@ ulong UTask::search_stdlist(std::shared_ptr<vma_struct> vma_ptr, ulong start_add
 
 std::vector<size_t> UTask::for_each_stdlist(ulong stdlist_addr){
     std::vector<size_t> node_list;
-    size_t tail_node, next_node, list_size;
-    if (BITS64() && !is_compat()) {
-        tail_node = uread_ulong(stdlist_addr + 0 * pointer_size) & vaddr_mask;
-        next_node = uread_ulong(stdlist_addr + 1 * pointer_size) & vaddr_mask;
-        list_size = uread_ulong(stdlist_addr + 2 * pointer_size) & vaddr_mask;
-    } else {
-        tail_node = uread_uint(stdlist_addr + 0 * pointer_size) & vaddr_mask;
-        next_node = uread_uint(stdlist_addr + 1 * pointer_size) & vaddr_mask;
-        list_size = uread_uint(stdlist_addr + 2 * pointer_size) & vaddr_mask;
-    }
+    size_t tail_node = uread_ulong(stdlist_addr + 0 * pointer_size) & vaddr_mask;
+    size_t next_node = uread_ulong(stdlist_addr + 1 * pointer_size) & vaddr_mask;
+    size_t list_size = uread_ulong(stdlist_addr + 2 * pointer_size) & vaddr_mask;
     size_t prev_node = 0;
     size_t current = next_node;
     // fprintf(fp, "addr:0x%lx tail_node:0x%zx next_node:0x%zx list_size:%zu\n",stdlist_addr,tail_node,next_node,list_size);
     for (size_t i = 1; i <= list_size && is_uvaddr(current, tc); ++i) {
-        if (BITS64() && !is_compat()) {
-            prev_node = uread_ulong(current + 0 * pointer_size) & vaddr_mask;
-            next_node = uread_ulong(current + 1 * pointer_size) & vaddr_mask;
-        } else {
-            prev_node = uread_uint(current + 0 * pointer_size) & vaddr_mask;
-            next_node = uread_uint(current + 1 * pointer_size) & vaddr_mask;
-        }
+        prev_node = uread_ulong(current + 0 * pointer_size) & vaddr_mask;
+        next_node = uread_ulong(current + 1 * pointer_size) & vaddr_mask;
         ulong data_node = current + 2 * pointer_size;
         // fprintf(fp, "[%zu]addr:0x%zx prev_node:0x%zx next_node:0x%zx data_node:0x%lx\n",i,current,prev_node,next_node,data_node);
         if (next_node == 0 || prev_node == tail_node) {
@@ -521,8 +516,8 @@ std::vector<size_t> UTask::for_each_stdlist(ulong stdlist_addr){
 
 std::vector<size_t> UTask::for_each_stdvector(ulong std_vec_addr, size_t key_size){
     std::vector<size_t> vec;
-    size_t begin = uread_pointer(std_vec_addr + 0 * pointer_size) & vaddr_mask;
-    size_t end = uread_pointer(std_vec_addr + 1 * pointer_size) & vaddr_mask;
+    size_t begin = uread_pointer(std_vec_addr + 0 * pointer_size);
+    size_t end = uread_pointer(std_vec_addr + 1 * pointer_size);
     // fprintf(fp, "addr:%#lx begin:0x%zx end:0x%zx\n", std_vec_addr, begin, end);
     for (size_t addr = begin; addr < end && is_uvaddr(addr, tc) && addr != 0; addr += key_size) {
         vec.push_back(addr);
@@ -535,8 +530,8 @@ std::string UTask::for_each_stdstring(ulong std_string_addr){
     int data = uread_byte(std_string_addr);
     bool is_long = data & 0x1;
     if(is_long){
-        len = uread_uint(std_string_addr + 1 * pointer_size) & vaddr_mask;
-        std_string_addr = uread_pointer(std_string_addr + 2 * pointer_size) & vaddr_mask;
+        len = uread_uint(std_string_addr + 1 * pointer_size);
+        std_string_addr = uread_pointer(std_string_addr + 2 * pointer_size);
     }else{
         len = data >> 1;
         std_string_addr = std_string_addr + 1;
@@ -552,29 +547,29 @@ std::string UTask::for_each_stdstring(ulong std_string_addr){
 
 std::unordered_map<size_t, size_t> UTask::for_each_stdunmap(ulong std_un_map_addr, size_t key_size){
     std::unordered_map<size_t, size_t> map;
-    size_t node_addr = uread_pointer(std_un_map_addr + 2 * pointer_size) & vaddr_mask;
-    size_t map_size = uread_uint(std_un_map_addr + 2 * pointer_size + pointer_size) & vaddr_mask;
+    size_t node_addr = uread_pointer(std_un_map_addr + 2 * pointer_size);
+    size_t map_size = uread_uint(std_un_map_addr + 2 * pointer_size + pointer_size);
     for (size_t i = 0; i <= map_size && is_uvaddr(node_addr, tc) && node_addr != 0; i++) {
-        size_t key_addr = (node_addr + 2 * pointer_size) & vaddr_mask;
-        size_t value_addr = (node_addr + 2 * pointer_size + key_size) & vaddr_mask;
+        size_t key_addr = node_addr + 2 * pointer_size;
+        size_t value_addr = node_addr + 2 * pointer_size + key_size;
         if(is_uvaddr(key_addr, tc) && is_uvaddr(value_addr, tc)){
             map.emplace(std::make_pair(key_addr, value_addr));
         }
-        node_addr = uread_pointer(node_addr) & vaddr_mask;
+        node_addr = uread_pointer(node_addr);
     }
     return map;
 }
 
 std::map<size_t, size_t> UTask::for_each_stdmap(ulong std_map_addr, size_t key_size){
     std::map<size_t, size_t> map;
-    size_t root = uread_pointer(std_map_addr + pointer_size) & vaddr_mask;
-    size_t map_size = uread_uint(std_map_addr + 2 * pointer_size) & vaddr_mask;
+    size_t root = uread_pointer(std_map_addr + pointer_size);
+    size_t map_size = uread_uint(std_map_addr + 2 * pointer_size);
     // fprintf(fp, "addr:%#lx map_size:%zu root:0x%zx \n", std_map_addr, map_size, root);
     if(map_size == 0 || !root || !is_uvaddr(root, tc)){
         return map;
     }
-    size_t key_addr = (root + 4 * pointer_size) & vaddr_mask;
-    size_t value_addr = (root + 4 * pointer_size + key_size) & vaddr_mask;
+    size_t key_addr = root + 4 * pointer_size;
+    size_t value_addr = root + 4 * pointer_size + key_size;
     if(is_uvaddr(key_addr, tc) && is_uvaddr(value_addr, tc)){
         map.emplace(std::make_pair(key_addr, value_addr));
     }
@@ -583,10 +578,10 @@ std::map<size_t, size_t> UTask::for_each_stdmap(ulong std_map_addr, size_t key_s
     while(!node_stack.empty()){
         size_t root_addr = node_stack.back();
         node_stack.pop_back();
-        size_t left_addr = uread_pointer(root_addr + 0 * pointer_size) & vaddr_mask;
-        size_t right_addr = uread_pointer(root_addr + 1 * pointer_size) & vaddr_mask;
-        key_addr = (root_addr + 4 * pointer_size) & vaddr_mask;
-        value_addr = (root_addr + 4 * pointer_size + key_size) & vaddr_mask;
+        size_t left_addr = uread_pointer(root_addr + 0 * pointer_size);
+        size_t right_addr = uread_pointer(root_addr + 1 * pointer_size);
+        key_addr = root_addr + 4 * pointer_size;
+        value_addr = root_addr + 4 * pointer_size + key_size;
         if(is_uvaddr(key_addr, tc) && is_uvaddr(value_addr, tc)){
             map.emplace(std::make_pair(key_addr, value_addr));
         }

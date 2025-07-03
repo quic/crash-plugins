@@ -145,6 +145,7 @@ private:
     };
 
 public:
+    ulong vaddr_mask = 0;
     UTask(std::shared_ptr<Swapinfo> swap, int pid);
     UTask(std::shared_ptr<Swapinfo> swap, ulong task_addr);
     std::vector<std::shared_ptr<vma_struct>> for_each_vma_list();
