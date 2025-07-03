@@ -107,7 +107,8 @@ list(APPEND PLUGIN_SOURCES
     clock/clock.cpp
     pstore/pstore.cpp
     sysinfo/sys.cpp
-    bootlog/boot.cpp)
+    bootlog/boot.cpp
+    task/task_sched.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -372,4 +373,9 @@ add_library(boot SHARED
             ${PLUGIN_SOURCES}
             bootlog/boot.cpp)
 set_target_properties(boot PROPERTIES PREFIX "")
+# =================== build task ===================
+add_library(sched SHARED
+            ${PLUGIN_SOURCES}
+            task/task_sched.cpp)
+set_target_properties(sched PROPERTIES PREFIX "")
 endif()
