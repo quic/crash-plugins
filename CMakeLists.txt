@@ -108,7 +108,8 @@ list(APPEND PLUGIN_SOURCES
     pstore/pstore.cpp
     sysinfo/sys.cpp
     bootlog/boot.cpp
-    task/task_sched.cpp)
+    task/task_sched.cpp
+    surfaceflinger/sf.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -360,22 +361,40 @@ set_target_properties(ccf PROPERTIES PREFIX "")
 add_library(pstore SHARED
             ${PLUGIN_SOURCES}
             utils/utask.cpp
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c
             pstore/pstore.cpp)
 set_target_properties(pstore PROPERTIES PREFIX "")
+target_link_libraries(pstore ${ELF_LIBRARIES})
 
 # =================== build sys ===================
 add_library(sys SHARED
             ${PLUGIN_SOURCES}
             sysinfo/sys.cpp)
 set_target_properties(sys PROPERTIES PREFIX "")
+
 # =================== build boot ===================
 add_library(boot SHARED
             ${PLUGIN_SOURCES}
             bootlog/boot.cpp)
 set_target_properties(boot PROPERTIES PREFIX "")
+
 # =================== build task ===================
 add_library(sched SHARED
             ${PLUGIN_SOURCES}
             task/task_sched.cpp)
 set_target_properties(sched PROPERTIES PREFIX "")
+# =================== build sf ===================
+add_library(sf SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            utils/utask.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c
+            surfaceflinger/sf.cpp)
+set_target_properties(sf PROPERTIES PREFIX "")
+target_link_libraries(sf ${ELF_LIBRARIES})
 endif()

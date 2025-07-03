@@ -40,9 +40,9 @@ Support command:
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
-| [prop](#prop)            | √                 | √               |  √              | show property         |
-| [logcat](#logcat)        | √                 | √               |  √              | show logcat log       |
-
+| [prop](#prop)            | √                 | √               | √               | show property         |
+| [logcat](#logcat)        | √                 | √               | √               | show logcat log       |
+| [sfg](#sfg)              | √                 | √               | √               | show layer info       |
 
 ## memblock
 This command is used to view detailed information about memblock.
@@ -2132,6 +2132,38 @@ crash> pstore -p
 25-04-20 19:03:41.000782 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
 25-04-20 19:03:41.000791 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
 ```
+
+## sfg
+This command dumps surfaceflinger info.
+
+### sfg -a
+Dump gralloc4 info
+```
+crash> sfg -a
+GraphicBufferAllocator buffers:
+      Handle |             Dmabuf |         Size |     W (Stride) x H | Layers |       Format |        Usage | Requestor
+0x7486014340 | 0xffffff804f37e400 |   908.00 KiB |  454 ( 512) x  454 |      1 |    RGBA_8888 |       0x1b00 | FramebufferSurface
+Total allocated by GraphicBufferAllocator (estimate): 1350.00 KB
+
+Imported gralloc4 buffers:
+Name                                    W/H                      Dmabuf                Format      Usage
+FramebufferSurface                      454(512) x 454(464)      0xffffff804ea87000    RGBA_8888   0x1b00
+```
+
+### sfg -b
+Dump gralloc5 info
+```
+crash> sfg -b
+GraphicBufferAllocator buffers:
+      Handle |             Dmabuf |         Size |     W (Stride) x H | Layers |       Format |        Usage | Requestor
+0x7486014340 | 0xffffff804f37e400 |   908.00 KiB |  454 ( 512) x  454 |      1 |    RGBA_8888 |       0x1b00 | FramebufferSurface
+Total allocated by GraphicBufferAllocator (estimate): 1350.00 KB
+
+Imported gralloc5 buffers:
+Name                                    W/H                      Dmabuf                Format      Usage
+FramebufferSurface                      454(512) x 454(464)      0xffffff804ea87000    RGBA_8888   0x1b00
+```
+
 ## env
 This command dumps system info.
 
