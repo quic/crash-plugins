@@ -24,8 +24,8 @@ LogcatLE::LogcatLE(std::shared_ptr<Swapinfo> swap) : Logcat(swap){
 
 ulong LogcatLE::parser_logbuf_addr(){
     size_t logbuf_addr;
-    struct_init(LogBufferElement_LE);
-    if (struct_size(LogBufferElement_LE) != -1 && !logd_symbol.empty()){
+    struct_init(LogBufferElement);
+    if (struct_size(LogBufferElement) != -1 && !logd_symbol.empty()){
         fprintf(fp, "Looking for static logbuf \n");
         logbuf_addr = get_logbuf_addr_from_bss();
         if (logbuf_addr != 0){

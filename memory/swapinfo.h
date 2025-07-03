@@ -40,24 +40,10 @@ private:
     int nr_swap;
     char* uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
     char* do_swap_page(ulonglong task_addr,ulonglong uvaddr);
-
-protected:
-    bool debug = false;
-    std::shared_ptr<Zraminfo> zram_ptr;
-public:
-    Swapinfo();
-    bool is_zram_enable();
-    Swapinfo(std::shared_ptr<Zraminfo> zram);
-    ~Swapinfo();
-    void init_command();
-    ulonglong pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
-    std::vector<std::shared_ptr<swap_info>> swap_list;
-    void cmd_main(void) override;
     void parser_swap_info();
     std::shared_ptr<swap_info> get_swap_info(ulonglong pte_val);
     ulong get_zram_addr(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
     ulong lookup_swap_cache(ulonglong pte_val);
-    std::string uread_cstring(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
     bool uread_bool(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     int uread_int(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     uint uread_uint(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
@@ -68,7 +54,22 @@ public:
     short uread_short(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     ulong uread_pointer(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     unsigned char uread_byte(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
+    ulonglong pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
+
+protected:
+    bool debug = false;
+    std::shared_ptr<Zraminfo> zram_ptr;
+    std::vector<std::shared_ptr<swap_info>> swap_list;
+
+public:
+    Swapinfo();
+    bool is_zram_enable();
+    Swapinfo(std::shared_ptr<Zraminfo> zram);
+    ~Swapinfo();
+    void init_command();
+    void cmd_main(void) override;
     bool uread_buffer(ulonglong task_addr, ulonglong uvaddr, char *result, int len, const std::string &note);
+    std::string uread_cstring(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
     bool is_swap_pte(ulong pte);
 };
 
