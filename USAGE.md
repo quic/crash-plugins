@@ -12,19 +12,19 @@ Support command:
 | [dmabuf](#dmabuf)        | √           | √            | √            | √            |  show dmabuf memory      |
 | [iomem](#iomem)          | √           | √            | √            | √            |  show iomem memory       |
 | [buddy](#buddy)          | √           | √            | √            | √            |  show buddy info         |
-| [zram](#zram)            | √           | √            |              |              |  show zram memory        |
+| [zram](#zram)            | √           | √            | √            | √            |  show zram memory        |
 | [meminfo](#meminfo)      | √           | √            | √            | √            |  show process memory     |
 | [procrank](#procrank)    | √           | √            | √            | √            |  show process memory     |
-| [binder](#binder)        | √           | √            |              |              |  show binder info        |
-| [slub](#slub)            | √           | √            |              |              |  show slub memory        |
+| [binder](#binder)        | √           | √            | √            | √            |  show binder info        |
+| [slub](#slub)            | √           | √            | √            | √            |  show slub memory        |
 | [dd](#dd)                | √           | √            | √            | √            |  show device driver info |
-| [wq](#wq)                | √           | √            | √            | x            |  show workqueue          |
+| [wq](#wq)                | √           | √            | √            | √            |  show workqueue          |
 | [df](#df)                | √           | √            | √            | √            |  show mount info         |
-| [pageowner](#pageowner)  | √           | √            |              |              |  show pageowner          |
-| [swap](#swap)            | √           | √            |              |              |  show swap info          |
-| [rtb](#rtb)              | √           | √            | x            | x            |  show rtb log            |
+| [pageowner](#pageowner)  | √           | √            | √            | √            |  show pageowner          |
+| [swap](#swap)            | √           | √            | √            | √            |  show swap info          |
+| [rtb](#rtb)              | √           | √            | √            | √            |  show rtb log            |
 | [cpu](#cpu)              | √           | √            | √            | √            |  show cpu frequency      |
-| [coredump](#coredump)    | √           | √            |              |              |  generate coredump       |
+| [coredump](#coredump)    | √           | √            | √            | √            |  generate coredump       |
 | [tm](#tm)                | √           | √            | √            | √            |  show thermal info       |
 | [wdt](#wdt)              | √           | √            | √            | √            |  show watchdog info      |
 | [cache](#cache)          | √           | √            | √            | √            |  show pagecache info     |
@@ -34,12 +34,14 @@ Support command:
 | [icc](#icc)              | √           | √            | √            | √            |  show icc info           |
 | [ccf](#ccf)              | √           | √            | √            | √            |  show clock info         |
 | [pstore](#pstore)        | √           | √            | √            | √            |  show pstore log         |
-
+| [env](#env)              | √           | √            | √            | √            |  show system info        |
+| [boot](#boot)            | √           | √            | √            | √            |  show boot log info      |
+| [sched](#sched)          | √           | √            | √            | √            |  show task sched info    |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
-| [prop](#prop)            | √                 | √               |                 | show property         |
-| [logcat](#logcat)        | √                 | √               |                 | show logcat log       |
+| [prop](#prop)            | √                 | √               |  √              | show property         |
+| [logcat](#logcat)        | √                 | √               |  √              | show logcat log       |
 
 
 ## memblock
@@ -1407,6 +1409,20 @@ CPU0            CPU1            CPU2            CPU3
 1363200         1363200         1363200         1363200
 1708800         1708800         1708800         1708800
 ```
+### cpu -s
+Display cpu state.
+```
+crash> cpu -s
+cluster_data:0xffffffe595428460 Enable:true num_cpus:4 first_cpu:0 active_cpus:2
+   cpu_data:0xffffff887a139de0 cpu:0 disabled:false is_busy:false busy_pct:32
+   cpu_data:0xffffff887a35cde0 cpu:1 disabled:false is_busy:false busy_pct:50
+   cpu_data:0xffffff887a57fde0 cpu:2 disabled:false is_busy:false busy_pct:1
+   cpu_data:0xffffff887a7a2de0 cpu:3 disabled:false is_busy:false busy_pct:0
+
+cluster_data:0xffffffe595428590 Enable:true num_cpus:1 first_cpu:4 active_cpus:1
+   cpu_data:0xffffff887a9c5de0 cpu:4 disabled:false is_busy:false busy_pct:0
+```
+
 ## tm
 This command dumps the thermal info.
 
@@ -1491,19 +1507,19 @@ device     name             driver     driver_name
 e3174c60   panel0-backlight
 
 ```
-### dd -d
+### dd -l
 Display all device info.
 ```
-crash> dd -d
+crash> dd -l
 device     name                                                              Bus             driver     driver_name
 ea0b4c10   reg-dummy                                                         platform        c1c67ba8   reg-dummy
 ea112810   soc                                                               platform
 ea110410   soc:psci                                                          platform
 ```
-### dd -D
+### dd -L
 Display all driver info.
 ```
-crash> dd -D
+crash> dd -L
 device_driver    name                                     Bus             compatible                      probe func
 c1ca6f48         pwrseq_simple                            platform        mmc-pwrseq-simple               platform_drv_probe+0
 c1ca6fd8         pwrseq_emmc                              platform        mmc-pwrseq-emmc                 platform_drv_probe+0
@@ -1517,6 +1533,60 @@ crash> dd -s rpm-smd-regulator-resource
    e9001010   soc:rpm-smd:rpm-regulator-smpa3
    e9006410   soc:rpm-smd:rpm-regulator-smpa4
 ```
+### dd -a
+Display all char device.
+```
+crash> dd -a
+char_device_struct   major      minorct    cdev               name
+ffffff880acf0b00     510        8          0                  ttyGS
+ffffff8802782680     1          256        ffffff88023670c0   mem
+ffffff884a4f3880     256        256        ffffff884a65fb40   msm_rng
+ffffff8806658200     511        1048576    0                  vfio
+ffffff8802782b00     5          1          0                  /dev/tty
+ffffff8802782e00     5          1          0                  /dev/console
+```
+### dd -m
+Display all miscdevice.
+```
+crash> dd -m
+miscdevice           minor      ops                            name
+ffffff801c2ffa88     111        fastrpc_fops                   fastrpc-adsp-secure
+ffffffe59814dca0     112        acc_fops                       usb_accessory
+ffffff884041e498     115        tmc_fops                       tmc_etr1
+ffffff884041b498     116        tmc_fops                       tmc_etr0
+ffffff883a72cc98     117        tmc_fops                       tmc_etf0
+```
+
+### dd -D
+Display all block device.
+```
+crash> dd -D
+block_device      super_block       type  bsize devname         volname              UUID
+ffffff8809154280  ffffff885d8d4000  ext4  4096  mmcblk0p1       xbl_a                0c768d03-3a3c-a990-0600-daf94674e882
+ffffff8809156a40  ffffff885d32c000  ext4  4096  loop13          xbl_b                fcb4ebd9-7f11-c81c-ef48-43b90e410a24
+ffffff8818e60d80  ffffff885d32c000  ext4  4096  mmcblk0p5       shrm_a               4717f043-65f9-3aa8-0e23-877e2c76ca7f
+```
+
+### dd -d
+Display all disk.
+```
+crash> dd -d
+gendisk            minor major partitions name
+ffffff8802ffa000   1     1     1          ram1
+ffffff8802ffb800   1     1     1          ram2
+ffffff8802ffe800   1     1     1          ram0
+```
+
+### dd -p mmcblk0
+Display all partition for specified disk.
+```
+crash> dd -p mmcblk0
+block_device      partno start_sect sectors    size       bsize  type   devname              volname              UUID
+ffffff8818e9a800  0      21364736   471040     230MB      0             mmcblk0p69           vm-persist           05bdafd5-4ec6-238c-7366-42ba33c98fb2
+ffffff8818ea1ac0  0      30670848   512        256KB      0             mmcblk0p82           apdp                 dafea201-493e-7f88-ae4b-590a34946832
+ffffff8818ea5d00  0      30539776   8          4KB        0             mmcblk0p81           devinfo              2e547183-c9aa-f37a-0bbc-84d081cc4394
+```
+
 ## getprop
 This command dumps the property info.
 
@@ -1771,7 +1841,7 @@ Id   Dump_entry       version  magic            DataAddr         DataLen    Name
 97   bc712f90         20       42445953         bc712fd0         36928      l1_icache1
 98   bc71c010         20       42445953         bc71c050         36928      l1_icache2
 ```
-
+### dbi -c
 Generate the cmm file.
 ```
 crash> dbi -c
@@ -1780,24 +1850,25 @@ c1_context  core:1  version:1.4
 c2_context  core:2  version:1.4
 c3_context  core:3  version:1.4
 ```
-
+### dbi -C 'cpu'
 Parser specified cpu stack(skip swapper).
 ```
-vm_3_vcpu_400  core:4  version:2.0
-Core4 PC: <ffffffc080033080>: local_cpu_stop+20
-Core4 LR: <ffffffc080033074>: local_cpu_stop+14
-PID: 0        TASK: ffffff88005213c0  CPU: 4    COMMAND: "swapper/4"
- #0 [ffffffc08259bf60] ipi_handler at ffffffc08003313c
- #1 [ffffffc08259bf90] handle_percpu_devid_irq at ffffffc080182e4c
- #2 [ffffffc08259bfd0] generic_handle_domain_irq at ffffffc08017b534
- #3 [ffffffc08259bfe0] gic_handle_irq at ffffffc08001012c
+crash> dbi -C 0
+CPU[0] irq stack:0xffffffc080000000~0xffffffc080004000
+[0]Potential backtrace -> FP:0xffffffc080003ec0, LR:0xffffffc080003ec8
+PID: 0        TASK: ffffffc0822dccc0  CPU: 0    COMMAND: "swapper/0"
+ #0 [ffffffc080003ef0] sched_clock at ffffffc0801dc4dc
+ #1 [ffffffc080003f10] sched_clock_cpu at ffffffc080148fec
+ #2 [ffffffc080003f20] irqtime_account_irq at ffffffc0801318b8
+ #3 [ffffffc080003f80] handle_softirqs at ffffffc0800d7624
+ #4 [ffffffc080003fe0] __do_softirq at ffffffc080010200
+ #5 [ffffffc080003ff0] ____do_softirq at ffffffc08001f230
 --- <IRQ stack> ---
- #4 [ffffffc082743bc0] call_on_irq_stack at ffffffc08001f1bc
- #5 [ffffffc082743bd0] exit_to_kernel_mode at ffffffc0811251a0
- #6 [ffffffc082743bf0] el1_interrupt at ffffffc081124394
- #7 [ffffffff82743c10] __kvm_nvhe___kcfi_typeid_hyp_unpin_shared_mem at ffffffa630d39ffc
+ #6 [ffffffc0822c3b80] call_on_irq_stack at ffffffc08001f1bc
+ #7 [ffffffc0822c3bf0] init_thread_union at ffffffc0822c3bec
+ #8 [ffffffc0822f9e20] __kvm_nvhe___kcfi_typeid_hyp_unpin_shared_mem at ffffff887ab592fc
 ```
-
+### dbi -p 'pid'
 unwind specified pid stack(only support ARM64).
 ```
 crash> dbi -p 141
@@ -1829,23 +1900,36 @@ Stack:0xffffffc083c08000~0xffffffc083c0c000
  #8 [ffffffc083c0be10] rescuer_thread at ffffffc0800fd118
  #9 [ffffffc083c0be70] kthread at ffffffc080102e20
 ```
-
-unwind irq stack(only support ARM64).
+### dbi -s
+unwind stack for current core
 ```
-crash> dbi -C 0
-CPU[0] irq stack:0xffffffc080000000~0xffffffc080004000
-[0]Potential backtrace -> FP:0xffffffc080003ec0, LR:0xffffffc080003ec8
-PID: 0        TASK: ffffffc0822dccc0  CPU: 0    COMMAND: "swapper/0"
- #0 [ffffffc080003ef0] sched_clock at ffffffc0801dc4dc
- #1 [ffffffc080003f10] sched_clock_cpu at ffffffc080148fec
- #2 [ffffffc080003f20] irqtime_account_irq at ffffffc0801318b8
- #3 [ffffffc080003f80] handle_softirqs at ffffffc0800d7624
- #4 [ffffffc080003fe0] __do_softirq at ffffffc080010200
- #5 [ffffffc080003ff0] ____do_softirq at ffffffc08001f230
+crash> dbi -s
+c0_context  core:0  version:1.4
+Core0 PC: <ffffffd4d52b5b54>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c8
+Core0 LR: <ffffffd4d52b5b4c>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c0
+PID: 504      TASK: ffffff8013aa4e00  CPU: 0    COMMAND: "servicemanager"
+ #0 [ffffffc008003b60] handle_percpu_devid_irq at ffffffd4d53cd864
+ #1 [ffffffc008003bb0] handle_domain_irq at ffffffd4d53c4f8c
+ #2 [ffffffc008003bf0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd4d6297afc
+ #3 [ffffffc008003c20] do_interrupt_handler at ffffffd4d52a1140
+ #4 [ffffffc008003c30] el1_interrupt at ffffffd4d625d9e4
+ #5 [ffffffc008003c50] el1h_64_irq_handler at ffffffd4d625d9a8
+ #6 [ffffffc008003d90] el1h_64_irq at ffffffd4d5211370
+ #7 [ffffffc008003db0] _raw_spin_unlock_irqrestore at ffffffd4d62952c4
+ #8 [ffffffc008003dd0] swake_up_one at ffffffd4d53a1a70
+ #9 [ffffffc008003e10] rcu_report_qs_rnp at ffffffd4d53e64a0
+#10 [ffffffc008003e70] rcu_core at ffffffd4d53eed94
+#11 [ffffffc008003ed0] rcu_core_si.4b91badfc51da2dfae7c420c3dfdf5d0 at ffffffd4d53e72b4
+#12 [ffffffc008003f10] _stext at ffffffd4d5210198
+#13 [ffffffc008003f70] __irq_exit_rcu at ffffffd4d533fa68
+#14 [ffffffc008003f90] irq_exit at ffffffd4d533fb0c
+#15 [ffffffc008003fa0] handle_domain_irq at ffffffd4d53c4f90
+#16 [ffffffc008003fe0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd4d6297afc
 --- <IRQ stack> ---
- #6 [ffffffc0822c3b80] call_on_irq_stack at ffffffc08001f1bc
- #7 [ffffffc0822c3bf0] init_thread_union at ffffffc0822c3bec
- #8 [ffffffc0822f9e20] __kvm_nvhe___kcfi_typeid_hyp_unpin_shared_mem at ffffff887ab592fc
+#17 [ffffffc00cf139f0] call_on_irq_stack at ffffffd4d521495c
+#18 [ffffffc00cf13a10] do_interrupt_handler at ffffffd4d52a1120
+#19 [ffffffc00cf13a20] el1_interrupt at ffffffd4d625d9e4
+
 ```
 
 ## ipc
@@ -1881,6 +1965,14 @@ crash> ipc -l bcl_0x4700_0
 [ 9.688751227 0x722d1c1e27d]   [kworker/2:0H]: bcl_read_lbat: LVLbat:5 val:0
 ```
 
+### ipc -s
+Save all ipc log.
+```
+crash> ipc -s
+Save smp2p to xx/ipc_log/smp2p
+Save rpm-glink to xx/ipc_log/rpm-glink
+
+```
 ## reg
 This command dumps the regulator info.
 
@@ -2039,4 +2131,93 @@ crash> pstore -p
 25-04-20 19:03:41.000775 7290  7911  1000   I lcomm.qti.axiom Waiting for a blocking GC Alloc
 25-04-20 19:03:41.000782 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
 25-04-20 19:03:41.000791 1719  2299  1000   I SDM ClstcAlgorithmAdapter::QueryLibraryRequest():711 Get library config 0, rc 0
+```
+## env
+This command dumps system info.
+
+### env -c
+View kernel command line
+```
+crash> env -c
+init                           : /init
+kernel.panic_on_rcu_stall      : 1
+ftrace_dump_on_oops            :
+ro                             :
+kpti                           : off
+video                          : vfb:640x400,bpp=32,memsize=3072000
+```
+
+### env -s
+View soc info
+```
+crash> env -s
+Chip                : xxx
+Machine             : xxx
+Soc ID              : 486
+Serial Number       : 4080498789
+HARDWARE            : xxx
+Product ID          : 1077
+PART_GPU            : Disable
+```
+
+## boot
+This command dumps boot log info.
+
+### boot -p
+View pmic log
+```
+crash> boot -p
+Fundamental Reset: PON_PBL_STATUS=XVDD
+, DVDD
+; S3_RESET_REASON=None
+FAULT_REASON1=None
+; FAULT_REASON2=RESTART_PON
+FAULT_REASON3=None
+XVLO Check Complete
+Trim Complete: 402 bytes written
+KPDPWR_N
+Begin PON Sequence
+Waiting on PS_HOLD
+Warm Reset Count: 0
+PON Successful
+```
+
+### boot -b
+View boot log
+```
+crash> boot -b
+<6>[    0.000000][    T0] Booting Linux on physical CPU 0x0000000000 [0x412fd050]
+<5>[    0.000000][    T0] Linux version 6.12.23-android16-5-maybe-dirty-debug (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Thu Jan  1 00:00:00 UTC 1970
+<6>[    0.000000][    T0] KASLR enabled
+<5>[    0.000000][    T0] random: crng init done
+<6>[    0.000000][    T0] Machine model: Qualcomm Technologies, Inc. Vienna WDP
+<4>[    0.000000][    T0] **********************************************************
+<4>[    0.000000][    T0] **   NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE   **
+<4>[    0.000000][    T0] **                                                      **
+<4>[    0.000000][    T0] ** This system shows unhashed kernel memory addresses   **
+<4>[    0.000000][    T0] ** via the console, logs, and other interfaces. This    **
+<4>[    0.000000][    T0] ** might reduce the security of your system.            **
+<4>[    0.000000][    T0] **                                                      **
+<4>[    0.000000][    T0] ** If you see this message and you are not debugging    **
+<4>[    0.000000][    T0] ** the kernel, report this immediately to your system   **
+<4>[    0.000000][    T0] ** administrator!                                       **
+<4>[    0.000000][    T0] **                                                      **
+<4>[    0.000000][    T0] **   NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE   **
+<4>[    0.000000][    T0] **********************************************************
+<6>[    0.000000][    T0] panic_on_taint: bitmask=0x20 nousertaint_mode=disabled
+```
+
+## sched
+This command dumps task sched info.
+
+### sched -c 'cpu'
+View the task sched info of the specified cpu.
+```
+crash> sched -c 0
+Name                 pid     cpu Exec_Started    Last_Queued     Total_wait_time times_exec Prio  State Last_enqueued_ts Last_sleep_ts   Last_runtime
+swapper/0            0       0   0               0               0               0          120   RU    0               0               0
+swapper/0            0       0   0               0               0               0          120   RU    0               0               0
+kworker/R-kvfre      4       0   0.0187329       0               1.3646e-05      2          100   ID    0               0               0
+kworker/R-sync_      6       0   0.01976         0               6.8906e-05      2          100   ID    0               0               0
+kworker/R-slub_      7       0   0.0202512       0               6.6823e-05      2          100   ID    0               0               0
 ```

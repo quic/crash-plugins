@@ -68,6 +68,7 @@ CpuInfo::CpuInfo(){
         "dump cpu information",        /* short description */
         "-p \n"
             "  cpu -f\n"
+            "  cpu -s\n"
             "  This command dumps the cpu info.",
         "\n",
         "EXAMPLES",
@@ -86,6 +87,18 @@ CpuInfo::CpuInfo(){
         "    864000          864000          864000          864000",
         "    1363200         1363200         1363200         1363200",
         "    1708800         1708800         1708800         1708800",
+        "\n",
+        "  Display cpu state:",
+        "    %s> cpu -s",
+        "    cluster_data:0xffffffe595428460 Enable:true num_cpus:4 first_cpu:0 active_cpus:2",
+        "       cpu_data:0xffffff887a139de0 cpu:0 disabled:false is_busy:false busy_pct:32",
+        "       cpu_data:0xffffff887a35cde0 cpu:1 disabled:false is_busy:false busy_pct:50",
+        "       cpu_data:0xffffff887a57fde0 cpu:2 disabled:false is_busy:false busy_pct:1",
+        "       cpu_data:0xffffff887a7a2de0 cpu:3 disabled:false is_busy:false busy_pct:0",
+        "",
+        "",
+        "    cluster_data:0xffffffe595428590 Enable:true num_cpus:1 first_cpu:4 active_cpus:1",
+        "       cpu_data:0xffffff887a9c5de0 cpu:4 disabled:false is_busy:false busy_pct:0",
         "\n",
     };
     initialize();
