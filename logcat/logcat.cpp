@@ -568,7 +568,7 @@ Logcat::Logcat(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
         std::string name = tc->comm;
         if (name == "logd"){
             tc_logd = tc;
-            return;
+            break;
         }
     }
 }
