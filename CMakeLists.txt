@@ -109,7 +109,8 @@ list(APPEND PLUGIN_SOURCES
     sysinfo/sys.cpp
     bootlog/boot.cpp
     task/task_sched.cpp
-    surfaceflinger/sf.cpp)
+    surfaceflinger/sf.cpp
+    systemd/journal.cpp)
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -397,4 +398,16 @@ add_library(sf SHARED
             surfaceflinger/sf.cpp)
 set_target_properties(sf PROPERTIES PREFIX "")
 target_link_libraries(sf ${ELF_LIBRARIES})
+
+# =================== build systemd ===================
+add_library(systemd SHARED
+            ${PLUGIN_SOURCES}
+            memory/zraminfo.cpp
+            memory/swapinfo.cpp
+            utils/utask.cpp
+            lib/lzo/lzo1x_decompress_safe.c
+            lib/lz4/lz4_decompress.c
+            systemd/journal.cpp)
+set_target_properties(systemd PROPERTIES PREFIX "")
+target_link_libraries(systemd ${ELF_LIBRARIES})
 endif()

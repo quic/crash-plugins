@@ -49,6 +49,7 @@
 #include "bootlog/boot.h"
 #include "task/task_sched.h"
 #include "surfaceflinger/sf.h"
+#include "systemd/journal.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -93,6 +94,7 @@ std::shared_ptr<SysInfo>    SysInfo::instance = nullptr;
 std::shared_ptr<BootInfo>   BootInfo::instance = nullptr;
 std::shared_ptr<TaskSched>  TaskSched::instance = nullptr;
 std::shared_ptr<SF>         SF::instance = nullptr;
+std::shared_ptr<Journal>    Journal::instance = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -132,6 +134,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     BootInfo::instance = std::make_shared<BootInfo>();
     TaskSched::instance = std::make_shared<TaskSched>();
     SF::instance = std::make_shared<SF>(Swap::instance);
+    Journal::instance = std::make_shared<Journal>(Swap::instance);
 
     static struct command_table_entry command_table[] = {
         { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
@@ -170,6 +173,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
         { &BootInfo::instance->cmd_name[0], &BootInfo::wrapper_func, BootInfo::instance->cmd_help, 0 },
         { &SF::instance->cmd_name[0], &SF::wrapper_func, SF::instance->cmd_help, 0 },
         { &TaskSched::instance->cmd_name[0], &TaskSched::wrapper_func, TaskSched::instance->cmd_help, 0 },
+        { &Journal::instance->cmd_name[0], &Journal::wrapper_func, Journal::instance->cmd_help, 0 },
         { NULL }
     };
     register_extension(command_table);
@@ -213,6 +217,7 @@ extern "C" void __attribute__((destructor)) plugin_fini(void) {
     BootInfo::instance.reset();
     SF::instance.reset();
     TaskSched::instance.reset();
+    Journal::instance.reset();
 }
 
 #endif // BUILD_TARGET_TOGETHER
