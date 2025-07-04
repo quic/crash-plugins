@@ -123,6 +123,8 @@ public:
     void initialize(void);
     std::string csize(uint64_t size);
     std::string csize(uint64_t size, int unit, int precision);
+    task_context* find_proc(std::string name);
+    task_context* find_proc(ulong pid);
     void print_table();
     void type_init(const std::string& type);
     void type_init(const std::string& type,const std::string& field);

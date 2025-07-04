@@ -109,16 +109,9 @@ void PropInfo::init_datatype_info(){
 }
 
 bool PropInfo::parser_propertys(){
-    for(ulong task_addr: for_each_process()){
-        struct task_context *tc = task_to_context(task_addr);
-        if (!tc){
-            continue;
-        }
-        std::string task_name = tc->comm;
-        if (task_name == "init" || tc->pid == 1){
-            tc_init = tc;
-            break;
-        }
+    tc_init = find_proc("init");
+    if(!tc_init){
+        tc_init = find_proc(1);
     }
     if (!tc_init){
         fprintf(fp, "Can't found init process !");
@@ -286,16 +279,9 @@ void PropInfo::parser_prop_info(size_t prop_info_addr){
 }
 
 void PropInfo::parser_prop_by_init(){
-    for(ulong task_addr: for_each_process()){
-        struct task_context *tc = task_to_context(task_addr);
-        if (!tc){
-            continue;
-        }
-        std::string task_name = tc->comm;
-        if (task_name == "init" || tc->pid == 1){
-            tc_init = tc;
-            break;
-        }
+    tc_init = find_proc("init");
+    if(!tc_init){
+        tc_init = find_proc(1);
     }
     if (!tc_init){
         fprintf(fp, "Can't found init process !");

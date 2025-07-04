@@ -98,17 +98,7 @@ void Journal::init_command(){
 }
 
 void Journal::parser_journal_log(){
-    for(ulong task_addr: for_each_process()){
-        struct task_context *tc = task_to_context(task_addr);
-        if (!tc){
-            continue;
-        }
-        std::string name = tc->comm;
-        if (name == "systemd-journal"){
-            tc_systemd_journal = tc;
-            break;
-        }
-    }
+    tc_systemd_journal = find_proc("systemd-journal");
     if(!tc_systemd_journal){
         fprintf(fp, "Do not find the systemd-journal \n");
         return;

@@ -154,6 +154,31 @@ std::string ParserPlugin::csize(uint64_t size, int unit, int precision){
     return oss.str();
 }
 
+struct task_context* ParserPlugin::find_proc(ulong pid){
+    for(ulong task_addr: for_each_process()){
+        struct task_context *tc = task_to_context(task_addr);
+        if (!tc){
+            continue;
+        }
+        if (tc->pid == pid){
+            return tc;
+        }
+    }
+    return nullptr;
+}
+struct task_context* ParserPlugin::find_proc(std::string name){
+    for(ulong task_addr: for_each_process()){
+        struct task_context *tc = task_to_context(task_addr);
+        if (!tc){
+            continue;
+        }
+        std::string comm = tc->comm;
+        if (comm == name){
+            return tc;
+        }
+    }
+    return nullptr;
+}
 void ParserPlugin::initialize(void){
     cmd_help = new char*[help_str_list.size()+1];
     for (size_t i = 0; i < help_str_list.size(); ++i) {

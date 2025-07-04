@@ -356,19 +356,7 @@ std::string SF::PixelFormatToString(int format) {
 }
 
 bool SF::init_env(){
-    if(!tc_sf){
-        for(ulong task_addr: for_each_process()){
-            struct task_context *tc = task_to_context(task_addr);
-            if (!tc){
-                continue;
-            }
-            std::string name = tc->comm;
-            if (name == "surfaceflinger"){
-                tc_sf = tc;
-                break;
-            }
-        }
-    }
+    tc_sf = find_proc("surfaceflinger");
     if(!tc_sf){
         fprintf(fp, "Do not find the surfaceflinger \n");
         return false;
