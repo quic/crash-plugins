@@ -53,10 +53,11 @@ ulong LogcatR::parser_logbuf_addr(){
         if (!is_uvaddr(data_addr,tc_logd)){
             return false;
         }
-        LogBufferElement* element = task_ptr->uread_obj<LogBufferElement>(data_addr);
-        if(element == nullptr){
+        std::vector<char> buf = task_ptr->uread_obj<LogBufferElement>(data_addr);
+        if (buf.size() == 0){
             return false;
         }
+        LogBufferElement* element = reinterpret_cast<LogBufferElement*>(buf.data());
         if (element->mDropped > 1){
             return false;
         }
@@ -99,10 +100,11 @@ void LogcatR::parser_LogBufferElement(ulong vaddr){
     if (!is_uvaddr(vaddr,tc_logd)){
         return;
     }
-    LogBufferElement* element = task_ptr->uread_obj<LogBufferElement>(vaddr);
-    if(element == nullptr){
+    std::vector<char> buf = task_ptr->uread_obj<LogBufferElement>(vaddr);
+    if (buf.size() == 0){
         return;
     }
+    LogBufferElement* element = reinterpret_cast<LogBufferElement*>(buf.data());
     if (element->mDropped == 1){
         return;
     }
@@ -117,12 +119,12 @@ void LogcatR::parser_LogBufferElement(ulong vaddr){
     if (log_ptr->logid == SYSTEM || log_ptr->logid == MAIN || log_ptr->logid == KERNEL
         || log_ptr->logid == RADIO || log_ptr->logid == CRASH){
         std::vector<char> log_msg = task_ptr->read_data(reinterpret_cast<ulong>(element->mMsg),element->mMsgLen);
-        if(log_msg.size() == 0){
+        if(log_msg.size() != 0){
             parser_system_log(log_ptr,log_msg.data(),element->mMsgLen);
         }
     }else{
         std::vector<char> log_msg = task_ptr->read_data(reinterpret_cast<ulong>(element->mMsg),element->mMsgLen);
-        if(log_msg.size() == 0){
+        if(log_msg.size() != 0){
             parser_event_log(log_ptr,log_msg.data(),element->mMsgLen);
         }
     }

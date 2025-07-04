@@ -185,12 +185,9 @@ public:
     ulong get_min_vma_start(std::string libname);
     ulong get_var_addr_by_bss(std::string libname, std::string var_name);
     template<typename T>
-    T* uread_obj(ulonglong addr){
+    std::vector<char> uread_obj(ulonglong addr){
         std::vector<char> buf = read_data(addr,sizeof(T));
-        if(buf.size() == 0){
-            return nullptr;
-        }
-        return reinterpret_cast<T*>(buf.data());
+        return buf;
     }
     template<typename T, typename P>
     size_t search_obj(std::string libname, bool is_static, std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (T*)> obj_callback,int vtb_cnt) {
@@ -248,10 +245,11 @@ public:
     */
     template<typename T, typename U>
     ulong check_stdlist(ulong addr, std::function<bool (ulong)> node_callback, ulong &list_size) {
-        auto* head_node = uread_obj<T>(addr);
-        if (!head_node) {
+        std::vector<char> buf = uread_obj<T>(addr);
+        if (buf.size() == 0){
             return 0;
         }
+        auto* head_node = reinterpret_cast<T*>(buf.data());
         /* operation pointer, mask the dirty data*/
         U tmp_next = head_node->next & vaddr_mask;
         U tmp_prev = head_node->prev & vaddr_mask;
@@ -281,10 +279,11 @@ public:
         uintptr_t prev_node_addr = addr;
         uintptr_t next_node_addr = tmp_next;
         while (is_uvaddr(next_node_addr, tc) && index < head_node->data /* list_size */) {
-            auto* next_node = uread_obj<T>(next_node_addr);
-            if (!next_node) {
+            std::vector<char> buf = uread_obj<T>(next_node_addr);
+            if (buf.size() == 0){
                 break;
             }
+            auto* next_node = reinterpret_cast<T*>(buf.data());
             tmp_next = next_node->next & vaddr_mask;
             tmp_prev = next_node->prev & vaddr_mask;
             tmp_data = next_node->data & vaddr_mask;
@@ -325,3 +324,4 @@ public:
 };
 
 #endif // TASK_DEFS_H_
+

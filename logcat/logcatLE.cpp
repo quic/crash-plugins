@@ -50,10 +50,11 @@ ulong LogcatLE::parser_logbuf_addr(){
         if (!is_uvaddr(data_addr, tc_logd)){
             return false;
         }
-        LogBufferElement_LE* element = task_ptr->uread_obj<LogBufferElement_LE>(data_addr);
-        if(element == nullptr){
+        std::vector<char> buf = task_ptr->uread_obj<LogBufferElement_LE>(data_addr);
+        if (buf.size() == 0){
             return false;
         }
+        LogBufferElement_LE* element = reinterpret_cast<LogBufferElement_LE*>(buf.data());
         // (gdb) ptype /o LogBufferElement
         std::shared_ptr<vma_struct> exec_vma_ptr = task_ptr->get_vma(task_ptr->get_auxv(AT_ENTRY));
         if (exec_vma_ptr && (exec_vma_ptr->vm_start <= element->mVptr && element->mVptr < exec_vma_ptr->vm_end)){
@@ -99,10 +100,11 @@ void LogcatLE::parser_LogBufferElement(ulong vaddr){
     if (!is_uvaddr(vaddr,tc_logd)){
         return;
     }
-    LogBufferElement_LE* element = task_ptr->uread_obj<LogBufferElement_LE>(vaddr);
-    if(element == nullptr){
+    std::vector<char> buf = task_ptr->uread_obj<LogBufferElement_LE>(vaddr);
+    if (buf.size() == 0){
         return;
     }
+    LogBufferElement_LE* element = reinterpret_cast<LogBufferElement_LE*>(buf.data());
     if (element->mDropped == 1){
         return;
     }
@@ -117,12 +119,12 @@ void LogcatLE::parser_LogBufferElement(ulong vaddr){
     if (log_ptr->logid == SYSTEM || log_ptr->logid == MAIN || log_ptr->logid == KERNEL
         || log_ptr->logid == RADIO || log_ptr->logid == CRASH){
         std::vector<char> log_msg = task_ptr->read_data(reinterpret_cast<ulong>(element->mMsg),element->mMsgLen);
-        if(log_msg.size() == 0){
+        if(log_msg.size() != 0){
             parser_system_log(log_ptr,log_msg.data(),element->mMsgLen);
         }
     }else{
         std::vector<char> log_msg = task_ptr->read_data(reinterpret_cast<ulong>(element->mMsg),element->mMsgLen);
-        if(log_msg.size() == 0){
+        if(log_msg.size() != 0){
             parser_event_log(log_ptr,log_msg.data(),element->mMsgLen);
         }
     }

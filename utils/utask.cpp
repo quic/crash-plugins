@@ -393,7 +393,14 @@ ulong UTask::uread_ulong(ulonglong addr){
     if(buf.size() == 0){
         return 0;
     }
-    return ULONG(buf.data());
+    switch(pointer_size){
+        case 4:
+            return UINT(buf.data());
+        case 8:
+            return ULONG(buf.data());
+        default:
+            return ULONG(buf.data());
+    }
 }
 
 ulonglong UTask::uread_ulonglong(ulonglong addr){
@@ -737,6 +744,16 @@ ulong UTask::get_var_addr_by_bss(std::string libname, std::string var_name){
     if (pos != std::string::npos) {
         filename = libname.substr(pos + 1);
     }
+    for(const auto& vma_ptr : for_each_file_vma()){
+        if(vma_ptr->name.find(filename) != std::string::npos){
+            filename = vma_ptr->name;
+            break;
+        }
+    }
+    if(filename.empty()){
+        return 0;
+    }
+    // fprintf(fp, "filename: %s \n",filename.c_str());
     // get the min vaddr of the lib
     ulong vraddr = get_min_vma_start(filename);
     if (debug){
