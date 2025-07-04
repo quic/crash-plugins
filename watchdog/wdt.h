@@ -23,7 +23,12 @@ public:
     Watchdog();
 
     void cmd_main(void) override;
-    void print_watchdog_info();
+    void parser_msm_wdt();
+    void parser_upstream_wdt();
+    std::string nstoSec(ulonglong ns);
+    ulong get_wdt_by_cdev();
+    int get_task_cpu(ulong task_addr, ulong thread_info_addr);
+    ulong get_thread_info_addr(ulong task_addr);
     DEFINE_PLUGIN_INSTANCE(Watchdog)
 };
 
