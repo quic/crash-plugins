@@ -21,8 +21,6 @@
 
 class Journal : public ParserPlugin {
 private:
-    ulong max_pfn;
-    ulong min_low_pfn;
     std::shared_ptr<UTask> task_ptr = nullptr;
     std::shared_ptr<Swapinfo> swap_ptr;
     struct task_context *tc_systemd_journal = nullptr;
@@ -31,8 +29,6 @@ public:
     Journal(std::shared_ptr<Swapinfo> swap);
     Journal();
     void init_command();
-    bool page_buddy(ulong page_addr);
-    int page_count(ulong page_addr);
     void parser_journal_log();
     void parser_journal_log_from_pagecache();
     void cmd_main(void) override;

@@ -125,6 +125,8 @@ public:
     std::string csize(uint64_t size, int unit, int precision);
     task_context* find_proc(std::string name);
     task_context* find_proc(ulong pid);
+    bool page_buddy(ulong page_addr);
+    int page_count(ulong page_addr);
     void print_table();
     void type_init(const std::string& type);
     void type_init(const std::string& type,const std::string& field);
@@ -139,6 +141,10 @@ public:
     std::vector<ulong> for_each_mptree(ulong maptree_addr);
     std::vector<ulong> for_each_radix(ulong root_rnode);
 
+    std::vector<ulong> for_each_pfn();
+    std::vector<ulong> for_each_file_page();
+    std::vector<ulong> for_each_anon_page();
+    std::vector<ulong> for_each_inode();
     std::vector<ulong> for_each_process();
     std::vector<ulong> for_each_threads();
     std::vector<ulong> for_each_vma(ulong& task_addr);

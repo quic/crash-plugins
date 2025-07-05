@@ -53,29 +53,9 @@ Journal::Journal(){
 }
 
 void Journal::init_command(){
-    field_init(page,page_type);
-    field_init(page,_mapcount);
-    field_init(page,_count);
-    field_init(page,_refcount);
-    field_init(page,mapping);
-    field_init(address_space,host);
-    field_init(address_space,a_ops);
-    field_init(address_space,nrpages);
-    field_init(address_space,i_pages);
-    field_init(address_space,page_tree);
-    struct_init(address_space);
-    field_init(inode,i_mapping);
     field_init(inode,i_dentry);
     field_init(inode,i_sb);
     field_init(dentry,d_u);
-    /* max_pfn */
-    if (csymbol_exists("max_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
-    }
-    /* min_low_pfn */
-    if (csymbol_exists("min_low_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
-    }
     cmd_name = "systemd";
     help_str_list={
         "systemd",                            /* command name */
@@ -141,60 +121,12 @@ void Journal::parser_journal_log(){
     }
 }
 
-bool Journal::page_buddy(ulong page_addr){
-    if (THIS_KERNEL_VERSION >= LINUX(4, 19, 0)){
-        uint page_type = read_uint(page_addr + field_offset(page,page_type),"page_type");
-        return ((page_type & 0xf0000080) == 0xf0000000);
-    }else{
-        uint mapcount = read_int(page_addr + field_offset(page,_mapcount),"_mapcount");
-        return (mapcount == 0xffffff80);
-    }
-}
 
-int Journal::page_count(ulong page_addr){
-    int count = 0;
-    if (THIS_KERNEL_VERSION < LINUX(4, 6, 0)){
-        count = read_int(page_addr + field_offset(page,_count),"_count");
-    }else{
-        count = read_int(page_addr + field_offset(page,_refcount),"_refcount");
-    }
-    return count;
-}
 
 void Journal::parser_journal_log_from_pagecache(){
-    std::set<ulong> inode_list;
-    for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
-        ulong page = pfn_to_page(pfn);
-        if (!is_kvaddr(page)){
-            continue;
-        }
-        if(page_buddy(page) || page_count(page) == 0){
-            continue;
-        }
-        ulong mapping = read_pointer(page + field_offset(page,mapping),"mapping");
-        if (!is_kvaddr(mapping)){
-            continue;
-        }
-        if((mapping & 0x1) == 1){ // skip anon page
-            continue;
-        }
-        ulong inode = read_pointer(mapping + field_offset(address_space,host),"host");
-        if (!is_kvaddr(inode)){
-            continue;
-        }
-        ulong ops = read_pointer(mapping + field_offset(address_space,a_ops),"a_ops");
-        if (!is_kvaddr(ops)){
-            continue;
-        }
-        ulong i_mapping = read_pointer(inode + field_offset(inode,i_mapping),"i_mapping");
-        if (!is_kvaddr(i_mapping) && mapping != i_mapping){
-            continue;
-        }
-        inode_list.insert(inode);
-    }
     char buf[BUFSIZE];
     std::unordered_map<std::string, ulong> log_list;
-    for (const auto& addr : inode_list) {
+    for (const auto& addr : for_each_inode()) {
         ulong hlist_head = addr + field_offset(inode,i_dentry);
         int offset = field_offset(dentry,d_u);
         std::string fileName;

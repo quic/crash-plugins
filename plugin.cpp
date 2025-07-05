@@ -30,11 +30,8 @@ ParserPlugin::ParserPlugin(){
     field_init(mm_struct, pgd);
     field_init(mm_struct, arg_start);
     field_init(mm_struct, arg_end);
-    if (THIS_KERNEL_VERSION < LINUX(6,1,0)){
-        field_init(mm_struct, mmap);
-    }else{
-        field_init(mm_struct, mm_mt);
-    }
+    field_init(mm_struct, mmap);
+    field_init(mm_struct, mm_mt);
     struct_init(mm_struct);
 
     field_init(maple_tree,ma_root);
@@ -50,8 +47,18 @@ ParserPlugin::ParserPlugin(){
     field_init(page, units);
     field_init(page, index);
     field_init(page, private);
+    field_init(page, page_type);
+    field_init(page, _count);
+    field_init(page, _refcount);
+    field_init(page, mapping);
     struct_init(page);
-
+    field_init(address_space,host);
+    field_init(address_space,a_ops);
+    field_init(address_space,nrpages);
+    field_init(address_space,i_pages);
+    field_init(address_space,page_tree);
+    struct_init(address_space);
+    field_init(inode,i_mapping);
     field_init(list_head, prev);
     field_init(list_head, next);
     struct_init(list_head);
@@ -179,6 +186,24 @@ struct task_context* ParserPlugin::find_proc(std::string name){
     }
     return nullptr;
 }
+bool ParserPlugin::page_buddy(ulong page_addr){
+    if (THIS_KERNEL_VERSION >= LINUX(4, 19, 0)){
+        uint page_type = read_uint(page_addr + field_offset(page,page_type),"page_type");
+        return ((page_type & 0xf0000080) == 0xf0000000);
+    }else{
+        uint mapcount = read_int(page_addr + field_offset(page,_mapcount),"_mapcount");
+        return (mapcount == 0xffffff80);
+    }
+}
+int ParserPlugin::page_count(ulong page_addr){
+    int count = 0;
+    if (THIS_KERNEL_VERSION < LINUX(4, 6, 0)){
+        count = read_int(page_addr + field_offset(page,_count),"_count");
+    }else{
+        count = read_int(page_addr + field_offset(page,_refcount),"_refcount");
+    }
+    return count;
+}
 void ParserPlugin::initialize(void){
     cmd_help = new char*[help_str_list.size()+1];
     for (size_t i = 0; i < help_str_list.size(); ++i) {
@@ -252,6 +277,84 @@ void ParserPlugin::print_table(){
         fprintf(fp, "%s",mkstring(buf, 15, LJUST, buf));
         fprintf(fp, " size:%d\n",pair.second.get()->m_size);
     }
+}
+std::vector<ulong> ParserPlugin::for_each_pfn(){
+    ulong max_pfn;
+    ulong min_low_pfn;
+    std::vector<ulong> res;
+    if (csymbol_exists("max_pfn")){
+        try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
+    }
+    if (csymbol_exists("min_low_pfn")){
+        try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
+    }
+    for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
+        res.push_back(pfn);
+    }
+    return res;
+}
+std::vector<ulong> ParserPlugin::for_each_inode(){
+    std::set<ulong> inode_list;
+    for (const auto& page : for_each_file_page()) {
+        ulong mapping = read_pointer(page + field_offset(page,mapping),"mapping");
+        ulong inode = read_pointer(mapping + field_offset(address_space,host),"host");
+        if (!is_kvaddr(inode)){
+            continue;
+        }
+        ulong ops = read_pointer(mapping + field_offset(address_space,a_ops),"a_ops");
+        if (!is_kvaddr(ops)){
+            continue;
+        }
+        ulong i_mapping = read_pointer(inode + field_offset(inode,i_mapping),"i_mapping");
+        if (!is_kvaddr(i_mapping) && mapping != i_mapping){
+            continue;
+        }
+        inode_list.insert(inode);
+    }
+    std::vector<ulong> res(inode_list.begin(), inode_list.end());
+    return res;
+}
+std::vector<ulong> ParserPlugin::for_each_file_page(){
+    std::vector<ulong> res;
+    for (const auto& pfn : for_each_pfn()) {
+        ulong page = pfn_to_page(pfn);
+        if (!is_kvaddr(page)){
+            continue;
+        }
+        if(page_buddy(page) || page_count(page) == 0){
+            continue;
+        }
+        ulong mapping = read_pointer(page + field_offset(page,mapping),"mapping");
+        if (!is_kvaddr(mapping)){
+            continue;
+        }
+        if((mapping & 0x1) == 1){ // skip anon page
+            continue;
+        }
+        res.push_back(page);
+    }
+    return res;
+}
+std::vector<ulong> ParserPlugin::for_each_anon_page(){
+    std::vector<ulong> res;
+    for (const auto& pfn : for_each_pfn()) {
+        ulong page = pfn_to_page(pfn);
+        if (!is_kvaddr(page)){
+            continue;
+        }
+        if(page_buddy(page) || page_count(page) == 0){
+            continue;
+        }
+        ulong mapping = read_pointer(page + field_offset(page,mapping),"mapping");
+        if (!is_kvaddr(mapping)){
+            continue;
+        }
+        if((mapping & 0x1) == 0){ // skip file page
+            continue;
+        }
+        res.push_back(page);
+    }
+    return res;
 }
 
 std::vector<ulong> ParserPlugin::for_each_radix(ulong root_rnode){

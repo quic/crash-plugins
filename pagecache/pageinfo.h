@@ -27,8 +27,6 @@ struct FileCache {
 
 class Pageinfo : public ParserPlugin {
 private:
-    ulong max_pfn;
-    ulong min_low_pfn;
     std::vector<std::shared_ptr<FileCache>> cache_list;
     
 public:

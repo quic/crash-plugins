@@ -44,59 +44,15 @@ void Pageinfo::cmd_main(void) {
 }
 
 void Pageinfo::print_anon_pages(){
-    for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
-        ulong page = pfn_to_page(pfn);
-        if (!is_kvaddr(page)){
-            continue;
-        }
-        if(page_buddy(page) || page_count(page) == 0){
-            continue;
-        }
-        ulong mapping = read_pointer(page + field_offset(page,mapping),"mapping");
-        if (!is_kvaddr(mapping)){
-            continue;
-        }
-        if((mapping & 0x1) == 0){ // skip file page
-            continue;
-        }
+    for (const auto& page : for_each_anon_page()) {
         physaddr_t paddr = page_to_phy(page);
         fprintf(fp, "page:%#lx  paddr:%#llx \n",page,(ulonglong)paddr);
     }
 }
 
 void Pageinfo::parser_file_pages(){
-    std::set<ulong> inode_list;
-    for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
-        ulong page = pfn_to_page(pfn);
-        if (!is_kvaddr(page)){
-            continue;
-        }
-        if(page_buddy(page) || page_count(page) == 0){
-            continue;
-        }
-        ulong mapping = read_pointer(page + field_offset(page,mapping),"mapping");
-        if (!is_kvaddr(mapping)){
-            continue;
-        }
-        if((mapping & 0x1) == 1){ // skip anon page
-            continue;
-        }
-        ulong inode = read_pointer(mapping + field_offset(address_space,host),"host");
-        if (!is_kvaddr(inode)){
-            continue;
-        }
-        ulong ops = read_pointer(mapping + field_offset(address_space,a_ops),"a_ops");
-        if (!is_kvaddr(ops)){
-            continue;
-        }
-        ulong i_mapping = read_pointer(inode + field_offset(inode,i_mapping),"i_mapping");
-        if (!is_kvaddr(i_mapping) && mapping != i_mapping){
-            continue;
-        }
-        inode_list.insert(inode);
-    }
     char buf[BUFSIZE];
-    for (const auto& addr : inode_list) {
+    for (const auto& addr : for_each_inode()) {
         std::shared_ptr<FileCache> file_ptr = std::make_shared<FileCache>();
         file_ptr->inode = addr;
         ulong hlist_head = addr + field_offset(inode,i_dentry);
@@ -145,47 +101,13 @@ void Pageinfo::print_file_pages(){
     }
 }
 
-bool Pageinfo::page_buddy(ulong page_addr){
-    if (THIS_KERNEL_VERSION >= LINUX(4, 19, 0)){
-        uint page_type = read_uint(page_addr + field_offset(page,page_type),"page_type");
-        return ((page_type & 0xf0000080) == 0xf0000000);
-    }else{
-        uint mapcount = read_int(page_addr + field_offset(page,_mapcount),"_mapcount");
-        return (mapcount == 0xffffff80);
-    }
-}
 
-int Pageinfo::page_count(ulong page_addr){
-    int count = 0;
-    if (THIS_KERNEL_VERSION < LINUX(4, 6, 0)){
-        count = read_int(page_addr + field_offset(page,_count),"_count");
-    }else{
-        count = read_int(page_addr + field_offset(page,_refcount),"_refcount");
-    }
-    return count;
-}
 
 void Pageinfo::init_offset(){
-    field_init(page,page_type);
-    field_init(page,_mapcount);
-    field_init(page,_count);
-    field_init(page,_refcount);
-    field_init(page,mapping);
-    field_init(address_space,host);
-    field_init(address_space,a_ops);
-    field_init(address_space, nrpages);
     field_init(inode,i_mapping);
     field_init(inode,i_dentry);
     field_init(inode,i_sb);
     field_init(dentry,d_u);
-    /* max_pfn */
-    if (csymbol_exists("max_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
-    }
-    /* min_low_pfn */
-    if (csymbol_exists("min_low_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
-    }
 }
 
 Pageinfo::Pageinfo(){
