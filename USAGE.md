@@ -37,6 +37,7 @@ Support command:
 | [env](#env)              | √           | √            | √            | √            |  show system info        |
 | [boot](#boot)            | √           | √            | √            | √            |  show boot log info      |
 | [sched](#sched)          | √           | √            | √            | √            |  show task sched info    |
+| [systemd](#systemd)      | √           | √            | √            | √            |  show journal log        |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -2253,3 +2254,60 @@ kworker/R-kvfre      4       0   0.0187329       0               1.3646e-05     
 kworker/R-sync_      6       0   0.01976         0               6.8906e-05      2          100   ID    0               0               0
 kworker/R-slub_      7       0   0.0202512       0               6.6823e-05      2          100   ID    0               0               0
 ```
+
+## systemd
+This command dumps journal log.
+
+### systemd -lv
+List the journal log from process vma.
+```
+crash> systemd -lv
+system.journal
+system@e7e04b540aff4d36914dcc77bc924bb2-00000000000005d0-00000687d4c49d31.journal
+user-1000.journal
+user-1001.journal
+user-1010.journal
+user-1021.journal
+```
+### systemd -dv
+Dump the journal log from process vma.
+```
+crash> systemd -dv
+Save system.journal to xxx/systemd/system.journal
+```
+
+### systemd -svf 'log name'
+View the journal log from process vma.
+```
+crash> systemd -svf system.journal
+[2025-06-17 19:34:45] PID=594 System clock time unset or jumped backwards, restoring from recorded timestamp: Tue 2025-06-17 11:34:45 UTC
+[2025-06-17 19:34:45] PID=593 Using system hostname 'qcs6490-odk'.
+[2025-06-17 19:34:45] PID=1 Started Network Time Synchronization.
+[2025-06-17 19:34:45] PID=1 Started Network Name Resolution.
+[2025-06-17 19:34:45] PID=1 Reached target Network.
+[2025-06-17 19:34:45] PID=1 Reached target Network is Online.
+[2025-06-17 19:34:45] PID=1 Reached target System Initialization.
+[2025-06-17 19:34:45] PID=1 Started Monitor /dev/socket path to start logd.
+[2025-06-17 19:34:45] PID=1 Started Daily Cleanup of Temporary Directories.
+```
+
+### systemd -lc
+We can try to resume the journal log from pagecache.
+```
+crash> systemd -lc
+user-1000@000006867b6bd57c-66947a3228a6eb72.journal~
+user-1021@000006867b6bef21-8b1347aadfa395e8.journal~
+system@aaf133826bae43239cf4d8af75ab530d-00000000000005d0-00000686463119b1.journal
+system@11be06652b3743dd8c5e160346822b9b-0000000000000001-00061b1bd31c6794.journal
+user-1021@000006864631df61-4988bc3f085e3a76.journal~
+```
+
+### systemd -dc
+Dump the journal log from pagecache.
+```
+crash> systemd -dc
+Save system.journal to xxx/systemd/system.journal
+```
+
+### systemd -scf 'log name'
+View the journal log from pagecache,same with systemd -svf.

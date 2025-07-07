@@ -38,12 +38,18 @@ find_package(PkgConfig REQUIRED)
 # sudo apt-get install libzstd-dev libzstd-dev:i386
 pkg_check_modules(ZSTD REQUIRED libzstd)
 if(NOT ZSTD_FOUND)
-    message(FATAL_ERROR "ZSTD library not found")
+    message(FATAL_ERROR "libzstd library not found")
 endif()
 # sudo apt-get install libelf-dev libelf-dev:i386
 pkg_check_modules(ELF REQUIRED libelf)
 if(NOT ELF_FOUND)
-    message(FATAL_ERROR "ELF library not found")
+    message(FATAL_ERROR "libelf library not found")
+endif()
+
+# sudo apt install libsystemd-dev libsystemd-dev:i386
+pkg_check_modules(SYSTEMD REQUIRED libsystemd)
+if(NOT SYSTEMD_FOUND)
+    message(FATAL_ERROR "libsystemd library not found")
 endif()
 
 set(PLUGIN_SOURCES
@@ -120,7 +126,7 @@ elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
 endif()
 
 set_target_properties(plugins PROPERTIES PREFIX "")
-target_link_libraries(plugins ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+target_link_libraries(plugins ${ELF_LIBRARIES} ${ZSTD_LIBRARIES} ${SYSTEMD_LIBRARIES})
 else()
 # =================== build dmabuf ===================
 add_library(dmabuf SHARED
@@ -409,5 +415,5 @@ add_library(systemd SHARED
             lib/lz4/lz4_decompress.c
             systemd/journal.cpp)
 set_target_properties(systemd PROPERTIES PREFIX "")
-target_link_libraries(systemd ${ELF_LIBRARIES})
+target_link_libraries(systemd ${ELF_LIBRARIES} ${SYSTEMD_LIBRARIES})
 endif()

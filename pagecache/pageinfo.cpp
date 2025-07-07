@@ -101,8 +101,6 @@ void Pageinfo::print_file_pages(){
     }
 }
 
-
-
 void Pageinfo::init_offset(){
     field_init(inode,i_mapping);
     field_init(inode,i_dentry);

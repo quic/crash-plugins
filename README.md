@@ -95,6 +95,8 @@ Support module:
 | boot          | √         | √         | parser pmic and boot log                             |
 | socinfo       | √         | √         | parser socinfo and commandline                       |
 | sched         | √         | √         | parser task sched info                               |
+| systemd       | √         | √         | parser journal log                                   |
+
 
 |  module       |   Android-11.0(30)  |  >Android-12.0(31)  |      comment               |
 |  --------     | ------------------- | ------------------- | -------------------        |

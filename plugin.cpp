@@ -33,15 +33,12 @@ ParserPlugin::ParserPlugin(){
     field_init(mm_struct, mmap);
     field_init(mm_struct, mm_mt);
     struct_init(mm_struct);
-
     field_init(maple_tree,ma_root);
-
     field_init(vm_area_struct,vm_start);
     field_init(vm_area_struct,vm_end);
     field_init(vm_area_struct,vm_flags);
     field_init(vm_area_struct, vm_next);
     struct_init(vm_area_struct);
-
     field_init(page, _mapcount);
     field_init(page, freelist);
     field_init(page, units);
@@ -173,6 +170,7 @@ struct task_context* ParserPlugin::find_proc(ulong pid){
     }
     return nullptr;
 }
+
 struct task_context* ParserPlugin::find_proc(std::string name){
     for(ulong task_addr: for_each_process()){
         struct task_context *tc = task_to_context(task_addr);
@@ -186,6 +184,7 @@ struct task_context* ParserPlugin::find_proc(std::string name){
     }
     return nullptr;
 }
+
 bool ParserPlugin::page_buddy(ulong page_addr){
     if (THIS_KERNEL_VERSION >= LINUX(4, 19, 0)){
         uint page_type = read_uint(page_addr + field_offset(page,page_type),"page_type");
@@ -195,6 +194,7 @@ bool ParserPlugin::page_buddy(ulong page_addr){
         return (mapcount == 0xffffff80);
     }
 }
+
 int ParserPlugin::page_count(ulong page_addr){
     int count = 0;
     if (THIS_KERNEL_VERSION < LINUX(4, 6, 0)){
@@ -204,6 +204,7 @@ int ParserPlugin::page_count(ulong page_addr){
     }
     return count;
 }
+
 void ParserPlugin::initialize(void){
     cmd_help = new char*[help_str_list.size()+1];
     for (size_t i = 0; i < help_str_list.size(); ++i) {
@@ -278,13 +279,16 @@ void ParserPlugin::print_table(){
         fprintf(fp, " size:%d\n",pair.second.get()->m_size);
     }
 }
+
 std::vector<ulong> ParserPlugin::for_each_pfn(){
     ulong max_pfn;
     ulong min_low_pfn;
     std::vector<ulong> res;
+    /* max_pfn */
     if (csymbol_exists("max_pfn")){
         try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
     }
+    /* min_low_pfn */
     if (csymbol_exists("min_low_pfn")){
         try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
     }
@@ -293,6 +297,7 @@ std::vector<ulong> ParserPlugin::for_each_pfn(){
     }
     return res;
 }
+
 std::vector<ulong> ParserPlugin::for_each_inode(){
     std::set<ulong> inode_list;
     for (const auto& page : for_each_file_page()) {
@@ -314,6 +319,7 @@ std::vector<ulong> ParserPlugin::for_each_inode(){
     std::vector<ulong> res(inode_list.begin(), inode_list.end());
     return res;
 }
+
 std::vector<ulong> ParserPlugin::for_each_file_page(){
     std::vector<ulong> res;
     for (const auto& pfn : for_each_pfn()) {
@@ -335,6 +341,7 @@ std::vector<ulong> ParserPlugin::for_each_file_page(){
     }
     return res;
 }
+
 std::vector<ulong> ParserPlugin::for_each_anon_page(){
     std::vector<ulong> res;
     for (const auto& pfn : for_each_pfn()) {
