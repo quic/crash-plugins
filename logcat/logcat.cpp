@@ -560,17 +560,7 @@ std::unordered_map<uint, std::string> event_tags_map = {
 
 bool Logcat::is_LE = false;
 Logcat::Logcat(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    for(ulong task_addr: for_each_process()){
-        struct task_context *tc = task_to_context(task_addr);
-        if (!tc){
-            continue;
-        }
-        std::string name = tc->comm;
-        if (name == "logd"){
-            tc_logd = tc;
-            break;
-        }
-    }
+    tc_logd = find_proc("logd");
 }
 
 Logcat::~Logcat(){

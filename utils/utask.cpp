@@ -325,7 +325,12 @@ struct task_context* UTask::get_task_context(){
 
 std::vector<char> UTask::read_data(ulong addr,int len){
     std::shared_ptr<vma_struct> vma_ptr = get_vma(addr);
-    if (vma_ptr == nullptr){
+    if (vma_ptr == nullptr){ //maybe miss vma
+        std::vector<char> buffer(len);
+        BZERO(buffer.data(), len);
+        if (swap_ptr->uread_buffer(tc->task, addr, buffer.data(), len, "read data")){
+            return buffer;
+        }
         return {};
     }
     if (!is_contains(vma_ptr, addr)) {

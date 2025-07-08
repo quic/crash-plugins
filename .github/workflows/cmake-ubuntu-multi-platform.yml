@@ -31,9 +31,9 @@ jobs:
     - name: Install Packages
       run: |
         if [[ "${{ matrix.platform }}" == "arm64" ]]; then
-          sudo apt-get install -y gcc g++ cmake liblzo2-dev liblz4-dev libelf-dev libzstd-dev pkg-config
+          sudo apt-get install -y gcc g++ cmake liblzo2-dev liblz4-dev libelf-dev libzstd-dev pkg-config libsystemd-dev
         else
-          sudo apt-get install -y gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
+          sudo apt-get install -y gcc-multilib g++-multilib liblzo2-dev liblzo2-dev:i386 liblz4-dev liblz4-dev:i386 libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config libsystemd-dev libsystemd-dev:i386
         fi
  
     - name: Build

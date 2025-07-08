@@ -153,7 +153,6 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
     size_t data_size = (BITS64() && !task_ptr->is_compat()) ? sizeof(KeyedVector_64_t) : sizeof(KeyedVector_32_t);
     std::vector<char> tempList = task_ptr->read_data(sAllocList_vaddr, data_size);
     if (tempList.empty()) {
-        task_ptr.reset();
         return;
     }
     auto extract_alloc_list = [&](auto* keyedvector) {
