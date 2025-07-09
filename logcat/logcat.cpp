@@ -649,9 +649,9 @@ void Logcat::print_logcat_log(LOG_ID id){
         if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO
             || log_ptr->logid == CRASH || log_ptr->logid == KERNEL){
             oss << std::setw(18) << std::left << log_ptr->timestamp << " "
-                << std::setw(5) << log_ptr->pid << " "
-                << std::setw(5) << log_ptr->tid << " "
-                << std::setw(6) << log_ptr->uid << " "
+                << std::setw(5) << std::right << log_ptr->pid << " "
+                << std::setw(5) << std::right << log_ptr->tid << " "
+                << std::setw(6) << std::right << log_ptr->uid << " "
                 << getLogLevelChar(log_ptr->priority) << " "
                 << log_ptr->tag << " "
                 << vaild_msg;
@@ -666,9 +666,9 @@ void Logcat::print_logcat_log(LOG_ID id){
             } catch (const std::exception& e) {
             }
             oss << std::setw(18) << std::left << log_ptr->timestamp << " "
-            << std::setw(5) << log_ptr->pid << " "
-            << std::setw(5) << log_ptr->tid << " "
-            << std::setw(6) << log_ptr->uid << " "
+            << std::setw(5) << std::right << log_ptr->pid << " "
+            << std::setw(5) << std::right << log_ptr->tid << " "
+            << std::setw(6) << std::right << log_ptr->uid << " "
             << getLogLevelChar(log_ptr->priority) << " "
             << tag << " "
             << vaild_msg;
@@ -749,11 +749,11 @@ std::string Logcat::formatTime(uint32_t tv_sec, long tv_nsec) {
     auto tp = std::chrono::time_point<std::chrono::system_clock>(sec) + nsec;
     std::time_t rtc_time = std::chrono::system_clock::to_time_t(tp);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % 1000;
-    std::tm* tm = std::localtime(&rtc_time);
+    std::tm* tm = std::gmtime(&rtc_time);
     char buffer[30];
     strftime(buffer, sizeof(buffer), "%m-%d %H:%M:%S", tm);
     std::ostringstream oss;
-    oss << buffer << "." << std::setw(6) << std::setfill('0') << ms.count();
+    oss << buffer << "." << std::setw(3) << std::setfill('0') << ms.count();
     return oss.str();
 }
 

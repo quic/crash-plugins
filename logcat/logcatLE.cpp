@@ -115,6 +115,7 @@ void LogcatLE::parser_LogBufferElement(ulong vaddr){
     log_ptr->uid = element->mUid;
     log_ptr->pid = element->mPid;
     log_ptr->tid = element->mTid;
+    log_ptr->logid = (LOG_ID)element->mLogId;
     log_ptr->timestamp = formatTime(element->mRealTime.tv_sec,element->mRealTime.tv_nsec);
     if (log_ptr->logid == SYSTEM || log_ptr->logid == MAIN || log_ptr->logid == KERNEL
         || log_ptr->logid == RADIO || log_ptr->logid == CRASH){
