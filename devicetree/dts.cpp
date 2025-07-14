@@ -267,7 +267,7 @@ void Dts::print_properties(std::vector<std::shared_ptr<Property>> props,int leve
     for (auto it = props.begin(); it != props.end(); ++it) {
         std::shared_ptr<Property> ptr = *it;
         std::string prop_name = ptr->name;
-        void* prop_val = ptr->value;
+        void* prop_val = ptr->value.data();
         ulong prop_addr = ptr->addr;
         int prop_length = ptr->length;
         for (int i = 0; i < prop_level; i++) {

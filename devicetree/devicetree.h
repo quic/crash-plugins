@@ -27,7 +27,7 @@ struct Property {
     ulong addr;
     int length;
     std::string name;
-    void *value;
+    std::vector<char> value;
 };
 
 struct device_node {

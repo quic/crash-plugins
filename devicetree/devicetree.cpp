@@ -121,9 +121,9 @@ std::vector<std::shared_ptr<Property>> Devicetree::read_propertys(ulong addr){
         prop->length = length;
         ulong value_addr = ULONG(prop_buf + field_offset(property,value));
         if(length > 0){
-            prop->value = malloc(length);
+            prop->value.resize(length);
             void *prop_val = read_memory(value_addr,length,"property_value");
-            memcpy(prop->value, prop_val, length);
+            memcpy(prop->value.data(), prop_val, length);
             FREEBUF(prop_val);
         }
         res.push_back(prop);
@@ -146,7 +146,7 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
         if (prop == nullptr){
             continue;
         }
-        std::string tempstr = (char *)prop->value;
+        std::string tempstr = (char *)prop->value.data();
         if (tempstr != "memory"){
             continue;
         }
@@ -161,7 +161,7 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
 
 std::vector<DdrRange> Devicetree::parse_memory_regs(std::shared_ptr<Property> prop){
     std::vector<DdrRange> result;
-    char* ptr = reinterpret_cast<char*>(prop->value);
+    char* ptr = reinterpret_cast<char*>(prop->value.data());
     // prop->length how many byte of this prop val
     size_t reg_cnt = prop->length / 4;
     size_t regs[reg_cnt];
