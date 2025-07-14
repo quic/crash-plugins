@@ -310,10 +310,9 @@ bool Core::write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, s
         }
     }
     if(replace == false){
-        void* vma_data = task_ptr->read_vma_data(vma_ptr);
-        if (vma_data){
-            fwrite(vma_data, vma_ptr->vm_size, 1, corefile);
-            std::free(vma_data);
+        std::vector<char> vma_data = task_ptr->read_vma_data(vma_ptr);
+        if (vma_data.size() > 0){
+            fwrite(vma_data.data(), vma_ptr->vm_size, 1, corefile);
         }
         data_pos += vma_ptr->vm_size;
     }

@@ -301,10 +301,10 @@ void PropInfo::parser_prop_by_init(){
             continue;
         }
         prop_files.insert(vma_ptr->name);
-        if(vma_ptr->vm_data == nullptr){
-            vma_ptr->vm_data = (char*)task_ptr->read_vma_data(vma_ptr);
+        if (vma_ptr->vm_data.size() == 0){
+            vma_ptr->vm_data = task_ptr->read_vma_data(vma_ptr);
         }
-        if (!vma_ptr->vm_data){
+        if (vma_ptr->vm_data.size() == 0){
             continue;
         }
         // if(index == 0){
@@ -312,9 +312,9 @@ void PropInfo::parser_prop_by_init(){
         //     fprintf(fp, "System Properties Magic:%#lx, Version:%#lx\n", pa.magic_, pa.version_);
         // }
         // index += 1;
-        prop_bt pb = *reinterpret_cast<prop_bt*>(vma_ptr->vm_data + sizeof(prop_area));
+        prop_bt pb = *reinterpret_cast<prop_bt*>(vma_ptr->vm_data.data() + sizeof(prop_area));
         if(pb.children != 0){
-            for_each_prop(pb.children, vma_ptr->vm_size, vma_ptr->vm_data);
+            for_each_prop(pb.children, vma_ptr->vm_size, vma_ptr->vm_data.data());
         }
     }
 }

@@ -162,10 +162,9 @@ void Journal::get_journal_vma_list(){
 
 bool Journal::write_vma_to_file(std::vector<std::shared_ptr<vma_struct>> vma_list, FILE* logfile){
     for(const auto& vma_ptr : vma_list){
-        void* vma_data = task_ptr->read_vma_data(vma_ptr);
-        if (vma_data){
-            fwrite(vma_data, vma_ptr->vm_size, 1, logfile);
-            std::free(vma_data);
+        std::vector<char> vma_data = task_ptr->read_vma_data(vma_ptr);
+        if (vma_data.size() > 0){
+            fwrite(vma_data.data(), vma_ptr->vm_size, 1, logfile);
         }
     }
     return true;

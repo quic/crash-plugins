@@ -95,13 +95,13 @@ void Swap::print_page_memory(std::string addr){
         fprintf(fp, "please set current task context by command set <pid>\n");
         return;
     }
-    char page_data[page_size];
     ulong uaddr = std::stoul(addr, nullptr, 16);
-    if(!uread_buffer(tc->task,uaddr,page_data,page_size,"read page")){
+    std::vector<char> page_data = uread_memory(tc->task,uaddr, page_size, "read page");
+    if(page_data.size() == 0){
         fprintf(fp, "not mapped page\n");
         return;
     }else{
-        fprintf(fp, "\nprint_page_memory:\n%s \n", hexdump(uaddr, page_data, page_size).c_str());
+        fprintf(fp, "\nprint_page_memory:\n%s \n", hexdump(uaddr, page_data.data(), page_size).c_str());
     }
 }
 

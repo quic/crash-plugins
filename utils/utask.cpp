@@ -163,7 +163,6 @@ void UTask::init_vma(){
         vma_ptr->vm_pgoff = ULONG(vma_buf + field_offset(vm_area_struct, vm_pgoff));
         vma_ptr->anon_name = ULONG(vma_buf + field_offset(vm_area_struct, anon_name));
         vma_ptr->anon_vma = ULONG(vma_buf + field_offset(vm_area_struct, anon_vma));
-        vma_ptr->vm_data = nullptr;
         FREEBUF(vma_buf);
         if (is_kvaddr(vma_ptr->vm_file)){ //file vma
             file_buf = fill_file_cache(vma_ptr->vm_file);
@@ -250,15 +249,15 @@ void UTask::init_auxv(){
     FREEBUF(auxv_buf);
 }
 
-std::vector<ulong> UTask::for_each_file(){
+std::vector<ulong>& UTask::for_each_file(){
     return task_files;
 }
 
-std::vector<std::shared_ptr<vma_struct>> UTask::for_each_vma_list(){
+std::vector<std::shared_ptr<vma_struct>>& UTask::for_each_vma_list(){
     return vma_list;
 }
 
-std::vector<std::shared_ptr<vma_struct>> UTask::for_each_anon_vma(){
+std::vector<std::shared_ptr<vma_struct>>& UTask::for_each_anon_vma(){
     return anon_list;
 }
 
@@ -271,11 +270,11 @@ std::vector<std::shared_ptr<vma_struct>> UTask::for_each_data_vma(std::string fi
     return res;
 }
 
-std::vector<std::shared_ptr<vma_struct>> UTask::for_each_file_vma(){
+std::vector<std::shared_ptr<vma_struct>>& UTask::for_each_file_vma(){
     return file_list;
 }
 
-std::unordered_map <ulong, ulong> UTask::for_each_auxv(){
+std::unordered_map <ulong, ulong>& UTask::for_each_auxv(){
     return auxv_list;
 }
 
@@ -326,20 +325,15 @@ struct task_context* UTask::get_task_context(){
 std::vector<char> UTask::read_data(ulong addr,int len){
     std::shared_ptr<vma_struct> vma_ptr = get_vma(addr);
     if (vma_ptr == nullptr){ //maybe miss vma
-        std::vector<char> buffer(len);
-        BZERO(buffer.data(), len);
-        if (swap_ptr->uread_buffer(tc->task, addr, buffer.data(), len, "read data")){
-            return buffer;
-        }
-        return {};
+        return swap_ptr->uread_memory(tc->task,addr,len, "read data");
     }
     if (!is_contains(vma_ptr, addr)) {
         return {};
     }
-    if(vma_ptr->vm_data == nullptr){
-        vma_ptr->vm_data = (char*)read_vma_data(vma_ptr);
+    if(vma_ptr->vm_data.size() == 0){
+        vma_ptr->vm_data = read_vma_data(vma_ptr);
     }
-    if(vma_ptr->vm_data == nullptr){
+    if(vma_ptr->vm_data.size() == 0){
         return {};
     }
     int remain = vma_ptr->vm_end - addr;
@@ -347,7 +341,7 @@ std::vector<char> UTask::read_data(ulong addr,int len){
         len = remain;
     }
     std::vector<char> buffer(len);
-    std::copy_n(vma_ptr->vm_data + (addr - vma_ptr->vm_start),len,buffer.begin());
+    std::copy_n(vma_ptr->vm_data.data() + (addr - vma_ptr->vm_start),len, buffer.begin());
     // memcpy(buffer.data(),vma_ptr->vm_data + (addr - vma_ptr->vm_start),len);
     return buffer;
 }
@@ -448,14 +442,8 @@ unsigned char UTask::uread_byte(ulonglong addr){
     return UCHAR(buf.data());
 }
 
-void* UTask::read_vma_data(std::shared_ptr<vma_struct> vma_ptr){
-    void* vm_data = std::malloc(vma_ptr->vm_size);
-    BZERO(vm_data, vma_ptr->vm_size);
-    if (swap_ptr->uread_buffer(tc->task, vma_ptr->vm_start, (char*)vm_data, vma_ptr->vm_size, "read vma data")){
-        return vm_data;
-    }
-    std::free(vm_data);
-    return nullptr;
+std::vector<char> UTask::read_vma_data(std::shared_ptr<vma_struct> vma_ptr){
+    return swap_ptr->uread_memory(tc->task, vma_ptr->vm_start, vma_ptr->vm_size, "read vma data");
 }
 
 void* UTask::read_auxv(){
@@ -481,8 +469,8 @@ bool UTask::is_contains(std::shared_ptr<vma_struct> vma_ptr, ulong addr){
 
 UTask::~UTask(){
     for (const auto& vma_ptr : vma_list) {
-        if(vma_ptr->vm_data != nullptr){
-            std::free(vma_ptr->vm_data);
+        if(vma_ptr->vm_data.size() > 0){
+            vma_ptr->vm_data.clear();
         }
     }
 }
