@@ -78,7 +78,7 @@ void Slub::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Slub::Slub(){
+void Slub::init_offset(void) {
     field_init(kmem_cache, cpu_slab);
     field_init(kmem_cache, flags);
     field_init(kmem_cache, min_partial);
@@ -143,15 +143,18 @@ Slub::Slub(){
     struct_init(atomic_t);
     struct_init(track);
     struct_init(stack_record);
+}
+
+void Slub::init_command(void) {
     cmd_name = "slub";
     help_str_list={
         "slub",                            /* command name */
         "dump slub information",        /* short description */
         "-a \n"
-            "  slub -c <cache addr>\n"
+            "  slub -c <kmem cache addr>\n"
             "  slub -s\n"
             "  slub -p\n"
-            "  slub -P <cache addr>\n"
+            "  slub -P <kmem cache addr>\n"
             "  slub -t <A | F>\n"
             "  slub -l\n"
             "  slub -T <stack_id>\n"
@@ -207,8 +210,9 @@ Slub::Slub(){
         "    pid:1 freq:50110 size:17.20MB",
         "\n",
     };
-    initialize();
 }
+
+Slub::Slub(){}
 
 std::shared_ptr<slab> Slub::parser_slab(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr){
     int count = 0;
@@ -707,7 +711,7 @@ void Slub::print_slub_trace(std::string is_free){
 
 void Slub::print_all_slub_trace(size_t stack_id){
     parser_slub_trace();
-
+    std::ostringstream oss;
     if(stack_id == 0){
         parser_track_map(alloc_trace_map, 0);
         parser_track_map(free_trace_map, 1);
@@ -737,17 +741,15 @@ void Slub::print_all_slub_trace(size_t stack_id){
             int current_pid = result.second[0]->pid;
             int count = 0;
             size_t  total_size = 0;
-            std::ostringstream oss;
-            oss << std::left << std::setw(10) << "Pid" << std::setw(10) << "Freq" << std::setw(15) << "Size";
-            fprintf(fp, "%s \n", oss.str().c_str());
+            oss << std::left << std::setw(10) << "Pid" << std::setw(10) << "Freq" << std::setw(15) << "Size" << "\n";
             for (const auto& track_ptr : result.second) {
                 if (track_ptr->pid == current_pid) {
                     ++count;
                     total_size += track_ptr->kmem_cache_ptr->size;
                 } else {
-                    std::ostringstream oss_data;
-                    oss_data << std::left << std::setw(10) << current_pid << std::setw(10) << count << std::setw(15) << csize(total_size);
-                    fprintf(fp, "%s \n", oss_data.str().c_str());
+                    oss << std::left << std::setw(10) << current_pid
+                        << std::setw(10) << count
+                        << std::setw(15) << csize(total_size) << "\n";
                     // for (const auto& t : result.second) {
                     //     if (t->pid == current_pid) {
                     //         fprintf(fp, "cpu:%d when:%lu \n", t->cpu, t->when);
@@ -758,13 +760,14 @@ void Slub::print_all_slub_trace(size_t stack_id){
                     total_size = track_ptr->kmem_cache_ptr->size;
                 }
             }
-            std::ostringstream oss_end;
-            oss_end << std::left << std::setw(10) << current_pid << std::setw(10) << count << std::setw(15) << csize(total_size);
-            fprintf(fp, "%s \n", oss_end.str().c_str());
+            oss << std::left << std::setw(10) << current_pid
+                << std::setw(10) << count
+                << std::setw(15) << csize(total_size) << "\n";
         } else {
-            fprintf(fp, "No such stack_id or run slub -t\n");
+            oss << "No such stack_id or run slub -t\n";
         }
     }
+    fprintf(fp, "%s", oss.str().c_str());
 }
 
 ulong Slub::parser_stack_record(uint page_owner_handle, uint& stack_len){
@@ -960,10 +963,9 @@ int Slub::check_object_poison(std::shared_ptr<kmem_cache> cache_ptr, std::shared
 
 void Slub::print_slub_poison(ulong kmem_cache_addr){
     int ret = 1;
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(25) << "kmem_cache_name" << " "
-        << std::setw(4) << "Poison_Result";
-    fprintf(fp, "%s \n", oss_hd.str().c_str());
+    std::ostringstream oss;
+    oss << std::left << std::setw(25) << "kmem_cache_name" << " "
+        << std::setw(4) << "Poison_Result" << "\n";
     for (const auto& cache_ptr : cache_list) {
         if(kmem_cache_addr != 0 && cache_ptr->addr != kmem_cache_addr){
                 continue;
@@ -985,11 +987,11 @@ void Slub::print_slub_poison(ulong kmem_cache_addr){
                 ret &= check_object_poison(cache_ptr, cpu_ptr->cur_slab);
             }
         }
-        std::ostringstream oss;
-        oss << std::left << std::setw(25) << cache_ptr->name << " " << std::setw(4) << (ret ? "PASS" : "FAIL");
-        fprintf(fp, "%s \n", oss.str().c_str());
+        oss << std::left << std::setw(25) << cache_ptr->name << " " << std::setw(4) << (ret ? "PASS" : "FAIL") << "\n";
         ret = 1;
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
+
 }
 
 /* Print Slub Info */
@@ -1003,14 +1005,15 @@ void Slub::print_slab_info(std::shared_ptr<slab> slab_ptr){
             slab_ptr->totalobj,
             slab_ptr->inuse,
             slab_ptr->freeobj);
+    std::ostringstream oss;
     for (const auto& obj_ptr : slab_ptr->obj_list) {
-        std::ostringstream oss;
         oss << "           obj[" << std::setw(5) << std::setfill('0') << obj_ptr->index << "]"
             << "VA:[0x" << std::hex << obj_ptr->start
             << "~0x" << std::hex << obj_ptr->end << "]"
-            << " status:" << (obj_ptr->is_free ? "freed":"alloc");
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << " status:" << (obj_ptr->is_free ? "freed":"alloc")
+            << "\n";
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 void Slub::print_slab_caches(){
@@ -1065,8 +1068,8 @@ void Slub::print_slab_summary_info(){
     for (const auto& cache_ptr : cache_list) {
         max_len = std::max(max_len,cache_ptr->name.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(VADDR_PRLEN) << "kmem_cache" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(VADDR_PRLEN) << "kmem_cache" << " "
         << std::left << std::setw(max_len) << "name" << " "
         << std::left << std::setw(5) << "slabs" << " "
         << std::left << std::setw(10) << "slab_size" << " "
@@ -1075,11 +1078,9 @@ void Slub::print_slab_summary_info(){
         << std::left << std::setw(10) << "obj_size" << " "
         << std::left << std::setw(8) << "pad_size" << " "
         << std::left << std::setw(8) << "align_size" << " "
-        << "total_size";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << "total_size" << "\n";
     for (const auto& cache_ptr : cache_list) {
         int page_cnt = 1U << cache_ptr->page_order;
-        std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN) << std::hex << cache_ptr->addr << " "
             << std::left << std::setw(max_len) << cache_ptr->name << " "
             << std::left << std::setw(5) << std::dec << cache_ptr->total_nr_slabs << " "
@@ -1089,8 +1090,9 @@ void Slub::print_slab_summary_info(){
             << std::left << std::setw(10) << csize(cache_ptr->object_size) << " "
             << std::left << std::setw(8) << std::dec << cache_ptr->red_left_pad << " "
             << std::left << std::setw(8) << csize(cache_ptr->size) << " "
-            << std::left << csize(cache_ptr->total_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << std::setw(12) << csize(cache_ptr->total_size)
+            << "\n";
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 #pragma GCC diagnostic pop

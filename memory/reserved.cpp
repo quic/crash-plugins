@@ -42,12 +42,14 @@ void Reserved::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Reserved::Reserved(){
-    dts = std::make_shared<Devicetree>();
+void Reserved::init_offset(void) {
     field_init(reserved_mem,name);
     field_init(reserved_mem,base);
     field_init(reserved_mem,size);
     struct_init(reserved_mem);
+}
+
+void Reserved::init_command(void) {
     cmd_name = "reserved";
     help_str_list={
         "reserved",                            /* command name */
@@ -68,7 +70,10 @@ Reserved::Reserved(){
         "    Total:448.20Mb nomap:168.20Mb reuse:264.00Mb other:16.00Mb",
         "\n",
     };
-    initialize();
+}
+
+Reserved::Reserved(){
+    dts = std::make_shared<Devicetree>();
 }
 
 void Reserved::parser_reserved_mem(){
@@ -124,67 +129,62 @@ void Reserved::parser_reserved_mem(){
     }
 }
 
-void Reserved::print_reserved_mem(){
+void Reserved::print_reserved_mem() {
     ulong total_size = 0;
     ulong nomap_size = 0;
     ulong reusable_size = 0;
     ulong other_size = 0;
-    int index = 0;
-    fprintf(fp, "========================================================================================================\n");
+    std::ostringstream oss;
     std::sort(mem_list.begin(), mem_list.end(),[&](const std::shared_ptr<reserved_mem>& a, const std::shared_ptr<reserved_mem>& b){
         return a->base < b->base;
     });
     size_t max_name_len = 0;
     size_t addr_len = 0;
     for (const auto& mem : mem_list) {
-        max_name_len = std::max(max_name_len,mem->name.size());
+        max_name_len = std::max(max_name_len, mem->name.size());
         std::stringstream tmp;
         tmp << std::hex << mem->base;
-        addr_len = std::max(addr_len,tmp.str().length());
+        addr_len = std::max(addr_len, tmp.str().length());
     }
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(max_name_len)         << "Name" << " "
-            << std::left << std::setw(VADDR_PRLEN + 5)      << "reserved_mem" << " "
-            << std::left << std::setw(2 * addr_len + 3)     << "Range" << " "
-            << std::left << std::setw(10)                   << "Size" << " "
-            << std::left << "Flag";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    oss << "========================================================================================================\n";
+    oss << std::left << std::setw(max_name_len) << "Name" << " "
+        << std::left << std::setw(VADDR_PRLEN + 5) << "reserved_mem" << " "
+        << std::left << std::setw(2 * addr_len + 3) << "Range" << " "
+        << std::left << std::setw(10) << "Size" << " "
+        << std::left << "Flag" << " \n";
     for (const auto& mem : mem_list) {
         total_size += mem->size;
-        std::ostringstream oss;
         oss << std::left << std::setw(max_name_len) << mem->name << " "
             << std::left << std::hex << std::setw(VADDR_PRLEN + 5) << mem->addr << " ["
-            << std::right << std::hex  << std::setw(addr_len) << std::setfill('0') << mem->base
+            << std::right << std::hex << std::setw(addr_len) << std::setfill('0') << mem->base
             << "~"
-            << std::right << std::hex  << std::setw(addr_len) << std::setfill('0') << (mem->base + mem->size) << "]" << " "
+            << std::right << std::hex << std::setw(addr_len) << std::setfill('0') << (mem->base + mem->size) << "]" << " "
             << std::left << std::setw(10) << std::setfill(' ') << csize(mem->size) << " [";
-        if (mem->type == Type::NO_MAP){
+        if (mem->type == Type::NO_MAP) {
             oss << "no-map";
             nomap_size += mem->size;
-        }else if (mem->type == Type::REUSABLE){
-            oss <<"reusable";
+        } else if (mem->type == Type::REUSABLE) {
+            oss << "reusable";
             reusable_size += mem->size;
-        }else{
+        } else {
             oss << "unknow";
             other_size += mem->size;
         }
-        oss << "]";
-        fprintf(fp, "%s \n",oss.str().c_str());
-        index += 1;
+        oss << "]\n";
     }
-    fprintf(fp, "========================================================================================================\n");
-    std::ostringstream oss_t;
-    oss_t << "Total:" << csize(total_size) << " ";
-    if (nomap_size > 0){
-        oss_t << "nomap:" << csize(nomap_size) << " ";
+    oss << "========================================================================================================\n";
+    oss << "Total:" << csize(total_size) << " ";
+    if (nomap_size > 0) {
+        oss << "nomap:" << csize(nomap_size) << " ";
     }
-    if (reusable_size > 0){
-        oss_t << "reuse:" << csize(reusable_size) << " ";
+    if (reusable_size > 0) {
+        oss << "reuse:" << csize(reusable_size) << " ";
     }
-    if (other_size > 0){
-        oss_t << "unknow:" << csize(other_size) << " ";
+    if (other_size > 0) {
+        oss << "unknow:" << csize(other_size) << " ";
     }
-    fprintf(fp, "%s \n",oss_t.str().c_str());
+    oss << "\n";
+    fprintf(fp, "%s", oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

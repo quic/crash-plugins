@@ -27,6 +27,7 @@ void Clock::cmd_main(void) {
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     if (provider_list.size() == 0){
+        init_offset();
         parser_clk_providers();
     }
     while ((c = getopt(argcnt, args, "ctedp")) != EOF) {
@@ -55,7 +56,7 @@ void Clock::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Clock::Clock(){
+void Clock::init_offset(void) {
     field_init(of_clk_provider,link);
     field_init(of_clk_provider,node);
     field_init(of_clk_provider,data);
@@ -94,6 +95,9 @@ Clock::Clock(){
     struct_init(qcom_cc);
     struct_init(rpm_smd_clk_desc);
     struct_init(clk_rpmh_desc);
+}
+
+void Clock::init_command(void) {
     cmd_name = "ccf";
     help_str_list={
         "ccf",                            /* command name */
@@ -163,7 +167,10 @@ Clock::Clock(){
         "    ffffff8017a8df00 gpu_cc_cx_gmu_clk                             19.2MHZ",
         "\n",
     };
-    initialize();
+}
+
+Clock::Clock(){
+    do_init_offset = false;
 }
 
 void Clock::parser_clk_of_msm_provider(std::shared_ptr<clk_provider> prov_ptr,ulong data){
@@ -312,11 +319,10 @@ void Clock::print_enable_clock(){
     fprintf(fp, "=============================================\n");
     fprintf(fp, "  Enable Clocks from of_clk_providers list\n");
     fprintf(fp, "=============================================\n");
-    std::ostringstream oss_h;
-    oss_h << std::left << std::setw(VADDR_PRLEN) << "clk_core"  << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(VADDR_PRLEN) << "clk_core"  << " "
           << std::left << std::setw(45) << "Name" << " "
-          << std::left << "Rate";
-    fprintf(fp, "%s \n",oss_h.str().c_str());
+          << std::left << "Rate" << "\n";
     for (const auto& provider : provider_list) {
         if (provider->core_list.size() == 0){
             continue;
@@ -333,25 +339,23 @@ void Clock::print_enable_clock(){
             ulong rate = read_ulong(core_addr + field_offset(clk_core,rate),"rate");
             int enable_count = read_uint(core_addr + field_offset(clk_core,enable_count),"enable");
             if(enable_count > 0){
-                std::ostringstream oss;
                 oss << std::left << std::setw(VADDR_PRLEN) << std::hex << core_addr << " "
                     << std::left << std::setw(45)  << core_name << " "
-                    << std::left << std::dec << (double)rate/1000000 << "MHZ";
-                fprintf(fp, "%s \n",oss.str().c_str());
+                    << std::left << std::dec << (double)rate/1000000 << "MHZ" << "\n";
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Clock::print_disable_clock(){
     fprintf(fp, "=============================================\n");
     fprintf(fp, "  Disabled Clocks from of_clk_providers list\n");
     fprintf(fp, "=============================================\n");
-    std::ostringstream oss_h;
-    oss_h << std::left << std::setw(VADDR_PRLEN) << "clk_core"  << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(VADDR_PRLEN) << "clk_core"  << " "
           << std::left << std::setw(45) << "Name" << " "
-          << std::left << "Rate";
-    fprintf(fp, "%s \n",oss_h.str().c_str());
+          << std::left << "Rate" << "\n";
     for (const auto& provider : provider_list) {
         if (provider->core_list.size() == 0){
             continue;
@@ -369,25 +373,23 @@ void Clock::print_disable_clock(){
             int enable_count = read_uint(core_addr + field_offset(clk_core,enable_count),"enable");
             int prepare_count = read_uint(core_addr + field_offset(clk_core,prepare_count),"prepare");
             if(prepare_count == 0 && enable_count == 0){
-                std::ostringstream oss;
                 oss << std::left << std::setw(VADDR_PRLEN) << std::hex << core_addr << " "
                     << std::left << std::setw(45)  << core_name << " "
-                    << std::left << std::dec << (double)rate/1000000 << "MHZ";
-                fprintf(fp, "%s \n",oss.str().c_str());
+                    << std::left << std::dec << (double)rate/1000000 << "MHZ" << "\n";
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Clock::print_prepare_clock(){
     fprintf(fp, "=============================================\n");
     fprintf(fp, "  Prepare Clocks from of_clk_providers list\n");
     fprintf(fp, "=============================================\n");
-    std::ostringstream oss_h;
-    oss_h << std::left << std::setw(VADDR_PRLEN) << "clk_core"  << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(VADDR_PRLEN) << "clk_core"  << " "
           << std::left << std::setw(45) << "Name" << " "
-          << std::left << "Rate";
-    fprintf(fp, "%s \n",oss_h.str().c_str());
+          << std::left << "Rate" << "\n";
     for (const auto& provider : provider_list) {
         if (provider->core_list.size() == 0){
             continue;
@@ -404,23 +406,23 @@ void Clock::print_prepare_clock(){
             ulong rate = read_ulong(core_addr + field_offset(clk_core,rate),"rate");
             int prepare_count = read_uint(core_addr + field_offset(clk_core,prepare_count),"prepare");
             if(prepare_count > 0){
-                std::ostringstream oss;
                 oss << std::left << std::setw(VADDR_PRLEN) << std::hex << core_addr << " "
                     << std::left << std::setw(45)  << core_name << " "
-                    << std::left << std::dec << (double)rate/1000000 << "MHZ";
-                fprintf(fp, "%s \n",oss.str().c_str());
+                    << std::left << std::dec << (double)rate/1000000 << "MHZ" << "\n";
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Clock::print_clk_tree(){
     int offset = field_offset(clk,clks_node);
+    std::ostringstream oss;
     for (const auto& provider : provider_list) {
         if (provider->core_list.size() == 0){
             continue;
         }
-        fprintf(fp, "clk_provider:%s\n",provider->name.c_str());
+        oss << std::left << "clk_provider:" << std::hex << provider->addr << "  " << provider->name << "\n";
         for (const auto& core_addr : provider->core_list) {
             std::string core_name;
             ulong name_addr = read_pointer(core_addr + field_offset(clk_core,name),"name addr");
@@ -431,11 +433,9 @@ void Clock::print_clk_tree(){
                 core_name = "";
             }
             ulong rate = read_ulong(core_addr + field_offset(clk_core,rate),"rate");
-            std::ostringstream oss;
-            oss << std::left << "clk_core:" << std::hex << core_addr << "  "
+            oss << std::left << "    clk_core:" << std::hex << core_addr << "  "
                 << std::left << std::setw(45)  << core_name << " "
-                << std::left << std::dec << (double)rate/1000000 << "MHZ";
-            fprintf(fp, "   %s \n",oss.str().c_str());
+                << std::left << std::dec << (double)rate/1000000 << "MHZ" << "\n";
             ulong hlist_head = core_addr + field_offset(clk_core,clks);
             for (const auto& clk_addr : for_each_hlist(hlist_head, offset)) {
                 std::string dev_id;
@@ -448,20 +448,21 @@ void Clock::print_clk_tree(){
                 if (dev_id.empty()){
                     dev_id = "";
                 }
-                fprintf(fp, "           clk:%lx  --> device:%s \n",clk_addr, dev_id.c_str());
+                oss << std::left << "         clk:" << std::hex << clk_addr << "  --> device:" << dev_id << "\n";
             }
         }
-        fprintf(fp, "\n\n");
+        oss << "\n\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Clock::print_clk_providers(){
+    std::ostringstream oss;
     for (const auto& provider : provider_list) {
         if (provider->core_list.size() == 0){
             continue;
         }
         fprintf(fp, "clk_provider: %s\n",provider->name.c_str());
-        std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN)   << "clk_core"  << " "
             << std::right << std::setw(10)   << "rate" << " "
             << std::right << std::setw(10)   << "req_rate" << " "
@@ -473,6 +474,7 @@ void Clock::print_clk_providers(){
             << std::left << std::setw(VADDR_PRLEN)    << "clk_hw" << " "
             << "Name";
         fprintf(fp, "   %s \n",oss.str().c_str());
+        oss.str("");
         for (const auto& addr : provider->core_list) {
             parser_clk_core(addr);
         }

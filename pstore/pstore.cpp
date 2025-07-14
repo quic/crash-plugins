@@ -50,7 +50,7 @@ void Pstore::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Pstore::Pstore(){
+void Pstore::init_offset(void) {
     field_init(ramoops_context,dprzs);
     field_init(ramoops_context,cprz);
     field_init(ramoops_context,fprzs);
@@ -68,6 +68,9 @@ Pstore::Pstore(){
     field_init(persistent_ram_zone,buffer);
     field_init(persistent_ram_buffer,start);
     field_init(persistent_ram_buffer,size);
+}
+
+void Pstore::init_command(void) {
     cmd_name = "pstore";
     help_str_list={
         "pstore",                            /* command name */
@@ -95,8 +98,9 @@ Pstore::Pstore(){
         "    %s> pstore -o",
         "\n",
     };
-    initialize();
 }
+
+Pstore::Pstore(){}
 
 void Pstore::print_ftrace_log(){
     if (!csymbol_exists("oops_cxt")){

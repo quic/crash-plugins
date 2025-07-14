@@ -28,10 +28,13 @@ void DmaIon::cmd_main(void) {
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     if(dmabuf_ptr == nullptr){
         dmabuf_ptr = std::make_shared<Dmabuf>();
+        dmabuf_ptr->get_dmabuf_from_proc();
+        dmabuf_ptr->parser_dma_bufs();
     }
     if(heap_ptr == nullptr){
         if(struct_size(dma_heap) != -1){
             heap_ptr = std::make_shared<DmaHeap>(dmabuf_ptr);
+            heap_ptr->parser_heaps();
         }else if(struct_size(ion_heap) != -1){
             heap_ptr = std::make_shared<IonHeap>(dmabuf_ptr);
         }
@@ -81,9 +84,12 @@ void DmaIon::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-DmaIon::DmaIon(){
+void DmaIon::init_offset(void) {
     struct_init(dma_heap);
     struct_init(ion_heap);
+}
+
+void DmaIon::init_command(void) {
     // print_table();
     cmd_name = "dmabuf";
     help_str_list={
@@ -171,7 +177,8 @@ DmaIon::DmaIon(){
         "       Save dmabuf to file xxx/dma_buf@ffffff88d0010400.data !",
         "\n",
     };
-    initialize();
 }
+
+DmaIon::DmaIon(){}
 
 #pragma GCC diagnostic pop

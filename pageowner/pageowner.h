@@ -76,13 +76,7 @@ private:
     static const int INPUT_PFN = 0x0001;
     static const int INPUT_PYHS = 0x0002;
     static const int INPUT_PAGE = 0x0004;
-public:
-    std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_map; //<pfn, page_owner>
-    std::unordered_map<unsigned int, std::shared_ptr<stack_info>> handle_map; //<handle,stack_info>
-    std::set<ulong> page_owner_page_list;
-    std::set<ulong> stack_record_page_list;
-    Pageowner();
-    bool debug;
+    bool debug = false;
     int page_ext_size;
     int depot_index;
     ulong stack_slabs;
@@ -91,7 +85,11 @@ public:
     size_t ops_offset;
     long PAGE_EXT_OWNER;
     long PAGE_EXT_OWNER_ALLOCATED;
-    void cmd_main(void) override;
+    std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_map; //<pfn, page_owner>
+    std::unordered_map<unsigned int, std::shared_ptr<stack_info>> handle_map; //<handle,stack_info>
+    std::set<ulong> page_owner_page_list;
+    std::set<ulong> stack_record_page_list;
+
     bool is_enable_pageowner();
     void parser_all_pageowners();
     std::shared_ptr<page_owner> parser_page_owner(ulong addr);
@@ -107,6 +105,12 @@ public:
     void print_total_size_by_handle();
     void print_total_size_by_pid(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list);
     void print_memory_info();
+
+public:
+    Pageowner();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Pageowner)
 };
 

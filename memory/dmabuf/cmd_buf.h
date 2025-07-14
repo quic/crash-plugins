@@ -30,6 +30,8 @@ private:
 public:
     DmaIon();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(DmaIon)
 };
 

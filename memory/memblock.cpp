@@ -42,7 +42,7 @@ void Memblock::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Memblock::Memblock(){
+void Memblock::init_offset(void) {
     field_init(memblock,bottom_up);
     field_init(memblock,current_limit);
     field_init(memblock,memory);
@@ -58,6 +58,9 @@ Memblock::Memblock(){
     struct_init(memblock);
     struct_init(memblock_type);
     struct_init(memblock_region);
+}
+
+void Memblock::init_command(void) {
     cmd_name = "memblock";
     help_str_list={
         "memblock",                            /* command name */
@@ -79,8 +82,9 @@ Memblock::Memblock(){
         "      [2]  memblock_region:0xffffffde310dd4d8 range:[0x47fffe80~0x48000000] size:384b       flags:MEMBLOCK_NONE",
         "\n",
     };
-    initialize();
 }
+
+Memblock::Memblock(){}
 
 static std::vector<std::string> flags_str = {
     "MEMBLOCK_NONE",
@@ -171,13 +175,11 @@ void Memblock::print_memblock(){
     fprintf(fp, "%s \n",oss.str().c_str());
     print_memblock_type(&block->memory);
 
-    fprintf(fp, "\n");
     oss.str("");
-
     oss << "memblock_type:" << std::hex << block->reserved.addr
         << " [" << block->reserved.name << "] "
         << "total_size:" << csize(block->reserved.total_size);
-    fprintf(fp, "%s \n",oss.str().c_str());
+    fprintf(fp, "%s \n", oss.str().c_str());
     print_memblock_type(&block->reserved);
 }
 
@@ -188,16 +190,16 @@ void Memblock::print_memblock_type(memblock_type* type){
         tmp << std::hex << (type->regions[i]->base + type->regions[i]->size);
         addr_len = std::max(addr_len,tmp.str().length());
     }
+    std::ostringstream oss;
     for (size_t i = 0; i < type->cnt; ++i) {
-        std::ostringstream oss;
         oss << "  ["
-            << std::setw(5) << std::setfill('0') << i << "]"
+            << std::setw(5) << std::setfill('0') << std::dec << std::right << i << "]"
             << "memblock_region:" << std::hex << std::setfill(' ') << type->regions[i]->addr
             << " range:[" << std::right << std::hex << std::setw(addr_len) << std::setfill('0') << type->regions[i]->base
             << "~" << std::right << std::hex << std::setw(addr_len) << std::setfill('0') << (type->regions[i]->base + type->regions[i]->size) << "]"
             << " size:" << std::left << std::setw(10) << std::setfill(' ') << csize(type->regions[i]->size)
-            << " flags:" << flags_str[type->regions[i]->flags];
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << " flags:" << flags_str[type->regions[i]->flags] << "\n";
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 #pragma GCC diagnostic pop

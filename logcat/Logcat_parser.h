@@ -39,8 +39,9 @@ private:
 public:
     Logcat_Parser();
     Logcat_Parser(std::shared_ptr<Swapinfo> swap,std::shared_ptr<PropInfo> prop);
-    void init_command();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Logcat_Parser)
 };
 

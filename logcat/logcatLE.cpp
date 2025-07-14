@@ -18,9 +18,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-LogcatLE::LogcatLE(std::shared_ptr<Swapinfo> swap) : Logcat(swap){
-
-}
+LogcatLE::LogcatLE(std::shared_ptr<Swapinfo> swap) : Logcat(swap){}
 
 ulong LogcatLE::parser_logbuf_addr(){
     size_t logbuf_addr;

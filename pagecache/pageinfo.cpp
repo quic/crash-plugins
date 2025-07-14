@@ -83,32 +83,32 @@ void Pageinfo::print_file_pages(){
         return a->nrpages > b->nrpages;
     });
     fprintf(fp, "===============================================\n");
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN)  << "inode" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(VADDR_PRLEN)  << "inode" << " "
             << std::left << std::setw(VADDR_PRLEN)  << "address_space" << " "
             << std::left << std::setw(8)            << "nrpages" << " "
             << std::left << std::setw(10)           << "size" << " "
-            << std::left << "Path";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "Path"
+            << "\n";
     for (const auto& file_ptr : cache_list) {
-        std::ostringstream oss;
         oss << std::left << std::hex  << std::setw(VADDR_PRLEN) << file_ptr->inode << " "
             << std::left << std::hex  << std::setw(VADDR_PRLEN) << file_ptr->i_mapping << " "
             << std::left << std::dec  << std::setw(8)           << file_ptr->nrpages << " "
             << std::left << std::dec  << std::setw(10)          << csize(file_ptr->nrpages * page_size) << " "
-            << std::left << file_ptr->name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << file_ptr->name
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
-void Pageinfo::init_offset(){
+void Pageinfo::init_offset(void) {
     field_init(inode,i_mapping);
     field_init(inode,i_dentry);
     field_init(inode,i_sb);
     field_init(dentry,d_u);
 }
 
-Pageinfo::Pageinfo(){
+void Pageinfo::init_command(void) {
     cmd_name = "cache";
     help_str_list={
         "cache",                            /* command name */
@@ -146,8 +146,8 @@ Pageinfo::Pageinfo(){
         "    page:0xfffffffe0007f4c0  paddr:0x41fd3000",
         "\n",
     };
-    initialize();
-    init_offset();
 }
+
+Pageinfo::Pageinfo(){}
 
 #pragma GCC diagnostic pop

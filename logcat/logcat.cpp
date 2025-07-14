@@ -567,9 +567,11 @@ Logcat::~Logcat(){
 
 }
 
-void Logcat::cmd_main(void) {
+void Logcat::init_offset(void) {}
 
-}
+void Logcat::cmd_main(void) {}
+
+void Logcat::init_command(void) {}
 
 std::string Logcat::getLogLevelChar(LogLevel level) {
     switch (level) {
@@ -633,6 +635,7 @@ std::string Logcat::remove_invalid_chars(const std::string& msg) {
 
 void Logcat::print_logcat_log(LOG_ID id){
     // fprintf(fp, "log_list len:%zu  \n", log_list.size());
+    std::ostringstream oss;
     for (auto &log_ptr : log_list){
         if(id != ALL && log_ptr->logid != id){
             // std::cout << log_ptr->msg << std::endl;
@@ -645,7 +648,6 @@ void Logcat::print_logcat_log(LOG_ID id){
         while (vaild_msg.back() == ' ' || vaild_msg.back() == '\n' || vaild_msg.back() == '\r'){
             vaild_msg.pop_back();
         }
-        std::ostringstream oss;
         if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO
             || log_ptr->logid == CRASH || log_ptr->logid == KERNEL){
             oss << std::setw(18) << std::left << log_ptr->timestamp << " "
@@ -654,7 +656,8 @@ void Logcat::print_logcat_log(LOG_ID id){
                 << std::setw(6) << std::right << log_ptr->uid << " "
                 << getLogLevelChar(log_ptr->priority) << " "
                 << log_ptr->tag << " "
-                << vaild_msg;
+                << vaild_msg
+                << "\n";
         }else{ // event log
             std::string tag = log_ptr->tag;
             try {
@@ -671,10 +674,11 @@ void Logcat::print_logcat_log(LOG_ID id){
             << std::setw(6) << std::right << log_ptr->uid << " "
             << getLogLevelChar(log_ptr->priority) << " "
             << tag << " "
-            << vaild_msg;
+            << vaild_msg
+            << "\n";
         }
-        fprintf(fp, "%s \n",oss.str().c_str());
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 LogEvent Logcat::get_event(size_t pos, char* data, size_t len) {
@@ -811,6 +815,7 @@ void Logcat::parser_event_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, ui
     const size_t header_size = sizeof(android_event_header_t);
     size_t pos = 0;
     char* msg_ptr = logbuf;
+    std::ostringstream oss;
     while (pos < msg_len){
         if (pos + header_size > msg_len){
             break;
@@ -820,7 +825,6 @@ void Logcat::parser_event_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, ui
         pos += header_size;
         // read the tag
         log_ptr->tag = std::to_string(head.tag);
-        std::ostringstream oss;
         oss << std::left << ":[";
         LogEvent event = get_event(pos, msg_ptr, msg_len);
         if (event.type == -1) {
@@ -844,8 +848,9 @@ void Logcat::parser_event_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, ui
         } else {
             oss << event.val;
         }
-        oss << "]";
+        oss << "]" << "\n";
         log_ptr->msg = oss.str();
+        oss.str("");
     }
 }
 

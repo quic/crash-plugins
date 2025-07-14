@@ -19,13 +19,16 @@
 #include "swapinfo.h"
 
 class Swap : public Swapinfo {
+private:
+    void print_swaps();
+    void print_page_memory(std::string addr);
+
 public:
     Swap();
     Swap(std::shared_ptr<Zraminfo> zram);
     void cmd_main(void) override;
-    void init_command();
-    void print_swaps();
-    void print_page_memory(std::string addr);
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Swap)
 };
 

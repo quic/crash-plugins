@@ -28,9 +28,6 @@ class Clock : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<clk_provider>> provider_list;
 
-public:
-    Clock();
-
     void parser_clk_simple(std::shared_ptr<clk_provider> prov_ptr,ulong data);
     void parser_clk_hw_simple(std::shared_ptr<clk_provider> prov_ptr,ulong data);
     void parser_clk_rpmh(std::shared_ptr<clk_provider> prov_ptr, ulong data);
@@ -44,10 +41,15 @@ public:
     void print_enable_clock();
     void print_disable_clock();
     void print_prepare_clock();
-    void cmd_main(void) override;
     void parser_clk_providers();
     void print_clk_providers();
     void print_clk_tree();
+
+public:
+    Clock();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Clock)
 };
 

@@ -23,9 +23,7 @@ private:
     static const int PRINT_SIZE_CLASS = 0x0001;
     static const int PRINT_ZSPAGE = 0x0002;
     static const int PRINT_PAGE = 0x0004;
-public:
-    Zram();
-    void cmd_main(void) override;
+
     void print_zrams();
     void print_zram_full_info(std::string zram_addr);
     void print_mem_pool(std::string zram_addr);
@@ -36,6 +34,12 @@ public:
     void print_size_class_obj(std::shared_ptr<size_class> class_ptr);
     void print_zspage_obj(std::shared_ptr<zpage> zspage_ptr);
     void print_page_obj(std::shared_ptr<pageinfo> page_ptr);
+
+public:
+    Zram();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Zram)
 };
 

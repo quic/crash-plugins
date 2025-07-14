@@ -44,21 +44,17 @@ struct vmalloc_info {
 };
 
 class Vmalloc : public ParserPlugin {
-public:
+private:
     static const int VM_IOREMAP =0x00000001;
     static const int VM_ALLOC =0x00000002;
     static const int VM_MAP = 0x00000004;
     static const int VM_USERMAP =0x00000008;
     static const int VM_VPAGES =0x00000010;
     static const int VM_UNLIST =0x00000020;
-
     std::vector<std::shared_ptr<vmap_area>> area_list;
-    Vmalloc();
 
     void parser_vmap_nodes();
     void parser_vmap_area(ulong addr);
-
-    void cmd_main(void) override;
     void parser_vmap_area_list();
     void print_vmap_area_list();
     void print_vmap_area();
@@ -68,6 +64,12 @@ public:
     void print_summary_type();
     void print_vm_info_caller(std::string func);
     void print_vm_info_type(std::string type);
+
+public:
+    Vmalloc();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Vmalloc)
 };
 

@@ -99,11 +99,7 @@ private:
     bool debug = false;
     int32_t cpu_index_offset = 0;
 
-public:
-    DebugImage();
     void print_memdump();
-    void cmd_main(void) override;
-    DEFINE_PLUGIN_INSTANCE(DebugImage)
     void parser_memdump();
     void parser_debugimage(ulong addr);
     void print_cpu_stack();
@@ -115,6 +111,13 @@ public:
     std::set<ulong> find_x29(const std::map<ulong, ulong>& addr_x29);
     void print_task_stack(int pid);
     void print_irq_stack(int cpu);
+
+public:
+    DebugImage();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
+    DEFINE_PLUGIN_INSTANCE(DebugImage)
 };
 
 #endif // DEBUG_IMAGE_DEFS_H_

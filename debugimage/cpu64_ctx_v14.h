@@ -118,9 +118,11 @@ typedef struct {
 }tzbsp_dump_64_1_4_t;
 
 class Cpu64_Context_V14 : public ImageParser {
+private:
+    void compute_pc(sysdbg_cpu64_ctx_1_4_t reg, sysdbg_neon128_registers_t neon_reg);
+
 public:
     Cpu64_Context_V14();
-    void compute_pc(sysdbg_cpu64_ctx_1_4_t reg, sysdbg_neon128_registers_t neon_reg);
     void generate_cmm(std::shared_ptr<Dump_entry> entry_ptr) override;
     void print_stack(std::shared_ptr<Dump_entry> entry_ptr) override;
 };

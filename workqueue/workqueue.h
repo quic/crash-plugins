@@ -111,7 +111,7 @@ struct workqueue_struct{
 };
 
 class Workqueue : public ParserPlugin {
-public:
+private:
     std::vector<std::shared_ptr<workqueue_struct>> workqueue_list;
     std::unordered_map<ulong/* worker ddr address */, std::shared_ptr<worker>> worker_list_map;
     std::unordered_map<ulong/* worker_pool ddr address */, std::shared_ptr<worker_pool>> worker_pool_map;
@@ -124,9 +124,6 @@ public:
     void print_worker();
     void print_pool_by_addr(std::string addr);
     void print_pool();
-
-    template <typename T>
-    std::string parser_flags(uint flags, const std::unordered_map<T, std::string>& flags_array);
     std::vector<std::shared_ptr<work_struct>> parser_work_list(ulong list_head);
     std::shared_ptr<worker> parser_worker(ulong addr,std::shared_ptr<worker_pool> wp_ptr);
     std::vector<std::shared_ptr<worker>> parser_worker_list(ulong list_head_addr,int offset,std::shared_ptr<worker_pool> wp_ptr);
@@ -135,8 +132,14 @@ public:
     std::shared_ptr<workqueue_struct> parser_workqueue_struct(ulong addr);
     void parse_workqueue();
     std::string print_func_name(ulong func_addr);
+    template <typename T>
+    std::string parser_flags(uint flags, const std::unordered_map<T, std::string>& flags_array);
+
+public:
     Workqueue();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Workqueue)
 };
 

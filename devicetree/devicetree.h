@@ -27,7 +27,7 @@ struct Property {
     ulong addr;
     int length;
     std::string name;
-    void *value;
+    std::vector<char> value;
 };
 
 struct device_node {
@@ -72,23 +72,29 @@ private:
         "strength",
     };
 
-public:
-    Devicetree();
-    ulong root_addr;
-    std::shared_ptr<device_node> root_node;
+private:
     std::unordered_map<ulong, std::shared_ptr<device_node>> node_addr_maps;
     std::unordered_map<std::string, std::shared_ptr<device_node>> node_path_maps;
 
+    std::vector<DdrRange> parse_memory_regs(std::shared_ptr<Property> prop);
+
+public:
+    ulong root_addr;
+    std::shared_ptr<device_node> root_node;
+
+    Devicetree();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     std::shared_ptr<Property> getprop(ulong node_addr,const std::string& name);
-    std::vector<DdrRange> get_ddr_size();
     std::vector<std::shared_ptr<device_node>> find_node_by_name(const std::string& name);
     std::shared_ptr<device_node> find_node_by_addr(ulong addr);
     bool is_str_prop(const std::string& name);
     bool is_int_prop(const std::string& name);
-    std::vector<DdrRange> parse_memory_regs(std::shared_ptr<Property> prop);
+    std::vector<DdrRange> get_ddr_size();
     std::vector<std::shared_ptr<Property>> read_propertys(ulong addr);
     std::shared_ptr<device_node> read_node(const std::string& path, ulong node_addr);
+
 };
 
 #endif // DEVICE_TREE_DEFS_H_

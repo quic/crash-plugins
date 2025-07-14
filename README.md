@@ -15,12 +15,12 @@ sudo dpkg --add-architecture i386
 sudo apt-get update
 ```
 ```
-sudo apt install gcc-multilib g++-multilib libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 pkg-config
+sudo apt install gcc-multilib g++-multilib libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 libsystemd-dev libsystemd-dev:i386 pkg-config
 ```
 
 # How to build
 
-We can compile each plugin into a separate SO library or we can compile all plugins together.You can choose how to compile by configuring the macro BUILD_TARGET_TOGETHER in build.sh.
+We can compile each plugin as a separate library or compile all plugins together. Use the BUILD_TARGET_TOGETHER macro in build.sh to configure it.
 
 ## single-module (by defalut)
 ```
@@ -155,122 +155,206 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
 ```
 
 # How to develop
-1. Add the header file: demo.h
-```
-/**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * SPDX-License-Identifier: GPL-2.0-only
- */
+1. If you want to build it into plugins.so, please follow the steps.
+     - Add your header file.
+       ```
+       /**
+       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       *
+       * This program is free software; you can redistribute it and/or modify
+       * it under the terms of the GNU General Public License version 2 and
+       * only version 2 as published by the Free Software Foundation.
+       *
+       * This program is distributed in the hope that it will be useful,
+       * but WITHOUT ANY WARRANTY; without even the implied warranty of
+       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+       * GNU General Public License for more details.
+       *
+       * SPDX-License-Identifier: GPL-2.0-only
+       */
 
-#ifndef DEMO_DEFS_H_
-#define DEMO_DEFS_H_
+       #ifndef DEMO_DEFS_H_
+       #define DEMO_DEFS_H_
 
-#include "plugin.h"
+       #include "plugin.h"
 
-class Demo: public ParserPlugin {
-public:
-    Demo();
+       class Demo: public ParserPlugin {
+       public:
+           Demo();
 
-    void cmd_main(void) override;
-    DEFINE_PLUGIN_INSTANCE(Demo)
-};
+           void cmd_main(void) override;
+           void init_offset(void) override;
+           void init_command(void) override;
+           DEFINE_PLUGIN_INSTANCE(Demo)
+       };
 
-#endif // DEMO_DEFS_H_
-```
-2. Add the Demo.cpp file
-```
-/**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * SPDX-License-Identifier: GPL-2.0-only
- */
+       #endif // DEMO_DEFS_H_
+       ```
+     - Implement your parser in cpp file.
+       ```
+       /**
+       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       *
+       * This program is free software; you can redistribute it and/or modify
+       * it under the terms of the GNU General Public License version 2 and
+       * only version 2 as published by the Free Software Foundation.
+       *
+       * This program is distributed in the hope that it will be useful,
+       * but WITHOUT ANY WARRANTY; without even the implied warranty of
+       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+       * GNU General Public License for more details.
+       *
+       * SPDX-License-Identifier: GPL-2.0-only
+       */
 
-#include "demo.h"
+       #include "demo.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpointer-arith"
+       #pragma GCC diagnostic push
+       #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-#ifndef BUILD_TARGET_TOGETHER
-DEFINE_PLUGIN_COMMAND(Demo)
-#endif
+       void Demo::cmd_main(void) {
+           int c;
+           if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+           while ((c = getopt(argcnt, args, "a")) != EOF) {
+               switch(c) {
+                   case 'a':
+                       do_somethings();
+                       break;
+                   default:
+                       argerrs++;
+                       break;
+           }
+         }
+           if (argerrs)
+           cmd_usage(pc->curcmd, SYNOPSIS);
+       }
 
-void Demo::cmd_main(void) {
-    int c;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "a")) != EOF) {
-        switch(c) {
-            case 'a':
-                do_somethings();
-                break;
-            default:
-                argerrs++;
-                break;
-    }
-  }
-    if (argerrs)
-    cmd_usage(pc->curcmd, SYNOPSIS);
-}
+       /* It will be called automatically. */
+       void Demo::init_command(void) {
+           cmd_name = "demo";
+           help_str_list={
+           "demo",                    /* command name */
+           "your description",        /* short description */
+           };
+       }
 
-Demo::Demo(){
-    cmd_name = "demo";
-    help_str_list={
-    "demo",                    /* command name */
-    "your description",        /* short description */
-    };
-    initialize();
-}
+       void Demo::init_offset(void) {
+         /* If your parser needs to initialize offsets, please do so here. */
+         /* If the offset belongs to a driver module, set do_init_offset = false in the constructor. Then, initialize the offset in here and call it from cmd_main(). */
+       }
+       ```
+     - Include your header file to plugins.cpp
+       ```
+       #include "demo.h"
+       ```
+     - Add the shared_ptr to plugins.cpp
+       ```
+       std::shared_ptr<Demo>   Demo::instance = nullptr;
+       ```
+     - Register your module to plugins.cpp in function plugin_init
+       ```
+       plugins.push_back(make_and_init<Demo>());
+       ```
+     - Add the build rule in CMakeLists.txt
+       ```
+       list(APPEND PLUGIN_SOURCES
+           ...
+           demo.cpp)
+       ```
+2. If you want to add the module to the single-module. please follow the steps in plugins.cpp
+   - Add your header file.
+       ```
+       /**
+       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       *
+       * This program is free software; you can redistribute it and/or modify
+       * it under the terms of the GNU General Public License version 2 and
+       * only version 2 as published by the Free Software Foundation.
+       *
+       * This program is distributed in the hope that it will be useful,
+       * but WITHOUT ANY WARRANTY; without even the implied warranty of
+       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+       * GNU General Public License for more details.
+       *
+       * SPDX-License-Identifier: GPL-2.0-only
+       */
 
-#pragma GCC diagnostic pop
-```
-3. Add the build rule in CMakeLists.txt, it will output the demo.so, now you can use it.
-```
-add_library(demo SHARED
-            ${PLUGIN_SOURCES}
-            demo.cpp)
-set_target_properties(demo PROPERTIES PREFIX "")
-```
-4. if you want to add the module to single-module. please follow the steps in plugins.cpp
-  - include your header file
-    ```
-    #include "demo.h"
-    ```
-  - Add the shared_ptr
-    ```
-    std::shared_ptr<Demo>   Demo::instance = nullptr;
-    ```
-  - register your module in function plugin_init
-    ```
-    { &Demo::instance->cmd_name[0], &Demo::wrapper_func, Demo::instance->cmd_help, 0 },
-    ```
-  - Destory your module in function plugin_fini
-    ```
-    Demo::instance.reset();
-    ```
-  - Add the build rule in CMakeLists.txt
-    ```
-    list(APPEND PLUGIN_SOURCES
-            ...
-            demo.cpp)
-    ```
+       #ifndef DEMO_DEFS_H_
+       #define DEMO_DEFS_H_
+
+       #include "plugin.h"
+
+       class Demo: public ParserPlugin {
+       public:
+           Demo();
+
+           void cmd_main(void) override;
+           void init_offset(void) override;
+           void init_command(void) override;
+           DEFINE_PLUGIN_INSTANCE(Demo)
+       };
+
+       #endif // DEMO_DEFS_H_
+       ```
+    - Register your parser using DEFINE_PLUGIN_COMMAND(Demo) in your cpp file.
+       ```
+       /**
+       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       *
+       * This program is free software; you can redistribute it and/or modify
+       * it under the terms of the GNU General Public License version 2 and
+       * only version 2 as published by the Free Software Foundation.
+       *
+       * This program is distributed in the hope that it will be useful,
+       * but WITHOUT ANY WARRANTY; without even the implied warranty of
+       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+       * GNU General Public License for more details.
+       *
+       * SPDX-License-Identifier: GPL-2.0-only
+       */
+       #include "demo.h"
+       #pragma GCC diagnostic push
+       #pragma GCC diagnostic ignored "-Wpointer-arith"
+
+       DEFINE_PLUGIN_COMMAND(Demo)
+
+       void Demo::cmd_main(void) {
+           int c;
+           if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+           while ((c = getopt(argcnt, args, "a")) != EOF) {
+               switch(c) {
+                   case 'a':
+                       do_somethings();
+                       break;
+                   default:
+                       argerrs++;
+                       break;
+           }
+         }
+           if (argerrs)
+           cmd_usage(pc->curcmd, SYNOPSIS);
+       }
+       /* It will be called automatically. */
+       void Demo::init_command(void) {
+           cmd_name = "demo";
+           help_str_list={
+           "demo",                    /* command name */
+           "your description",        /* short description */
+           };
+       }
+       void Demo::init_offset(void) {
+         /* If your parser needs to initialize offsets, please do so here. */
+         /* If the offset belongs to a driver module, set do_init_offset = false in the constructor. Then, initialize the offset in here and call it from cmd_main(). */
+       }
+       ```
+   - Add the build rule in CMakeLists.txt
+       ```
+       add_library(demo SHARED
+               ${PLUGIN_SOURCES}
+               demo.cpp)
+       set_target_properties(demo PROPERTIES PREFIX "")
+       target_link_libraries(demo)
+       ```
 
 # Tested Kernels
 - 5.4 to 6.6

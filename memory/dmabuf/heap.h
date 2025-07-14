@@ -25,12 +25,14 @@ protected:
 
 public:
     Heap(std::shared_ptr<Dmabuf> dmabuf);
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     virtual std::vector<ulong> get_heaps()=0;
     virtual void parser_heaps()=0;
     virtual void print_heaps()=0;
     virtual void print_system_heap_pool()=0;
     virtual void print_heap(std::string name)=0;
-    void cmd_main(void) override;
 };
 
 #endif // HEAP_DEFS_H_

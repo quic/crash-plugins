@@ -78,19 +78,20 @@ void Journal::cmd_main(void) {
     }
 }
 
-Journal::Journal(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    init_command();
-}
+Journal::Journal(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){}
 
 Journal::Journal(){
-    init_command();
     swap_ptr = std::make_shared<Swapinfo>();
 }
 
-void Journal::init_command(){
+void Journal::init_offset(void) {
     field_init(inode,i_dentry);
     field_init(inode,i_sb);
     field_init(dentry,d_u);
+}
+
+
+void Journal::init_command(void){
     cmd_name = "systemd";
     help_str_list={
         "systemd",                            /* command name */
@@ -140,7 +141,6 @@ void Journal::init_command(){
         "     [2025-06-17 19:34:52] msm_voice_source_tracking_get: Error getting Source Tracking Params, err=-22",
         "\n",
     };
-    initialize();
 }
 
 void Journal::get_journal_vma_list(){
@@ -162,10 +162,9 @@ void Journal::get_journal_vma_list(){
 
 bool Journal::write_vma_to_file(std::vector<std::shared_ptr<vma_struct>> vma_list, FILE* logfile){
     for(const auto& vma_ptr : vma_list){
-        void* vma_data = task_ptr->read_vma_data(vma_ptr);
-        if (vma_data){
-            fwrite(vma_data, vma_ptr->vm_size, 1, logfile);
-            std::free(vma_data);
+        std::vector<char> vma_data = task_ptr->read_vma_data(vma_ptr);
+        if (vma_data.size() > 0){
+            fwrite(vma_data.data(), vma_ptr->vm_size, 1, logfile);
         }
     }
     return true;

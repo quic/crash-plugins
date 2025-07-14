@@ -31,9 +31,13 @@ struct schedinfo {
 };
 
 class TaskSched : public ParserPlugin {
+private:
+    void print_task_timestamps(int cpu);
+
 public:
     TaskSched();
-    void print_task_timestamps(int cpu);
+    void init_offset(void) override;
+    void init_command(void) override;
     void cmd_main(void) override;
     DEFINE_PLUGIN_INSTANCE(TaskSched)
 };

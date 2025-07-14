@@ -73,36 +73,42 @@ struct size_list {
 };
 
 class PropInfo : public ParserPlugin {
-protected:
+private:
     bool debug = false;
-    std::shared_ptr<Swapinfo> swap_ptr;
-    std::shared_ptr<UTask> task_ptr;
-
-public:
-    std::unordered_map<std::string, std::string> prop_map; //<name, val>
-    std::vector<symbol> symbol_list = {
-        {"libc.so", ""},
-    };
     struct task_context *tc_init;
     bool is_compat;
     size_t pa_size;
     size_t pa_data_size;
     struct offset_list g_offset;
     struct size_list g_size;
-    PropInfo(std::shared_ptr<Swapinfo> swap);
-    ~PropInfo();
+
     std::string get_symbol_file(std::string name);
-    bool parser_propertys();
     void print_propertys();
-    void init_datatype_info();
     bool parser_prop_area(size_t vaddr);
     void parser_prop_bt(size_t root, size_t prop_bt_addr);
     void parser_prop_info(size_t prop_info_addr);
-    void parser_prop_by_init();
     bool for_each_prop(uint32_t prop_bt_off, size_t vma_len, char *vma_data);
     std::string cleanString(const std::string &str);
-    void cmd_main(void) override;
+
+protected:
+    std::shared_ptr<Swapinfo> swap_ptr;
+    std::shared_ptr<UTask> task_ptr;
+    std::unordered_map<std::string, std::string> prop_map; //<name, val>
+
+public:
+    std::vector<symbol> symbol_list = {
+        {"libc.so", ""},
+    };
+
     std::string get_prop(std::string name);
+    void parser_prop_by_init();
+    bool parser_propertys();
+    PropInfo(std::shared_ptr<Swapinfo> swap);
+    ~PropInfo();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
+
 };
 
 #endif // PROP_INFO_DEFS_H_

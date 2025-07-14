@@ -18,25 +18,22 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-void Swapinfo::cmd_main(void) {
-
-}
+void Swapinfo::cmd_main(void) {}
 
 Swapinfo::Swapinfo(std::shared_ptr<Zraminfo> zram): zram_ptr(zram){
-    init_command();
+    init_offset();
 }
 
 Swapinfo::Swapinfo(){
     zram_ptr = std::make_shared<Zraminfo>();
-    init_command();
-    //print_table();
+    init_offset();
 }
 
 bool Swapinfo::is_zram_enable(){
     return zram_ptr->is_zram_enable();
 }
 
-void Swapinfo::init_command(){
+void Swapinfo::init_offset(void) {
     field_init(swap_info_struct,pages);
     field_init(swap_info_struct,inuse_pages);
     field_init(swap_info_struct,swap_file);
@@ -55,12 +52,11 @@ void Swapinfo::init_command(){
     field_init(address_space,i_pages);
     field_init(address_space,page_tree);
     struct_init(address_space);
-    parser_swap_info();
 }
 
-Swapinfo::~Swapinfo(){
+void Swapinfo::init_command(void) {}
 
-}
+Swapinfo::~Swapinfo(){}
 
 ulonglong Swapinfo::pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val){
     ulong swp_offset = 0;
@@ -146,122 +142,102 @@ ulong Swapinfo::lookup_swap_cache(ulonglong pte_val){
 
 std::string Swapinfo::uread_cstring(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note){
     std::string res;
-    char* buf = uread_memory(task_addr,uvaddr,len, note);
-    if(buf != nullptr){
-        res = buf;
-        std::free(buf);
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,len, note);
+    if(buf.size() == 0){
+        res.assign(buf.begin(), buf.end());
+        return res;
     }
     return res;
 }
 
 bool Swapinfo::uread_bool(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(bool), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(bool), note);
+    if(buf.size() == 0){
         return false;
     }
-    bool res = BOOL(buf);
-    std::free(buf);
+    bool res = BOOL(buf.data());
     return res;
 }
 
 int Swapinfo::uread_int(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(int), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(int), note);
+    if(buf.size() == 0){
         return 0;
     }
-    int res = INT(buf);
-    std::free(buf);
+    int res = INT(buf.data());
     return res;
 }
 
 uint Swapinfo::uread_uint(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(uint), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(uint), note);
+    if(buf.size() == 0){
         return 0;
     }
-    uint res = UINT(buf);
-    std::free(buf);
+    uint res = UINT(buf.data());
     return res;
 }
 
 long Swapinfo::uread_long(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(long), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(long), note);
+    if(buf.size() == 0){
         return 0;
     }
-    long res = LONG(buf);
-    std::free(buf);
+    long res = LONG(buf.data());
     return res;
 }
 
 ulong Swapinfo::uread_ulong(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(ulong), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(ulong), note);
+    if(buf.size() == 0){
         return 0;
     }
-    ulong res = ULONG(buf);
-    std::free(buf);
+    ulong res = ULONG(buf.data());
     return res;
 }
 
 ulonglong Swapinfo::uread_ulonglong(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(ulonglong), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(ulonglong), note);
+    if(buf.size() == 0){
         return 0;
     }
-    ulonglong res = ULONGLONG(buf);
-    std::free(buf);
+    ulonglong res = ULONGLONG(buf.data());
     return res;
 }
 
 ushort Swapinfo::uread_ushort(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(ushort), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(ushort), note);
+    if(buf.size() == 0){
         return 0;
     }
-    ushort res = USHORT(buf);
-    std::free(buf);
+    ushort res = USHORT(buf.data());
     return res;
 }
 
 short Swapinfo::uread_short(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(short), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(short), note);
+    if(buf.size() == 0){
         return 0;
     }
-    short res = SHORT(buf);
-    std::free(buf);
+    short res = SHORT(buf.data());
     return res;
 }
 
 ulong Swapinfo::uread_pointer(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,sizeof(void *), note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,sizeof(void *), note);
+    if(buf.size() == 0){
         return 0;
     }
-    ulong res = (ulong)VOID_PTR(buf);
-    std::free(buf);
+    ulong res = (ulong)VOID_PTR(buf.data());
     return res;
 }
 
 unsigned char Swapinfo::uread_byte(ulonglong task_addr,ulonglong uvaddr,const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,1, note);
-    if(buf == nullptr){
+    std::vector<char> buf = uread_memory(task_addr,uvaddr,1, note);
+    if(buf.size() == 0){
         return 0;
     }
-    unsigned char res = UCHAR(buf);
-    std::free(buf);
+    unsigned char res = UCHAR(buf.data());
     return res;
-}
-
-bool Swapinfo::uread_buffer(ulonglong task_addr,ulonglong uvaddr,char* result, int len, const std::string& note){
-    char* buf = uread_memory(task_addr,uvaddr,len, note);
-    if(buf == nullptr){
-        return false;
-    }
-    memcpy(result,buf,len);
-    std::free(buf);
-    return true;
 }
 
 // read data across many pages
@@ -270,18 +246,17 @@ bool Swapinfo::uread_buffer(ulonglong task_addr,ulonglong uvaddr,char* result, i
 // -----------------------------------------------------------------
 //                  ^                              ^
 //                  |                              |
-char* Swapinfo::uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note){
+std::vector<char> Swapinfo::uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note){
     int remain = len;
-    char* result = (char*)std::malloc(len);
+    std::vector<char> result(len);
     // ulong orig_uvaddr = uvaddr;
-    BZERO(result, len);
     while(remain > 0){
         // read one page
         char* buf_page = do_swap_page(task_addr,uvaddr);
         int offset_in_page = (uvaddr & ~page_mask);
         int read_len = std::min(remain, static_cast<int>(page_size) - offset_in_page);
         if(buf_page != nullptr){
-            memcpy(result + (len - remain), buf_page + offset_in_page, read_len);
+            memcpy(result.data() + (len - remain), buf_page + offset_in_page, read_len);
             FREEBUF(buf_page);
         }
         remain -= read_len;
@@ -306,6 +281,10 @@ bool Swapinfo::is_swap_pte(ulong pte){
 }
 
 char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
+    nr_swap = read_int(csymbol_value("nr_swapfiles"),"nr_swapfiles");
+    if (swap_list.size() == 0 && nr_swap > 0){
+        parser_swap_info();
+    }
     physaddr_t paddr = 0;
     // struct task_context *tc = CURRENT_CONTEXT();
     // if(tc->task != task_addr){

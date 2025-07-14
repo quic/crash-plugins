@@ -80,7 +80,7 @@ void Binder::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Binder::Binder(){
+void Binder::init_offset(void) {
     field_init(binder_proc,proc_node);
     field_init(binder_proc,context);
     field_init(binder_proc,max_threads);
@@ -130,6 +130,9 @@ Binder::Binder(){
     struct_init(binder_alloc);
     struct_init(binder_lru_page);
     struct_init(binder_work);
+}
+
+void Binder::init_command(void) {
     cmd_name = "binder";
     help_str_list={
         "binder",                            /* command name */
@@ -195,8 +198,9 @@ Binder::Binder(){
         "           Alloc binder_buffer:0xdd8f62c0 id:408034 data:0x81a390d8 PA:0xa664b0d8 size:8 offset:0 extra:0 pid:1239 delivered",
         "\n",
     };
-    initialize();
 }
+
+Binder::Binder(){}
 
 void Binder::print_binder_transaction_log_entry(bool fail_log){
     ulong binder_transaction_log_addr;
@@ -224,7 +228,7 @@ void Binder::print_binder_transaction_log_entry(bool fail_log){
         count = btl.cur;
     }
     for(int i=0;i<count;i++){
-        struct binder_transaction_log_entry log_entry = btl.entry[i];
+        struct binder_transaction_log_entry& log_entry = btl.entry[i];
         if(log_entry.debug_id <= 0) continue;
         fprintf(fp, "%-6d: %s from %d:%d to %d:%d context %s node %d handle %d size %d:%d ret %d/%d l=%d\n",
             log_entry.debug_id,
@@ -321,7 +325,6 @@ void Binder::print_binder_alloc(struct task_context *tc,ulong alloc_addr) {
 }
 
 void Binder::print_binder_proc(ulong proc_addr,int flags) {
-    int offset = 0;
     ulong part1_addr = proc_addr + field_offset(binder_proc,proc_node);
     struct binder_proc_part1 proc_part1;
     if(!read_struct(part1_addr,&proc_part1,sizeof(proc_part1),"binder_proc_part1")){
@@ -347,7 +350,7 @@ void Binder::print_binder_proc(ulong proc_addr,int flags) {
     ulong tsk_addr = (ulong)proc_part1.tsk;
     std::string task_name = read_cstring(tsk_addr + field_offset(task_struct,comm),16, "task_struct_comm");
     // list all binder threads
-    offset = field_offset(binder_thread,rb_node);
+    int offset = field_offset(binder_thread,rb_node);
     std::vector<ulong> thread_list = for_each_rbtree((ulong)proc_part1.threads.rb_node,offset);
     ulong list_head = (ulong)proc_part1.waiting_threads.next;
     offset = field_offset(binder_thread,waiting_thread_node);

@@ -23,7 +23,9 @@ std::string Core::symbols_path;
 
 void Core::cmd_main(void) {}
 
-Core::Core(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
+void Core::init_command(void) {}
+
+void Core::init_offset(void) {
     field_init(user_regset_view,name);
     field_init(user_regset_view,regsets);
     field_init(user_regset_view,n);
@@ -58,6 +60,10 @@ Core::Core(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
     field_init(inode, i_flags);
     field_init(address_space, host);
     field_init(inode, i_nlink);
+}
+
+Core::Core(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
+    init_offset();
 }
 
 Core::~Core(){
@@ -310,10 +316,9 @@ bool Core::write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, s
         }
     }
     if(replace == false){
-        void* vma_data = task_ptr->read_vma_data(vma_ptr);
-        if (vma_data){
-            fwrite(vma_data, vma_ptr->vm_size, 1, corefile);
-            std::free(vma_data);
+        std::vector<char> vma_data = task_ptr->read_vma_data(vma_ptr);
+        if (vma_data.size() > 0){
+            fwrite(vma_data.data(), vma_ptr->vm_size, 1, corefile);
         }
         data_pos += vma_ptr->vm_size;
     }
@@ -523,8 +528,8 @@ std::string Core::vma_flags_to_str(unsigned long flags) {
 void Core::print_proc_mapping(){
     tc = pid_to_context(core_pid);
     task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
+    std::ostringstream oss;
     for (auto &vma_ptr : task_ptr->for_each_vma_list()){
-        std::ostringstream oss;
         oss << std::left << "VMA:" << std::hex << vma_ptr->addr << " ["
             << std::hex << vma_ptr->vm_start
             << "-"
@@ -532,9 +537,9 @@ void Core::print_proc_mapping(){
             << vma_flags_to_str(vma_ptr->vm_flags) << " "
             << std::right << std::setw(16) << std::setfill('0') << vma_ptr->vm_flags << " "
             << std::right << std::hex << std::setw(8) << std::setfill('0') << vma_ptr->vm_pgoff << " "
-            << vma_ptr->name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << vma_ptr->name << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
     task_ptr.reset();
 }
 
@@ -1255,4 +1260,3 @@ void Core::print_linkmap(){
     task_ptr.reset();
 }
 #pragma GCC diagnostic pop
- 

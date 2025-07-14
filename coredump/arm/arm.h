@@ -80,24 +80,24 @@ struct elf32_prstatus {
 };
 
 class Arm : public Core {
-    public:
-        Arm(std::shared_ptr<Swapinfo> swap);
-        ~Arm();
-        void parser_prpsinfo() override;
-        void parser_siginfo() override;
-        void* parser_prstatus(ulong task_addr,int* data_size) override;
-        void* parser_nt_prfpreg(ulong task_addr) override;
-        void* parser_nt_arm_tls(ulong task_addr) override;
-        void* parser_nt_arm_hw_break(ulong task_addr) override;
-        void* parser_nt_arm_hw_watch(ulong task_addr) override;
-        void* parser_nt_arm_system_call(ulong task_addr) override;
-        void* parser_nt_arm_sve(ulong task_addr) override;
-        void* parser_nt_arm_pac_mask(ulong task_addr) override;
-        void* parser_nt_arm_pac_enabled_keys(ulong task_addr) override;
-        void* parser_nt_arm_paca_keys(ulong task_addr) override;
-        void* parser_nt_arm_pacg_keys(ulong task_addr) override;
-        void* parser_nt_arm_tagged_addr_ctrl(ulong task_addr) override;
-        void* parser_nt_arm_vfp(ulong task_addr) override;
+public:
+    Arm(std::shared_ptr<Swapinfo> swap);
+    ~Arm();
+    void parser_prpsinfo() override;
+    void parser_siginfo() override;
+    void* parser_prstatus(ulong task_addr,int* data_size) override;
+    void* parser_nt_prfpreg(ulong task_addr) override;
+    void* parser_nt_arm_tls(ulong task_addr) override;
+    void* parser_nt_arm_hw_break(ulong task_addr) override;
+    void* parser_nt_arm_hw_watch(ulong task_addr) override;
+    void* parser_nt_arm_system_call(ulong task_addr) override;
+    void* parser_nt_arm_sve(ulong task_addr) override;
+    void* parser_nt_arm_pac_mask(ulong task_addr) override;
+    void* parser_nt_arm_pac_enabled_keys(ulong task_addr) override;
+    void* parser_nt_arm_paca_keys(ulong task_addr) override;
+    void* parser_nt_arm_pacg_keys(ulong task_addr) override;
+    void* parser_nt_arm_tagged_addr_ctrl(ulong task_addr) override;
+    void* parser_nt_arm_vfp(ulong task_addr) override;
 };
 
 #endif // ARM_DEFS_H_

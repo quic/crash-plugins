@@ -95,6 +95,12 @@ void Coredump::cmd_main(void) {
     }
 }
 
+void Coredump::init_offset(void) {
+    field_init(task_struct, flags);
+    field_init(task_struct, thread_info);
+    field_init(thread_info, flags);
+}
+
 void Coredump::print_linkmap(int pid){
     if(get_core_parser(pid) && core_parser != nullptr){
         core_parser->set_core_pid(pid);
@@ -156,20 +162,13 @@ void Coredump::generate_coredump(int pid){
     }
 }
 
-Coredump::Coredump(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    init_command();
-}
+Coredump::Coredump(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){}
 
 Coredump::Coredump(){
     swap_ptr = std::make_shared<Swapinfo>();
-    init_command();
-    //print_table();
 }
 
-void Coredump::init_command(){
-    field_init(task_struct, flags);
-    field_init(task_struct, thread_info);
-    field_init(thread_info, flags);
+void Coredump::init_command(void){
     ParserPlugin::cmd_name = "coredump";
     help_str_list={
         "coredump",                            /* command name */
@@ -206,7 +205,6 @@ void Coredump::init_command(){
         "      VMA:ffffff80279c05a0 [7befacb000-7befb14000] rw-p 0000000000100073 07befacb [anon:scudo:secondary]",
         "\n",
     };
-    initialize();
 }
 
 #pragma GCC diagnostic pop

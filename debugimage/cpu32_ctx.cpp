@@ -40,25 +40,22 @@ void Cpu32_Context::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     struct syment *sym;
     ulong offset;
     sym = value_search(pc, &offset);
-    std::ostringstream oss_pc;
-    oss_pc << "Core" << std::dec << core << " ";
+    std::ostringstream oss;
+    oss << "Core" << std::dec << core << " " << "\n";
     if (sym) {
-        oss_pc << "PC: " << "<" << std::hex << pc << ">: " << sym->name  << "+" << std::hex << offset;
+        oss << "PC: " << "<" << std::hex << pc << ">: " << sym->name  << "+" << std::hex << offset << "\n";
     } else {
-        oss_pc << "PC: " << "<" << std::hex << pc << ">: " << "UNKNOWN"  << "+" << std::hex << 0;
+        oss << "PC: " << "<" << std::hex << pc << ">: " << "UNKNOWN"  << "+" << std::hex << 0 << "\n";
     }
-    fprintf(fp, "%s \n",oss_pc.str().c_str());
 
     lr = pac_ignore(lr);
     sym = value_search(lr, &offset);
-    std::ostringstream oss_lr;
-    oss_lr << "Core" << std::dec << core << " ";
     if (sym) {
-        oss_lr << "LR: " << "<" << std::hex << lr << ">: " << sym->name  << "+" << std::hex << offset;
+        oss << "LR: " << "<" << std::hex << lr << ">: " << sym->name  << "+" << std::hex << offset << "\n";
     } else {
-        oss_lr << "LR: " << "<" << std::hex << lr << ">: " << "UNKNOWN"  << "+" << std::hex << 0;
+        oss << "LR: " << "<" << std::hex << lr << ">: " << "UNKNOWN"  << "+" << std::hex << 0 << "\n";
     }
-    fprintf(fp, "%s \n\n",oss_lr.str().c_str());
+    fprintf(fp, "%s \n\n",oss.str().c_str());
     FREEBUF(buf);
 }
 

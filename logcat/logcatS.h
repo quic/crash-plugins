@@ -73,6 +73,7 @@ private:
     const size_t vtbl_size = 10;
     struct logcat_offset_table g_offset;
     struct logcat_size_table g_size;
+
     void init_datatype_info();
     ulong parser_logbuf_addr() override;
     size_t get_SerializedLogBuffer_from_vma();

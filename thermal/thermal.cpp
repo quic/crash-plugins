@@ -27,6 +27,7 @@ void Thermal::cmd_main(void) {
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     if (zone_list.size() == 0){
+        init_offset();
         parser_thrermal_zone();
     }
     while ((c = getopt(argcnt, args, "czZ:")) != EOF) {
@@ -50,32 +51,7 @@ void Thermal::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Thermal::Thermal(){
-    field_init(thermal_zone_device, node);
-    field_init(thermal_zone_device, id);
-    field_init(thermal_zone_device, type);
-    field_init(thermal_zone_device, temperature);
-    field_init(thermal_zone_device, last_temperature);
-    field_init(thermal_zone_device, num_trips);
-    field_init(thermal_zone_device, trips);
-    field_init(thermal_zone_device, devdata);
-    field_init(thermal_zone_device, thermal_instances);
-    field_init(thermal_zone_device, governor);
-    struct_init(thermal_zone_device);
-    field_init(__thermal_zone, ntrips);
-    field_init(__thermal_zone, trips);
-    struct_init(__thermal_zone);
-    field_init(thermal_trip, temperature);
-    struct_init(thermal_trip);
-    field_init(thermal_instance, tz_node);
-    field_init(thermal_instance, cdev_node);
-    field_init(thermal_instance, trip);
-    field_init(thermal_instance, cdev);
-    field_init(thermal_governor, name);
-    struct_init(thermal_instance);
-    field_init(thermal_cooling_device, id);
-    field_init(thermal_cooling_device, type);
-    field_init(thermal_cooling_device, node);
+void Thermal::init_command(void) {
     cmd_name = "tm";
     help_str_list={
         "tm",                            /* command name */
@@ -107,7 +83,38 @@ Thermal::Thermal(){
         "    0     ffffff800832a000   cpufreq-cpu0",
         "\n",
     };
-    initialize();
+}
+
+void Thermal::init_offset(void) {
+    field_init(thermal_zone_device, node);
+    field_init(thermal_zone_device, id);
+    field_init(thermal_zone_device, type);
+    field_init(thermal_zone_device, temperature);
+    field_init(thermal_zone_device, last_temperature);
+    field_init(thermal_zone_device, num_trips);
+    field_init(thermal_zone_device, trips);
+    field_init(thermal_zone_device, devdata);
+    field_init(thermal_zone_device, thermal_instances);
+    field_init(thermal_zone_device, governor);
+    struct_init(thermal_zone_device);
+    field_init(__thermal_zone, ntrips);
+    field_init(__thermal_zone, trips);
+    struct_init(__thermal_zone);
+    field_init(thermal_trip, temperature);
+    struct_init(thermal_trip);
+    field_init(thermal_instance, tz_node);
+    field_init(thermal_instance, cdev_node);
+    field_init(thermal_instance, trip);
+    field_init(thermal_instance, cdev);
+    field_init(thermal_governor, name);
+    struct_init(thermal_instance);
+    field_init(thermal_cooling_device, id);
+    field_init(thermal_cooling_device, type);
+    field_init(thermal_cooling_device, node);
+}
+
+Thermal::Thermal(){
+    do_init_offset = false;
 }
 
 void Thermal::print_zone_device(std::string dev_name){
@@ -134,11 +141,10 @@ void Thermal::print_cooling_device(){
         fprintf(fp, "thermal_cdev_list address is invalid!\n");
         return;
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(5) << "ID" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(5) << "ID" << " "
         << std::left << std::setw(VADDR_PRLEN + 2) << "ADDR" << " "
-        << std::left << "Name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << std::left << "Name" << "\n";
     int offset = field_offset(thermal_cooling_device, node);
     for (const auto& addr : for_each_list(list_head,offset)) {
         int id = read_int(addr + field_offset(thermal_cooling_device, id),"id");
@@ -147,12 +153,11 @@ void Thermal::print_cooling_device(){
         if (is_kvaddr(name_addr)) {
             name = read_cstring(name_addr,64, "type name");
         }
-        std::ostringstream oss;
         oss << std::left << std::hex << std::setw(5) << std::dec << id << " "
             << std::left << std::setw(VADDR_PRLEN + 2) << std::hex << addr << " "
-            << std::left << name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << name << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Thermal::print_zone_device(){
@@ -162,24 +167,24 @@ void Thermal::print_zone_device(){
         name_max_len = std::max(name_max_len,zone_ptr->name.size());
         governor_name_max_len = std::max(governor_name_max_len,zone_ptr->governor.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(5) << "ID" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(5) << "ID" << " "
         << std::left << std::setw(VADDR_PRLEN + 2) << "ADDR" << " "
         << std::left << std::setw(name_max_len) << "Name" << " "
         << std::left << std::setw(governor_name_max_len + 2) << "governor" << " "
         << std::left << std::setw(10) << "cur_temp" << " "
-        << std::left << std::setw(10) << "last_temp" << " ";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << std::left << std::setw(10) << "last_temp" << " "
+        << "\n";
     for (auto& zone_ptr : zone_list) {
-        std::ostringstream oss;
         oss << std::left << std::hex << std::setw(5) << std::dec << zone_ptr->id << " "
             << std::left << std::setw(VADDR_PRLEN + 2) << std::hex << zone_ptr->addr << " "
             << std::left << std::setw(name_max_len) << zone_ptr->name << " "
             << std::left << std::setw(governor_name_max_len + 2) << zone_ptr->governor << " "
             << std::left << std::setw(10) << std::dec << zone_ptr->cur_temp << " "
-            << std::left << std::setw(10) << std::dec << zone_ptr->last_temp << " ";
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << std::setw(10) << std::dec << zone_ptr->last_temp << " "
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Thermal::parser_thrermal_zone(){

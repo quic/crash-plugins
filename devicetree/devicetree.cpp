@@ -19,6 +19,24 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 Devicetree::Devicetree(){
+    init_offset();
+    if (!csymbol_exists("of_root")){
+        fprintf(fp,  "of_root doesn't exist in this kernel!\n");
+        return;
+    }
+    ulong of_root_addr = csymbol_value("of_root");
+    if (!is_kvaddr(of_root_addr)) {
+        fprintf(fp, "of_root address is invalid!\n");
+        return;
+    }
+    root_addr = read_pointer(of_root_addr,"of_root");
+}
+
+void Devicetree::cmd_main(void) {}
+
+void Devicetree::init_command(void) {}
+
+void Devicetree::init_offset(void) {
     field_init(device_node,name);
     field_init(device_node,phandle);
     field_init(device_node,full_name);
@@ -34,21 +52,6 @@ Devicetree::Devicetree(){
 
     struct_init(device_node);
     struct_init(property);
-
-    if (!csymbol_exists("of_root")){
-        fprintf(fp,  "of_root doesn't exist in this kernel!\n");
-        return;
-    }
-    ulong of_root_addr = csymbol_value("of_root");
-    if (!is_kvaddr(of_root_addr)) {
-        fprintf(fp, "of_root address is invalid!\n");
-        return;
-    }
-    root_addr = read_pointer(of_root_addr,"of_root");
-}
-
-void Devicetree::cmd_main(void) {
-    // TODO
 }
 
 std::shared_ptr<Property> Devicetree::getprop(ulong node_addr,const std::string& name){
@@ -121,9 +124,9 @@ std::vector<std::shared_ptr<Property>> Devicetree::read_propertys(ulong addr){
         prop->length = length;
         ulong value_addr = ULONG(prop_buf + field_offset(property,value));
         if(length > 0){
-            prop->value = malloc(length);
+            prop->value.resize(length);
             void *prop_val = read_memory(value_addr,length,"property_value");
-            memcpy(prop->value, prop_val, length);
+            memcpy(prop->value.data(), prop_val, length);
             FREEBUF(prop_val);
         }
         res.push_back(prop);
@@ -146,7 +149,7 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
         if (prop == nullptr){
             continue;
         }
-        std::string tempstr = (char *)prop->value;
+        std::string tempstr = (char *)prop->value.data();
         if (tempstr != "memory"){
             continue;
         }
@@ -161,7 +164,7 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
 
 std::vector<DdrRange> Devicetree::parse_memory_regs(std::shared_ptr<Property> prop){
     std::vector<DdrRange> result;
-    char* ptr = reinterpret_cast<char*>(prop->value);
+    char* ptr = reinterpret_cast<char*>(prop->value.data());
     // prop->length how many byte of this prop val
     size_t reg_cnt = prop->length / 4;
     size_t regs[reg_cnt];

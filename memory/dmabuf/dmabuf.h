@@ -70,31 +70,36 @@ class Dmabuf : public ParserPlugin {
 private:
     std::vector<std::string> directions = { "DMA_BIDIRECTIONAL", "DMA_TO_DEVICE", "DMA_FROM_DEVICE", "DMA_NONE" };
 
-public:
-    std::vector<std::shared_ptr<proc_info>> proc_list;
-    std::vector<std::shared_ptr<dma_buf>> buf_list;
-    Dmabuf();
-    void cmd_main(void) override;
-    void parser_dma_bufs();
     std::shared_ptr<dma_buf> parser_dma_buf(ulong addr);
     void parser_buffer(std::shared_ptr<dma_buf> buf_ptr);
     bool sg_is_chain(ulong page_link);
     bool sg_is_last(ulong page_link);
     ulong sg_chain_ptr(ulong page_link);
     ulong sg_next(ulong sgl_addr, ulong page_link);
-    void parser_sg_table(std::shared_ptr<dma_buf> buf_ptr);
-    void get_dmabuf_from_proc();
     void get_proc_info(std::shared_ptr<dma_buf> buf_ptr);
     std::vector<std::shared_ptr<attachment>> parser_attachments(ulong list_head);
-    void print_dma_buf_list();
     void print_attachment(std::shared_ptr<dma_buf> buf_ptr);
-    void print_dma_buf(std::shared_ptr<dma_buf> buf_ptr);
     void print_proc_info(std::shared_ptr<dma_buf> buf_ptr);
     void print_sg_table(std::shared_ptr<dma_buf> buf_ptr);
+
+public:
+    std::vector<std::shared_ptr<proc_info>> proc_list;
+    std::vector<std::shared_ptr<dma_buf>> buf_list;
+
+    Dmabuf();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     void print_dma_buf(std::string addr);
-    void save_dma_buf(std::string addr);
+    void print_dma_buf_list();
     void print_procs();
     void print_proc(ulong pid);
+    void save_dma_buf(std::string addr);
+    void print_dma_buf(std::shared_ptr<dma_buf> buf_ptr);
+    void get_dmabuf_from_proc();
+    void parser_sg_table(std::shared_ptr<dma_buf> buf_ptr);
+    void parser_dma_bufs();
+
 };
 
 #endif // DMABUF_DEFS_H_

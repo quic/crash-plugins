@@ -46,12 +46,10 @@ private:
         LogLevel::LOG_FATAL,
         LogLevel::LOG_SILENT
     }};
-public:
-    Pstore();
+
     void print_ftrace_log();
     void print_oops_log();
     void print_console_log();
-    void cmd_main(void) override;
     void print_pmsg();
     void extract_pmsg_logs(std::vector<char> &logbuf);
     void parser_system_log(std::string timestamp, uint16_t uid, uint16_t tid, uint16_t pid, char *logbuf, uint16_t msg_len);
@@ -60,6 +58,12 @@ public:
     void appendBuffer(std::vector<char> &destBuf, void *sourceBuf, size_t length);
     std::string formatTime(uint32_t tv_sec, uint32_t tv_nsec);
     std::string getLogLevelChar(LogLevel level);
+
+public:
+    Pstore();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Pstore)
 };
 

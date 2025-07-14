@@ -19,13 +19,15 @@
 #include "property/propinfo.h"
 
 class Prop : public PropInfo {
+private:
+    void print_propertys();
 
 public:
     Prop();
     Prop(std::shared_ptr<Swapinfo> swap);
-    void init_command();
-    void print_propertys();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Prop)
 };
 

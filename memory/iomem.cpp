@@ -42,7 +42,7 @@ void IoMem::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-IoMem::IoMem(){
+void IoMem::init_offset(void) {
     field_init(resource,start);
     field_init(resource,end);
     field_init(resource,name);
@@ -51,6 +51,9 @@ IoMem::IoMem(){
     field_init(resource,sibling);
     field_init(resource,child);
     struct_init(resource);
+}
+
+void IoMem::init_command(void) {
     cmd_name = "iomem";
     help_str_list={
         "iomem",                        /* command name */
@@ -69,23 +72,29 @@ IoMem::IoMem(){
         "        0x1880000-0x18de1ff  376.50Kb   : 1880000.interconnect interconnect@1880000",
         "\n",
     };
-    initialize();
 }
 
+IoMem::IoMem(){}
+
 void IoMem::print_iomem(std::vector<std::shared_ptr<resource>>& res_list,int level){
+    std::ostringstream oss;
     for (const auto& res_ptr : res_list) {
         for (int i = 0; i < level; i++) {
-            fprintf(fp, "\t");
+            oss << "\t";
         }
-        std::ostringstream oss;
         oss << std::left << std::setw(9) << csize((res_ptr->end - res_ptr->start)) << " "
             << "[" << std::hex << res_ptr->start << "~" << res_ptr->end << "] "
-            << res_ptr->name;
+            << res_ptr->name << "\n";
         fprintf(fp, "%s \n",oss.str().c_str());
 
         if(res_ptr->childs.size() > 0){
+            fprintf(fp, "%s", oss.str().c_str());
+            oss.str("");
             print_iomem(res_ptr->childs,(level+1));
         }
+    }
+    if (!oss.str().empty()) {
+        fprintf(fp, "%s", oss.str().c_str());
     }
 }
 

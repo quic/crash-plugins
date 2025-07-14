@@ -62,7 +62,7 @@ void Rtb::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-void Rtb::init_offset(){
+void Rtb::init_offset(void){
     field_init(msm_rtb_state,msm_rtb_idx);
     field_init(msm_rtb_state,rtb);
     field_init(msm_rtb_state,phys);
@@ -76,8 +76,7 @@ void Rtb::init_offset(){
     struct_init(rtb_idx);
 }
 
-Rtb::Rtb(){
-    init_offset();
+void Rtb::init_command(void) {
     cmd_name = "rtb";
     help_str_list={
         "rtb",            /* command name */
@@ -117,7 +116,10 @@ Rtb::Rtb(){
         "       bc600000-->-----------------",
         "\n",
     };
-    initialize();
+}
+
+Rtb::Rtb(){
+    do_init_offset = false;
 }
 
 bool Rtb::is_enable_rtb(){

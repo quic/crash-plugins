@@ -41,11 +41,8 @@ struct ion_heap {
 class IonHeap : public Heap {
 private:
     std::unordered_map<int, std::string> heap_type;
-
-public:
-    IonHeap(std::shared_ptr<Dmabuf> dmabuf);
-
     std::vector<std::shared_ptr<ion_heap>> ion_heaps;
+
     std::vector<ulong> get_ion_heaps_by_internal_dev();
     std::vector<ulong> get_ion_heaps_by_heaps();
     std::vector<ulong> get_heaps() override;
@@ -58,6 +55,9 @@ public:
     void parser_ion_page_pool(ulong addr);
     void parser_ion_msm_page_pool(ulong addr);
     void print_heap(std::string name);
+
+public:
+    IonHeap(std::shared_ptr<Dmabuf> dmabuf);
 };
 
 #endif // ION_HEAP_DEFS_H_

@@ -219,12 +219,34 @@ typedef struct {
 } linkmap_t;
 
 class Core : public ParserPlugin {
-public:
-    static int cmd_flags;
-    static std::string symbols_path;
-    static const int CORE_REPLACE_HEAD = 0x0001;
-    static const int CORE_FAKE_LINKMAP = 0x0002;
-    std::shared_ptr<UTask> task_ptr;
+private:
+    void parser_exec_name(ulong addr);
+    bool SearchFile(const std::string &directory, const std::string &name, std::string &result);
+    bool InnerSearchFile(const std::string &path, std::string name, std::string &result);
+    void ListFiles(const std::string &directory, std::string name, std::string &result);
+    bool write_pt_note(void);
+    bool write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, size_t& data_pos);
+    void write_core_file(void);
+    bool parser_user_regset_view(void);
+    std::string vma_flags_to_str(unsigned long flags);
+    void write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_filesz, size_t p_memsz, size_t p_flags, size_t p_align);
+    void parser_nt_file();
+    void parser_thread_core_info();
+    void parser_auvx();
+    int vma_dump_size(std::shared_ptr<vma_struct> vma_ptr);
+    void dump_align(std::streampos position, std::streamsize align);
+    void writenote(std::shared_ptr<memelfnote> note_ptr);
+    void *fill_elf_header(int type, int phnum, size_t &hdr_size);
+    int notesize(std::shared_ptr<memelfnote> note_ptr);
+    int get_phdr_start();
+    int get_phdr_size();
+    void *map_elf_file(std::string filepath, size_t &len);
+    bool check_elf_file(void * map);
+    std::shared_ptr<symbol_info> read_elf_file(std::string file_path);
+    void free_lib_map();
+    size_t replace_phdr_load(std::shared_ptr<vma_struct> vma_ptr);
+    void write_fake_data(size_t &data_pos, size_t phdr_pos);
+    int get_pt_note_data_start();
 
 protected:
     void* hdr_ptr;
@@ -246,56 +268,34 @@ protected:
     std::shared_ptr<Swapinfo> swap_ptr;
 
 public:
+    static int cmd_flags;
+    static std::string symbols_path;
+    static const int CORE_REPLACE_HEAD = 0x0001;
+    static const int CORE_FAKE_LINKMAP = 0x0002;
+    std::shared_ptr<UTask> task_ptr;
+
     Core(std::shared_ptr<Swapinfo> swap);
     ~Core();
     void cmd_main(void) override;
-
+    void init_offset(void) override;
+    void init_command(void) override;
+    void parser_core_dump(void);
     void set_core_pid(int pid){
         core_pid = pid;
     };
-
-    template <size_t N>
-    void copy_and_fill_char(char (&dest)[N], const char* src, size_t src_len){
-        size_t len = (src_len < (N - 1)) ? src_len : (N - 1);
-        std::copy_n(src, len, dest);
-        dest[len] = '\0';
-    }
-    void parser_core_dump(void);
-    void parser_exec_name(ulong addr);
-    bool SearchFile(const std::string &directory, const std::string &name, std::string &result);
-    bool InnerSearchFile(const std::string &path, std::string name, std::string &result);
-    void ListFiles(const std::string &directory, std::string name, std::string &result);
     void print_linkmap();
-    bool write_pt_note(void);
-    bool write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, size_t& data_pos);
-    void write_core_file(void);
-    bool parser_user_regset_view(void);
-    std::string vma_flags_to_str(unsigned long flags);
     void print_proc_mapping();
     int task_pid_nr_ns(ulong task_addr, long type, ulong ns_addr = 0);
     int pid_nr_ns(ulong pids_addr, ulong pid_ns_addr);
     int pid_alive(ulong task_addr);
     ulong ns_of_pid(ulong thread_pid_addr);
     ulong task_pid_ptr(ulong task_addr, long type);
-    void write_phdr(size_t p_type, size_t p_offset, size_t p_vaddr, size_t p_filesz, size_t p_memsz, size_t p_flags, size_t p_align);
-    void parser_nt_file();
-    void parser_thread_core_info();
-    void parser_auvx();
-    int vma_dump_size(std::shared_ptr<vma_struct> vma_ptr);
-    void dump_align(std::streampos position, std::streamsize align);
-    void writenote(std::shared_ptr<memelfnote> note_ptr);
-    void *fill_elf_header(int type, int phnum, size_t &hdr_size);
-    int notesize(std::shared_ptr<memelfnote> note_ptr);
-    int get_phdr_start();
-    int get_phdr_size();
-    void *map_elf_file(std::string filepath, size_t &len);
-    bool check_elf_file(void * map);
-    std::shared_ptr<symbol_info> read_elf_file(std::string file_path);
-    void free_lib_map();
-    size_t replace_phdr_load(std::shared_ptr<vma_struct> vma_ptr);
-    void write_fake_data(size_t &data_pos, size_t phdr_pos);
-    int get_pt_note_data_start();
-
+    template <size_t N>
+    void copy_and_fill_char(char (&dest)[N], const char* src, size_t src_len){
+        size_t len = (src_len < (N - 1)) ? src_len : (N - 1);
+        std::copy_n(src, len, dest);
+        dest[len] = '\0';
+    }
     virtual void parser_prpsinfo()=0;
     virtual void parser_siginfo()=0;
     virtual void* parser_prstatus(ulong task_addr,int* data_size)=0;

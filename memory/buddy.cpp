@@ -50,7 +50,7 @@ void Buddy::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Buddy::Buddy(){
+void Buddy::init_offset(void) {
     field_init(pglist_data,node_zones);
     field_init(pglist_data,node_start_pfn);
     field_init(pglist_data,node_present_pages);
@@ -78,6 +78,9 @@ Buddy::Buddy(){
     struct_init(zone);
     struct_init(free_area);
     struct_init(atomic_long_t);
+}
+
+void Buddy::init_command(void) {
     cmd_name = "buddy";
     help_str_list={
         "buddy",                            /* command name */
@@ -145,8 +148,9 @@ Buddy::Buddy(){
         "           [2]Page:0xfffffffe0152c380 PA:0x94b0e000",
         "\n",
     };
-    initialize();
 }
+
+Buddy::Buddy(){}
 
 std::vector<std::vector<ulong>> Buddy::parser_free_list(ulong addr){
     // fprintf(fp, "   free_list:%lx\n", addr);
@@ -342,7 +346,6 @@ void Buddy::print_node_info(std::shared_ptr<pglist_data> node_ptr){
         << std::left << std::setw(20) << "  start_pfn   : " << std::hex << node_ptr->start_pfn << "\n"
         << std::left << std::setw(20) << "  start_paddr : " << std::hex << (node_ptr->start_pfn << 12);
     fprintf(fp, "%s \n",oss.str().c_str());
-    oss.str("");
 }
 
 void Buddy::print_zone_info(std::shared_ptr<zone> zone_ptr){
@@ -369,6 +372,7 @@ void Buddy::print_zone_info(std::shared_ptr<zone> zone_ptr){
 }
 
 void Buddy::print_memory_zone(std::string addr){
+    std::ostringstream oss;
     unsigned long number = std::stoul(addr, nullptr, 16);
     if (number <= 0){
         return;
@@ -380,7 +384,7 @@ void Buddy::print_memory_zone(std::string addr){
             }
             for (size_t o = 0; o < zone_ptr->free_areas.size(); o++){
                 std::shared_ptr<free_area> area_ptr = zone_ptr->free_areas[o];
-                fprintf(fp, "\nOrder[%zu] %s\n", o, csize((1U << o)*page_size).c_str());
+                oss << "\nOrder[" << o << "] " << csize((1U << o)*page_size) << "\n";
                 size_t free_list_cnt = area_ptr->free_list.size();
                 if (free_list_cnt > migratetype_names.size()){
                     free_list_cnt = migratetype_names.size();
@@ -388,22 +392,21 @@ void Buddy::print_memory_zone(std::string addr){
                 for (size_t m = 0; m < free_list_cnt; m++){
                     std::vector<ulong> page_list = area_ptr->free_list[m];
                     if (page_list.size() > 0){
-                        fprintf(fp, "   migratetype:%s Order[%zu]\n", migratetype_names[m].c_str(),o);
+                        oss << "   migratetype:" << migratetype_names[m] << " Order[" << o << "]\n";
                     }
                     int index = 1;
                     for (const auto& page_addr : page_list) {
                         physaddr_t paddr = page_to_phy(page_addr);
-                        std::ostringstream oss;
-                        oss << "     [" << std::setw(5) << std::setfill('0') << index << "]"
+                        oss << "     [" << std::setw(5) << std::setfill('0') << std::dec << index << "]"
                             << "Page:" << std::hex << page_addr << " "
-                            << "PA:" << paddr;
-                        fprintf(fp, "%s \n",oss.str().c_str());
+                            << "PA:" << paddr << " \n";
                         index += 1;
                     }
                 }
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Buddy::print_memory_node(){

@@ -35,10 +35,6 @@ void Swap::cmd_main(void) {
                 cppString.assign(optarg);
                 print_page_memory(cppString);
                 break;
-            case 'd':
-                debug = true;
-                zram_ptr->enable_debug(true);
-                break;
             default:
                 argerrs++;
                 break;
@@ -48,15 +44,13 @@ void Swap::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Swap::Swap(std::shared_ptr<Zraminfo> zram) : Swapinfo(zram){
-    init_command();
-}
+Swap::Swap(std::shared_ptr<Zraminfo> zram) : Swapinfo(zram){}
 
-Swap::Swap() : Swapinfo(std::make_shared<Zraminfo>()) {
-    init_command();
-}
+Swap::Swap() : Swapinfo(std::make_shared<Zraminfo>()) {}
 
-void Swap::init_command(){
+void Swap::init_offset(void) {}
+
+void Swap::init_command(void){
     cmd_name = "swapinfo";
     help_str_list={
         "swapinfo",                            /* command name */
@@ -86,7 +80,6 @@ void Swap::init_command(){
         "    %s> swapinfo -d",
         "\n",
     };
-    initialize();
 }
 
 void Swap::print_page_memory(std::string addr){
@@ -95,35 +88,37 @@ void Swap::print_page_memory(std::string addr){
         fprintf(fp, "please set current task context by command set <pid>\n");
         return;
     }
-    char page_data[page_size];
     ulong uaddr = std::stoul(addr, nullptr, 16);
-    if(!uread_buffer(tc->task,uaddr,page_data,page_size,"read page")){
+    std::vector<char> page_data = uread_memory(tc->task,uaddr, page_size, "read page");
+    if(page_data.size() == 0){
         fprintf(fp, "not mapped page\n");
         return;
     }else{
-        fprintf(fp, "\nprint_page_memory:\n%s \n", hexdump(uaddr, page_data, page_size).c_str());
+        fprintf(fp, "\nprint_page_memory:\n%s \n", hexdump(uaddr, page_data.data(), page_size).c_str());
     }
 }
 
 void Swap::print_swaps(){
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(VADDR_PRLEN + 2) << "swap_info_struct" << " "
+    nr_swap = read_int(csymbol_value("nr_swapfiles"),"nr_swapfiles");
+    if (swap_list.size() == 0 && nr_swap > 0){
+        parser_swap_info();
+    }
+    std::ostringstream oss;
+    fprintf(fp, "========================================================================\n");
+    oss << std::left << std::setw(VADDR_PRLEN + 2) << "swap_info_struct" << " "
         << std::left << std::setw(10) << "size" << " "
         << std::left << std::setw(10) << "used" << " "
         << std::left << std::setw(VADDR_PRLEN + 2) << "address_space" << " "
-        << "file";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << "file" << "\n";
 
-    fprintf(fp, "========================================================================\n");
     for (const auto& swap_ptr : swap_list) {
-        std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN + 2) << std::hex << swap_ptr->addr << " "
             << std::left << std::setw(10) << csize(swap_ptr->pages * page_size) << " "
             << std::left << std::setw(10) << csize(swap_ptr->inuse_pages * page_size) << " "
             << std::left << std::setw(VADDR_PRLEN + 2) << std::hex << swap_ptr->swap_space << " "
             << swap_ptr->swap_file;
-        fprintf(fp, "%s \n",oss.str().c_str());
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
     fprintf(fp, "========================================================================\n");
 }
 #pragma GCC diagnostic pop

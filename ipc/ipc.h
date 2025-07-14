@@ -45,16 +45,21 @@ struct ipc_log {
 #define IPC_LOGGING_MAGIC_NUM       0x52784425
 
 class IPCLog : public ParserPlugin {
-public:
-    IPCLog();
+private:
     std::vector<std::shared_ptr<ipc_log>> ipc_list;
-    void cmd_main(void) override;
+
     void parser_ipc_log();
     void print_ipc_info();
     void save_ipc_log();
     void print_ipc_log(std::string name);
     void parser_ipc_log_page(std::shared_ptr<ipc_log> log_ptr);
     void appendBuffer(std::vector<char> &destBuf, void *sourceBuf, size_t length);
+
+public:
+    IPCLog();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(IPCLog)
 };
 
