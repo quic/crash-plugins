@@ -43,24 +43,22 @@ void Procrank::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Procrank::Procrank(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    init_command();
-}
+void Procrank::init_offset(void) {}
+
+Procrank::Procrank(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){}
 
 Procrank::Procrank(){
-    init_command();
     swap_ptr = std::make_unique<Swapinfo>();
-    //print_table();
 }
 
-void Procrank::init_command(){
+void Procrank::init_command(void){
     cmd_name = "procrank";
     help_str_list={
         "procrank",                            /* command name */
         "dump process memory information",        /* short description */
         "-a \n"
             "  This command dumps the process info. sorted by rss",
-        "-c \n"
+        "  procrank -c \n"
             "  This command dumps the process cmdline.",
         "\n",
         "EXAMPLES",
@@ -77,8 +75,6 @@ void Procrank::init_command(){
         "    1        init                 /system/bin/init",
         "\n",
     };
-    initialize();
-    //print_table();
 }
 
 void Procrank::parser_process_memory() {
@@ -121,34 +117,32 @@ void Procrank::parser_process_memory() {
             return a->rss > b->rss;
         });
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(8) << "PID" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(8) << "PID" << " "
         << std::left << std::setw(10) << "Vss" << " "
         << std::left << std::setw(10) << "Rss" << " "
         << std::left << std::setw(10) << "Pss" << " "
         << std::left << std::setw(10) << "Uss" << " "
         << std::left << std::setw(10) << "Swap" << " "
-        << "Comm";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << "Comm" << "\n";
     for (const auto& p : procrank_list) {
-        std::ostringstream oss;
         oss << std::left << std::setw(8) << p->pid << " "
             << std::left << std::setw(10) << csize(p->vss) << " "
             << std::left << std::setw(10) << csize(p->rss) << " "
             << std::left << std::setw(10) << csize(p->pss) << " "
             << std::left << std::setw(10) << csize(p->uss) << " "
             << std::left << std::setw(10) << csize(p->swap) << " "
-            << p->cmdline;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << p->cmdline
+            << "\n";
     }
-    std::ostringstream oss_total;
-    oss_total << std::left << std::setw(8) << "Total" << " "
+    oss << std::left << std::setw(8) << "Total" << " "
         << std::left << std::setw(10) << csize(total_vss) << " "
         << std::left << std::setw(10) << csize(total_rss) << " "
         << std::left << std::setw(10) << csize(total_pss) << " "
         << std::left << std::setw(10) << csize(total_uss) << " "
-        << std::left << std::setw(10) << csize(total_swap);
-    fprintf(fp, "%s\n", oss_total.str().c_str());
+        << std::left << std::setw(10) << csize(total_swap)
+        << "\n";
+    fprintf(fp, "%s\n", oss.str().c_str());
 }
 
 std::shared_ptr<procrank> Procrank::parser_vma(std::shared_ptr<vma_struct> vma_ptr) {
@@ -185,8 +179,8 @@ std::shared_ptr<procrank> Procrank::parser_vma(std::shared_ptr<vma_struct> vma_p
 }
 
 void Procrank::parser_process_name() {
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(8) << "PID" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(8) << "PID" << " "
            << std::left << std::setw(20) << "Comm" << " "
            << std::left << std::setw(10) << "Cmdline" << "\n";
     for(ulong task_addr: for_each_process()){
@@ -201,12 +195,12 @@ void Procrank::parser_process_name() {
         } else {
             cmdline = task_ptr->read_start_args();
         }
-        oss_hd << std::left << std::setw(8) << tc->pid << " "
+        oss << std::left << std::setw(8) << tc->pid << " "
                << std::left << std::setw(20) << tc->comm << " "
                << std::left << std::setw(10) << cmdline << "\n";
         task_ptr.reset();
     }
-    fprintf(fp, "%s \n", oss_hd.str().c_str());
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

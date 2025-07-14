@@ -50,7 +50,7 @@ void Workqueue::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Workqueue::Workqueue(){
+void Workqueue::init_offset(void) {
     field_init(workqueue_struct, list);
     field_init(workqueue_struct, name);
     field_init(workqueue_struct, flags);
@@ -97,6 +97,9 @@ Workqueue::Workqueue(){
     struct_init(worker_pool);
     struct_init(worker);
     struct_init(work_struct);
+}
+
+void Workqueue::init_command(void) {
     // print_table();
     cmd_name = "wq";
     help_str_list={
@@ -130,8 +133,9 @@ Workqueue::Workqueue(){
         "        func_name",
         "\n",
     };
-    initialize();
 }
+
+Workqueue::Workqueue(){}
 
 void Workqueue::print_worker(){
     //sort
@@ -147,8 +151,8 @@ void Workqueue::print_worker(){
         name_max_len = std::max(name_max_len,worker_ptr->comm.size());
         last_func_max_len = std::max(last_func_max_len,print_func_name(worker_ptr->last_func).size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(VADDR_PRLEN) << "worker" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(VADDR_PRLEN) << "worker" << " "
         << std::left << std::setw(name_max_len) << "name" << " "
         << std::left << std::setw(6) << "pid" << " "
         << std::left << std::setw(worker_flags_len) << "flags" << " "
@@ -157,8 +161,7 @@ void Workqueue::print_worker(){
         << std::left << std::setw(11) << "last_active" << " "
         << std::left << std::setw(4) << "IDLE" << " "
         << std::left << std::setw(last_func_max_len) << "last_func" << " "
-        << "current_func";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << "current_func" << "\n";
     for(const auto& pair_ptr : worker_list){
         std::shared_ptr<worker> worker_ptr = pair_ptr.second;
         if(worker_ptr == nullptr) continue;
@@ -168,7 +171,6 @@ void Workqueue::print_worker(){
         } else {
             idle = "No";
         }
-        std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN) << std::hex << worker_ptr->addr << " "
             << std::left << std::setw(name_max_len) << worker_ptr->comm << " "
             << std::left << std::setw(6) << std::dec << worker_ptr->pid << " "
@@ -178,9 +180,10 @@ void Workqueue::print_worker(){
             << std::left << std::setw(11) << worker_ptr->last_active << " "
             << std::left << std::setw(4) << idle << " "
             << std::left << std::setw(last_func_max_len) << print_func_name(worker_ptr->last_func) << " "
-            << print_func_name(worker_ptr->current_func);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << print_func_name(worker_ptr->current_func)
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Workqueue::print_pool_by_addr(std::string addr){
@@ -193,9 +196,10 @@ void Workqueue::print_pool_by_addr(std::string addr){
     if (is_kvaddr(address)) {
         if(worker_pool_map.find(address) == worker_pool_map.end())
             fprintf(fp, "No such worker pool \n");
+        std::ostringstream oss;
         for(const auto& worker_pool : worker_pool_map){
             if(worker_pool.first == address){
-                fprintf(fp, "worker:\n");
+                oss << "worker:\n";
                 for(const auto& worker_ptr : worker_pool.second->workers){
                     std::string idle = "Idle";
                     if (std::find(idle_worker_list.begin(), idle_worker_list.end(), worker_ptr) != idle_worker_list.end()) {
@@ -203,11 +207,11 @@ void Workqueue::print_pool_by_addr(std::string addr){
                     } else {
                         idle = "Busy";
                     }
-                    std::ostringstream oss;
                     oss << std::left << "   " << worker_ptr->comm << " "
                         << std::left << "[" << idle << "] "
-                        << std::left << "pid:" << worker_ptr->pid;
+                        << std::left << "pid:" << worker_ptr->pid << "\n";
                     fprintf(fp, "%s \n",oss.str().c_str());
+                    oss.str("");
                 }
                 fprintf(fp, "\nDelayed Work:\n");
                 for(const auto& pool_workqueue_ptr : worker_pool.second->pwq_list){
@@ -229,15 +233,14 @@ void Workqueue::print_pool_by_addr(std::string addr){
 }
 
 void Workqueue::print_pool(){
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(VADDR_PRLEN + 5) << "worker_pool" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(VADDR_PRLEN + 5) << "worker_pool" << " "
         << std::left << std::setw(10) << "cpu" << " "
         << std::left << std::setw(10) << "workers" << " "
         << std::left << std::setw(10) << "idle" << " "
         << std::left << std::setw(10) << "running" << " "
         << std::left << std::setw(10) << "works" << " "
-        << std::left << "flags";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << std::left << "flags" << "\n";
     for(const auto& pair_ptr : worker_pool_map){
         std::shared_ptr<worker_pool> wp_ptr = pair_ptr.second;
         std::string cpu = "";
@@ -246,16 +249,15 @@ void Workqueue::print_pool(){
         } else {
             cpu = std::to_string(wp_ptr->cpu);
         }
-        std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN + 5) << std::hex << wp_ptr->addr << " "
             << std::left << std::setw(10) << std::dec << cpu << " "
             << std::left << std::setw(10) << std::dec << wp_ptr->nr_workers << " "
             << std::left << std::setw(10) << std::dec << wp_ptr->nr_idle << " "
             << std::left << std::setw(10) << std::dec << wp_ptr->nr_running << " "
             << std::left << std::setw(10) << std::dec << wp_ptr->worklist.size() << " "
-            << std::left << wp_ptr->flags;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << wp_ptr->flags << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 std::string Workqueue::print_func_name(ulong func_addr){

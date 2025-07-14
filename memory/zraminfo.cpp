@@ -18,9 +18,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-void Zraminfo::cmd_main(void) {
+void Zraminfo::cmd_main(void) {}
 
-}
+void Zraminfo::init_command(void) {}
 
 Zraminfo::Zraminfo(){
     init_offset();
@@ -36,7 +36,7 @@ Zraminfo::Zraminfo(){
     group_cnt = field_size(size_class,fullness_list)/sizeof(struct kernel_list_head);
 }
 
-void Zraminfo::init_offset(){
+void Zraminfo::init_offset(void) {
     field_init(zram,table);
     field_init(zram,mem_pool);
     field_init(zram,comp);
@@ -598,9 +598,4 @@ std::shared_ptr<zram> Zraminfo::parser_zram(ulong addr){
     zram_list.push_back(zram_ptr);
     return zram_ptr;
 }
-
-void Zraminfo::enable_debug(bool on){
-    debug = true;
-}
-
 #pragma GCC diagnostic pop

@@ -185,7 +185,6 @@ protected:
     struct sf_offset_table g_offset;
 
     bool init_env();
-    void init_command();
     void parser_gralloc4();
     void parser_gralloc5();
     void dump_GraphicBufferAllocator(ulong sAllocList_vaddr);
@@ -197,6 +196,8 @@ protected:
 public:
     SF(std::shared_ptr<Swapinfo> swap);
     SF();
+    void init_offset(void) override;
+    void init_command(void) override;
     void cmd_main(void) override;
     DEFINE_PLUGIN_INSTANCE(SF)
 };

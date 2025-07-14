@@ -78,19 +78,20 @@ void Journal::cmd_main(void) {
     }
 }
 
-Journal::Journal(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    init_command();
-}
+Journal::Journal(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){}
 
 Journal::Journal(){
-    init_command();
     swap_ptr = std::make_shared<Swapinfo>();
 }
 
-void Journal::init_command(){
+void Journal::init_offset(void) {
     field_init(inode,i_dentry);
     field_init(inode,i_sb);
     field_init(dentry,d_u);
+}
+
+
+void Journal::init_command(void){
     cmd_name = "systemd";
     help_str_list={
         "systemd",                            /* command name */
@@ -140,7 +141,6 @@ void Journal::init_command(){
         "     [2025-06-17 19:34:52] msm_voice_source_tracking_get: Error getting Source Tracking Params, err=-22",
         "\n",
     };
-    initialize();
 }
 
 void Journal::get_journal_vma_list(){

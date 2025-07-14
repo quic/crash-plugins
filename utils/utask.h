@@ -82,12 +82,12 @@ private:
     std::vector<ulong> task_files;
     std::unordered_map <ulong, ulong> auxv_list; // <type, val>
     std::unordered_map<std::string, std::shared_ptr<file_vma>> file_map;
+    ulong min_rw_vma_addr = ULONG_MAX;
+    ulong max_rw_vma_addr = 0;
+
     void init_mm_struct();
     void init_vma();
     void init_auxv();
-    void init_offset();
-    ulong min_rw_vma_addr = ULONG_MAX;
-    ulong max_rw_vma_addr = 0;
     template<typename T, typename P>
     size_t check_object(std::string libname, std::shared_ptr<vma_struct> vma_ptr, std::function<bool (T*)> obj_callback,int vtb_cnt) {
         if(debug) fprintf(fp, "[%#lx-%#lx]: %s \n", vma_ptr->vm_start, vma_ptr->vm_end, vma_ptr->name.c_str());
@@ -146,6 +146,10 @@ private:
 
 public:
     ulong vaddr_mask = 0;
+
+    void init_offset(void) override;
+    void init_command(void) override;
+    void cmd_main(void) override;
     UTask(std::shared_ptr<Swapinfo> swap, int pid);
     UTask(std::shared_ptr<Swapinfo> swap, ulong task_addr);
     std::vector<std::shared_ptr<vma_struct>>& for_each_vma_list();
@@ -184,50 +188,12 @@ public:
     uint64_t read_symbol(std::string &symbol_name, std::string &libname);
     ulong get_min_vma_start(std::string libname);
     ulong get_var_addr_by_bss(std::string libname, std::string var_name);
-    template<typename T>
-    std::vector<char> uread_obj(ulonglong addr){
-        return read_data(addr,sizeof(T));
-    }
-    template<typename T, typename P>
-    size_t search_obj(std::string libname, bool is_static, std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (T*)> obj_callback,int vtb_cnt) {
-        if(debug) {
-            for (const auto& data_ptr : for_each_data_vma(libname)) {
-                fprintf(fp, "%s data:[%#lx-%#lx] \n", libname.c_str(), data_ptr->vm_start, data_ptr->vm_end);
-            }
-            std::shared_ptr<vma_struct> text_ptr = get_text_vma(libname);
-            if (text_ptr != nullptr){
-                fprintf(fp, "%s text:[%#lx-%#lx] \n", libname.c_str(), text_ptr->vm_start, text_ptr->vm_end);
-            }
-            std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
-            if (bss_ptr != nullptr){
-                fprintf(fp, "%s bss:[%#lx-%#lx] \n", libname.c_str(), bss_ptr->vm_start, bss_ptr->vm_end);
-            }
-        }
-        std::vector<std::shared_ptr<vma_struct>> vm_list;
-        vm_list.clear();
-        if (is_static){
-            std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
-            if (bss_ptr){
-                vm_list.push_back(bss_ptr);
-            }
-        }else{
-            vm_list = for_each_anon_vma();
-        }
-        if (vm_list.size() == 0){
-            return 0;
-        }
-        for (const auto& vma_ptr : vm_list) {
-            if (vma_callback && !vma_callback(vma_ptr)) {
-                continue;
-            }
-            ulong addr = check_object<T,P>(libname,vma_ptr,obj_callback,vtb_cnt);
-            if (addr > 0){
-                return addr;
-            }
-        }
-        return 0;
-    };
-    void cmd_main(void) override;
+    ulong search_stdlist(std::shared_ptr<vma_struct> vma_ptr, ulong start_addr, std::function<bool (ulong)> node_callback);
+    std::vector<size_t> for_each_stdlist(ulong stdlist_addr);
+    std::vector<size_t> for_each_stdvector(ulong std_vec_addr, size_t key_size);
+    std::string for_each_stdstring(ulong std_string_addr);
+    std::unordered_map<size_t, size_t> for_each_stdunmap(ulong std_un_map_addr, size_t key_size);
+    std::map<size_t, size_t> for_each_stdmap(ulong std_map_addr, size_t key_size);
     /*
                 +----------------------------------------------------+
                 |                                                    |
@@ -314,12 +280,49 @@ public:
         return 0;
     };
 
-    ulong search_stdlist(std::shared_ptr<vma_struct> vma_ptr, ulong start_addr, std::function<bool (ulong)> node_callback);
-    std::vector<size_t> for_each_stdlist(ulong stdlist_addr);
-    std::vector<size_t> for_each_stdvector(ulong std_vec_addr, size_t key_size);
-    std::string for_each_stdstring(ulong std_string_addr);
-    std::unordered_map<size_t, size_t> for_each_stdunmap(ulong std_un_map_addr, size_t key_size);
-    std::map<size_t, size_t> for_each_stdmap(ulong std_map_addr, size_t key_size);
+    template<typename T>
+    std::vector<char> uread_obj(ulonglong addr){
+        return read_data(addr,sizeof(T));
+    }
+    template<typename T, typename P>
+    size_t search_obj(std::string libname, bool is_static, std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (T*)> obj_callback,int vtb_cnt) {
+        if(debug) {
+            for (const auto& data_ptr : for_each_data_vma(libname)) {
+                fprintf(fp, "%s data:[%#lx-%#lx] \n", libname.c_str(), data_ptr->vm_start, data_ptr->vm_end);
+            }
+            std::shared_ptr<vma_struct> text_ptr = get_text_vma(libname);
+            if (text_ptr != nullptr){
+                fprintf(fp, "%s text:[%#lx-%#lx] \n", libname.c_str(), text_ptr->vm_start, text_ptr->vm_end);
+            }
+            std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
+            if (bss_ptr != nullptr){
+                fprintf(fp, "%s bss:[%#lx-%#lx] \n", libname.c_str(), bss_ptr->vm_start, bss_ptr->vm_end);
+            }
+        }
+        std::vector<std::shared_ptr<vma_struct>> vm_list;
+        vm_list.clear();
+        if (is_static){
+            std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
+            if (bss_ptr){
+                vm_list.push_back(bss_ptr);
+            }
+        }else{
+            vm_list = for_each_anon_vma();
+        }
+        if (vm_list.size() == 0){
+            return 0;
+        }
+        for (const auto& vma_ptr : vm_list) {
+            if (vma_callback && !vma_callback(vma_ptr)) {
+                continue;
+            }
+            ulong addr = check_object<T,P>(libname,vma_ptr,obj_callback,vtb_cnt);
+            if (addr > 0){
+                return addr;
+            }
+        }
+        return 0;
+    };
 };
 
 #endif // TASK_DEFS_H_

@@ -19,13 +19,13 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 
-void ImageParser::cmd_main(void) {
+void ImageParser::cmd_main(void) {}
 
-}
+ImageParser::ImageParser(){}
 
-ImageParser::ImageParser(){
+void ImageParser::init_offset(void) {}
 
-}
+void ImageParser::init_command(void) {}
 
 uint32_t ImageParser::get_vcpu_index(uint32_t affinity) {
     return 0;

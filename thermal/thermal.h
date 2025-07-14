@@ -41,15 +41,19 @@ struct zone_dev {
 };
 
 class Thermal : public ParserPlugin {
-public:
+private:
     std::vector<std::shared_ptr<zone_dev>> zone_list;
-    Thermal();
 
     void print_zone_device();
     void print_zone_device(std::string dev_name);
     void print_cooling_device();
-    void cmd_main(void) override;
     void parser_thrermal_zone();
+
+public:
+    Thermal();
+    void init_offset(void) override;
+    void init_command(void) override;
+    void cmd_main(void) override;
     DEFINE_PLUGIN_INSTANCE(Thermal)
 };
 

@@ -48,16 +48,19 @@ class ICC : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<icc_provider>> provider_list;
 
-public:
-    ICC();
     void print_icc_request(std::string node_name);
     void print_icc_nodes(std::string provider_name);
     void print_icc_info();
     void print_icc_provider();
-    void cmd_main(void) override;
     void parser_icc_provider();
     void parser_icc_node(std::shared_ptr<icc_provider> provider_ptr, ulong head);
     void parser_icc_req(std::shared_ptr<icc_node> node_ptr, ulong head);
+
+public:
+    ICC();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(ICC)
 };
 

@@ -22,9 +22,11 @@
 DEFINE_PLUGIN_COMMAND(FileSystem)
 #endif
 
-void Mount::cmd_main(void) {
+void Mount::cmd_main(void) {}
 
-}
+void Mount::init_offset(void) {}
+
+void Mount::init_command(void) {}
 
 void Mount::statfs(int width) {
     uint64_t total_size = static_cast<uint64_t>(f_bsize) * f_blocks;
@@ -44,7 +46,7 @@ void Mount::statfs(int width) {
     fprintf(fp, "%s \n",oss.str().c_str());
 }
 
-F2fs::F2fs(){
+void F2fs::init_offset(void) {
     field_init(f2fs_sb_info,blocksize);
     field_init(f2fs_sb_info,user_block_count);
     field_init(f2fs_sb_info,total_valid_block_count);
@@ -55,6 +57,12 @@ F2fs::F2fs(){
     field_init(f2fs_super_block,block_count);
     field_init(f2fs_super_block,segment0_blkaddr);
     struct_init(f2fs_sb_info);
+}
+
+void F2fs::init_command(void) {}
+
+F2fs::F2fs(){
+    init_offset();
 }
 
 void F2fs::statfs(int width) {
@@ -75,6 +83,10 @@ void F2fs::statfs(int width) {
 }
 
 Ext4::Ext4(){
+    init_offset();
+}
+
+void Ext4::init_offset(void) {
     field_init(super_block,s_blocksize);
     field_init(ext4_sb_info,s_es);
     field_init(ext4_sb_info,s_overhead);
@@ -91,6 +103,8 @@ Ext4::Ext4(){
     struct_init(ext4_sb_info);
     struct_init(ext4_super_block);
 }
+
+void Ext4::init_command(void) {}
 
 void Ext4::statfs(int width) {
     f_bsize = read_ulong(sb_addr + field_offset(super_block,s_blocksize),"super_block s_blocksize");
@@ -160,7 +174,7 @@ void FileSystem::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-FileSystem::FileSystem(){
+void FileSystem::init_offset(void) {
     field_init(nsproxy,mnt_ns);
     field_init(mnt_namespace,root);
     field_init(mnt_namespace,list);
@@ -176,6 +190,9 @@ FileSystem::FileSystem(){
     field_init(super_block,s_fs_info);
     field_init(file_system_type,name);
     struct_init(mount);
+}
+
+void FileSystem::init_command(void) {
     cmd_name = "df";
     help_str_list={
         "df",                /* command name */
@@ -203,8 +220,9 @@ FileSystem::FileSystem(){
         "    /vendor                   ext4  83917      4.00Kb     327.80Mb   326.80Mb   0b         99.70%",
         "\n",
     };
-    initialize();
 }
+
+FileSystem::FileSystem(){}
 
 void FileSystem::print_partition_size(){
     size_t max_len = 0;
@@ -212,8 +230,8 @@ void FileSystem::print_partition_size(){
         std::shared_ptr<Mount> mnt_ptr = pair.second;
         max_len = std::max(max_len,mnt_ptr->dir_name.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(max_len) << "Partition" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(max_len) << "Partition" << " "
         << std::left << std::setw(5) << "Type" << " "
         << std::left << std::setw(10) << "Blocks" << " "
         << std::left << std::setw(10) << "Block SZ" << " "
@@ -221,7 +239,7 @@ void FileSystem::print_partition_size(){
         << std::left << std::setw(10) << "Used" << " "
         << std::left << std::setw(10) << "Avail" << " "
         << std::left << "Use%";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    fprintf(fp, "%s \n",oss.str().c_str());
     for (const auto& pair : sb_list) {
         std::shared_ptr<Mount> mnt_ptr = pair.second;
         if (mnt_ptr->fs_type == "f2fs"){

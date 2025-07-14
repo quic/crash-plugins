@@ -31,21 +31,21 @@ struct procrank{
 };
 
 class Procrank : public ParserPlugin {
-private:
-    std::shared_ptr<UTask> task_ptr;
-
 public:
     Procrank();
     Procrank(std::shared_ptr<Swapinfo> swap);
-    void init_command();
     void cmd_main(void) override;
-    void parser_process_memory();
-    void parser_process_name();
-    std::shared_ptr<procrank> parser_vma(std::shared_ptr<vma_struct> vma_ptr);
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Procrank)
 
 private:
     std::shared_ptr<Swapinfo> swap_ptr;
     std::vector<std::shared_ptr<procrank>> procrank_list;
+    std::shared_ptr<UTask> task_ptr;
+
+    std::shared_ptr<procrank> parser_vma(std::shared_ptr<vma_struct> vma_ptr);
+    void parser_process_memory();
+    void parser_process_name();
 };
 #endif // PROCRANK_DEFS_H_

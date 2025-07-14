@@ -29,16 +29,20 @@ struct cma_mem {
 };
 
 class Cma : public ParserPlugin {
-public:
+private:
     std::vector<std::shared_ptr<cma_mem>> mem_list;
-    Cma();
 
-    void cmd_main(void) override;
     void parser_cma_areas();
     int get_cma_used_size(std::shared_ptr<cma_mem> cma);
     void print_cma_areas();
     void print_cma_page_status(std::string name,bool alloc);
     ulong cma_bitmap_maxno(std::shared_ptr<cma_mem> cma);
+
+public:
+    Cma();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Cma)
 };
 

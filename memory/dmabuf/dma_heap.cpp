@@ -26,7 +26,6 @@ DmaHeap::DmaHeap(std::shared_ptr<Dmabuf> dmabuf) : Heap(dmabuf){
     field_init(dma_heap,list);
     field_init(dma_heap,ops);
     struct_init(dma_heap);
-    parser_heaps();
 }
 
 void DmaHeap::print_heaps(){
@@ -36,30 +35,28 @@ void DmaHeap::print_heaps(){
         name_max_len = std::max(name_max_len,heap_ptr->name.size());
         ops_max_len = std::max(ops_max_len,heap_ptr->ops.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(VADDR_PRLEN + 2) << "dma_heap" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(VADDR_PRLEN + 2) << "dma_heap" << " "
         << std::left << std::setw(name_max_len + 2) << "Name" << " "
         << std::left << std::setw(4) << "ref" << " "
         << std::left << std::setw(ops_max_len + 2) << "ops" << " "
         << std::left << std::setw(VADDR_PRLEN + 2) << "priv" << " "
         << std::left << std::setw(7) << "buf_cnt" << " "
-        << std::left << "total_size";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << std::left << "total_size" << " \n";
     for (const auto& heap_ptr : dma_heaps) {
         size_t total_size = 0;
         for (const auto& dma_buf : heap_ptr->bufs) {
             total_size += dma_buf->size;
         }
-        std::ostringstream oss;
         oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << heap_ptr->addr << " "
             << std::left << std::setw(name_max_len + 2) << heap_ptr->name << " "
             << std::left << std::dec << std::setw(4) << heap_ptr->refcount << " "
             << std::left << std::setw(ops_max_len + 2) << heap_ptr->ops << " "
             << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << heap_ptr->priv_addr << " "
             << std::left << std::dec << std::setw(7) << heap_ptr->bufs.size() << " "
-            << std::left << csize(total_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << csize(total_size) << " \n";
     }
+    fprintf(fp, "%s", oss.str().c_str());
 }
 
 void DmaHeap::print_heap(std::string name){
@@ -92,13 +89,13 @@ void DmaHeap::parser_ion_system_heap(std::shared_ptr<dma_heap> heap_ptr){
         return;
     }
     fprintf(fp, "%s: \n",heap_ptr->name.c_str());
-    std::ostringstream oss_hd;
-    oss_hd  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+    std::ostringstream oss;
+    oss  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
         << std::left << std::setw(5) << "order" << " "
         << std::left << std::setw(10) << "high" << " "
         << std::left << std::setw(10) << "low" << " "
         << std::left << std::setw(10) << "total";
-    fprintf(fp, "   %s \n",oss_hd.str().c_str());
+    fprintf(fp, "   %s \n",oss.str().c_str());
     for (size_t i = 0; i < 3; i++){
         ulong pool_addr = read_pointer(pools_addr + i * sizeof(void *),"pool");
         if (!is_kvaddr(pool_addr)){

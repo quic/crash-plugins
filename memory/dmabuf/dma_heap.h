@@ -31,16 +31,19 @@ struct dma_heap {
 };
 
 class DmaHeap : public Heap {
-public:
+private:
     std::vector<std::shared_ptr<dma_heap>> dma_heaps;
+
+    void parser_ion_system_heap(std::shared_ptr<dma_heap> heap_ptr);
+    void parser_dynamic_page_pool(ulong addr);
+    void print_heap(std::string name);
+
+public:
     DmaHeap(std::shared_ptr<Dmabuf> dmabuf);
     std::vector<ulong> get_heaps() override;
     void parser_heaps() override;
     void print_heaps() override;
     void print_system_heap_pool() override;
-    void parser_ion_system_heap(std::shared_ptr<dma_heap> heap_ptr);
-    void parser_dynamic_page_pool(ulong addr);
-    void print_heap(std::string name);
 };
 
 #endif // DMA_HEAP_DEFS_H_

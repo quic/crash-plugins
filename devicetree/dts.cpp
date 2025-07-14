@@ -20,7 +20,7 @@
 
 #ifndef BUILD_TARGET_TOGETHER
 DEFINE_PLUGIN_COMMAND(Dts)
-#endif // !BUILD_TARGET_TOGETHER
+#endif
 
 void Dts::cmd_main(void) {
     int c;
@@ -80,14 +80,16 @@ void Dts::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Dts::Dts(){
+void Dts::init_offset(void) {}
+
+void Dts::init_command(void) {
     cmd_name = "dts";
     help_str_list={
         "dts",                            /* command name */
         "dump dts info",        /* short description */
         "-a \n"
             "  dts -f\n"
-            "  dts -b\n"
+            "  dts -b <path of *.dtb>\n"
             "  dts -n <name>\n"
             "  dts -m\n"
             "  This command dumps the dts info.",
@@ -135,8 +137,9 @@ Dts::Dts(){
         "           dtc -I dtb -O dts -o ./xx.dts ./dts.dtb",
         "\n",
     };
-    initialize();
 }
+
+Dts::Dts(){}
 
 void Dts::print_ddr_info(){
     ulong total_size = 0;
@@ -144,17 +147,18 @@ void Dts::print_ddr_info(){
     fprintf(fp, "DDR memory ranges:\n");
     fprintf(fp, "===================================================\n");
     int index = 1;
+    std::ostringstream oss;
     for (auto it = ranges.begin(); it != ranges.end(); ++it) {
         DdrRange item = *it;
-        std::ostringstream oss;
-        oss << "[" << std::setw(2) << std::setfill('0') << index << "]"
+        oss << "[" << std::setw(2) << std::setfill('0') << std::right << std::dec << index << "]"
             << "<" << std::left << std::hex  << std::setfill(' ') << std::setw(10) << item.address
             << "~" << std::right << std::hex  << std::setfill(' ') << std::setw(10) << (item.address + item.size) << "> "
-            << ": " << std::left << csize(item.size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << ": " << std::left << csize(item.size)
+            << "\n";
         total_size += item.size;
         index++;
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
     fprintf(fp, "===================================================\n");
     fprintf(fp, "Total size:%s\n",csize(total_size).c_str());
 }

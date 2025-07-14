@@ -18,25 +18,22 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-void Swapinfo::cmd_main(void) {
-
-}
+void Swapinfo::cmd_main(void) {}
 
 Swapinfo::Swapinfo(std::shared_ptr<Zraminfo> zram): zram_ptr(zram){
-    init_command();
+    init_offset();
 }
 
 Swapinfo::Swapinfo(){
     zram_ptr = std::make_shared<Zraminfo>();
-    init_command();
-    //print_table();
+    init_offset();
 }
 
 bool Swapinfo::is_zram_enable(){
     return zram_ptr->is_zram_enable();
 }
 
-void Swapinfo::init_command(){
+void Swapinfo::init_offset(void) {
     field_init(swap_info_struct,pages);
     field_init(swap_info_struct,inuse_pages);
     field_init(swap_info_struct,swap_file);
@@ -57,9 +54,9 @@ void Swapinfo::init_command(){
     struct_init(address_space);
 }
 
-Swapinfo::~Swapinfo(){
+void Swapinfo::init_command(void) {}
 
-}
+Swapinfo::~Swapinfo(){}
 
 ulonglong Swapinfo::pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val){
     ulong swp_offset = 0;

@@ -1538,4 +1538,8 @@ void ParserPlugin::uwind_task_back_trace(int pid, ulong x30){
     fprintf(fp, "\n");
 #endif
 }
+
+cmd_func_t ParserPlugin::get_wrapper_func() {
+    return nullptr;
+}
 #pragma GCC diagnostic pop

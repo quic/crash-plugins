@@ -18,9 +18,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-LogcatS::LogcatS(std::shared_ptr<Swapinfo> swap) : Logcat(swap){
-
-}
+LogcatS::LogcatS(std::shared_ptr<Swapinfo> swap) : Logcat(swap){}
 
 void LogcatS::init_datatype_info(){
     field_init(SerializedLogBuffer, logs_);

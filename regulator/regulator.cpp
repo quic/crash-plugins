@@ -50,7 +50,7 @@ void Regulator::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Regulator::Regulator(){
+void Regulator::init_offset(void) {
     field_init(class,p);
     field_init(subsys_private,klist_devices);
     field_init(klist,k_list);
@@ -78,6 +78,9 @@ Regulator::Regulator(){
     field_init(regulator_voltage,min_uV);
     field_init(regulator_voltage,max_uV);
     struct_init(regulator_voltage);
+}
+
+void Regulator::init_command(void) {
     cmd_name = "reg";
     help_str_list={
         "reg",                            /* command name */
@@ -118,33 +121,39 @@ Regulator::Regulator(){
         "       ffffff8002204f00 0uA        1      regulator.59-SUPPLY",
         "\n",
     };
-    initialize();
 }
 
+Regulator::Regulator(){}
+
 void Regulator::print_regulator_consumer(std::string reg_name){
+    std::ostringstream oss;
     for (const auto& dev_ptr : regulator_list) {
         if (dev_ptr->name != reg_name){
             continue;
         }
         fprintf(fp, "Consumers: \n");
-        std::ostringstream oss_hd;
-        oss_hd  << std::left << std::setw(16)   << "regulator" << " "
-                << std::left << std::setw(10)    << "load" << " "
-                << std::left << std::setw(6)    << "enable" << " "
-                << std::left << "Name";
-        fprintf(fp, "   %s \n",oss_hd.str().c_str());
+        size_t max_len = 0;
         for (const auto& c_ptr : dev_ptr->consumers) {
-            std::ostringstream oss;
+            max_len = std::max(max_len,c_ptr->name.size());
+        }
+        oss << std::left << std::setw(16) << "regulator" << " "
+            << std::left << std::setw(10) << "load" << " "
+            << std::left << std::setw(6)  << "enable" << " "
+            << std::left << std::setw(max_len) << "Name"
+            << std::left << "voltage";
+        fprintf(fp, "   %s \n", oss.str().c_str());
+        for (const auto& c_ptr : dev_ptr->consumers) {
+            oss.str("");
             oss << std::left << std::setw(16) << std::hex << c_ptr->addr << " "
-                << std::left << std::setw(10)  << std::dec << std::to_string(c_ptr->load) + "uA" << " "
+                << std::left << std::setw(10) << std::dec << std::to_string(c_ptr->load) + "uA" << " "
                 << std::left << std::setw(6)  << std::dec << c_ptr->enable_count << " "
-                << std::left << c_ptr->name;
+                << std::left << std::setw(max_len) << c_ptr->name;
             if (c_ptr->voltages.size() > 0){
-                oss << std::left << " voltage:[";
+                oss << "[";
                 for (const auto& vol : c_ptr->voltages) {
-                    oss << std::left << std::to_string(vol->min_uV) << "uV~" << std::to_string(vol->max_uV) << "uV,";
+                    oss << std::to_string(vol->min_uV) << "uV~" << std::to_string(vol->max_uV) << "uV,";
                 }
-                oss << std::left << "]";
+                oss << "]";
             }
             fprintf(fp, "   %s \n",oss.str().c_str());
         }
@@ -153,62 +162,64 @@ void Regulator::print_regulator_consumer(std::string reg_name){
 
 void Regulator::print_regulator_info(){
     if(regulator_list.size() == 0) return;
+    std::ostringstream oss;
     for (const auto& dev_ptr : regulator_list) {
-        std::ostringstream oss;
-        oss << std::left << "regulator_dev:" << std::hex << dev_ptr->addr << " " << std::left << dev_ptr->name << " "
+        oss.str("");
+        oss << std::left << "regulator_dev:" << std::hex << dev_ptr->addr << " "
+            << std::left << dev_ptr->name << " "
             << std::left << "open_count:" << std::dec << dev_ptr->open_count << " "
             << std::left << "use_count:" << std::dec << dev_ptr->use_count << " "
             << std::left << "bypass_count:" << std::dec << dev_ptr->bypass_count << " "
-            << std::left << "min_uV:"  << std::dec << dev_ptr->min_uV << " "
-            << std::left << "max_uV:"  << std::dec << dev_ptr->max_uV << " "
+            << std::left << "min_uV:" << std::dec << dev_ptr->min_uV << " "
+            << std::left << "max_uV:" << std::dec << dev_ptr->max_uV << " "
             << std::left << "input_uV:" << std::dec << dev_ptr->input_uV;
-        fprintf(fp, "%s \n",oss.str().c_str());
+        fprintf(fp, "%s \n", oss.str().c_str());
         for (const auto& c_ptr : dev_ptr->consumers) {
-            std::ostringstream oss;
+            oss.str("");
             oss << std::left << "regulator:" << std::hex << c_ptr->addr << " "
-                << std::left << "enable:"  << std::dec << c_ptr->enable_count << " "
-                << std::left << "load:"  << std::dec << std::to_string(c_ptr->load) + "uA" << " ";
+                << std::left << "enable:" << std::dec << c_ptr->enable_count << " "
+                << std::left << "load:" << std::dec << std::to_string(c_ptr->load) + "uA" << " ";
             if (c_ptr->voltages.size() > 0){
-                oss << std::left << " voltage:[";
+                oss << " voltage:[";
                 for (const auto& vol : c_ptr->voltages) {
-                    oss << std::left << std::to_string(vol->min_uV) << "uV~" << std::to_string(vol->max_uV) << "uV,";
+                    oss << std::to_string(vol->min_uV) << "uV~" << std::to_string(vol->max_uV) << "uV,";
                 }
-                oss << std::left << "] ";
+                oss << "] ";
             }
-            oss << std::left << c_ptr->name;
-            fprintf(fp, "   %s \n",oss.str().c_str());
+            oss << c_ptr->name;
+            fprintf(fp, "   %s \n", oss.str().c_str());
         }
-        fprintf(fp, "\n");
+        fprintf(fp, "\n\n");
     }
 }
 
 void Regulator::print_regulator_dev(){
     if(regulator_list.size() == 0) return;
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(16)   << "regulator_dev" << " "
-            << std::left << std::setw(4)    << "open" << " "
-            << std::left << std::setw(3)    << "use" << " "
-            << std::left << std::setw(6)    << "bypass" << " "
-            << std::left << std::setw(16)   << "regulator_desc" << " "
-            << std::left << std::setw(16)   << "constraints" << " "
-            << std::left << std::setw(8)    << "min_uV" << " "
-            << std::left << std::setw(8)    << "max_uV" << " "
-            << std::left << std::setw(8)    << "input_uV" << " "
-            << std::left << "Name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    std::ostringstream oss;
+    oss << std::left << std::setw(16) << "regulator_dev" << " "
+        << std::left << std::setw(4)  << "open" << " "
+        << std::left << std::setw(3)  << "use" << " "
+        << std::left << std::setw(6)  << "bypass" << " "
+        << std::left << std::setw(16) << "regulator_desc" << " "
+        << std::left << std::setw(16) << "constraints" << " "
+        << std::left << std::setw(8)  << "min_uV" << " "
+        << std::left << std::setw(8)  << "max_uV" << " "
+        << std::left << std::setw(8)  << "input_uV" << " "
+        << std::left << "Name";
+    fprintf(fp, "%s \n", oss.str().c_str());
     for (const auto& dev_ptr : regulator_list) {
-        std::ostringstream oss;
-        oss << std::left << std::setw(16)   << std::hex << dev_ptr->addr << " "
-            << std::left << std::setw(4)    << std::dec << dev_ptr->open_count << " "
-            << std::left << std::setw(3)    << std::dec << dev_ptr->use_count << " "
-            << std::left << std::setw(6)    << std::dec << dev_ptr->bypass_count << " "
-            << std::left << std::setw(16)   << std::hex << dev_ptr->desc << " "
-            << std::left << std::setw(16)   << std::hex << dev_ptr->constraint << " "
-            << std::left << std::setw(8)    << std::dec << dev_ptr->min_uV << " "
-            << std::left << std::setw(8)    << std::dec << dev_ptr->max_uV << " "
-            << std::left << std::setw(8)    << std::dec << dev_ptr->input_uV << " "
+        oss.str("");
+        oss << std::left << std::setw(16) << std::hex << dev_ptr->addr << " "
+            << std::left << std::setw(4)  << std::dec << dev_ptr->open_count << " "
+            << std::left << std::setw(3)  << dev_ptr->use_count << " "
+            << std::left << std::setw(6)  << dev_ptr->bypass_count << " "
+            << std::left << std::setw(16) << std::hex << dev_ptr->desc << " "
+            << std::left << std::setw(16) << dev_ptr->constraint << " "
+            << std::left << std::setw(8)  << std::dec << dev_ptr->min_uV << " "
+            << std::left << std::setw(8)  << dev_ptr->max_uV << " "
+            << std::left << std::setw(8)  << dev_ptr->input_uV << " "
             << std::left << dev_ptr->name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+        fprintf(fp, "%s \n", oss.str().c_str());
     }
 }
 

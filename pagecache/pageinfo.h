@@ -28,16 +28,18 @@ struct FileCache {
 class Pageinfo : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<FileCache>> cache_list;
-    
-public:
-    Pageinfo();
+
     bool page_buddy(ulong page_addr);
     int page_count(ulong page_addr);
     void parser_file_pages();
     void print_file_pages();
-    void init_offset();
-    void cmd_main(void) override;
     void print_anon_pages();
+
+public:
+    Pageinfo();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Pageinfo)
 };
 

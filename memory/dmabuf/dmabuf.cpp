@@ -19,11 +19,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-void Dmabuf::cmd_main(void) {
+void Dmabuf::cmd_main(void) {}
 
-}
-
-Dmabuf::Dmabuf(){
+void Dmabuf::init_offset(void) {
     field_init(dma_buf,list_node);
     field_init(dma_buf,size);
     field_init(dma_buf,attachments);
@@ -66,9 +64,12 @@ Dmabuf::Dmabuf(){
     struct_init(ion_buffer);
     struct_init(qcom_sg_buffer);
     struct_init(scatterlist);
-    // print_table();
-    get_dmabuf_from_proc();
-    parser_dma_bufs();
+}
+
+void Dmabuf::init_command(void) {}
+
+Dmabuf::Dmabuf(){
+    init_offset();
 }
 
 void Dmabuf::parser_dma_bufs(){
@@ -298,57 +299,61 @@ void Dmabuf::print_dma_buf_list(){
         return a->size > b->size;
     });
     fprintf(fp, "=======================================================================================\n");
+    std::ostringstream oss;
     for (const auto& dma_buf : buf_list) {
         total_size += dma_buf->size;
-        std::ostringstream oss;
-        oss << "[" << std::setw(3) << std::setfill('0') << index << "]"
+        oss << "[" << std::setw(3) << std::setfill('0') << std::dec << std::right << index << "]"
             << "dma_buf:" << std::hex <<  std::setfill(' ') << dma_buf->addr << " "
             << "ref:"  << std::left << std::dec << std::setw(2) << dma_buf->f_count << " "
             << "priv:" << std::left << std::hex << dma_buf->priv << " "
             << "ops::" << std::left << std::setw(12) << dma_buf->ops_name << " ["
             << std::left << dma_buf->exp_name << "] "
-            << "size:" << std::left << std::setw(9) << csize(dma_buf->size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << "size:" << std::left << std::setw(9) << csize(dma_buf->size)
+            << "\n";
         index += 1;
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
     fprintf(fp, "=======================================================================================\n");
     fprintf(fp, "Total size:%s\n",csize(total_size).c_str());
     fprintf(fp, " \n");
 }
 
 void Dmabuf::print_attachment(std::shared_ptr<dma_buf> buf_ptr){
+    std::ostringstream oss;
     for (const auto& attach : buf_ptr->attachments) {
-        std::ostringstream oss_a;
-        oss_a << "        dma_buf_attachment:" << std::hex <<  std::setfill(' ') << attach->addr << " "
+        oss << "        dma_buf_attachment:" << std::hex <<  std::setfill(' ') << attach->addr << " "
             << "dir:"  << std::left << directions[attach->dir] << " "
             << "priv:" << std::left << std::hex << attach->priv << " "
             << "device:[" << std::left << attach->device_name << "] "
-            << "driver:[" << std::left << attach->driver_name << "]";
-        fprintf(fp, "%s \n",oss_a.str().c_str());
+            << "driver:[" << std::left << attach->driver_name << "]"
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Dmabuf::print_proc_info(std::shared_ptr<dma_buf> buf_ptr){
+    std::ostringstream oss;
     for (const auto& proc : buf_ptr->procs) {
-        std::ostringstream oss_a;
-        oss_a << "        pid:" << std::dec << std::left << std::setw(5) << proc->tc->pid << " "
+        oss << "        pid:" << std::dec << std::left << std::setw(5) << proc->tc->pid << " "
             << "["  << std::left << proc->tc->comm << "] "
-            << "fd:" << std::left << std::dec << proc->fd_map[buf_ptr->addr] << " ";
-        fprintf(fp, "%s \n",oss_a.str().c_str());
+            << "fd:" << std::left << std::dec << proc->fd_map[buf_ptr->addr] << " "
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Dmabuf::print_sg_table(std::shared_ptr<dma_buf> buf_ptr){
+    std::ostringstream oss;
     for (const auto& sgl_ptr : buf_ptr->sgl_list) {
-        std::ostringstream oss_a;
-        oss_a << "        scatterlist:" << std::hex << std::left << sgl_ptr->addr << " "
+        oss << "        scatterlist:" << std::hex << std::left << sgl_ptr->addr << " "
             << "page:"  << std::left << std::hex << (sgl_ptr->page_link  & ~ 0x3) << " "
             << "offset:"  << std::left << std::dec << sgl_ptr->offset << " "
             << "length:"  << std::left << std::dec << csize(sgl_ptr->length) << " "
             << "dma_address:"  << std::left << std::hex << sgl_ptr->dma_address << " "
-            << "dma_length:"  << std::left << std::dec << csize(sgl_ptr->dma_length);
-        fprintf(fp, "%s \n",oss_a.str().c_str());
+            << "dma_length:"  << std::left << std::dec << csize(sgl_ptr->dma_length)
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Dmabuf::print_dma_buf(std::shared_ptr<dma_buf> buf_ptr){
@@ -409,12 +414,12 @@ void Dmabuf::save_dma_buf(std::string addr){
 }
 
 void Dmabuf::print_procs(){
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(5) << "PID" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(5) << "PID" << " "
         << std::left << std::setw(20) << "Comm" << " "
         << std::left << std::setw(8) << "buf_cnt" << " "
-        << std::left << "total_size";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << std::left << "total_size"
+        << "\n";
     for (const auto& proc_ptr : proc_list) {
         size_t total_size = 0;
         for (const auto& pair : proc_ptr->fd_map) {
@@ -424,13 +429,13 @@ void Dmabuf::print_procs(){
                 }
             }
         }
-        std::ostringstream oss;
         oss << std::left << std::setw(5) << proc_ptr->tc->pid << " "
             << std::left << std::setw(20) << proc_ptr->tc->comm << " "
             << std::left << std::setw(8) << proc_ptr->fd_map.size() << " "
-            << std::left << csize(total_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << csize(total_size)
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Dmabuf::print_proc(ulong pid){

@@ -406,7 +406,7 @@ set_target_properties(sf PROPERTIES PREFIX "")
 target_link_libraries(sf ${ELF_LIBRARIES})
 
 # =================== build systemd ===================
-add_library(systemd SHARED
+add_library(sd SHARED
             ${PLUGIN_SOURCES}
             memory/zraminfo.cpp
             memory/swapinfo.cpp
@@ -414,6 +414,6 @@ add_library(systemd SHARED
             lib/lzo/lzo1x_decompress_safe.c
             lib/lz4/lz4_decompress.c
             systemd/journal.cpp)
-set_target_properties(systemd PROPERTIES PREFIX "")
-target_link_libraries(systemd ${ELF_LIBRARIES} ${SYSTEMD_LIBRARIES})
+set_target_properties(sd PROPERTIES PREFIX "")
+target_link_libraries(sd ${ELF_LIBRARIES} ${SYSTEMD_LIBRARIES})
 endif()

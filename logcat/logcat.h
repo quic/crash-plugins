@@ -107,7 +107,7 @@ struct log_time {
 };
 
 class Logcat : public ParserPlugin {
-protected:
+private:
     const std::array<LogLevel, 9> priorityMap = {{
         LogLevel::LOG_UNKNOWN,
         LogLevel::LOG_DEFAULT,
@@ -119,29 +119,32 @@ protected:
         LogLevel::LOG_FATAL,
         LogLevel::LOG_SILENT
     }};
-    std::shared_ptr<UTask> task_ptr;
+
     std::string remove_invalid_chars(const std::string &str);
+    LogEvent get_event(size_t pos, char *data, size_t len);
+    std::string getLogLevelChar(LogLevel level);
 
 public:
-    static bool is_LE;
     bool debug = false;
-    Logcat(std::shared_ptr<Swapinfo> swap);
-    ~Logcat();
-    std::vector<std::shared_ptr<LogEntry>> log_list;
-    struct task_context *tc_logd;
+    static bool is_LE;
     std::string logd_symbol;
+    std::vector<std::shared_ptr<LogEntry>> log_list;
+    std::shared_ptr<UTask> task_ptr;
+    struct task_context *tc_logd;
     std::shared_ptr<Swapinfo> swap_ptr;
 
-    void cmd_main(void) override;
-    void parser_logcat_log();
-    void print_logcat_log(LOG_ID id);
-    LogEvent get_event(size_t pos, char *data, size_t len);
-    std::string formatTime(uint32_t tv_sec, long tv_nsec);
-    std::string find_symbol(std::string name);
+    Logcat(std::shared_ptr<Swapinfo> swap);
+    ~Logcat();
+    size_t get_stdlist(std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (ulong)> obj_callback);
     void parser_system_log(std::shared_ptr<LogEntry> log_ptr, char *logbuf, uint16_t msg_len);
     void parser_event_log(std::shared_ptr<LogEntry> log_ptr, char *logbuf, uint16_t msg_len);
-    std::string getLogLevelChar(LogLevel level);
-    size_t get_stdlist(std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (ulong)> obj_callback);
+    void parser_logcat_log();
+    void print_logcat_log(LOG_ID id);
+    std::string formatTime(uint32_t tv_sec, long tv_nsec);
+    std::string find_symbol(std::string name);
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     virtual ulong parser_logbuf_addr()=0;
     virtual void parser_logbuf(ulong buf_addr)=0;
     virtual size_t get_logbuf_addr_from_bss()=0;

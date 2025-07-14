@@ -21,7 +21,7 @@
 
 #ifndef BUILD_TARGET_TOGETHER
 DEFINE_PLUGIN_COMMAND(Meminfo)
-#endif // !BUILD_TARGET_TOGETHER
+#endif
 
 void Meminfo::cmd_main(void) {
     int c;
@@ -49,7 +49,7 @@ void Meminfo::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Meminfo::Meminfo(){
+void Meminfo::init_offset(void) {
     struct_init(page);
     struct_init(zone);
     field_init(zone, watermark);
@@ -94,6 +94,9 @@ Meminfo::Meminfo(){
         field_init(hstate, order);
         field_init(hstate, nr_huge_pages);
     }
+}
+
+void Meminfo::init_command(void) {
     cmd_name = "meminfo";
     help_str_list={
         "meminfo",                            /* command name */
@@ -155,8 +158,9 @@ Meminfo::Meminfo(){
         "    ... ...",
         "\n",
     };
-    initialize();
 }
+
+Meminfo::Meminfo(){}
 
 void Meminfo::parse_meminfo(void){
     const char* enum_names[] = {
@@ -350,7 +354,7 @@ ulong Meminfo::get_mm_committed_pages(void){
     for (uint cpu = 0; cpu < nr_cpu_ids; ++cpu) {
         if (cpu_online_mask & (1UL << cpu)) {
             ulong per_cpu_offset = read_ulong(g_param["__per_cpu_offset"] + sizeof(ulong)*cpu, "get __per_cpu_offset[cpu]");
-            uint temp = read_uint(g_param["vm_committed_as"] + per_cpu_offset + field_offset(percpu_counter, counters), 
+            uint temp = read_uint(g_param["vm_committed_as"] + per_cpu_offset + field_offset(percpu_counter, counters),
                 "get percpu_counter->counters for specific cpu");
             allowed += temp;
         }

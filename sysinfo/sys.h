@@ -29,12 +29,8 @@ private:
     std::vector<std::string> hw_platforms;
     std::unordered_map<uint32_t, std::string> soc_ids;
 
-public:
-    SysInfo();
-
     void print_socinfo();
     void print_qsocinfo();
-    void cmd_main(void) override;
     void print_command_line();
     void print_soc_info();
     void print_soc_info5();
@@ -42,6 +38,12 @@ public:
     void read_hw_platforms();
     void read_soc_ids();
     uint32_t socinfo_get_raw_id(void *buf);
+
+public:
+    SysInfo();
+    void init_offset(void) override;
+    void init_command(void) override;
+    void cmd_main(void) override;
     DEFINE_PLUGIN_INSTANCE(SysInfo)
 };
 

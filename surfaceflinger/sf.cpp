@@ -46,6 +46,8 @@ void SF::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
+void SF::init_offset(void) {}
+
 /*
 static android::KeyedVector<native_handle const*, android::GraphicBufferAllocator::alloc_rec_t> sAllocList;
 ptype android::SortedVector<android::key_value_pair_t<native_handle const*, android::GraphicBufferAllocator::alloc_rec_t> >
@@ -107,9 +109,9 @@ void SF::parser_gralloc5(){
     SnapAllocCore_addr = task_ptr->uread_pointer(SnapAllocCore_addr);
     // std::unordered_map<SnapHandle *, SnapHandleInternal *> handles_map_ = {};
     ulong core_handles_map = SnapAllocCore_addr + g_offset.SnapAllocCore_handles_map_;
-    std::ostringstream oss_hd;
-    oss_hd << "Imported gralloc5 buffers:\n";
-    oss_hd << std::left << std::setw(40) << "Name"
+    std::ostringstream oss;
+    oss << "Imported gralloc5 buffers:\n";
+    oss << std::left << std::setw(40) << "Name"
         << std::left << std::setw(25) << "W/H"
         << std::left << std::setw(22) << "Dmabuf"
         << std::left << std::setw(12) << "Format"
@@ -130,7 +132,7 @@ void SF::parser_gralloc5(){
             dmabuf = read_pointer(file_addr + field_offset(file,private_data), "private_data");
         }
 
-        oss_hd << std::left << std::setw(40) << name
+        oss << std::left << std::setw(40) << name
             << std::left << std::setw(25)
             << (std::to_string(shi->shp.unaligned_width) + "(" + std::to_string(shi->shp.aligned_width_in_pixels) + ") x " +
                 std::to_string(shi->shp.unaligned_height) + "(" + std::to_string(shi->shp.aligned_height) + ")")
@@ -139,7 +141,7 @@ void SF::parser_gralloc5(){
             << std::left << std::hex << std::showbase << shi->shp.usage
             << std::dec  << std::endl;
     }
-    fprintf(fp, "%s \n", oss_hd.str().c_str());
+    fprintf(fp, "%s \n", oss.str().c_str());
     task_ptr.reset();
 }
 
@@ -169,9 +171,9 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
     if(debug){
         fprintf(fp, "sAllocList:%#lx mStorage_addr:%#lx mCount:%zu mFlags:%d mItemSize:%zu\n", sAllocList_vaddr, mStorage_addr, mCount, mFlags, mItemSize);
     }
-    std::ostringstream result;
-    result  << "GraphicBufferAllocator buffers:\n";
-    result  << std::setw(12) << std::right << "Handle" << " | "
+    std::ostringstream oss;
+    oss  << "GraphicBufferAllocator buffers:\n";
+    oss  << std::setw(12) << std::right << "Handle" << " | "
             << std::setw(18) << std::right << "Dmabuf" << " | "
             << std::setw(12) << "Size" << " | "
             << std::setw(18) << "W (Stride) x H" << " | "
@@ -221,7 +223,7 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
             sizeStream  << "unknown";
         }
         std::string sizeStr = sizeStream.str();
-        result  << std::setw(12) << std::hex << std::showbase << native_handle_addr << " | "
+        oss  << std::setw(12) << std::hex << std::showbase << native_handle_addr << " | "
                 << std::setw(18) << std::hex << dmabuf << " | " << std::dec
                 << std::setw(12) << sizeStr << " | "
                 << std::setw(4) << rec->width << " (" << std::setw(4) << rec->stride << ") x "
@@ -232,10 +234,10 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
                 << requestorName << "\n";
         total += size;
     }
-    result  << "Total allocated by GraphicBufferAllocator (estimate): "
+    oss  << "Total allocated by GraphicBufferAllocator (estimate): "
             << std::fixed << std::setprecision(2)
             << static_cast<double>(total) / 1024.0 << " KB\n";
-    fprintf(fp, "%s \n", result.str().c_str());
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 // GraphicBufferAllocator::sInstance
@@ -388,16 +390,13 @@ bool SF::init_env(){
     return true;
 }
 
-SF::SF(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
-    init_command();
-}
+SF::SF(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){}
 
 SF::SF(){
-    init_command();
     swap_ptr = std::make_shared<Swapinfo>();
 }
 
-void SF::init_command(){
+void SF::init_command(void){
     cmd_name = "sfg";
     help_str_list={
         "sfg",                            /* command name */
@@ -428,7 +427,6 @@ void SF::init_command(){
         "     FramebufferSurface                      454(512) x 454(464)      0xffffff804ea87000    RGBA_8888   0x1b00",
         "\n",
     };
-    initialize();
 }
 
 #pragma GCC diagnostic pop

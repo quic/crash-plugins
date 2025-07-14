@@ -22,35 +22,7 @@
 DEFINE_PLUGIN_COMMAND(IPCLog)
 #endif
 
-void IPCLog::cmd_main(void) {
-    int c;
-    std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    if (ipc_list.size() == 0){
-        parser_ipc_log();
-    }
-    while ((c = getopt(argcnt, args, "al:s")) != EOF) {
-        switch(c) {
-            case 'a':
-                print_ipc_info();
-                break;
-            case 'l':
-                cppString.assign(optarg);
-                print_ipc_log(cppString);
-                break;
-            case 's':
-                save_ipc_log();
-                break;
-            default:
-                argerrs++;
-                break;
-        }
-    }
-    if (argerrs)
-        cmd_usage(pc->curcmd, SYNOPSIS);
-}
-
-IPCLog::IPCLog(){
+void IPCLog::init_offset(void) {
     field_init(ipc_log_context,magic);
     field_init(ipc_log_context,version);
     field_init(ipc_log_context,user_version);
@@ -76,6 +48,38 @@ IPCLog::IPCLog(){
     struct_init(ipc_log_page_header);
     struct_init(ipc_log_page);
     struct_init(tsv_header);
+}
+
+void IPCLog::cmd_main(void) {
+    int c;
+    std::string cppString;
+    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (ipc_list.size() == 0){
+        init_offset();
+        parser_ipc_log();
+    }
+    while ((c = getopt(argcnt, args, "al:s")) != EOF) {
+        switch(c) {
+            case 'a':
+                print_ipc_info();
+                break;
+            case 'l':
+                cppString.assign(optarg);
+                print_ipc_log(cppString);
+                break;
+            case 's':
+                save_ipc_log();
+                break;
+            default:
+                argerrs++;
+                break;
+        }
+    }
+    if (argerrs)
+        cmd_usage(pc->curcmd, SYNOPSIS);
+}
+
+void IPCLog::init_command(void) {
     cmd_name = "ipc";
     help_str_list={
         "ipc",                            /* command name */
@@ -108,7 +112,10 @@ IPCLog::IPCLog(){
         "    Save mmc0 to /xxx/ipc_log/mmc0",
         "\n",
     };
-    initialize();
+}
+
+IPCLog::IPCLog(){
+   do_init_offset = false;
 }
 
 void IPCLog::print_ipc_log(std::string name){
@@ -200,6 +207,7 @@ void IPCLog::parser_ipc_log_page(std::shared_ptr<ipc_log> log_ptr){
     char* dataPtr = ipcLogBuf.data();
     uint64_t TimeStamp = 0;
     uint64_t TimeQtimer = 0;
+    std::ostringstream oss;
     while (len < ipcLogBuf.size()) {
         len += sizeof(tsv_header);
         dataPtr += sizeof(tsv_header);
@@ -233,13 +241,13 @@ void IPCLog::parser_ipc_log_page(std::shared_ptr<ipc_log> log_ptr){
         dataPtr += sizeof(tsv_header);
         if (msg.type == TSV_TYPE_BYTE_ARRAY){
             std::string str_data(dataPtr, msg.size);
-            std::ostringstream oss;
             if (str_data.find('\n') != std::string::npos) {
-                oss << "[ " << std::fixed << std::setprecision(9) << TimeStamp / 1000000000.0 << " 0x" << std::hex << TimeQtimer << "]   " << str_data;
+                oss << "[ " << std::fixed << std::setprecision(9) << TimeStamp / 1000000000.0 << " 0x" << std::hex << TimeQtimer << "]   " << str_data << "\n";
             } else {
                 oss << "[ " << std::fixed << std::setprecision(9) << TimeStamp / 1000000000.0 << " 0x" << std::hex << TimeQtimer << "]   " << str_data << "\n";
             }
             log_ptr->logs.push_back(oss.str());
+            oss.str("");
             len += msg.size;
             dataPtr += msg.size;
         }
@@ -315,26 +323,26 @@ void IPCLog::parser_ipc_log(){
 }
 
 void IPCLog::print_ipc_info(){
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN)  << "ipc_log_context" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(VADDR_PRLEN)  << "ipc_log_context" << " "
             << std::left << std::setw(7)            << "Version"            << " "
             << std::left << std::setw(VADDR_PRLEN)  << "first_page"         << " "
             << std::left << std::setw(VADDR_PRLEN)  << "last_page"          << " "
             << std::left << std::setw(VADDR_PRLEN)  << "write_page"         << " "
             << std::left << std::setw(VADDR_PRLEN)  << "read_page"          << " "
-            << std::left << "Name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "Name"
+            << "\n";
     for (const auto& log_ptr : ipc_list) {
-        std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->addr         << " "
             << std::left << std::setw(7)            << std::dec << log_ptr->version      << " "
             << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->first_page   << " "
             << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->last_page    << " "
             << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->write_page   << " "
             << std::left << std::setw(VADDR_PRLEN)  << std::hex << log_ptr->read_page    << " "
-            << std::left << log_ptr->name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << log_ptr->name
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

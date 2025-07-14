@@ -39,14 +39,19 @@ struct cpu_data {
 };
 
 class CpuInfo : public ParserPlugin {
-public:
-    CpuInfo();
+private:
     std::vector<std::shared_ptr<cpu_policy>> cpu_infos;
+
     void print_cpu_policy();
     void print_cpu_state();
     void print_freq_table();
     void parser_cpu_policy();
+
+public:
+    CpuInfo();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(CpuInfo)
 };
 

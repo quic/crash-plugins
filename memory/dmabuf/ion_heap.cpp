@@ -46,18 +46,17 @@ void IonHeap::print_heaps(){
         name_max_len = std::max(name_max_len,heap_ptr->name.size());
         ops_max_len = std::max(ops_max_len,heap_ptr->ops.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(3) << "Id" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(3) << "Id" << " "
         << std::left << std::setw(VADDR_PRLEN + 2) << "ion_heap" << " "
         << std::left << std::setw(22) << "type" << " "
         << std::left << std::setw(name_max_len + 2) << "Name" << " "
         << std::left << std::setw(6) << "flags" << " "
         << std::left << std::setw(ops_max_len + 2) << "ops" << " "
         << std::left << std::setw(7) << "buf_cnt" << " "
-        << std::left << "total_size";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << std::left << "total_size"
+        << "\n";
     for (const auto& heap_ptr : ion_heaps) {
-        std::ostringstream oss;
         oss << std::left << std::dec << std::setw(3) << heap_ptr->id << " "
             << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << heap_ptr->addr << " "
             << std::left << std::setw(22) << heap_type[heap_ptr->type] << " "
@@ -65,9 +64,10 @@ void IonHeap::print_heaps(){
             << std::left << std::dec << std::setw(6) << heap_ptr->flags << " "
             << std::left << std::setw(ops_max_len + 2) << heap_ptr->ops << " "
             << std::left << std::dec << std::setw(7) << heap_ptr->buf_cnt << " "
-            << std::left << csize(heap_ptr->total_allocated);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << csize(heap_ptr->total_allocated)
+            << "\n";
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 void IonHeap::print_system_heap_pool(){
@@ -89,13 +89,13 @@ void IonHeap::parser_ion_system_heap(ulong addr){
     field_init(ion_system_heap,pools);
     ulong heap_addr = addr - field_offset(ion_system_heap,heap);
     fprintf(fp, "pools: \n");
-    std::ostringstream oss_hd1;
-    oss_hd1  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+    std::ostringstream oss;
+    oss  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
         << std::left << std::setw(5) << "order" << " "
         << std::left << std::setw(10) << "high" << " "
         << std::left << std::setw(10) << "low" << " "
         << std::left << std::setw(10) << "total";
-    fprintf(fp, "   %s \n",oss_hd1.str().c_str());
+    fprintf(fp, "   %s \n", oss.str().c_str());
     size_t pools_cnt = field_size(ion_system_heap,pools)/sizeof(void *);
     ulong pools_addr = heap_addr + field_offset(ion_system_heap,pools);
     for (size_t i = 0; i < pools_cnt; i++){
@@ -115,14 +115,14 @@ void IonHeap::parser_ion_msm_system_heap(ulong addr){
     field_init(msm_ion_heap,ion_heap);
     ulong heap_addr = addr - field_offset(msm_ion_heap,ion_heap) - field_offset(ion_msm_system_heap,heap);
     fprintf(fp, "uncached_pools: \n");
-    std::ostringstream oss_hd1;
-    oss_hd1  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+    std::ostringstream oss;
+    oss  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
         << std::left << std::setw(5) << "order" << " "
         << std::left << std::setw(10) << "high" << " "
         << std::left << std::setw(10) << "low" << " "
         << std::left << std::setw(10) << "total" << " "
-        << std::left << "cached";
-    fprintf(fp, "   %s \n",oss_hd1.str().c_str());
+        << std::left << "cached"
+        << "\n";
     size_t uncached_pools_cnt = field_size(ion_msm_system_heap,uncached_pools)/sizeof(void *);
     ulong uncached_pools_addr = heap_addr + field_offset(ion_msm_system_heap,uncached_pools);
     for (size_t i = 0; i < uncached_pools_cnt; i++){
@@ -133,15 +133,14 @@ void IonHeap::parser_ion_msm_system_heap(ulong addr){
         parser_ion_msm_page_pool(pools_addr);
     }
 
-    fprintf(fp, "\n\ncached_pools: \n");
-    std::ostringstream oss_hd2;
-    oss_hd2  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+    oss << "\n\ncached_pools: \n";
+    oss  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
         << std::left << std::setw(5) << "order" << " "
         << std::left << std::setw(10) << "high" << " "
         << std::left << std::setw(10) << "low" << " "
         << std::left << std::setw(10) << "total" << " "
-        << std::left << "cached";
-    fprintf(fp, "   %s \n",oss_hd2.str().c_str());
+        << std::left << "cached"
+        << "\n";
     size_t cached_pools_cnt = field_size(ion_msm_system_heap,cached_pools)/sizeof(void *);
     ulong cached_pools_addr = heap_addr + field_offset(ion_msm_system_heap,cached_pools);
     for (size_t i = 0; i < uncached_pools_cnt; i++){
@@ -152,15 +151,15 @@ void IonHeap::parser_ion_msm_system_heap(ulong addr){
         parser_ion_msm_page_pool(pools_addr);
     }
 
-    fprintf(fp, "\n\nsecure_pools: \n");
-    std::ostringstream oss_hd3;
-    oss_hd3  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
+    oss << "\n\nsecure_pools: \n";
+    oss  << std::left  << std::setw(VADDR_PRLEN + 2) << "page_pool" << " "
         << std::left << std::setw(5) << "order" << " "
         << std::left << std::setw(10) << "high" << " "
         << std::left << std::setw(10) << "low" << " "
         << std::left << std::setw(10) << "total" << " "
-        << std::left << "cached";
-    fprintf(fp, "   %s \n",oss_hd3.str().c_str());
+        << std::left << "cached"
+        << "\n";
+    fprintf(fp, "   %s \n", oss.str().c_str());
     size_t secure_pools_cnt = field_size(ion_msm_system_heap,secure_pools)/sizeof(void *)/cached_pools_cnt;
     ulong secure_pools_addr = heap_addr + field_offset(ion_msm_system_heap,secure_pools);
     for (size_t i = 0; i < secure_pools_cnt; i++){

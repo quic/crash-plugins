@@ -104,13 +104,12 @@ private:
     std::vector<ulong> get_disk_by_block_device();
 
 protected:
-    std::unordered_map<std::string, std::unique_ptr<Typeinfo>> typetable;
     static constexpr double KB = 1024.0;
     static constexpr double MB = 1024.0 * 1024.0;
     static constexpr double GB = 1024.0 * 1024.0 * 1024.0;
+    std::unordered_map<std::string, std::unique_ptr<Typeinfo>> typetable;
 
 public:
-    ParserPlugin();
     const size_t page_size = PAGESIZE();
     const size_t page_shift = PAGESHIFT();
     const size_t page_mask = ~(page_size - 1);
@@ -118,8 +117,12 @@ public:
     std::string cmd_name;
     std::vector<std::string> help_str_list;
     char** cmd_help;
+    bool do_init_offset = true;
 
+    ParserPlugin();
     virtual void cmd_main(void)=0;
+    virtual void init_offset(void)=0;
+    virtual void init_command(void)=0;
     void initialize(void);
     std::string csize(uint64_t size);
     std::string csize(uint64_t size, int unit, int precision);
@@ -209,12 +212,13 @@ public:
     std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
     std::string hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian = true);
     std::stringstream get_curpath();
-#if defined(ARM)
-    ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
-#endif
     bool load_symbols(std::string& path, std::string name);
     void uwind_irq_back_trace(int cpu, ulong x30);
     void uwind_task_back_trace(int pid, ulong x30);
+#if defined(ARM)
+    ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
+#endif
+    virtual cmd_func_t get_wrapper_func();
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \
@@ -223,18 +227,29 @@ public:
         if (instance) {                                                                                         \
             instance->cmd_main();                                                                               \
         }                                                                                                       \
+    }                                                                                                           \
+    cmd_func_t get_wrapper_func() override {                                                                    \
+        return &class_name::wrapper_func;                                                                       \
     }
 
 #ifndef BUILD_TARGET_TOGETHER
 #define DEFINE_PLUGIN_COMMAND(class_name)                                                                       \
     extern "C" void class_name##_init(void);                                                                    \
     extern "C" void class_name##_fini(void);                                                                    \
-    std::shared_ptr<class_name> class_name::instance = std::make_shared<class_name>();                          \
+    std::shared_ptr<class_name> class_name::instance = nullptr;                                                 \
     static struct command_table_entry command_table[] = {                                                       \
-        { &class_name::instance->cmd_name[0], &class_name::wrapper_func, class_name::instance->cmd_help, 0 },   \
+        { nullptr, nullptr, nullptr, 0 },                                                                       \
         { NULL }                                                                                                \
     };                                                                                                          \
     extern "C" void __attribute__((constructor)) class_name##_init(void) {                                      \
+        class_name::instance = std::make_shared<class_name>();                                                  \
+        class_name::instance->init_command();                                                                   \
+        class_name::instance->initialize();                                                                     \
+        class_name::instance->init_offset();                                                                    \
+        command_table[0] = {&class_name::instance->cmd_name[0],                                                 \
+            class_name::instance->get_wrapper_func(),                                                           \
+            class_name::instance->cmd_help,                                                                     \
+            0};                                                                                                 \
         register_extension(command_table);                                                                      \
     }                                                                                                           \
     extern "C" void __attribute__((destructor)) class_name##_fini(void) {                                       \

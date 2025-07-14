@@ -58,166 +58,136 @@
 extern "C" void plugin_init(void);
 extern "C" void plugin_fini(void);
 
-std::shared_ptr<Binder>     Binder::instance = nullptr;
-std::shared_ptr<Slub>       Slub::instance = nullptr;
-std::shared_ptr<Procrank>   Procrank::instance = nullptr;
-std::shared_ptr<Cma>        Cma::instance = nullptr;
-std::shared_ptr<Dts>        Dts::instance = nullptr;
-std::shared_ptr<Memblock>   Memblock::instance = nullptr;
-std::shared_ptr<DDriver>    DDriver::instance = nullptr;
-std::shared_ptr<DmaIon>     DmaIon::instance = nullptr;
-std::shared_ptr<Workqueue>  Workqueue::instance = nullptr;
-std::shared_ptr<Reserved>   Reserved::instance = nullptr;
-std::shared_ptr<IoMem>      IoMem::instance = nullptr;
-std::shared_ptr<Vmalloc>    Vmalloc::instance = nullptr;
-std::shared_ptr<FileSystem> FileSystem::instance = nullptr;
-std::shared_ptr<Pageowner>  Pageowner::instance = nullptr;
-std::shared_ptr<Buddy>      Buddy::instance = nullptr;
-std::shared_ptr<Zram>       Zram::instance = nullptr;
-std::shared_ptr<Swap>       Swap::instance = nullptr;
-std::shared_ptr<Prop>       Prop::instance = nullptr;
-std::shared_ptr<Logcat_Parser>  Logcat_Parser::instance = nullptr;
-std::shared_ptr<Rtb>        Rtb::instance = nullptr;
-std::shared_ptr<CpuInfo>    CpuInfo::instance = nullptr;
-std::shared_ptr<Coredump>   Coredump::instance = nullptr;
-std::shared_ptr<Thermal>    Thermal::instance = nullptr;
-std::shared_ptr<Meminfo>    Meminfo::instance = nullptr;
-std::shared_ptr<Watchdog>   Watchdog::instance = nullptr;
-std::shared_ptr<Pageinfo>   Pageinfo::instance = nullptr;
-std::shared_ptr<DebugImage> DebugImage::instance = nullptr;
-std::shared_ptr<IPCLog>     IPCLog::instance = nullptr;
-std::shared_ptr<Regulator>  Regulator::instance = nullptr;
-std::shared_ptr<ICC>        ICC::instance = nullptr;
-std::shared_ptr<Clock>      Clock::instance = nullptr;
-std::shared_ptr<Pstore>     Pstore::instance = nullptr;
-std::shared_ptr<SysInfo>    SysInfo::instance = nullptr;
-std::shared_ptr<BootInfo>   BootInfo::instance = nullptr;
-std::shared_ptr<TaskSched>  TaskSched::instance = nullptr;
-std::shared_ptr<SF>         SF::instance = nullptr;
-std::shared_ptr<Journal>    Journal::instance = nullptr;
+static std::vector<std::shared_ptr<ParserPlugin>> plugins;
+static struct command_table_entry* command_table;
+std::chrono::duration<double> total_construct_time(0);
+std::chrono::duration<double> total_init_command_time(0);
+std::chrono::duration<double> total_initialize_time(0);
+std::chrono::duration<double> total_init_offset_time(0);
+
+template <typename T, typename... Args>
+std::shared_ptr<T> make_and_init(Args&&... args) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    T::instance = std::shared_ptr<T>(new T(std::forward<Args>(args)...));
+    std::chrono::high_resolution_clock::time_point after_construct = std::chrono::high_resolution_clock::now();
+    T::instance->init_command();
+    std::chrono::high_resolution_clock::time_point after_init_command = std::chrono::high_resolution_clock::now();
+    T::instance->initialize();
+    std::chrono::high_resolution_clock::time_point after_initialize = std::chrono::high_resolution_clock::now();
+    if (T::instance->do_init_offset) {
+        T::instance->init_offset();
+    }
+    std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+    total_construct_time += std::chrono::duration<double>(after_construct - start);
+    total_init_command_time += std::chrono::duration<double>(after_init_command - after_construct);
+    total_initialize_time += std::chrono::duration<double>(after_initialize - after_init_command);
+    if (T::instance->do_init_offset) {
+        total_init_offset_time += std::chrono::duration<double>(end - after_initialize);
+    }
+    return T::instance;
+}
+
+std::shared_ptr<Binder>        Binder::instance        = nullptr;
+std::shared_ptr<Slub>          Slub::instance          = nullptr;
+std::shared_ptr<Procrank>      Procrank::instance      = nullptr;
+std::shared_ptr<Cma>           Cma::instance           = nullptr;
+std::shared_ptr<Dts>           Dts::instance           = nullptr;
+std::shared_ptr<Memblock>      Memblock::instance      = nullptr;
+std::shared_ptr<DDriver>       DDriver::instance       = nullptr;
+std::shared_ptr<DmaIon>        DmaIon::instance        = nullptr;
+std::shared_ptr<Workqueue>     Workqueue::instance     = nullptr;
+std::shared_ptr<Reserved>      Reserved::instance      = nullptr;
+std::shared_ptr<IoMem>         IoMem::instance         = nullptr;
+std::shared_ptr<Vmalloc>       Vmalloc::instance       = nullptr;
+std::shared_ptr<FileSystem>    FileSystem::instance    = nullptr;
+std::shared_ptr<Pageowner>     Pageowner::instance     = nullptr;
+std::shared_ptr<Buddy>         Buddy::instance         = nullptr;
+std::shared_ptr<Zram>          Zram::instance          = nullptr;
+std::shared_ptr<Swap>          Swap::instance          = nullptr;
+std::shared_ptr<Prop>          Prop::instance          = nullptr;
+std::shared_ptr<Logcat_Parser> Logcat_Parser::instance = nullptr;
+std::shared_ptr<Rtb>           Rtb::instance           = nullptr;
+std::shared_ptr<CpuInfo>       CpuInfo::instance       = nullptr;
+std::shared_ptr<Coredump>      Coredump::instance      = nullptr;
+std::shared_ptr<Thermal>       Thermal::instance       = nullptr;
+std::shared_ptr<Meminfo>       Meminfo::instance       = nullptr;
+std::shared_ptr<Watchdog>      Watchdog::instance      = nullptr;
+std::shared_ptr<Pageinfo>      Pageinfo::instance      = nullptr;
+std::shared_ptr<DebugImage>    DebugImage::instance    = nullptr;
+std::shared_ptr<IPCLog>        IPCLog::instance        = nullptr;
+std::shared_ptr<Regulator>     Regulator::instance     = nullptr;
+std::shared_ptr<ICC>           ICC::instance           = nullptr;
+std::shared_ptr<Clock>         Clock::instance         = nullptr;
+std::shared_ptr<Pstore>        Pstore::instance        = nullptr;
+std::shared_ptr<SysInfo>       SysInfo::instance       = nullptr;
+std::shared_ptr<BootInfo>      BootInfo::instance      = nullptr;
+std::shared_ptr<TaskSched>     TaskSched::instance     = nullptr;
+std::shared_ptr<SF>            SF::instance            = nullptr;
+std::shared_ptr<Journal>       Journal::instance       = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
-    Binder::instance = std::make_shared<Binder>();
-    Slub::instance = std::make_shared<Slub>();
-    Procrank::instance = std::make_shared<Procrank>();
-    Cma::instance = std::make_shared<Cma>();
-    Dts::instance = std::make_shared<Dts>();
-    Memblock::instance = std::make_shared<Memblock>();
-    DDriver::instance = std::make_shared<DDriver>();
-    DmaIon::instance = std::make_shared<DmaIon>();
-    Workqueue::instance = std::make_shared<Workqueue>();
-    Reserved::instance = std::make_shared<Reserved>();
-    IoMem::instance = std::make_shared<IoMem>();
-    Vmalloc::instance = std::make_shared<Vmalloc>();
-    FileSystem::instance = std::make_shared<FileSystem>();
-    Pageowner::instance = std::make_shared<Pageowner>();
-    Buddy::instance = std::make_shared<Buddy>();
-    Zram::instance = std::make_shared<Zram>();
-    Swap::instance = std::make_shared<Swap>(Zram::instance);
-    Prop::instance = std::make_shared<Prop>(Swap::instance);
-    Logcat_Parser::instance = std::make_shared<Logcat_Parser>(Swap::instance, Prop::instance);
-    Rtb::instance = std::make_shared<Rtb>();
-    CpuInfo::instance = std::make_shared<CpuInfo>();
-    Coredump::instance = std::make_shared<Coredump>(Swap::instance);
-    Thermal::instance = std::make_shared<Thermal>();
-    Meminfo::instance = std::make_shared<Meminfo>();
-    Watchdog::instance = std::make_shared<Watchdog>();
-    Pageinfo::instance = std::make_shared<Pageinfo>();
-    DebugImage::instance = std::make_shared<DebugImage>();
-    IPCLog::instance = std::make_shared<IPCLog>();
-    Regulator::instance = std::make_shared<Regulator>();
-    ICC::instance = std::make_shared<ICC>();
-    Clock::instance = std::make_shared<Clock>();
-    Pstore::instance = std::make_shared<Pstore>();
-    SysInfo::instance = std::make_shared<SysInfo>();
-    BootInfo::instance = std::make_shared<BootInfo>();
-    TaskSched::instance = std::make_shared<TaskSched>();
-    SF::instance = std::make_shared<SF>(Swap::instance);
-    Journal::instance = std::make_shared<Journal>(Swap::instance);
-
-    static struct command_table_entry command_table[] = {
-        { &Binder::instance->cmd_name[0], &Binder::wrapper_func, Binder::instance->cmd_help, 0 },
-        { &Slub::instance->cmd_name[0], &Slub::wrapper_func, Slub::instance->cmd_help, 0 },
-        { &Procrank::instance->cmd_name[0], &Procrank::wrapper_func, Procrank::instance->cmd_help, 0 },
-        { &Cma::instance->cmd_name[0], &Cma::wrapper_func, Cma::instance->cmd_help, 0 },
-        { &Dts::instance->cmd_name[0], &Dts::wrapper_func, Dts::instance->cmd_help, 0 },
-        { &Memblock::instance->cmd_name[0], &Memblock::wrapper_func, Memblock::instance->cmd_help, 0 },
-        { &DDriver::instance->cmd_name[0], &DDriver::wrapper_func, DDriver::instance->cmd_help, 0 },
-        { &DmaIon::instance->cmd_name[0], &DmaIon::wrapper_func, DmaIon::instance->cmd_help, 0 },
-        { &Workqueue::instance->cmd_name[0], &Workqueue::wrapper_func, Workqueue::instance->cmd_help, 0 },
-        { &Reserved::instance->cmd_name[0], &Reserved::wrapper_func, Reserved::instance->cmd_help, 0 },
-        { &IoMem::instance->cmd_name[0], &IoMem::wrapper_func, IoMem::instance->cmd_help, 0 },
-        { &Vmalloc::instance->cmd_name[0], &Vmalloc::wrapper_func, Vmalloc::instance->cmd_help, 0 },
-        { &FileSystem::instance->cmd_name[0], &FileSystem::wrapper_func, FileSystem::instance->cmd_help, 0 },
-        { &Pageowner::instance->cmd_name[0], &Pageowner::wrapper_func, Pageowner::instance->cmd_help, 0 },
-        { &Buddy::instance->cmd_name[0], &Buddy::wrapper_func, Buddy::instance->cmd_help, 0 },
-        { &Zram::instance->cmd_name[0], &Zram::wrapper_func, Zram::instance->cmd_help, 0 },
-        { &Swap::instance->cmd_name[0], &Swap::wrapper_func, Swap::instance->cmd_help, 0 },
-        { &Prop::instance->cmd_name[0], &Prop::wrapper_func, Prop::instance->cmd_help, 0 },
-        { &Logcat_Parser::instance->cmd_name[0], &Logcat_Parser::wrapper_func, Logcat_Parser::instance->cmd_help, 0 },
-        { &Rtb::instance->cmd_name[0], &Rtb::wrapper_func, Rtb::instance->cmd_help, 0 },
-        { &CpuInfo::instance->cmd_name[0], &CpuInfo::wrapper_func, CpuInfo::instance->cmd_help, 0 },
-        { &Coredump::instance->cmd_name[0], &Coredump::wrapper_func, Coredump::instance->cmd_help, 0 },
-        { &Thermal::instance->cmd_name[0], &Thermal::wrapper_func, Thermal::instance->cmd_help, 0 },
-        { &Meminfo::instance->cmd_name[0], &Meminfo::wrapper_func, Meminfo::instance->cmd_help, 0 },
-        { &Watchdog::instance->cmd_name[0], &Watchdog::wrapper_func, Watchdog::instance->cmd_help, 0 },
-        { &Pageinfo::instance->cmd_name[0], &Pageinfo::wrapper_func, Pageinfo::instance->cmd_help, 0 },
-        { &DebugImage::instance->cmd_name[0], &DebugImage::wrapper_func, DebugImage::instance->cmd_help, 0 },
-        { &IPCLog::instance->cmd_name[0], &IPCLog::wrapper_func, IPCLog::instance->cmd_help, 0 },
-        { &Regulator::instance->cmd_name[0], &Regulator::wrapper_func, Regulator::instance->cmd_help, 0 },
-        { &ICC::instance->cmd_name[0], &ICC::wrapper_func, ICC::instance->cmd_help, 0 },
-        { &Clock::instance->cmd_name[0], &Clock::wrapper_func, Clock::instance->cmd_help, 0 },
-        { &Pstore::instance->cmd_name[0], &Pstore::wrapper_func, Pstore::instance->cmd_help, 0 },
-        { &SysInfo::instance->cmd_name[0], &SysInfo::wrapper_func, SysInfo::instance->cmd_help, 0 },
-        { &BootInfo::instance->cmd_name[0], &BootInfo::wrapper_func, BootInfo::instance->cmd_help, 0 },
-        { &SF::instance->cmd_name[0], &SF::wrapper_func, SF::instance->cmd_help, 0 },
-        { &TaskSched::instance->cmd_name[0], &TaskSched::wrapper_func, TaskSched::instance->cmd_help, 0 },
-        { &Journal::instance->cmd_name[0], &Journal::wrapper_func, Journal::instance->cmd_help, 0 },
-        { NULL }
-    };
+    plugins.push_back(make_and_init<Binder>());
+    plugins.push_back(make_and_init<Slub>());
+    plugins.push_back(make_and_init<Procrank>());
+    plugins.push_back(make_and_init<Cma>());
+    plugins.push_back(make_and_init<Dts>());
+    plugins.push_back(make_and_init<Memblock>());
+    plugins.push_back(make_and_init<DDriver>());
+    plugins.push_back(make_and_init<DmaIon>());
+    plugins.push_back(make_and_init<Workqueue>());
+    plugins.push_back(make_and_init<Reserved>());
+    plugins.push_back(make_and_init<IoMem>());
+    plugins.push_back(make_and_init<Vmalloc>());
+    plugins.push_back(make_and_init<FileSystem>());
+    plugins.push_back(make_and_init<Pageowner>());
+    plugins.push_back(make_and_init<Buddy>());
+    plugins.push_back(make_and_init<Zram>());
+    plugins.push_back(make_and_init<Swap>(Zram::instance));
+    plugins.push_back(make_and_init<Prop>(Swap::instance));
+    plugins.push_back(make_and_init<Logcat_Parser>(Swap::instance, Prop::instance));
+    plugins.push_back(make_and_init<Rtb>());
+    plugins.push_back(make_and_init<CpuInfo>());
+    plugins.push_back(make_and_init<Coredump>(Swap::instance));
+    plugins.push_back(make_and_init<Thermal>());
+    plugins.push_back(make_and_init<Meminfo>());
+    plugins.push_back(make_and_init<Watchdog>());
+    plugins.push_back(make_and_init<Pageinfo>());
+    plugins.push_back(make_and_init<DebugImage>());
+    plugins.push_back(make_and_init<IPCLog>());
+    plugins.push_back(make_and_init<Regulator>());
+    plugins.push_back(make_and_init<ICC>());
+    plugins.push_back(make_and_init<Clock>());
+    plugins.push_back(make_and_init<Pstore>());
+    plugins.push_back(make_and_init<SysInfo>());
+    plugins.push_back(make_and_init<BootInfo>());
+    plugins.push_back(make_and_init<TaskSched>());
+    plugins.push_back(make_and_init<SF>(Swap::instance));
+    plugins.push_back(make_and_init<Journal>(Swap::instance));
+    std::cout << "\033[32m"
+            << std::fixed << std::setprecision(6)
+            << "[Load] Constructor: " << total_construct_time.count() << " s, "
+            << "init_command: " << total_init_command_time.count() << " s, "
+            << "initialize: " << total_initialize_time.count() << " s, "
+            << "init_offset: " << total_init_offset_time.count() << " s"
+            << "\033[0m"
+            << std::endl;
+    command_table = new command_table_entry[plugins.size() + 1];
+    for(size_t i=0; i < plugins.size(); i++){
+        command_table[i] = { &plugins[i]->cmd_name[0], plugins[i]->get_wrapper_func(), plugins[i]->cmd_help, 0 };
+    }
+    command_table[plugins.size()] = { NULL };
     register_extension(command_table);
 }
 
 extern "C" void __attribute__((destructor)) plugin_fini(void) {
     // fprintf(fp, "plugin_fini\n");
-    Binder::instance.reset();
-    Slub::instance.reset();
-    Procrank::instance.reset();
-    Cma::instance.reset();
-    Dts::instance.reset();
-    Memblock::instance.reset();
-    DDriver::instance.reset();
-    DmaIon::instance.reset();
-    Workqueue::instance.reset();
-    Reserved::instance.reset();
-    IoMem::instance.reset();
-    Vmalloc::instance.reset();
-    FileSystem::instance.reset();
-    Pageowner::instance.reset();
-    Buddy::instance.reset();
-    Zram::instance.reset();
-    Swap::instance.reset();
-    Prop::instance.reset();
-    Logcat_Parser::instance.reset();
-    Rtb::instance.reset();
-    CpuInfo::instance.reset();
-    Coredump::instance.reset();
-    Thermal::instance.reset();
-    Meminfo::instance.reset();
-    Watchdog::instance.reset();
-    Pageinfo::instance.reset();
-    DebugImage::instance.reset();
-    IPCLog::instance.reset();
-    Regulator::instance.reset();
-    ICC::instance.reset();
-    Clock::instance.reset();
-    Pstore::instance.reset();
-    SysInfo::instance.reset();
-    BootInfo::instance.reset();
-    SF::instance.reset();
-    TaskSched::instance.reset();
-    Journal::instance.reset();
+    for (auto& plugin : plugins) {
+        plugin.reset();
+    }
+    plugins.clear();
+    delete[] command_table;
+    command_table = nullptr;
 }
 
 #endif // BUILD_TARGET_TOGETHER

@@ -48,15 +48,18 @@ struct regulator_dev {
 class Regulator : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<regulator_dev>> regulator_list;
-public:
-    Regulator();
 
     std::vector<ulong> parser_device_list();
     void print_regulator_consumer(std::string reg_name);
     void print_regulator_info();
     void print_regulator_dev();
-    void cmd_main(void) override;
     void parser_regulator_dev();
+
+public:
+    Regulator();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Regulator)
 };
 

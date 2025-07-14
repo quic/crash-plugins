@@ -34,6 +34,8 @@ static const std::unordered_map<std::string, LOG_ID> stringToLogID = {
     {"all", ALL}
 };
 
+void Logcat_Parser::init_offset(void) {}
+
 void Logcat_Parser::cmd_main(void) {
     int c;
     std::string cppString;
@@ -135,17 +137,15 @@ void Logcat_Parser::cmd_main(void) {
 
 Logcat_Parser::Logcat_Parser(std::shared_ptr<Swapinfo> swap,std::shared_ptr<PropInfo> prop)
     : swap_ptr(swap),prop_ptr(prop){
-    init_command();
 }
 
 Logcat_Parser::Logcat_Parser(){
-    init_command();
     swap_ptr = std::make_shared<Swapinfo>();
     prop_ptr = std::make_shared<PropInfo>(swap_ptr);
     //print_table();
 }
 
-void Logcat_Parser::init_command(){
+void Logcat_Parser::init_command(void){
     cmd_name = "logcat";
     help_str_list={
         "logcat",                            /* command name */
@@ -168,7 +168,6 @@ void Logcat_Parser::init_command(){
         "    %s> logcat -b events",
         "\n",
     };
-    initialize();
 }
 
 #pragma GCC diagnostic pop

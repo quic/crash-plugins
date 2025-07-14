@@ -35,14 +35,18 @@ struct reserved_mem {
 };
 
 class Reserved : public ParserPlugin {
-public:
+private:
     std::shared_ptr<Devicetree> dts;
     std::vector<std::shared_ptr<reserved_mem>> mem_list;
-    Reserved();
 
-    void cmd_main(void) override;
     void parser_reserved_mem();
     void print_reserved_mem();
+
+public:
+    Reserved();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Reserved)
 };
 

@@ -19,11 +19,11 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 
-void Heap::cmd_main(void) {
+void Heap::cmd_main(void) {}
 
-}
+void Heap::init_offset(void) {}
 
-Heap::Heap(std::shared_ptr<Dmabuf> dmabuf): dmabuf_ptr(dmabuf){
+void Heap::init_command(void) {}
 
-}
+Heap::Heap(std::shared_ptr<Dmabuf> dmabuf): dmabuf_ptr(dmabuf){}
 #pragma GCC diagnostic pop

@@ -29,13 +29,18 @@ struct resource {
 };
 
 class IoMem : public ParserPlugin {
-public:
+private:
     std::vector<std::shared_ptr<resource>> iomem_list;
-    IoMem();
-    void cmd_main(void) override;
+
     void parser_iomem();
     void print_iomem(std::vector<std::shared_ptr<resource>>& res_list,int level);
     void parser_resource(ulong addr,std::vector<std::shared_ptr<resource>>& res_list);
+
+public:
+    IoMem();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(IoMem)
 };
 

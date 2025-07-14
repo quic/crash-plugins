@@ -57,9 +57,6 @@ void Zram::cmd_main(void) {
                 cppString.assign(optarg);
                 print_objs(cppString);
                 break;
-            case 'd':
-                debug = true;
-                break;
             default:
                 argerrs++;
                 break;
@@ -69,7 +66,9 @@ void Zram::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Zram::Zram(){
+void Zram::init_offset(void) {}
+
+void Zram::init_command(void) {
     cmd_name = "zram";
     help_str_list={
         "zram",                            /* command name */
@@ -148,12 +147,10 @@ Zram::Zram(){
         "      obj[3] b8ae2090-b8ae20c0 handle:ffffff806b06ccd0 index:3    alloc",
         "      obj[4] b8ae20c0-b8ae20f0 handle:ffffff8068e612e0 index:4    alloc",
         "\n",
-        "  Enable debug log:",
-        "    %s> zram -d",
-        "\n",
     };
-    initialize();
 }
+
+Zram::Zram(){}
 
 void Zram::print_mem_pool(std::string zram_addr){
     ulong addr = std::stoul(zram_addr, nullptr, 16);
@@ -176,33 +173,14 @@ void Zram::print_mem_pool(std::string zram_addr){
     }
     std::shared_ptr<zs_pool> pool_ptr = zram_ptr->mem_pool;
     std::ostringstream oss;
-    oss << std::left << std::setw(20) << "zs_pool" << ": "
-        << std::hex << pool_ptr->addr;
-    fprintf(fp, "%s \n",oss.str().c_str());
-    oss.str("");
+    oss << std::left << std::setw(20) << "zs_pool" << ": " << std::hex << pool_ptr->addr << "\n"
+        << std::left << std::setw(20) << "name" << ": " << pool_ptr->name << "\n"
+        << std::left << std::setw(20) << "pages_allocated" << ": " << std::dec << pool_ptr->pages_allocated << "\n"
+        << std::left << std::setw(20) << "isolated_pages" << ": " << std::dec << pool_ptr->isolated_pages << "\n"
+        << std::left << std::setw(20) << "pages_compacted" << ": " << std::dec << pool_ptr->stats.pages_compacted.counter << "\n"
+        << "=============================================================================================\n";
 
-    oss << std::left << std::setw(20) << "name" << ": "
-        << pool_ptr->name;
-    fprintf(fp, "%s \n",oss.str().c_str());
-    oss.str("");
-
-    oss << std::left << std::setw(20) << "pages_allocated" << ": "
-        << std::dec << pool_ptr->pages_allocated;
-    fprintf(fp, "%s \n",oss.str().c_str());
-    oss.str("");
-
-    oss << std::left << std::setw(20) << "isolated_pages" << ": "
-        << std::dec << pool_ptr->isolated_pages;
-    fprintf(fp, "%s \n",oss.str().c_str());
-    oss.str("");
-
-    oss << std::left << std::setw(20) << "pages_compacted" << ": "
-        << std::dec << pool_ptr->stats.pages_compacted.counter;
-    fprintf(fp, "%s \n",oss.str().c_str());
-    oss.str("");
-    fprintf(fp, "=============================================================================================\n");
-    std::ostringstream oss_hd;
-    oss_hd << std::setw(5) << "index" << " "
+    oss << std::setw(5) << "index" << " "
         << std::left << std::setw(VADDR_PRLEN) << "size_class" << " "
         << std::left << std::setw(5) << "EMPTY" << " "
         << std::left << std::setw(12) << "ALMOST_EMPTY" << " "
@@ -212,8 +190,7 @@ void Zram::print_mem_pool(std::string zram_addr){
         << std::left << std::setw(12) << "objs/zspage" << " "
         << std::left << std::setw(9) << "obj_size" << " "
         << std::left << std::setw(13) << "OBJ_ALLOCATED" << " "
-        << "OBJ_USED";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+        << "OBJ_USED\n";
     std::vector<std::string> class_stat_type = get_enumerator_list("class_stat_type");
     int CLASS_EMPTY = 0;
     int CLASS_ALMOST_EMPTY = 0;
@@ -238,7 +215,6 @@ void Zram::print_mem_pool(std::string zram_addr){
     }
     for (size_t i = 0; i < pool_ptr->class_list.size(); i++){
         std::shared_ptr<size_class> class_ptr = pool_ptr->class_list[i];
-        std::ostringstream oss;
         oss << "[" << std::dec << std::setw(5) << std::setfill('0') << i << "] "
             << std::left << std::hex << std::setw(VADDR_PRLEN) << std::setfill(' ') << class_ptr->addr << " "
             << std::left << std::dec << std::setw(5) << class_ptr->stats[CLASS_EMPTY] << " "
@@ -249,9 +225,9 @@ void Zram::print_mem_pool(std::string zram_addr){
             << std::left << std::dec << std::setw(12) << class_ptr->objs_per_zspage << " "
             << std::left << std::dec << std::setw(9) << csize(class_ptr->size) << " "
             << std::left << std::dec << std::setw(13) << class_ptr->stats[OBJ_ALLOCATED] << " "
-            << std::left << std::dec << class_ptr->stats[OBJ_USED];
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << std::dec << class_ptr->stats[OBJ_USED] << "\n";
     }
+    fprintf(fp, "%s", oss.str().c_str());
 }
 
 void Zram::print_zspages(std::string zram_addr){
@@ -274,6 +250,7 @@ void Zram::print_zspages(std::string zram_addr){
         return;
     }
     size_t index = 1;
+    std::ostringstream oss;
     for (const auto& class_ptr : zram_ptr->mem_pool->class_list) {
         if(class_ptr->zspage_parser == false){
             parser_zpage(class_ptr);
@@ -282,7 +259,6 @@ void Zram::print_zspages(std::string zram_addr){
             std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
             for (size_t z = 0; z < zspage_list.size(); z++){
                 std::shared_ptr<zpage> zspage_ptr = zspage_list[z];
-                std::ostringstream oss;
                 if (THIS_KERNEL_VERSION < LINUX(5, 17, 0)){
                     oss << "zspage[" << std::dec << std::setw(5) << std::setfill('0') << index << "]:"
                         << std::hex << zspage_ptr->addr << " "
@@ -290,8 +266,8 @@ void Zram::print_zspages(std::string zram_addr){
                         << "fullness:" << std::dec << zspage_ptr->zspage.v0.fullness << " "
                         << "pages:" << std::dec << class_ptr->pages_per_zspage << " "
                         << "inuse:" << std::left << std::dec << std::setw(5) << zspage_ptr->zspage.inuse << " "
-                        << "freeobj:" << std::dec << zspage_ptr->zspage.freeobj;
-                    fprintf(fp, "%s \n",oss.str().c_str());
+                        << "freeobj:" << std::dec << zspage_ptr->zspage.freeobj
+                        << "\n";
                 }else{
                     oss << "zspage[" << std::dec << std::setw(5) << std::setfill('0') << index << "]:"
                         << std::hex << zspage_ptr->addr << " "
@@ -299,13 +275,14 @@ void Zram::print_zspages(std::string zram_addr){
                         << "fullness:" << std::dec << zspage_ptr->zspage.v5_17.fullness << " "
                         << "pages:" << std::dec << class_ptr->pages_per_zspage << " "
                         << "inuse:" << std::left << std::dec << std::setw(5) << zspage_ptr->zspage.inuse << " "
-                        << "freeobj:" << std::dec << zspage_ptr->zspage.freeobj;
-                    fprintf(fp, "%s \n",oss.str().c_str());
+                        << "freeobj:" << std::dec << zspage_ptr->zspage.freeobj
+                        << "\n";
                 }
                 index += 1;
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Zram::print_pages(std::string zram_addr){
@@ -328,6 +305,7 @@ void Zram::print_pages(std::string zram_addr){
         return;
     }
     size_t index = 1;
+    std::ostringstream oss;
     for (const auto& class_ptr : zram_ptr->mem_pool->class_list) {
         if(class_ptr->zspage_parser == false){
             parser_zpage(class_ptr);
@@ -342,19 +320,18 @@ void Zram::print_pages(std::string zram_addr){
                     ulong pfn = page_to_pfn(pageinfo->addr);
                     physaddr_t page_end = page_start + page_size;
                     int offset = read_int(pageinfo->addr + field_offset(page,units),"page units");
-                    std::ostringstream oss;
                     oss << "Page[" << std::dec << std::setw(5) << std::setfill('0') << index << "]:"
                         << std::hex << pageinfo->addr << " "
                         << "PFN:" << std::hex << pfn << " "
                         << "range:[" << std::hex << page_start << "-" << std::hex << page_end << "] "
-                        << "offset:" << std::dec << offset;
-                    fprintf(fp, "%s \n",oss.str().c_str());
-                    oss.str("");
+                        << "offset:" << std::dec << offset
+                        << "\n";
                     index += 1;
                 }
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Zram::print_objs(std::string addr){
@@ -429,24 +406,16 @@ void Zram::print_zspage_obj(std::shared_ptr<zpage> zspage_ptr){
 }
 
 void Zram::print_page_obj(std::shared_ptr<pageinfo> page_ptr){
+    std::ostringstream oss;
     for (const auto &obj_ptr : page_ptr->obj_list){
-        std::ostringstream oss;
-        if (obj_ptr->is_free == false){ // obj is alloc
-            oss << "           obj[" << std::setw(6) << std::setfill('0') << obj_ptr->id << "]"
+            oss << "           obj[" << std::setw(6) << std::right << std::setfill('0') << obj_ptr->id << "]"
                 << std::hex << obj_ptr->start << "~" << std::hex << obj_ptr->end << " "
                 << "handle:" << std::left << std::setw(VADDR_PRLEN) << std::setfill(' ') << std::hex << obj_ptr->handle_addr << " "
                 << "index:"  << std::left << std::setw(4) << std::dec << obj_ptr->index << " "
-                << "alloc";
-            fprintf(fp, "%s \n",oss.str().c_str());
-        }else{ // obj is free
-            oss << "           obj[" << std::setw(6) << std::setfill('0') << obj_ptr->id << "]"
-                << std::hex << obj_ptr->start << "~" << std::hex << obj_ptr->end << " "
-                << "handle:" << std::left << std::setw(VADDR_PRLEN) << std::setfill(' ') << std::dec << obj_ptr->handle_addr << " "
-                << "next :"   << std::left << std::setw(4) << std::dec << obj_ptr->next << " "
-                << "freed";
-            fprintf(fp, "%s \n",oss.str().c_str());
-        }
+                << (obj_ptr->is_free ? "freed" : "alloc")
+                << "\n";
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 void Zram::print_zram_full_info(std::string zram_addr){
@@ -514,9 +483,9 @@ void Zram::print_zrams(){
         return;
     }
     fprintf(fp, "========================================================================\n");
+    std::ostringstream oss;
     for (const auto& zram_ptr : zram_list) {
         double ratio = (double)zram_ptr->stats.compr_data_size / (double)(zram_ptr->stats.pages_stored * page_size);
-        std::ostringstream oss;
         oss << std::left << std::setw(20) << "zram"             << ": " << std::hex << zram_ptr->addr << "\n"
             << std::left << std::setw(20) << "name"             << ": " << zram_ptr->disk_name << "\n"
             << std::left << std::setw(20) << "compressor"       << ": " << (zram_ptr->compressor.empty() ? zram_ptr->zcomp_name : zram_ptr->compressor) << "\n"
@@ -531,8 +500,8 @@ void Zram::print_zrams(){
             << std::left << std::setw(20) << "same_pages"       << ": " << csize(zram_ptr->stats.same_pages * page_size) << "\n"
             << std::left << std::setw(20) << "huge_pages"       << ": " << csize(zram_ptr->stats.huge_pages * page_size) << "\n"
             << std::left << std::setw(20) << "compacted_pages"  << ": " << csize(zram_ptr->mem_pool->stats.pages_compacted.counter * page_size) << "\n";
-        fprintf(fp, "%s \n",oss.str().c_str());
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
     fprintf(fp, "========================================================================\n");
 }
 

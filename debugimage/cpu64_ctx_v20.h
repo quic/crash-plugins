@@ -114,9 +114,10 @@ private:
     int32_t regset_size = 0;
     std::map<int, std::string> dump_regset_ids;
 
+    void compute_pc(sysdbg_cpu64_ctx_2_0_gprs_t &reg, sysdbg_cpu64_ctx_2_0_el1_t &ctx_el1_reg);
+
 public:
     Cpu64_Context_V20();
-    void compute_pc(sysdbg_cpu64_ctx_2_0_gprs_t &reg, sysdbg_cpu64_ctx_2_0_el1_t &ctx_el1_reg);
     void generate_cmm(std::shared_ptr<Dump_entry> entry_ptr) override;
     void print_stack(std::shared_ptr<Dump_entry> entry_ptr) override;
     uint32_t get_vcpu_index(uint32_t affinity) override;

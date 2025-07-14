@@ -35,6 +35,8 @@ public:
     std::vector<std::shared_ptr<Mount>> childs;
 
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     virtual void statfs(int width);
 };
 
@@ -42,27 +44,37 @@ class F2fs: public Mount {
 public:
     F2fs();
     void statfs(int width) override;
+    void init_offset(void) override;
+    void init_command(void) override;
 };
 
 class Ext4 : public Mount {
 public:
     Ext4();
     void statfs(int width) override;
+    void init_offset(void) override;
+    void init_command(void) override;
+
+private:
     long long percpu_counter_sum(ulong addr);
 };
 
 class FileSystem : public ParserPlugin {
-public:
+private:
     std::vector<std::shared_ptr<Mount>> mount_list;
     std::unordered_map<size_t, std::shared_ptr<Mount>> sb_list;
-    FileSystem();
 
-    void cmd_main(void) override;
     std::shared_ptr<Mount> parser_mount(ulong mount_addr);
     void print_mount_tree(std::vector<std::shared_ptr<Mount>>& mnt_list,int level);
     void print_partition_size(void);
     void parser_mount_tree(void);
     void parser_mount_tree(ulong mount_addr,std::vector<std::shared_ptr<Mount>>& mnt_list);
+
+public:
+    FileSystem();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(FileSystem)
 };
 

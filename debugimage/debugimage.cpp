@@ -71,7 +71,27 @@ void DebugImage::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-DebugImage::DebugImage(){
+void DebugImage::init_offset(void) {
+    field_init(msm_memory_dump,table_phys);
+    field_init(msm_dump_table,version);
+    field_init(msm_dump_table,num_entries);
+    field_init(msm_dump_table,entries);
+    field_init(msm_dump_entry,id);
+    field_init(msm_dump_entry,name);
+    field_init(msm_dump_entry,type);
+    field_init(msm_dump_entry,addr);
+    field_init(msm_dump_data,version);
+    field_init(msm_dump_data,magic);
+    field_init(msm_dump_data,name);
+    field_init(msm_dump_data,addr);
+    field_init(msm_dump_data,len);
+    field_init(msm_dump_data,reserved);
+    struct_init(msm_dump_table);
+    struct_init(msm_dump_entry);
+    struct_init(msm_dump_data);
+}
+
+void DebugImage::init_command(void) {
     cmd_name = "dbi";
     help_str_list={
         "dbi",                            /* command name */
@@ -200,31 +220,32 @@ DebugImage::DebugImage(){
     if (cpu_index_offset == -1){
         cpu_index_offset = 0x10;
     }
-    initialize();
+}
+
+DebugImage::DebugImage(){
+    do_init_offset = false;
 }
 
 void DebugImage::print_memdump(){
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(4)            << "Id" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(4)            << "Id" << " "
             << std::left << std::setw(16)           << "Dump_entry" << " "
             << std::left << std::setw(8)            << "version" << " "
             << std::left << std::setw(VADDR_PRLEN)  << "magic" << " "
             << std::left << std::setw(VADDR_PRLEN)  << "DataAddr" << " "
             << std::left << std::setw(10)           << "DataLen" << " "
-            << std::left << "Name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "Name" << "\n";;
     // parse_dump_v2
     for (const auto& entry_ptr : image_list) {
-        std::ostringstream oss;
         oss << std::left << std::setw(4)            << std::dec << entry_ptr->id << " "
             << std::left << std::setw(16)           << std::hex << entry_ptr->addr << " "
             << std::left << std::setw(8)            << std::dec << entry_ptr->version << " "
             << std::left << std::setw(VADDR_PRLEN)  << std::hex << entry_ptr->magic << " "
             << std::left << std::setw(VADDR_PRLEN)  << std::hex << entry_ptr->data_addr << " "
             << std::left << std::setw(10)           << std::dec << entry_ptr->data_len << " "
-            << std::left  << entry_ptr->data_name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left  << entry_ptr->data_name << "\n";;
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DebugImage::parser_memdump(){
@@ -241,23 +262,7 @@ void DebugImage::parser_memdump(){
         fprintf(fp, "memdump address is invalid!\n");
         return;
     }
-    field_init(msm_memory_dump,table_phys);
-    field_init(msm_dump_table,version);
-    field_init(msm_dump_table,num_entries);
-    field_init(msm_dump_table,entries);
-    field_init(msm_dump_entry,id);
-    field_init(msm_dump_entry,name);
-    field_init(msm_dump_entry,type);
-    field_init(msm_dump_entry,addr);
-    field_init(msm_dump_data,version);
-    field_init(msm_dump_data,magic);
-    field_init(msm_dump_data,name);
-    field_init(msm_dump_data,addr);
-    field_init(msm_dump_data,len);
-    field_init(msm_dump_data,reserved);
-    struct_init(msm_dump_table);
-    struct_init(msm_dump_entry);
-    struct_init(msm_dump_data);
+    init_offset();
     uint64_t table_phys = read_ulonglong(dump_addr + field_offset(msm_memory_dump,table_phys),"table_phys");
     // fprintf(fp, "DumpTable base:%" PRIx64 "\n", table_phys);
     parser_dump_table(table_phys);

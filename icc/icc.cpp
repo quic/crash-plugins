@@ -54,7 +54,7 @@ void ICC::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-ICC::ICC(){
+void ICC::init_offset(void) {
     field_init(icc_provider,provider_list);
     field_init(icc_provider,nodes);
     field_init(icc_provider,dev);
@@ -78,6 +78,9 @@ ICC::ICC(){
     field_init(icc_req,avg_bw);
     field_init(icc_req,peak_bw);
     struct_init(icc_req);
+}
+
+void ICC::init_command(void) {
     cmd_name = "icc";
     help_str_list={
         "icc",                            /* command name */
@@ -123,107 +126,104 @@ ICC::ICC(){
         "    ffffff80157b7a10 true    0    1          1          4a80000.i2c",
         "\n",
     };
-    initialize();
 }
 
+ICC::ICC(){}
+
 void ICC::print_icc_request(std::string node_name){
+    std::ostringstream oss;
     for (const auto& provider_ptr : provider_list) {
         for (const auto& node_ptr : provider_ptr->node_list) {
             if (node_ptr->name != node_name){
                 continue;
             }
             if(node_ptr->req_list.size() == 0) return;
-            std::ostringstream oss_hd;
-            oss_hd  << std::left << std::setw(VADDR_PRLEN)  << "icc_req" << " "
+            oss  << std::left << std::setw(VADDR_PRLEN)  << "icc_req" << " "
                     << std::left << std::setw(7)            << "enabled" << " "
                     << std::left << std::setw(4)            << "tag" << " "
                     << std::left << std::setw(10)           << "avg_bw" << " "
                     << std::left << std::setw(10)           << "peak_bw" << " "
-                    << std::left << "Name";
-            fprintf(fp, "%s \n",oss_hd.str().c_str());
+                    << std::left << "Name" << "\n";
             for (const auto& req_ptr : node_ptr->req_list) {
-                std::ostringstream oss;
                 oss << std::left << std::setw(VADDR_PRLEN)  << std::hex << req_ptr->addr << " "
                     << std::left << std::setw(7)            << (req_ptr->enabled ? "true": "false") << " "
                     << std::left << std::setw(4)            << std::dec << req_ptr->tag << " "
                     << std::left << std::setw(10)           << std::dec << req_ptr->avg_bw << " "
                     << std::left << std::setw(10)           << std::dec << req_ptr->peak_bw << " "
-                    << std::left << req_ptr->name;
-                fprintf(fp, "%s \n",oss.str().c_str());
+                    << std::left << req_ptr->name << "\n";
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void ICC::print_icc_nodes(std::string provider_name){
+    std::ostringstream oss;
     for (const auto& provider_ptr : provider_list) {
         if (provider_ptr->name != provider_name){
             continue;
         }
         if(provider_ptr->node_list.size() == 0) return;
-        std::ostringstream oss_hd;
-        oss_hd  << std::left << std::setw(VADDR_PRLEN)  << "icc_node" << " "
+        oss  << std::left << std::setw(VADDR_PRLEN)  << "icc_node" << " "
                 << std::left << std::setw(5)            << "id" << " "
                 << std::left << std::setw(10)           << "avg_bw" << " "
                 << std::left << std::setw(10)           << "peak_bw" << " "
                 << std::left << std::setw(16)  << "qcom_icc_node" << " "
-                << std::left << "Name";
-        fprintf(fp, "%s \n",oss_hd.str().c_str());
+                << std::left << "Name" "\n";
         for (const auto& node_ptr : provider_ptr->node_list) {
-            std::ostringstream oss;
             oss << std::left << std::setw(VADDR_PRLEN)  << std::hex << node_ptr->addr << " "
                 << std::left << std::setw(5)            << std::dec << node_ptr->id << " "
                 << std::left << std::setw(10)           << std::dec << node_ptr->avg_bw << " "
                 << std::left << std::setw(10)           << std::dec << node_ptr->peak_bw << " "
                 << std::left << std::setw(16)           << std::hex << node_ptr->data << " "
-                << std::left << node_ptr->name;
-            fprintf(fp, "%s \n",oss.str().c_str());
+                << std::left << node_ptr->name << "\n";
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void ICC::print_icc_info(){
+    std::ostringstream oss;
     for (const auto& provider_ptr : provider_list) {
-        std::ostringstream provider;
-        provider << std::left << "icc_provider:"   << std::hex << provider_ptr->addr << " "
-            << std::left << provider_ptr->name;
-        fprintf(fp, "%s \n",provider.str().c_str());
+        oss << std::left << "icc_provider:"   << std::hex << provider_ptr->addr << " "
+            << std::left << provider_ptr->name
+            << "\n";
         for (const auto& node_ptr : provider_ptr->node_list) {
-            std::ostringstream node;
-            node << std::left << "    icc_node:"  << std::hex << node_ptr->addr << " "
-                << std::left << "avg_bw:" << std::dec << node_ptr->avg_bw << " "
-                << std::left << "peak_bw:" << std::dec << node_ptr->peak_bw << " "
-                << std::left << "[" << node_ptr->name << "]";
-            fprintf(fp, "%s \n",node.str().c_str());
+            oss << std::left << "      icc_node:"  << std::hex << node_ptr->addr << " "
+                << std::left << "avg_bw:" << std::left << std::setw(10) << std::dec << node_ptr->avg_bw << " "
+                << std::left << "peak_bw:" << std::left << std::setw(10) << std::dec << node_ptr->peak_bw << " "
+                << std::left << "[" << node_ptr->name << "]"
+                << "\n";
             for (const auto& req_ptr : node_ptr->req_list) {
-                std::ostringstream req;
-                req << std::left << "       icc_req:" << std::hex << req_ptr->addr << " "
-                    << std::left << "avg_bw:" << std::dec << req_ptr->avg_bw << " "
-                    << std::left << "peak_bw:" << std::dec << req_ptr->peak_bw << " "
-                    << std::left << "[" << req_ptr->name << "]";
-                fprintf(fp, "%s \n",req.str().c_str());
+                oss << std::left << "       icc_req:" << std::hex << req_ptr->addr << " "
+                    << std::left << "avg_bw:" << std::left << std::setw(10) << std::dec << req_ptr->avg_bw << " "
+                    << std::left << "peak_bw:" << std::left << std::setw(10) << std::dec << req_ptr->peak_bw << " "
+                    << std::left << "[" << req_ptr->name << "]"
+                    << "\n";
             }
+            oss << "\n";
         }
-        fprintf(fp, "\n\n");
+        oss << "\n\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void ICC::print_icc_provider(){
     if(provider_list.size() == 0) return;
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN)   << "icc_provider" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(VADDR_PRLEN)   << "icc_provider" << " "
             << std::left << std::setw(5)    << "users" << " "
             // << std::left << std::setw(VADDR_PRLEN)    << "data" << " "
-            << std::left << "Name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "Name"
+            << "\n";
     for (const auto& provider_ptr : provider_list) {
-        std::ostringstream oss;
         oss << std::left << std::setw(VADDR_PRLEN)   << std::hex << provider_ptr->addr << " "
             << std::left << std::setw(5)    << std::dec << provider_ptr->users << " "
             // << std::left << std::setw(VADDR_PRLEN)    << std::hex << provider_ptr->data << " "
-            << std::left << provider_ptr->name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << provider_ptr->name
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void ICC::parser_icc_provider(){

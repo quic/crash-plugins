@@ -51,16 +51,20 @@ struct memblock {
 };
 
 class Memblock : public ParserPlugin {
-public:
+private:
     std::shared_ptr<memblock> block;
-    Memblock();
 
-    void cmd_main(void) override;
     void parser_memblock();
     void parser_memblock_type(ulong addr,memblock_type* type);
     std::vector<std::shared_ptr<memblock_region>> parser_memblock_region(ulong addr,int cnt);
     void print_memblock();
     void print_memblock_type(memblock_type* type);
+
+public:
+    Memblock();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Memblock)
 };
 

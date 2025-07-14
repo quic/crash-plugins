@@ -48,13 +48,15 @@ private:
     size_t get_dentry_cache_size();
     size_t get_inode_cache_size();
     ulong get_vmalloc_total(void);
+    void print_vmstat(void);
+    void print_mem_breakdown(void);
+    void print_meminfo(void);
 
 public:
     Meminfo();
     void cmd_main(void) override;
-    void print_vmstat(void);
-    void print_mem_breakdown(void);
-    void print_meminfo(void);
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Meminfo)
 };
 

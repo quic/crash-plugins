@@ -19,6 +19,24 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 Devicetree::Devicetree(){
+    init_offset();
+    if (!csymbol_exists("of_root")){
+        fprintf(fp,  "of_root doesn't exist in this kernel!\n");
+        return;
+    }
+    ulong of_root_addr = csymbol_value("of_root");
+    if (!is_kvaddr(of_root_addr)) {
+        fprintf(fp, "of_root address is invalid!\n");
+        return;
+    }
+    root_addr = read_pointer(of_root_addr,"of_root");
+}
+
+void Devicetree::cmd_main(void) {}
+
+void Devicetree::init_command(void) {}
+
+void Devicetree::init_offset(void) {
     field_init(device_node,name);
     field_init(device_node,phandle);
     field_init(device_node,full_name);
@@ -34,21 +52,6 @@ Devicetree::Devicetree(){
 
     struct_init(device_node);
     struct_init(property);
-
-    if (!csymbol_exists("of_root")){
-        fprintf(fp,  "of_root doesn't exist in this kernel!\n");
-        return;
-    }
-    ulong of_root_addr = csymbol_value("of_root");
-    if (!is_kvaddr(of_root_addr)) {
-        fprintf(fp, "of_root address is invalid!\n");
-        return;
-    }
-    root_addr = read_pointer(of_root_addr,"of_root");
-}
-
-void Devicetree::cmd_main(void) {
-    // TODO
 }
 
 std::shared_ptr<Property> Devicetree::getprop(ulong node_addr,const std::string& name){

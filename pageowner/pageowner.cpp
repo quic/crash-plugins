@@ -84,8 +84,7 @@ bool Pageowner::is_enable_pageowner(){
     return true;
 }
 
-Pageowner::Pageowner(){
-    debug = false;
+void Pageowner::init_offset(void) {
     field_init(page_owner,order);
     field_init(page_owner,last_migrate_reason);
     field_init(page_owner,gfp_mask);
@@ -116,6 +115,9 @@ Pageowner::Pageowner(){
     field_init(stack_record,handle);
     field_init(stack_record,entries);
     struct_init(stack_record);
+}
+
+void Pageowner::init_command(void) {
     cmd_name = "pageowner";
     help_str_list={
         "pageowner",                            /* command name */
@@ -328,8 +330,9 @@ Pageowner::Pageowner(){
         "        2023     ndroid.systemui      4195       16.64MB",
         "\n",
     };
-    initialize();
 }
+
+Pageowner::Pageowner(){}
 
 void Pageowner::print_page_owner(std::string addr,int flags){
     ulonglong number = std::stoul(addr, nullptr, 16);
@@ -390,15 +393,15 @@ void Pageowner::print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_
 }
 
 void Pageowner::print_memory_info(){
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(8) << "PID" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(8) << "PID" << " "
         << std::left << std::setw(20) << "Comm" << " "
         << std::left << std::setw(10) << "Times" << " "
         << std::left << std::setw(10) << "Size";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    fprintf(fp, "%s \n", oss.str().c_str());
 
     ulong page_owner_size = page_owner_page_list.size()*page_size;
-    std::ostringstream oss;
+    oss.str("");
     oss << std::left << std::setw(8) << "" << " "
         << std::left << std::setw(20) << "page_owner" << " "
         << std::left << std::setw(10) << "" << " "
@@ -411,7 +414,7 @@ void Pageowner::print_memory_info(){
     << std::left << std::setw(20) << "stack_record" << " "
     << std::left << std::setw(10) << "" << " "
     << std::left << std::setw(10) << csize(stack_record_size);
-    fprintf(fp, "%s \n",oss.str().c_str());
+    fprintf(fp, "%s \n", oss.str().c_str());
 
     std::unordered_map<size_t, std::shared_ptr<process_info>> process_map; //<pid,process_info>
     for (const auto& pair : owner_map) {
@@ -443,7 +446,7 @@ void Pageowner::print_memory_info(){
             name = std::string(tc->comm);
         }
         std::shared_ptr<process_info> proc_ptr = process_vec[i].second;
-        std::ostringstream oss;
+        oss.str("");
         oss << std::left << std::setw(8) << pid << " "
             << std::left << std::setw(20) << name << " "
             << std::left << std::setw(10) << proc_ptr->total_cnt << " "
@@ -516,12 +519,12 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
         return a.second->total_cnt > b.second->total_cnt;
     });
     fprintf(fp, "      -------------------------------------------------\n");
-    std::ostringstream oss_hd;
-    oss_hd << std::left << "      " << std::setw(8) << "PID" << " "
+    std::ostringstream oss;
+    oss << std::left << "      " << std::setw(8) << "PID" << " "
         << std::left << std::setw(20) << "Comm" << " "
         << std::left << std::setw(10) << "Times" << " "
         << std::left << std::setw(10) << "Size";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    fprintf(fp, "%s \n", oss.str().c_str());
     size_t print_cnt = 20; //only print top 20
     for (size_t i = 0; i < process_vec.size() && i < print_cnt; i++){
         size_t pid = process_vec[i].first;
@@ -531,12 +534,12 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
             name = std::string(tc->comm);
         }
         std::shared_ptr<process_info> proc_ptr = process_vec[i].second;
-        std::ostringstream oss;
+        oss.str("");
         oss << std::left << "      " << std::setw(8) << pid << " "
             << std::left << std::setw(20) << name << " "
             << std::left << std::setw(10) << proc_ptr->total_cnt << " "
             << std::left << std::setw(10) << csize(proc_ptr->total_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+        fprintf(fp, "%s \n", oss.str().c_str());
     }
 }
 

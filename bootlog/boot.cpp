@@ -43,10 +43,13 @@ void BootInfo::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-BootInfo::BootInfo(){
+void BootInfo::init_offset(void) {
     field_init(kobject,name);
     field_init(device,kobj);
     field_init(device,driver_data);
+}
+
+void BootInfo::init_command(void) {
     cmd_name = "boot";
     help_str_list={
         "boot",                          /* command name */
@@ -75,8 +78,9 @@ BootInfo::BootInfo(){
         "    <6>[    0.000000][    T0] Enabling dynamic shadow call stack",
         "\n",
     };
-    initialize();
 }
+
+BootInfo::BootInfo(){}
 
 void BootInfo::read_pmic_pon_trigger_maps(){
     field_init(pmic_pon_trigger_mapping,code);

@@ -22,10 +22,64 @@
 DEFINE_PLUGIN_COMMAND(DDriver)
 #endif
 
+void DDriver::init_offset(void) {
+    field_init(bus_type,probe);
+    field_init(device,kobj);
+    field_init(device,driver);
+    field_init(kobject,name);
+    field_init(device_driver,name);
+    field_init(device_driver,mod_name);
+    field_init(device_driver,probe);
+    field_init(device_driver,of_match_table);
+    field_init(of_device_id,compatible);
+    field_init(char_device_struct,major);
+    field_init(char_device_struct,baseminor);
+    field_init(char_device_struct,minorct);
+    field_init(char_device_struct, cdev);
+    field_init(char_device_struct, name);
+    field_init(miscdevice,minor);
+    field_init(miscdevice,name);
+    field_init(miscdevice,fops);
+    struct_init(gendisk);
+    field_init(gendisk,major);
+    field_init(gendisk,minors);
+    field_init(gendisk,disk_name);
+    field_init(gendisk,part_tbl);
+    field_init(disk_part_tbl,len);
+    field_init(disk_part_tbl,part);
+    struct_init(block_device);
+    field_init(block_device,bd_start_sect);
+    field_init(block_device,bd_nr_sectors);
+    field_init(block_device,bd_disk);
+    field_init(block_device,bd_mapping);
+    field_init(block_device,bd_meta_info);
+    field_init(block_device,bd_super);
+    field_init(block_device,bd_part);
+    field_init(block_device,bd_block_size);
+    field_init(block_device,bd_partno);
+    field_init(super_block,s_blocksize);
+    field_init(super_block,s_type);
+    field_init(super_block, s_list);
+    field_init(super_block,s_bdev);
+    field_init(file_system_type,name);
+    field_init(file_system_type,fs_flags);
+    struct_init(hd_struct);
+    field_init(hd_struct,info);
+    field_init(hd_struct,__dev);
+    field_init(hd_struct,start_sect);
+    field_init(hd_struct,nr_sects);
+    field_init(hd_struct,partno);
+    field_init(partition_meta_info,uuid);
+    field_init(partition_meta_info,volname);
+}
+
 void DDriver::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    if (bus_list.size() == 0 || class_list.size() == 0){
+        init_offset();
+    }
     if (bus_list.size() == 0){
         parser_bus_info();
         for (auto& bus_ptr : bus_list) {
@@ -90,55 +144,7 @@ void DDriver::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-DDriver::DDriver(){
-    field_init(bus_type,probe);
-    field_init(device,kobj);
-    field_init(device,driver);
-    field_init(kobject,name);
-    field_init(device_driver,name);
-    field_init(device_driver,mod_name);
-    field_init(device_driver,probe);
-    field_init(device_driver,of_match_table);
-    field_init(of_device_id,compatible);
-    field_init(char_device_struct,major);
-    field_init(char_device_struct,baseminor);
-    field_init(char_device_struct,minorct);
-    field_init(char_device_struct, cdev);
-    field_init(char_device_struct, name);
-    field_init(miscdevice,minor);
-    field_init(miscdevice,name);
-    field_init(miscdevice,fops);
-    struct_init(gendisk);
-    field_init(gendisk,major);
-    field_init(gendisk,minors);
-    field_init(gendisk,disk_name);
-    field_init(gendisk,part_tbl);
-    field_init(disk_part_tbl,len);
-    field_init(disk_part_tbl,part);
-    struct_init(block_device);
-    field_init(block_device,bd_start_sect);
-    field_init(block_device,bd_nr_sectors);
-    field_init(block_device,bd_disk);
-    field_init(block_device,bd_mapping);
-    field_init(block_device,bd_meta_info);
-    field_init(block_device,bd_super);
-    field_init(block_device,bd_part);
-    field_init(block_device,bd_block_size);
-    field_init(block_device,bd_partno);
-    field_init(super_block,s_blocksize);
-    field_init(super_block,s_type);
-    field_init(super_block, s_list);
-    field_init(super_block,s_bdev);
-    field_init(file_system_type,name);
-    field_init(file_system_type,fs_flags);
-    struct_init(hd_struct);
-    field_init(hd_struct,info);
-    field_init(hd_struct,__dev);
-    field_init(hd_struct,start_sect);
-    field_init(hd_struct,nr_sects);
-    field_init(hd_struct,partno);
-    field_init(partition_meta_info,uuid);
-    field_init(partition_meta_info,volname);
+void DDriver::init_command(void) {
     cmd_name = "dd";
     help_str_list={
         "dd",                            /* command name */
@@ -258,7 +264,10 @@ DDriver::DDriver(){
         "    ffffff8818ea5d00  0      30539776   8          4KB        0             mmcblk0p81           devinfo              2e547183-c9aa-f37a-0bbc-84d081cc4394",
         "\n",
     };
-    initialize();
+}
+
+DDriver::DDriver(){
+    do_init_offset = false;
 }
 
 void DDriver::print_class_info(){
@@ -266,18 +275,18 @@ void DDriver::print_class_info(){
     for (auto& class_ptr : class_list) {
         name_max_len = std::max(name_max_len,class_ptr->name.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN + 2)  << "class" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(VADDR_PRLEN + 2)  << "class" << " "
             << std::left << std::setw(name_max_len)     << "name"  << " "
-            << std::left                                << "subsys_private";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left                                << "subsys_private"
+            << "\n";
     for (auto& class_ptr : class_list) {
-        std::ostringstream oss;
         oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2)  << class_ptr->addr << " "
             << std::left << std::setw(name_max_len)                 << class_ptr->name << " "
-            << std::left << std::hex                                << class_ptr->subsys_private;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << std::hex                                << class_ptr->subsys_private
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_bus_info(){
@@ -285,20 +294,20 @@ void DDriver::print_bus_info(){
     for (auto& bus_ptr : bus_list) {
         name_max_len = std::max(name_max_len,bus_ptr->name.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN + 2)  << "bus_type" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(VADDR_PRLEN + 2)  << "bus_type" << " "
             << std::left << std::setw(name_max_len)     << "name" << " "
             << std::left << std::setw(16)               << "subsys_private" << " "
-            << std::left                                << "probe func";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left                                << "probe func"
+            << "\n";
     for (auto& bus_ptr : bus_list) {
-        std::ostringstream oss;
         oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2)  << bus_ptr->addr << " "
             << std::left << std::setw(name_max_len)                 << bus_ptr->name << " "
             << std::left << std::hex << std::setw(16)               << bus_ptr->subsys_private << " "
-            << std::left                                            << bus_ptr->probe;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left                                            << bus_ptr->probe
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_device_list(){
@@ -308,26 +317,27 @@ void DDriver::print_device_list(){
             name_max_len = std::max(name_max_len,dev_ptr->name.size());
         }
     }
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN + 2)  << "device" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(VADDR_PRLEN + 2)  << "device" << " "
             << std::left << std::setw(name_max_len)     << "name" << " "
             << std::left << std::setw(15)               << "Bus" << " "
             << std::left << std::setw(VADDR_PRLEN + 2)  << "driver" << " "
-            << std::left                                << "driver_name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left                                << "driver_name"
+            << "\n";
     for (auto& bus_ptr : bus_list) {
         for (auto& dev_ptr : bus_ptr->device_list) {
-            std::ostringstream oss;
             oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2)  << dev_ptr->addr << " "
                 << std::left << std::setw(name_max_len)                 << dev_ptr->name << " "
-                << std::left << std::setw(15)                           << bus_ptr->name << " ";
+                << std::left << std::setw(15)                           << bus_ptr->name << " "
+                << "\n";
             if (dev_ptr->driv != nullptr){
                 oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << dev_ptr->driv->addr << " "
-                    << std::left << dev_ptr->driv->name;
+                    << std::left << dev_ptr->driv->name
+                    << "\n";
             }
-            fprintf(fp, "%s \n",oss.str().c_str());
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_device_driver_for_bus(std::string bus_name){
@@ -343,32 +353,32 @@ void DDriver::print_device_driver_for_bus(std::string bus_name){
     fprintf(fp, "============================================================================\n");
     fprintf(fp, "                                All devices                                 \n");
     fprintf(fp, "============================================================================\n");
+    std::ostringstream oss;
     if (device_list.size() > 0){
         size_t name_max_len = 10;
         for (auto& dev_ptr : device_list) {
             name_max_len = std::max(name_max_len,dev_ptr->name.size());
         }
-        std::ostringstream oss_hd;
-        oss_hd  << std::left << std::setw(VADDR_PRLEN + 2)  << "device" << " "
+        oss  << std::left << std::setw(VADDR_PRLEN + 2)  << "device" << " "
                 << std::left << std::setw(name_max_len)     << "name"   << " "
                 << std::left << std::setw(VADDR_PRLEN + 2)  << "driver" << " "
-                << std::left                                << "driver_name";
-        fprintf(fp, "%s \n",oss_hd.str().c_str());
+                << std::left                                << "driver_name"
+                << "\n";
         for (auto& dev_ptr : device_list) {
-            std::ostringstream oss;
             oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << dev_ptr->addr << " "
-                << std::left << std::setw(name_max_len) << dev_ptr->name << " ";
+                << std::left << std::setw(name_max_len) << dev_ptr->name << " "
+                << "\n";
             if (dev_ptr->driv != nullptr){
                 oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << dev_ptr->driv->addr << " "
-                    << std::left << dev_ptr->driv->name;
+                    << std::left << dev_ptr->driv->name
+                    << "\n";
             }
-            fprintf(fp, "%s \n",oss.str().c_str());
         }
     }
-    fprintf(fp, "\n\n\n");
-    fprintf(fp, "============================================================================\n");
-    fprintf(fp, "                                All drivers                                 \n");
-    fprintf(fp, "============================================================================\n");
+    oss << "\n\n\n";
+    oss << "============================================================================\n";
+    oss << "                                All drivers                                 \n";
+    oss << "============================================================================\n";
     if (driver_list.size() > 0){
         size_t name_max_len = 10;
         size_t compat_max_len = 10;
@@ -376,21 +386,19 @@ void DDriver::print_device_driver_for_bus(std::string bus_name){
             name_max_len = std::max(name_max_len,driv_ptr->name.size());
             compat_max_len = std::max(compat_max_len,driv_ptr->compatible.size());
         }
-        std::ostringstream oss_hd;
-        oss_hd  << std::left << std::setw(16)               << "device_driver" << " "
+        oss  << std::left << std::setw(16)               << "device_driver" << " "
                 << std::left << std::setw(name_max_len)     << "name" << " "
                 << std::left << std::setw(compat_max_len)   << "compatible" << " "
-                << std::left                                << "probe func";
-        fprintf(fp, "%s \n",oss_hd.str().c_str());
+                << std::left                                << "probe func"
+                << "\n";
         for (auto& driv_ptr : driver_list) {
-            std::ostringstream oss;
             oss << std::left << std::hex << std::setw(16)   << driv_ptr->addr << " "
                 << std::left << std::setw(name_max_len)     << driv_ptr->name << " "
                 << std::left << std::setw(compat_max_len)   << driv_ptr->compatible << " "
-                << std::left << driv_ptr->probe;
-            fprintf(fp, "%s \n",oss.str().c_str());
+                << std::left << driv_ptr->probe << "\n";
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_device_driver_for_class(std::string class_name){
@@ -409,47 +417,43 @@ void DDriver::print_device_driver_for_class(std::string class_name){
         for (auto& dev_ptr : device_list) {
             name_max_len = std::max(name_max_len,dev_ptr->name.size());
         }
-        std::ostringstream oss_hd;
-        oss_hd  << std::left << std::setw(VADDR_PRLEN + 2)   << "device" << " "
+        std::ostringstream oss;
+        oss  << std::left << std::setw(VADDR_PRLEN + 2)   << "device" << " "
                 << std::left << std::setw(name_max_len)      << "name"   << " "
                 << std::left << std::setw(VADDR_PRLEN + 2)   << "driver" << " "
-                << std::left                                 << "driver_name";
-        fprintf(fp, "%s \n",oss_hd.str().c_str());
+                << std::left                                 << "driver_name" << "\n";
         for (auto& dev_ptr : device_list) {
-            std::ostringstream oss;
             oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << dev_ptr->addr << " "
-                << std::left << std::setw(name_max_len) << dev_ptr->name << " ";
+                << std::left << std::setw(name_max_len) << dev_ptr->name << " " << "\n";
             if (dev_ptr->driv != nullptr){
                 oss << std::left << std::hex << std::setw(VADDR_PRLEN + 2) << dev_ptr->driv->addr << " "
-                    << std::left << dev_ptr->driv->name;
+                    << std::left << dev_ptr->driv->name << "\n";
             }
-            fprintf(fp, "%s \n",oss.str().c_str());
         }
+        fprintf(fp, "%s \n",oss.str().c_str());
     }
 }
 
 void DDriver::print_char_device(){
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(20)           << "char_device_struct" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(20)           << "char_device_struct" << " "
             << std::left << std::setw(10)           << "major"              << " "
             << std::left << std::setw(10)           << "minorct"            << " "
             << std::left << std::setw(VADDR_PRLEN  + 2)  << "cdev"          << " "
-            << std::left << "name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "name" << "\n";
     for (auto& addr : for_each_char_device()) {
         uint32_t major = read_uint(addr + field_offset(char_device_struct,major),"major");
         // uint32_t baseminor = read_uint(addr + field_offset(char_device_struct,baseminor),"baseminor");
         uint32_t minorct = read_uint(addr + field_offset(char_device_struct,minorct),"minorct");
         ulong cdev_addr = read_pointer(addr + field_offset(char_device_struct, cdev),"cdev");
         std::string name = read_cstring(addr + field_offset(char_device_struct, name),64, "name");
-        std::ostringstream oss;
         oss << std::left << std::setw(20)           << std::hex   << addr         << " "
             << std::left << std::setw(10)           << std::dec   << major        << " "
             << std::left << std::setw(10)           << std::dec   << minorct      << " "
             << std::left << std::setw(VADDR_PRLEN + 2)  << std::hex   << cdev_addr<< " "
-            << std::left << name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << name << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_gendisk(){
@@ -457,13 +461,12 @@ void DDriver::print_gendisk(){
     int minor = 0;
     int partition_cnt = 0;
     std::string name = "";
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(VADDR_PRLEN + 2)   << "gendisk"    << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(VADDR_PRLEN + 2)   << "gendisk"    << " "
             << std::left << std::setw(5)    << "minor"      << " "
             << std::left << std::setw(5)    << "major"      << " "
             << std::left << std::setw(10)    << "partitions" << " "
-            << std::left << "name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "name" << "\n";
     std::set<ulong> disk_list;
     for (auto& addr : for_each_disk()) {
         disk_list.insert(addr);
@@ -483,14 +486,13 @@ void DDriver::print_gendisk(){
             std::vector<ulong> ptbl = for_each_xarray(tbl_addr);
             partition_cnt = ptbl.size();
         }
-        std::ostringstream oss;
         oss  << std::left << std::setw(VADDR_PRLEN + 2)  << std::hex << addr             << " "
             << std::left << std::setw(5)    << std::dec << minor            << " "
             << std::left << std::setw(5)    << std::dec << major            << " "
             << std::left << std::setw(10)   << std::dec << partition_cnt    << " "
-            << std::left << name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << name << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_partition(std::string disk_name){
@@ -547,9 +549,9 @@ void DDriver::print_partition(std::string disk_name){
             part_list[i]->nr_sectors = part_list[i + 1]->start_sect - part_list[i]->start_sect;
         }
     }
-    std::ostringstream oss_hd;
+    std::ostringstream oss;
     if (struct_size(hd_struct) != -1){
-        oss_hd  << std::left << std::setw(17)   << "hd_struct"  << " "
+        oss  << std::left << std::setw(17)   << "hd_struct"  << " "
             << std::left << std::setw(6)        << "partno"     << " "
             << std::left << std::setw(10)       << "start_sect" << " "
             << std::left << std::setw(10)       << "sectors"    << " "
@@ -558,9 +560,9 @@ void DDriver::print_partition(std::string disk_name){
             << std::left << std::setw(6)        << "type"    << " "
             << std::left << std::setw(20)       << "devname"    << " "
             << std::left << std::setw(20)       << "volname"    << " "
-            << std::left << "UUID";
+            << std::left << "UUID" << "\n";
     }else{
-        oss_hd  << std::left << std::setw(17)   << "block_device"   << " "
+        oss  << std::left << std::setw(17)   << "block_device"   << " "
             << std::left << std::setw(6)        << "partno"         << " "
             << std::left << std::setw(10)       << "start_sect"     << " "
             << std::left << std::setw(10)       << "sectors"        << " "
@@ -569,11 +571,9 @@ void DDriver::print_partition(std::string disk_name){
             << std::left << std::setw(6)        << "type"        << " "
             << std::left << std::setw(20)       << "devname"        << " "
             << std::left << std::setw(20)       << "volname"        << " "
-            << std::left << "UUID";
+            << std::left << "UUID" << "\n";
     }
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
     for (auto& part_ptr : part_list) {
-        std::ostringstream oss;
         oss  << std::left << std::setw(17)  << std::hex << part_ptr->addr         << " "
             << std::left << std::setw(6)    << std::dec << part_ptr->partno       << " "
             << std::left << std::setw(10)   << std::dec << part_ptr->start_sect   << " "
@@ -583,9 +583,9 @@ void DDriver::print_partition(std::string disk_name){
             << std::left << std::setw(6)    << std::dec << part_ptr->fs_type        << " "
             << std::left << std::setw(20)   << part_ptr->devname  << " "
             << std::left << std::setw(20)   << part_ptr->volname  << " "
-            << std::left << part_ptr->uuid;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << part_ptr->uuid  << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 std::shared_ptr<partition> DDriver::parser_hd_struct(ulong addr){
@@ -723,7 +723,7 @@ void DDriver::print_block_device(){
     std::string uuid = "";
     std::string volname = "";
     std::string devname = "";
-    std::ostringstream oss_hd;
+    std::ostringstream oss;
     std::set<ulong> bd_list;
     for (auto& addr : for_each_block_device()) {
         bd_list.insert(addr);
@@ -731,14 +731,13 @@ void DDriver::print_block_device(){
     if (bd_list.size() == 0){
         return;
     }
-    oss_hd  << std::left << std::setw(17)   << "block_device"   << " "
+    oss  << std::left << std::setw(17)   << "block_device"   << " "
             << std::left << std::setw(17)   << "super_block"    << " "
             << std::left << std::setw(5)    << "type"           << " "
             << std::left << std::setw(5)    << "bsize"          << " "
             << std::left << std::setw(15)   << "devname"        << " "
             << std::left << std::setw(20)   << "volname"        << " "
-            << std::left << "UUID";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "UUID" << "\n";
     for (auto& addr : bd_list) {
         void *buf = read_struct(addr,"block_device");
         if (!buf) {
@@ -818,25 +817,23 @@ void DDriver::print_block_device(){
             }
         }
         FREEBUF(buf);
-        std::ostringstream oss;
         oss  << std::left << std::setw(17)  << std::hex     << addr         << " "
             << std::left << std::setw(17)   << std::hex     << bd_super     << " "
             << std::left << std::setw(5)    << fs_type                      << " "
             << std::left << std::setw(5)    << std::dec     << bd_block_size<< " "
             << std::left << std::setw(15)   << devname                      << " "
             << std::left << std::setw(20)   << volname                      << " "
-            << std::left << uuid;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << uuid << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_misc_device(){
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(20)           << "miscdevice" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(20)           << "miscdevice" << " "
             << std::left << std::setw(10)           << "minor"      << " "
             << std::left << std::setw(30)           << "ops"        << " "
-            << std::left << "name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << "name" << "\n";
     for (auto& addr : for_each_misc_device()) {
         uint32_t minor = read_uint(addr + field_offset(miscdevice,minor),"minor");
         std::string name = "";
@@ -853,13 +850,12 @@ void DDriver::print_misc_device(){
                 ops_name = sp->name;
             }
         }
-        std::ostringstream oss;
         oss << std::left << std::setw(20)   << std::hex   << addr   << " "
             << std::left << std::setw(10)   << std::dec   << minor  << " "
             << std::left << std::setw(30)   << ops_name             << " "
-            << std::left << name;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << name << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_device_list_for_driver(std::string driver_name){
@@ -884,16 +880,14 @@ void DDriver::print_device_list_for_driver(std::string driver_name){
     for (auto& dev_ptr : device_list) {
         name_max_len = std::max(name_max_len,dev_ptr->name.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << "   " << std::setw(VADDR_PRLEN + 2) << "device" << " "
-        << std::left << std::setw(name_max_len) << "name";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+    std::ostringstream oss;
+    oss << std::left << "   " << std::setw(VADDR_PRLEN + 2) << "device" << " "
+        << std::left << std::setw(name_max_len) << "name" << "\n";
     for (auto& dev_ptr : device_list) {
-        std::ostringstream oss;
         oss << std::left << "   " << std::hex << std::setw(VADDR_PRLEN + 2) << dev_ptr->addr << " "
-            << std::left << std::setw(name_max_len) << dev_ptr->name << " ";
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << std::setw(name_max_len) << dev_ptr->name << " " << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::print_driver_list(){
@@ -905,24 +899,24 @@ void DDriver::print_driver_list(){
             compat_max_len = std::max(compat_max_len,driv_ptr->compatible.size());
         }
     }
-    std::ostringstream oss_hd;
-    oss_hd  << std::left << std::setw(16)               << "device_driver" << " "
+    std::ostringstream oss;
+    oss  << std::left << std::setw(16)               << "device_driver" << " "
             << std::left << std::setw(name_max_len)     << "name" << " "
             << std::left << std::setw(15)               << "Bus" << " "
             << std::left << std::setw(compat_max_len)   << "compatible" << " "
-            << std::left                                << "probe func";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left                                << "probe func"
+            << "\n";
     for (auto& bus_ptr : bus_list) {
         for (auto& driv_ptr : bus_ptr->driver_list) {
-            std::ostringstream oss;
             oss << std::left << std::hex << std::setw(16) << driv_ptr->addr << " "
                 << std::left << std::setw(name_max_len) << driv_ptr->name << " "
                 << std::left << std::setw(15) << bus_ptr->name << " "
                 << std::left << std::setw(compat_max_len) << driv_ptr->compatible << " "
-                << std::left << driv_ptr->probe;
-            fprintf(fp, "%s \n",oss.str().c_str());
+                << std::left << driv_ptr->probe
+                << "\n";
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void DDriver::parser_class_info(){
@@ -946,6 +940,7 @@ void DDriver::parser_class_info(){
 }
 
 void DDriver::parser_bus_info(){
+    std::ostringstream oss;
     for (const auto& bus_addr : for_each_bus()) {
         std::shared_ptr<bus_type> bus_ptr = std::make_shared<bus_type>();
         bus_ptr->addr = bus_addr;
@@ -957,17 +952,17 @@ void DDriver::parser_bus_info(){
             continue;
         }
         size_t probe_addr = read_pointer(bus_addr + field_offset(bus_type,probe),"probe addr");
-        std::ostringstream oss;
         if (is_kvaddr(probe_addr)){
             ulong offset;
             struct syment *sp = value_search(probe_addr, &offset);
+            oss.str("");
+            oss.clear();
             if (sp) {
                 oss << sp->name << "+" << offset;
             } else {
                 oss << std::hex << probe_addr;
             }
             bus_ptr->probe = oss.str();
-            oss.str("");
         }else{
             bus_ptr->probe = "";
         }

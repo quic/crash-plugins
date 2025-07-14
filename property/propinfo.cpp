@@ -18,9 +18,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-void PropInfo::cmd_main(void) {
-
-}
+void PropInfo::cmd_main(void) {}
 
 std::string PropInfo::get_prop(std::string name){
     if (prop_map.size() == 0){
@@ -40,9 +38,9 @@ PropInfo::~PropInfo(){
     swap_ptr = nullptr;
 }
 
-PropInfo::PropInfo(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
+PropInfo::PropInfo(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){}
 
-}
+void PropInfo::init_command(void) {}
 
 std::string PropInfo::get_symbol_file(std::string name){
     for (const auto& symbol : symbol_list) {
@@ -59,17 +57,17 @@ void PropInfo::print_propertys(){
         max_len = std::max(max_len,pair.first.size());
     }
     size_t index = 1;
+    std::ostringstream oss;
     for (const auto& pair : prop_map) {
-        std::ostringstream oss;
         oss << "[" << std::setw(4) << std::setfill('0') << index << "]"
             << std::left << std::setw(max_len) << std::setfill(' ') << pair.first << " "
-            << std::left << pair.second;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << pair.second << "\n";
         index++;
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
-void PropInfo::init_datatype_info(){
+void PropInfo::init_offset(void) {
     field_init(SystemProperties, contexts_);
     field_init(ContextsSerialized, context_nodes_);
     field_init(ContextsSerialized, num_context_nodes_);
@@ -124,7 +122,7 @@ bool PropInfo::parser_propertys(){
     if (symbol_file.empty() || symbol_file == ""){
         return false;
     }
-    init_datatype_info();
+    init_offset();
     size_t pa_size_addr = task_ptr->get_var_addr_by_bss(symbol_file, "pa_size_");
     if (!is_uvaddr(pa_size_addr,tc_init)){
         // fprintf(fp, "pa_size: %#zx is not invaild !\n",pa_size_addr);
@@ -290,7 +288,7 @@ void PropInfo::parser_prop_by_init(){
     if(task_ptr == nullptr){
         task_ptr = std::make_shared<UTask>(swap_ptr, tc_init->task);
     }
-    init_datatype_info();
+    init_offset();
     std::set<std::string> prop_files;
     // size_t index = 0;
     for(const auto& vma_ptr : task_ptr->for_each_file_vma()){

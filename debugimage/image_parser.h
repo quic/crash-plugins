@@ -21,12 +21,16 @@
 struct Dump_entry;
 
 class ImageParser : public ParserPlugin {
-public:
-    ImageParser();
+protected:
     uint64_t createMask(int a, int b);
     uint64_t pac_ignore(uint64_t data);
     std::string get_cmm_path(std::string name, bool secure);
+
+public:
+    ImageParser();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     virtual void generate_cmm(std::shared_ptr<Dump_entry> entry_ptr)=0;
     virtual void print_stack(std::shared_ptr<Dump_entry> entry_ptr)=0;
     virtual uint32_t get_vcpu_index(uint32_t affinity);

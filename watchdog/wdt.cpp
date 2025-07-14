@@ -44,37 +44,10 @@ void Watchdog::cmd_main(void) {
 }
 
 Watchdog::Watchdog(){
-    field_init(msm_watchdog_data,base);
-    field_init(msm_watchdog_data,pet_time);
-    field_init(msm_watchdog_data,bark_time);
-    field_init(msm_watchdog_data,bark_irq);
-    field_init(msm_watchdog_data,do_ipi_ping);
-    field_init(msm_watchdog_data,in_panic);
-    field_init(msm_watchdog_data,wakeup_irq_enable);
-    field_init(msm_watchdog_data,irq_ppi);
-    field_init(msm_watchdog_data,last_pet);
-    field_init(msm_watchdog_data,alive_mask);
-    field_init(msm_watchdog_data,wdog_cpu_dd);
-    field_init(msm_watchdog_data,enabled);
-    field_init(msm_watchdog_data,user_pet_enabled);
-    field_init(msm_watchdog_data,watchdog_task);
-    field_init(msm_watchdog_data,pet_timer);
-    field_init(msm_watchdog_data,timer_expired);
-    field_init(msm_watchdog_data,user_pet_complete);
-    field_init(msm_watchdog_data,timer_fired);
-    field_init(msm_watchdog_data,thread_start);
-    field_init(msm_watchdog_data,ping_start);
-    field_init(msm_watchdog_data,ping_end);
-    field_init(msm_watchdog_data,cpu_idle_pc_state);
-    field_init(msm_watchdog_data,freeze_in_progress);
-    field_init(msm_watchdog_data,irq_counts);
-    field_init(msm_watchdog_data,ipi_counts);
-    field_init(msm_watchdog_data,irq_counts_running);
-    field_init(msm_watchdog_data,user_pet_timer);
-    field_init(msm_watchdog_data,watchdog_task);
-    field_init(timer_list,expires);
-    field_init(cdev,dev);
-    struct_init(msm_watchdog_data);
+    do_init_offset = false;
+}
+
+void Watchdog::init_command(void) {
     cmd_name = "wdt";
     help_str_list={
         "wdt",                            /* command name */
@@ -123,10 +96,84 @@ Watchdog::Watchdog(){
         "        ping cpu[3]         : 0~0(0ns)",
         "\n",
     };
-    initialize();
+}
+
+void Watchdog::init_offset(void) {
+    if (!init_flag){
+        field_init(msm_watchdog_data,base);
+        field_init(msm_watchdog_data,pet_time);
+        field_init(msm_watchdog_data,bark_time);
+        field_init(msm_watchdog_data,bark_irq);
+        field_init(msm_watchdog_data,do_ipi_ping);
+        field_init(msm_watchdog_data,in_panic);
+        field_init(msm_watchdog_data,wakeup_irq_enable);
+        field_init(msm_watchdog_data,irq_ppi);
+        field_init(msm_watchdog_data,last_pet);
+        field_init(msm_watchdog_data,alive_mask);
+        field_init(msm_watchdog_data,wdog_cpu_dd);
+        field_init(msm_watchdog_data,enabled);
+        field_init(msm_watchdog_data,user_pet_enabled);
+        field_init(msm_watchdog_data,watchdog_task);
+        field_init(msm_watchdog_data,pet_timer);
+        field_init(msm_watchdog_data,timer_expired);
+        field_init(msm_watchdog_data,user_pet_complete);
+        field_init(msm_watchdog_data,timer_fired);
+        field_init(msm_watchdog_data,thread_start);
+        field_init(msm_watchdog_data,ping_start);
+        field_init(msm_watchdog_data,ping_end);
+        field_init(msm_watchdog_data,cpu_idle_pc_state);
+        field_init(msm_watchdog_data,freeze_in_progress);
+        field_init(msm_watchdog_data,irq_counts);
+        field_init(msm_watchdog_data,ipi_counts);
+        field_init(msm_watchdog_data,irq_counts_running);
+        field_init(msm_watchdog_data,user_pet_timer);
+        field_init(msm_watchdog_data,watchdog_task);
+        field_init(timer_list,expires);
+        struct_init(msm_watchdog_data);
+
+        // upstream wdt
+        field_init(watchdog_core_data, cdev);
+        field_init(watchdog_core_data, wdd);
+        field_init(watchdog_core_data, last_keepalive);
+        field_init(watchdog_core_data, open_deadline);
+        field_init(watchdog_core_data, status);
+        field_init(watchdog_core_data, timer);
+        // CONFIG_WATCHDOG_HRTIMER_PRETIMEOUT
+        field_init(watchdog_core_data, pretimeout_timer);
+        field_init(watchdog_core_data, last_hw_keepalive);
+        field_init(watchdog_core_data, last_hw_keepalive);
+        field_init(watchdog_device, pretimeout);
+        field_init(watchdog_device, timeout);
+        field_init(kthread_worker, task);
+        field_init(clock_event_device, next_event);
+        field_init(clock_event_device, cpumask);
+        field_init(tick_device, evtdev);
+        field_init(hrtimer, node);
+        field_init(hrtimer, state);
+        field_init(probe, dev);
+        field_init(probe, data);
+        field_init(timerqueue_node, expires);
+        field_init(task_struct, __state);
+        field_init(task_struct, state);
+        field_init(task_struct, thread_info);
+        field_init(task_struct, stack);
+        field_init(task_struct, on_cpu);
+        field_init(task_struct, cpu);
+        field_init(task_struct, sched_info);
+        field_init(sched_info, last_arrival);
+        field_init(sched_info, last_queued);
+        field_init(thread_info, cpu);
+        struct_init(watchdog_core_data);
+        field_offset(clock_event_device, next_event);
+        field_offset(tick_device, evtdev);
+        field_init(cdev,dev);
+
+        init_flag = true;
+    }
 }
 
 void Watchdog::parser_msm_wdt(){
+    init_offset();
     ulong wdt_addr = read_pointer(csymbol_value("wdog_data"),"wdog_data");
     if (!is_kvaddr(wdt_addr)) {
         fprintf(fp, "wdog_data address is invalid!\n");
@@ -214,6 +261,7 @@ void Watchdog::parser_msm_wdt(){
 }
 
 void Watchdog::parser_upstream_wdt(){
+    init_offset();
     ulong wdt_addr = get_wdt_by_cdev();
     if (!is_kvaddr(wdt_addr)) {
         fprintf(fp, "the upstream wdt do not exist \n");
@@ -251,7 +299,7 @@ void Watchdog::parser_upstream_wdt(){
     ulonglong wdog_task_arrived = read_ulonglong(wdt_task_addr + field_offset(task_struct, sched_info) + field_offset(sched_info, last_arrival), "last_arrival from wdt");
     ulonglong wdog_task_queued = read_ulonglong(wdt_task_addr + field_offset(task_struct, sched_info) + field_offset(sched_info, last_queued), "last_queued from wdt");
     int wdog_task_oncpu = read_int(wdt_task_addr + field_offset(task_struct, on_cpu), "on_cpu from wdt");
-    int wdog_task_cpu = get_task_cpu(wdt_task_addr, get_thread_info_addr(wdt_task_addr));
+    int wdog_task_cpu = get_task_cpu(wdt_task_addr, task_to_thread_info(wdt_task_addr));
     unsigned char pet_timer_state = read_byte(wdt_addr  + field_offset(watchdog_core_data, timer) + field_offset(hrtimer, state), "watchdog_kworker from wdt");
     int bite_time = read_int(watchdog_device + field_offset(watchdog_device, timeout), "timeout from wdt");
     int pretimeout = read_int(watchdog_device + field_offset(watchdog_device, pretimeout), "pretimeout from wdt");
@@ -319,14 +367,6 @@ int Watchdog::get_task_cpu(ulong task_addr, ulong thread_info_addr){
         return read_int(task_addr + field_offset(task_struct, cpu), "cpu from wdt");
     } else {
         return read_int(thread_info_addr + field_offset(thread_info, cpu), "cpu from wdt");
-    }
-}
-
-ulong Watchdog::get_thread_info_addr(ulong task_addr){
-    if(get_config_val("CONFIG_THREAD_INFO_IN_TASK") == "y"){
-        return task_addr + field_offset(task_struct, thread_info);
-    } else {
-        return read_pointer(task_addr + field_offset(task_struct, stack), "stack from wdt");
     }
 }
 

@@ -83,15 +83,13 @@ void Prop::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Prop::Prop(std::shared_ptr<Swapinfo> swap) : PropInfo(swap){
-    init_command();
-}
+void Prop::init_offset(void) {}
 
-Prop::Prop() : PropInfo(std::make_shared<Swapinfo>()) {
-    init_command();
-}
+Prop::Prop(std::shared_ptr<Swapinfo> swap) : PropInfo(swap){}
 
-void Prop::init_command(){
+Prop::Prop() : PropInfo(std::make_shared<Swapinfo>()) {}
+
+void Prop::init_command(void){
     cmd_name = "getprop";
     help_str_list={
         "getprop",                            /* command name */
@@ -120,7 +118,6 @@ void Prop::init_command(){
         "    encrypted",
         "\n",
     };
-    initialize();
 }
 
 void Prop::print_propertys(){
@@ -129,13 +126,14 @@ void Prop::print_propertys(){
         max_len = std::max(max_len,pair.first.size());
     }
     size_t index = 1;
+    std::ostringstream oss;
     for (const auto& pair : prop_map) {
-        std::ostringstream oss;
         oss << "[" << std::setw(4) << std::setfill('0') << index << "]"
             << std::left << std::setw(max_len) << std::setfill(' ') << pair.first << " "
-            << std::left << pair.second;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << pair.second
+            << "\n";
         index++;
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 #pragma GCC diagnostic pop

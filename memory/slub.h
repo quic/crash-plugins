@@ -138,7 +138,7 @@ struct track { // see __kmem_obj_info in slub.c
 };
 
 class Slub : public ParserPlugin {
-protected:
+private:
     std::vector<std::shared_ptr<kmem_cache>> cache_list;
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> alloc_trace_map;
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> free_trace_map;
@@ -147,9 +147,6 @@ protected:
     ulong stack_slabs;
     // std::unordered_set<size_t> unique_hash;
 
-public:
-    Slub();
-    void cmd_main(void) override;
     void parser_slab_caches();
     std::vector<std::shared_ptr<kmem_cache_node>> parser_kmem_cache_node(std::shared_ptr<kmem_cache> cache_ptr, ulong node_addr);
     std::vector<std::shared_ptr<kmem_cache_cpu>> parser_kmem_cache_cpu(std::shared_ptr<kmem_cache> cache_ptr, ulong cpu_addr);
@@ -160,7 +157,6 @@ public:
     void print_slab_info(std::shared_ptr<slab> slab_ptr);
     void print_slab_cache_info(std::string addr);
     void print_slab_cache(std::shared_ptr<kmem_cache> cache_ptr);
-
     /* Poison */
     unsigned int get_info_end(std::shared_ptr<kmem_cache> cache_ptr);
     bool freeptr_outside_object(std::shared_ptr<kmem_cache> cache_ptr);
@@ -182,7 +178,6 @@ public:
     void print_slub_poison(ulong kmem_cache_addr = 0);
     int check_object(std::shared_ptr<kmem_cache> cache_ptr, ulong first_page, ulong start_addr, uint8_t val);
     ulong get_free_pointer(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr);
-
     /*Trace*/
     std::string extract_callstack(ulong frames_addr);
     void parser_track_map(std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> map, bool is_free);
@@ -194,6 +189,12 @@ public:
     ulong get_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
     void parser_obj_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
     void parser_slab_track(std::shared_ptr<kmem_cache> cache_ptr, std::shared_ptr<slab> slab_ptr);
+
+public:
+    Slub();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Slub)
 };
 

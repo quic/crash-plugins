@@ -50,12 +50,32 @@ void TaskSched::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-TaskSched::TaskSched(){
+void TaskSched::init_offset(void) {
+    field_init(task_struct,sched_info);
+    field_init(task_struct,exit_state);
+    field_init(task_struct,prio);
+    field_init(task_struct,__state);
+    field_init(task_struct,state);
+    field_init(task_struct,last_enqueued_ts);
+    field_init(task_struct,last_sleep_ts);
+    field_init(task_struct,wts);
+    field_init(task_struct,android_vendor_data1);
+    field_init(sched_info,last_arrival);
+    field_init(sched_info,last_queued);
+    field_init(sched_info,pcount);
+    field_init(sched_info,run_delay);
+    struct_init(sched_info);
+    struct_init(walt_task_struct);
+    field_init(walt_task_struct,last_enqueued_ts);
+    field_init(walt_task_struct,last_sleep_ts);
+}
+
+void TaskSched::init_command(void) {
     cmd_name = "sched";
     help_str_list={
         "sched",                            /* command name */
         "dump task sched information",        /* short description */
-        "-c \n"
+        "-c <cpu>\n"
             "  This command dumps the task sched info.",
         "\n",
         "EXAMPLES",
@@ -67,8 +87,9 @@ TaskSched::TaskSched(){
         "    oom_reaper           61      3     0.591827        0               1.6563e-05      2          120   IN    0               0               0",
         "\n",
     };
-    initialize();
 }
+
+TaskSched::TaskSched(){}
 
 void TaskSched::print_task_timestamps(int cpu){
     std::vector<std::shared_ptr<schedinfo>> task_list;

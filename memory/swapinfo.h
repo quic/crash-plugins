@@ -37,9 +37,10 @@ struct swap_info {
 
 class Swapinfo : public ParserPlugin {
 private:
-    int nr_swap;
+    bool debug = false;
+    std::shared_ptr<Zraminfo> zram_ptr;
+
     char* do_swap_page(ulonglong task_addr,ulonglong uvaddr);
-    void parser_swap_info();
     std::shared_ptr<swap_info> get_swap_info(ulonglong pte_val);
     ulong get_zram_addr(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
     ulong lookup_swap_cache(ulonglong pte_val);
@@ -55,21 +56,21 @@ private:
     unsigned char uread_byte(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     ulonglong pte_handle_index(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
 
-protected:
-    bool debug = false;
-    std::shared_ptr<Zraminfo> zram_ptr;
-    std::vector<std::shared_ptr<swap_info>> swap_list;
-
 public:
+    std::vector<std::shared_ptr<swap_info>> swap_list;
+    int nr_swap;
+
     Swapinfo();
     bool is_zram_enable();
     Swapinfo(std::shared_ptr<Zraminfo> zram);
     ~Swapinfo();
-    void init_command();
     void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     std::string uread_cstring(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
     std::vector<char> uread_memory(ulonglong task_addr,ulonglong uvaddr,int len, const std::string& note);
     bool is_swap_pte(ulong pte);
+    void parser_swap_info();
 };
 
 #endif // SWAP_INFO_DEFS_H_

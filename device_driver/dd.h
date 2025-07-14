@@ -64,13 +64,11 @@ struct partition {
 };
 
 class DDriver : public ParserPlugin {
-public:
+private:
     std::vector<std::shared_ptr<bus_type>> bus_list;
     std::vector<std::shared_ptr<class_type>> class_list;
-    DDriver();
 
     void print_class_info();
-    void cmd_main(void) override;
     void print_bus_info();
     void print_device_list();
     void print_device_driver_for_bus(std::string bus_name);
@@ -91,6 +89,12 @@ public:
     std::shared_ptr<driver> parser_driver(size_t addr);
     std::vector<std::shared_ptr<driver>> parser_driver_list(std::string bus_name);
     std::shared_ptr<device> parser_device(size_t addr);
+
+public:
+    DDriver();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(DDriver)
 };
 

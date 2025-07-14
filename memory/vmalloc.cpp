@@ -60,7 +60,7 @@ void Vmalloc::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-Vmalloc::Vmalloc(){
+void Vmalloc::init_offset(void) {
     field_init(vmap_area,va_start);
     field_init(vmap_area,va_end);
     field_init(vmap_area,vm);
@@ -80,6 +80,9 @@ Vmalloc::Vmalloc(){
     field_init(vmap_pool,len);
     struct_init(vmap_node);
     struct_init(vmap_pool);
+}
+
+void Vmalloc::init_command(void) {
     cmd_name = "vmalloc";
     help_str_list={
         "vmalloc",                            /* command name */
@@ -150,8 +153,9 @@ Vmalloc::Vmalloc(){
         "    [4]Page:0xfffffffe000c2ac0 PA:0x430ab000",
         "\n",
     };
-    initialize();
 }
+
+Vmalloc::Vmalloc(){}
 
 void Vmalloc::parser_vmap_nodes(){
     if (!csymbol_exists("vmap_nodes")){
@@ -274,39 +278,35 @@ void Vmalloc::parser_vmap_area_list(){
 
 void Vmalloc::print_vmap_area_list(){
     size_t index = 0;
+    std::ostringstream oss;
     for(auto area: area_list){
-        std::ostringstream oss_area;
-        oss_area << "[" << std::setw(4) << std::setfill('0') << index << "]"
+        oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
             << "vmap_area:" << std::hex << area->addr << " "
             << "range:[" << std::hex << area->va_start << "~" << std::hex << area->va_end << "]" << " "
-            << "size:" << csize((area->va_end - area->va_start));
-        fprintf(fp, "%s \n",oss_area.str().c_str());
+            << "size:" << csize((area->va_end - area->va_start)) << "\n";
 
         for (auto vm : area->vm_list){
-            std::ostringstream oss_vm;
-            oss_vm << "   vm_struct:" << std::hex << vm->addr << " "
+            oss << "   vm_struct:" << std::hex << vm->addr << " "
                 << "size:" << csize(vm->size) << " "
                 << "flags:" << std::dec << vm->flags.c_str() << " "
                 << "nr_pages:" << std::dec << vm->nr_pages << " "
                 << "addr:" << std::hex << vm->kaddr << " "
                 << "phys_addr:" << std::hex << vm->phys_addr << " "
-                << vm->caller;
-            fprintf(fp, "%s \n",oss_vm.str().c_str());
+                << vm->caller << "\n";
 
             size_t cnt = 1;
             for (auto page_addr : vm->page_list){
                 physaddr_t paddr = page_to_phy(page_addr);
-                std::ostringstream oss_p;
-                oss_p << "       [" << std::setw(4) << std::setfill('0') << cnt << "]"
+                oss << "       [" << std::setw(4) << std::setfill('0') << std::dec << std::right << cnt << "]"
                     << "Page:" << std::hex << page_addr << " "
-                    << "PA:" << paddr;
-                fprintf(fp, "%s \n",oss_p.str().c_str());
+                    << "PA:" << paddr << "\n";
                 cnt++;
             }
         }
         index++;
-        fprintf(fp, "\n");
+        oss << "\n";
     }
+    fprintf(fp, "%s", oss.str().c_str());
 }
 
 void Vmalloc::print_vmap_area(){
@@ -316,14 +316,15 @@ void Vmalloc::print_vmap_area(){
     }
     fprintf(fp, "Total vm size:%s\n",csize(total_size).c_str());
     fprintf(fp, "==============================================================================================================\n");
+    std::ostringstream oss;
     for(size_t i=0; i < area_list.size(); i++){
-        std::ostringstream oss_area;
-        oss_area << "[" << std::setw(4) << std::setfill('0') << i << "]"
+        oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << i << "]"
             << "vmap_area:" << std::hex << area_list[i]->addr << " "
             << "range:[" << std::hex << area_list[i]->va_start << "~" << std::hex << area_list[i]->va_end << "]" << " "
-            << "size:" << csize((area_list[i]->va_end - area_list[i]->va_start));
-        fprintf(fp, "%s \n",oss_area.str().c_str());
+            << "size:" << csize((area_list[i]->va_end - area_list[i]->va_start))
+            << "\n";
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 void Vmalloc::print_vm_struct(){
@@ -339,20 +340,21 @@ void Vmalloc::print_vm_struct(){
     fprintf(fp, "physical size:%s\n",csize(total_pages*page_size).c_str());
     fprintf(fp, "==============================================================================================================\n");
     int index = 0;
+    std::ostringstream oss;
     for(auto area: area_list){
         for (auto vm : area->vm_list){
-            std::ostringstream oss_vm;
-            oss_vm << "[" << std::setw(4) << std::setfill('0') << index << "]"
+            oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
                 << "vm_struct:" << std::hex << vm->addr << " "
                 << "size:" << std::left << std::setw(8) << std::setfill(' ') << csize(vm->size) << " "
                 << "flags:" << std::setw(8) << vm->flags << " "
                 << "nr_pages:" << std::dec << std::setw(4) << vm->nr_pages << " "
                 << "kaddr:" << std::hex << vm->kaddr << " "
-                << "phys_addr:" << std::hex << vm->phys_addr;
-            fprintf(fp, "%s \n",oss_vm.str().c_str());
-            index +=1;
+                << "phys_addr:" << std::hex << vm->phys_addr
+                << "\n";
+            index += 1;
         }
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 void Vmalloc::print_summary_caller(){
@@ -388,18 +390,19 @@ void Vmalloc::print_summary_caller(){
     for (const auto& info : callers) {
         max_len = std::max(max_len,info.func.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(max_len + 2) << "Func Name" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(max_len + 2) << "Func Name" << " "
             << std::left << std::setw(15) << "virt" << " "
-            << std::left << std::setw(15) << "phys";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << std::setw(15) << "phys"
+            << "\n";
     for(const auto& info: callers){
-        std::ostringstream oss;
         oss << std::left << std::setw(max_len + 2) << info.func << " "
             << std::left << std::setw(15) << csize(info.virt_size) << " "
-            << std::left << std::setw(15) << csize(info.page_cnt*page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << std::setw(15) << csize(info.page_cnt*page_size)
+            << "\n";
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
+
 }
 
 void Vmalloc::print_summary_type(){
@@ -435,18 +438,18 @@ void Vmalloc::print_summary_type(){
     for (const auto& info : types) {
         max_len = std::max(max_len,info.func.size());
     }
-    std::ostringstream oss_hd;
-    oss_hd << std::left << std::setw(max_len + 2) << "Type" << " "
+    std::ostringstream oss;
+    oss << std::left << std::setw(max_len + 2) << "Type" << " "
             << std::left << std::setw(15) << "virt" << " "
-            << std::left << std::setw(15) << "phys";
-    fprintf(fp, "%s \n",oss_hd.str().c_str());
+            << std::left << std::setw(15) << "phys"
+            << "\n";
     for(const auto& info: types){
-        std::ostringstream oss;
         oss << std::left << std::setw(max_len + 2) << info.func << " "
             << std::left << std::setw(15) << csize(info.virt_size) << " "
-            << std::left << std::setw(15) << csize(info.page_cnt*page_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << std::left << std::setw(15) << csize(info.page_cnt*page_size)
+            << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Vmalloc::print_summary_info(){
@@ -470,6 +473,7 @@ void Vmalloc::print_vm_info_caller(std::string func){
             }
         }
     }
+    std::ostringstream oss;
     for (const auto& item : caller_map) {
         std::string func_name = item.first;
         std::vector<std::shared_ptr<vm_struct>> vm_list = item.second;
@@ -479,16 +483,16 @@ void Vmalloc::print_vm_info_caller(std::string func){
             for(auto vm: vm_list){
                 for (auto page_addr : vm->page_list){
                     physaddr_t paddr = page_to_phy(page_addr);
-                    std::ostringstream oss;
-                    oss << "[" << std::setw(4) << std::setfill('0') << index << "]"
+                    oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
                         << "Page:" << std::left << std::hex << page_addr << " "
-                        << "PA:" << paddr;
-                    fprintf(fp, "%s \n",oss.str().c_str());
+                        << "PA:" << paddr
+                        << "\n";
                     index += 1;
                 }
             }
         }
     }
+    fprintf(fp, "%s \n", oss.str().c_str());
 }
 
 void Vmalloc::print_vm_info_type(std::string type){
@@ -503,6 +507,7 @@ void Vmalloc::print_vm_info_type(std::string type){
             }
         }
     }
+    std::ostringstream oss;
     for (const auto& item : type_maps) {
         std::string type_name = item.first;
         std::vector<std::shared_ptr<vm_struct>> vm_list = item.second;
@@ -512,16 +517,16 @@ void Vmalloc::print_vm_info_type(std::string type){
             for(auto vm: vm_list){
                 for (auto page_addr : vm->page_list){
                     physaddr_t paddr = page_to_phy(page_addr);
-                    std::ostringstream oss;
-                    oss << "[" << std::setw(4) << std::setfill('0') << index << "]"
+                    oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
                         << "Page:" << std::left << std::hex << page_addr << " "
-                        << "PA:" << paddr;
-                    fprintf(fp, "%s \n",oss.str().c_str());
+                        << "PA:" << paddr
+                        << "\n";
                     index += 1;
                 }
             }
         }
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

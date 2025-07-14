@@ -58,15 +58,13 @@ struct pglist_data {
 };
 
 class Buddy : public ParserPlugin {
-public:
+private:
     std::vector<std::shared_ptr<pglist_data>> node_list;
     std::vector<std::string> migratetype_names;
     int min_free_kbytes;
     int user_min_free_kbytes;
     int watermark_scale_factor;
-    Buddy();
 
-    void cmd_main(void) override;
     void parser_buddy_info();
     std::shared_ptr<pglist_data> parser_node_info(ulong addr);
     std::shared_ptr<zone> parser_zone_info(ulong addr);
@@ -78,6 +76,12 @@ public:
     void print_memory_zone(std::string addr);
     void print_node_info(std::shared_ptr<pglist_data> node_ptr);
     void print_zone_info(std::shared_ptr<zone> zone_ptr);
+
+public:
+    Buddy();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Buddy)
 };
 

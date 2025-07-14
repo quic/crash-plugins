@@ -43,7 +43,11 @@ void SysInfo::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-SysInfo::SysInfo(){
+void SysInfo::init_offset(void) {
+    struct_init(socinfo);
+}
+
+void SysInfo::init_command(void) {
     cmd_name = "env";
     help_str_list={
         "env",                            /* command name */
@@ -65,9 +69,9 @@ SysInfo::SysInfo(){
         "    %s> env -s",
         "\n",
     };
-    initialize();
-    struct_init(socinfo);
 }
+
+SysInfo::SysInfo(){}
 
 void SysInfo::print_socinfo(){
     field_init(socinfo,id);
@@ -149,6 +153,7 @@ void SysInfo::print_qsocinfo(){
     field_init(socinfo_params,fmt);
     field_init(socinfo_params,nproduct_id);
     struct_init(socinfo_params);
+    std::ostringstream oss;
     for (const auto& dev_addr : for_each_device_for_bus("platform")) {
         std::string device_name;
         size_t name_addr = read_pointer(dev_addr + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
@@ -191,16 +196,15 @@ void SysInfo::print_qsocinfo(){
         if (hw_id < hw_platforms.size()){
             hw_name = hw_platforms[hw_id];
         }
-        std::ostringstream oss;
         oss << std::left << std::setw(12) << "Chip Family       : " << family << "\n"
             << std::left << std::setw(12) << "Machine           : " << machine << "\n"
             << std::left << std::setw(12) << "Soc ID            : " << soc_id << "\n"
             << std::left << std::setw(12) << "Serial Number     : " << serial_number << "\n"
             << std::left << std::setw(12) << "HARDWARE          : " << hw_name  << "\n"
             << std::left << std::setw(12) << "Product ID        : " << UINT(param_buf + field_offset(socinfo_params,nproduct_id))  << "\n";
-        fprintf(fp, "%s \n",oss.str().c_str());
         FREEBUF(param_buf);
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void SysInfo::print_soc_info(){
@@ -293,12 +297,12 @@ void SysInfo::print_command_line(){
             kconfigs[mapKey] = "";
         }
     }
+    std::ostringstream oss;
     for (const auto& pair : kconfigs) {
-        std::ostringstream oss;
         oss << std::left << std::setw(max_len + 1) << pair.first
-            << ": " << pair.second;
-        fprintf(fp, "%s \n",oss.str().c_str());
+            << ": " << pair.second << "\n";
     }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

@@ -56,10 +56,7 @@ struct rtb_state {
 class Rtb : public ParserPlugin {
 private:
     std::shared_ptr<rtb_state> rtb_state_ptr;
-public:
-    Rtb();
-    void cmd_main(void) override;
-    void init_offset();
+
     void parser_rtb_log();
     bool is_enable_rtb();
     void print_rtb_log();
@@ -78,6 +75,12 @@ public:
     std::string get_caller(struct rtb_layout& layout);
     std::string get_fun_name(struct rtb_layout& layout);
     double get_timestamp(struct rtb_layout& layout);
+
+public:
+    Rtb();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Rtb)
 };
 

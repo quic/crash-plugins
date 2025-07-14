@@ -18,9 +18,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-void UTask::cmd_main(void) {
+void UTask::cmd_main(void) {}
 
-}
+void UTask::init_command(void) {}
 
 UTask::UTask(std::shared_ptr<Swapinfo> swap, int pid): swap_ptr(swap){
     tc = pid_to_context(pid);
@@ -51,7 +51,7 @@ UTask::UTask(std::shared_ptr<Swapinfo> swap, ulong addr): swap_ptr(swap){
     }
 }
 
-void UTask::init_offset() {
+void UTask::init_offset(void) {
     field_init(task_struct, state);
     field_init(task_struct, __state);
     field_init(task_struct, real_parent);

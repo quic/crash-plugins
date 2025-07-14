@@ -18,38 +18,6 @@
 
 #include "plugin.h"
 
-class Binder : public ParserPlugin {
-public:
-    static const int BINDER_THREAD = 0x0001;
-    static const int BINDER_NODE = 0x0002;
-    static const int BINDER_REF = 0x0004;
-    static const int BINDER_ALLOC = 0x0008;
-
-    char* sched_name[7] = {
-        TO_CONST_STRING("SCHED_NORMAL"),
-        TO_CONST_STRING("SCHED_FIFO"),
-        TO_CONST_STRING("SCHED_RR"),
-        TO_CONST_STRING("SCHED_BATCH"),
-        TO_CONST_STRING("SCHED_ISO"),
-        TO_CONST_STRING("SCHED_IDLE"),
-        TO_CONST_STRING("SCHED_DEADLINE"),
-    };
-    Binder();
-
-    void cmd_main(void) override;
-    void print_binder_transaction_log_entry(bool fail_log);
-    void binder_proc_show(struct binder_argument_t* binder_arg);
-    void print_binder_alloc(struct task_context *tc,ulong alloc_addr);
-    void print_binder_proc(ulong proc_addr,int flags);
-    void print_binder_node_nilocked(ulong node_addr);
-    void print_binder_ref_olocked(ulong ref_addr);
-    void print_binder_thread_ilocked(ulong thread);
-    void print_binder_transaction_ilocked(ulong proc_addr, const char* prefix, ulong transaction);
-    void print_binder_work_ilocked(ulong proc_addr, const char* prefix, const char* transaction_prefix, ulong work);
-    char*convert_sched(int i);
-    DEFINE_PLUGIN_INSTANCE(Binder)
-};
-
 struct binder_argument_t {
     struct task_context *tc;
     int pid;
@@ -269,4 +237,38 @@ struct binder_node {
     struct kernel_list_head async_todo;
 };
 
+class Binder : public ParserPlugin {
+private:
+    static const int BINDER_THREAD = 0x0001;
+    static const int BINDER_NODE = 0x0002;
+    static const int BINDER_REF = 0x0004;
+    static const int BINDER_ALLOC = 0x0008;
+    char* sched_name[7] = {
+        TO_CONST_STRING("SCHED_NORMAL"),
+        TO_CONST_STRING("SCHED_FIFO"),
+        TO_CONST_STRING("SCHED_RR"),
+        TO_CONST_STRING("SCHED_BATCH"),
+        TO_CONST_STRING("SCHED_ISO"),
+        TO_CONST_STRING("SCHED_IDLE"),
+        TO_CONST_STRING("SCHED_DEADLINE"),
+    };
+
+    void print_binder_transaction_log_entry(bool fail_log);
+    void binder_proc_show(struct binder_argument_t* binder_arg);
+    void print_binder_alloc(struct task_context *tc,ulong alloc_addr);
+    void print_binder_proc(ulong proc_addr,int flags);
+    void print_binder_node_nilocked(ulong node_addr);
+    void print_binder_ref_olocked(ulong ref_addr);
+    void print_binder_thread_ilocked(ulong thread);
+    void print_binder_transaction_ilocked(ulong proc_addr, const char* prefix, ulong transaction);
+    void print_binder_work_ilocked(ulong proc_addr, const char* prefix, const char* transaction_prefix, ulong work);
+    char* convert_sched(int i);
+
+public:
+    Binder();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
+    DEFINE_PLUGIN_INSTANCE(Binder)
+};
 #endif // BINDER_DEFS_H_
