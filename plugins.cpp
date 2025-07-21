@@ -46,6 +46,7 @@
 #include "clock/clock.h"
 #include "pstore/pstore.h"
 #include "sysinfo/sys.h"
+#include "ftrace/ftrace.h"
 #include "bootlog/boot.h"
 #include "task/task_sched.h"
 #include "surfaceflinger/sf.h"
@@ -120,6 +121,7 @@ std::shared_ptr<ICC>           ICC::instance           = nullptr;
 std::shared_ptr<Clock>         Clock::instance         = nullptr;
 std::shared_ptr<Pstore>        Pstore::instance        = nullptr;
 std::shared_ptr<SysInfo>       SysInfo::instance       = nullptr;
+std::shared_ptr<Ftrace>        Ftrace::instance        = nullptr;
 std::shared_ptr<BootInfo>      BootInfo::instance      = nullptr;
 std::shared_ptr<TaskSched>     TaskSched::instance     = nullptr;
 std::shared_ptr<SF>            SF::instance            = nullptr;
@@ -160,6 +162,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<Clock>());
     plugins.push_back(make_and_init<Pstore>());
     plugins.push_back(make_and_init<SysInfo>());
+    plugins.push_back(make_and_init<Ftrace>());
     plugins.push_back(make_and_init<BootInfo>());
     plugins.push_back(make_and_init<TaskSched>());
     plugins.push_back(make_and_init<SF>(Swap::instance));

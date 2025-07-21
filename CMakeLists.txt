@@ -113,6 +113,9 @@ list(APPEND PLUGIN_SOURCES
     clock/clock.cpp
     pstore/pstore.cpp
     sysinfo/sys.cpp
+    ftrace/ftrace.cpp
+    ftrace/trace_event.cpp
+    ftrace/events.cpp
     bootlog/boot.cpp
     task/task_sched.cpp
     surfaceflinger/sf.cpp
@@ -393,6 +396,15 @@ add_library(sched SHARED
             ${PLUGIN_SOURCES}
             task/task_sched.cpp)
 set_target_properties(sched PROPERTIES PREFIX "")
+
+# =================== build ftrace ===================
+add_library(ftrace SHARED
+            ${PLUGIN_SOURCES}
+            ftrace/ftrace.cpp
+            ftrace/events.cpp
+            ftrace/trace_event.cpp)
+set_target_properties(ftrace PROPERTIES PREFIX "")
+
 # =================== build sf ===================
 add_library(sf SHARED
             ${PLUGIN_SOURCES}

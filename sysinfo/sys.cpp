@@ -208,6 +208,7 @@ void SysInfo::print_qsocinfo(){
 }
 
 void SysInfo::print_soc_info(){
+    struct_init(socinfo);
     if (struct_size(socinfo) == -1){
         fprintf(fp,  "pls load the socinfo.ko at first\n");
         return;
