@@ -38,6 +38,7 @@ Support command:
 | [boot](#boot)            | √           | √            | √            | √            |  show boot log info      |
 | [sched](#sched)          | √           | √            | √            | √            |  show task sched info    |
 | [systemd](#systemd)      | √           | √            | √            | √            |  show journal log        |
+| [t32](#t32)              | √           | √            | √            | √            |  get t32.bat script      |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -2311,3 +2312,13 @@ Save system.journal to xxx/systemd/system.journal
 
 ### systemd -scf 'log name'
 View the journal log from pagecache,same with systemd -svf.
+
+## t32
+This command generate launch_t32.bat script.
+
+### t32 -s <the dump file path on Windows> -c <cpu_type>
+generate the launch_t32.bat script
+```
+crash> t32 -s <path> -c <cpu_type>
+Saved launch_t32.bat to path/t32/launch_t32.bat
+```

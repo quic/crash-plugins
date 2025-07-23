@@ -119,7 +119,9 @@ list(APPEND PLUGIN_SOURCES
     bootlog/boot.cpp
     task/task_sched.cpp
     surfaceflinger/sf.cpp
-    systemd/journal.cpp)
+    systemd/journal.cpp
+    t32/t32.cpp)
+
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -428,4 +430,10 @@ add_library(sd SHARED
             systemd/journal.cpp)
 set_target_properties(sd PROPERTIES PREFIX "")
 target_link_libraries(sd ${ELF_LIBRARIES} ${SYSTEMD_LIBRARIES})
+
+# =================== build t32 ===================
+add_library(t32 SHARED
+            ${PLUGIN_SOURCES}
+            t32/t32.cpp)
+set_target_properties(t32 PROPERTIES PREFIX "")
 endif()

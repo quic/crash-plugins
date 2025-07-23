@@ -51,6 +51,7 @@
 #include "task/task_sched.h"
 #include "surfaceflinger/sf.h"
 #include "systemd/journal.h"
+#include "t32/t32.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -126,6 +127,7 @@ std::shared_ptr<BootInfo>      BootInfo::instance      = nullptr;
 std::shared_ptr<TaskSched>     TaskSched::instance     = nullptr;
 std::shared_ptr<SF>            SF::instance            = nullptr;
 std::shared_ptr<Journal>       Journal::instance       = nullptr;
+std::shared_ptr<T32>           T32::instance           = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -167,6 +169,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<TaskSched>());
     plugins.push_back(make_and_init<SF>(Swap::instance));
     plugins.push_back(make_and_init<Journal>(Swap::instance));
+    plugins.push_back(make_and_init<T32>());
     std::cout << "\033[32m"
             << std::fixed << std::setprecision(6)
             << "[Load] Constructor: " << total_construct_time.count() << " s, "
