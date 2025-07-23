@@ -27,6 +27,128 @@ bool TraceEvent::isCharArray(const std::string& str) {
     return std::sscanf(str.c_str(), "char[%d]", &size) == 1 && size >= 0;
 }
 
+void TraceEvent::print_dma_unmap_event(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"device");
+    std::shared_ptr<trace_field> filed_ptr = field_maps["dir"];
+    int dir = plugin_ptr->read_uint(addr + filed_ptr->offset,"dir");
+    oss << std::left << " dir=";
+    switch (dir) {
+        case 0:
+            oss << std::left << "BIDIRECTIONAL";
+            break;
+        case 1:
+            oss << std::left << "TO_DEVICE";
+            break;
+        case 2:
+            oss << std::left << "FROM_DEVICE";
+            break;
+        case 3:
+            oss << std::left << "NONE";
+            break;
+        default:
+            oss << std::left << "NONE";
+            break;
+    }
+    oss << std::left << " dma_addr=";
+    print_trace_field(addr, oss,"dma_addr");
+    oss << std::left << " size=";
+    print_trace_field(addr, oss,"size");
+    oss << std::left << " attrs=";
+    filed_ptr = field_maps["attrs"];
+    ulong attrs = plugin_ptr->read_ulong(addr + filed_ptr->offset,"attrs");
+    switch (attrs) {
+        case 1UL << 1:
+            oss << std::left << "WEAK_ORDERING";
+            break;
+        case 1UL << 2:
+            oss << std::left << "WRITE_COMBINE";
+            break;
+        case 1UL << 4:
+            oss << std::left << "NO_KERNEL_MAPPING";
+            break;
+        case 1UL << 5:
+            oss << std::left << "SKIP_CPU_SYNC";
+            break;
+        case 1UL << 6:
+            oss << std::left << "FORCE_CONTIGUOUS";
+            break;
+        case 1UL << 7:
+            oss << std::left << "ALLOC_SINGLE_PAGES";
+            break;
+        case 1UL << 8:
+            oss << std::left << "NO_WARN";
+            break;
+        case 1UL << 9:
+            oss << std::left << "PRIVILEGED";
+            break;
+        default:
+            oss << std::left << "NO_WARN";
+            break;
+    }
+}
+
+void TraceEvent::print_dma_map_event(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"device");
+    std::shared_ptr<trace_field> filed_ptr = field_maps["dir"];
+    int dir = plugin_ptr->read_uint(addr + filed_ptr->offset,"dir");
+    oss << std::left << " dir=";
+    switch (dir) {
+        case 0:
+            oss << std::left << "BIDIRECTIONAL";
+            break;
+        case 1:
+            oss << std::left << "TO_DEVICE";
+            break;
+        case 2:
+            oss << std::left << "FROM_DEVICE";
+            break;
+        case 3:
+            oss << std::left << "NONE";
+            break;
+        default:
+            oss << std::left << "NONE";
+            break;
+    }
+    oss << std::left << " dma_addr=";
+    print_trace_field(addr, oss,"dma_addr");
+    oss << std::left << " size=";
+    print_trace_field(addr, oss,"size");
+    oss << std::left << " phys_addr=";
+    print_trace_field(addr, oss,"phys_addr");
+    oss << std::left << " attrs=";
+    filed_ptr = field_maps["attrs"];
+    ulong attrs = plugin_ptr->read_ulong(addr + filed_ptr->offset,"attrs");
+    switch (attrs) {
+        case 1UL << 1:
+            oss << std::left << "WEAK_ORDERING";
+            break;
+        case 1UL << 2:
+            oss << std::left << "WRITE_COMBINE";
+            break;
+        case 1UL << 4:
+            oss << std::left << "NO_KERNEL_MAPPING";
+            break;
+        case 1UL << 5:
+            oss << std::left << "SKIP_CPU_SYNC";
+            break;
+        case 1UL << 6:
+            oss << std::left << "FORCE_CONTIGUOUS";
+            break;
+        case 1UL << 7:
+            oss << std::left << "ALLOC_SINGLE_PAGES";
+            break;
+        case 1UL << 8:
+            oss << std::left << "NO_WARN";
+            break;
+        case 1UL << 9:
+            oss << std::left << "PRIVILEGED";
+            break;
+        default:
+            oss << std::left << "NO_WARN";
+            break;
+    }
+}
+
 void TraceEvent::print_dwc3_trb_event(ulong addr,std::ostringstream& oss){
     print_trace_field(addr, oss,"name");
     oss << std::left << ": trb ";
@@ -54,6 +176,15 @@ void TraceEvent::print_post_rwmmio_event(ulong addr,std::ostringstream& oss){
     print_trace_field(addr, oss,"val");
     oss << std::left << " addr=";
     print_trace_field(addr, oss,"addr");
+}
+
+void TraceEvent::print_stack_event(ulong addr,std::ostringstream& oss){
+    std::shared_ptr<trace_field> filed_ptr = field_maps["caller"];
+    for (size_t i = 0; i < 8; i++){
+        ulong call_addr = addr + filed_ptr->offset + i * sizeof(ulong);
+        int caller = plugin_ptr->read_ulong(call_addr,"caller");
+        oss << std::left << std::hex << "\t=> " << caller << "\n";
+    }
 }
 
 void TraceEvent::print_rwmmio_event(ulong addr,std::ostringstream& oss){
@@ -213,6 +344,7 @@ void TraceEvent::print_trace_field(ulong addr, std::ostringstream& oss,std::stri
     }else if (field_ptr->type == "__u32"
         || field_ptr->type == "u32"
         || field_ptr->type == "unsigned"
+        || field_ptr->type == "gfp_t"
         || field_ptr->type == "uint32_t"
         || field_ptr->type == "unsigned int") {
         oss << std::left  << std::dec << plugin_ptr->read_uint(addr + field_ptr->offset, name);

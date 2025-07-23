@@ -18,6 +18,134 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
+void dma_map_page_event::handle(ulong addr,std::ostringstream& oss){
+    print_dma_map_event(addr,oss);
+}
+
+void dma_unmap_page_event::handle(ulong addr,std::ostringstream& oss){
+    print_dma_unmap_event(addr,oss);
+}
+
+void dma_map_resource_event::handle(ulong addr,std::ostringstream& oss){
+    print_dma_map_event(addr,oss);
+}
+
+void dma_unmap_resource_event::handle(ulong addr,std::ostringstream& oss){
+    print_dma_unmap_event(addr,oss);
+}
+
+void dma_alloc_event::handle(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"device");
+    oss << std::left << " dma_addr=";
+    print_trace_field(addr, oss,"dma_addr");
+    oss << std::left << " size=";
+    print_trace_field(addr, oss,"size");
+    oss << std::left << " virt_addr=";
+    print_trace_field(addr, oss,"virt_addr");
+    oss << std::left << " flags=";
+    print_trace_field(addr, oss,"flags");
+    auto& filed_ptr = field_maps["attrs"];
+    ulong attrs = plugin_ptr->read_ulong(addr + filed_ptr->offset,"attrs");
+    switch (attrs) {
+        case 1UL << 1:
+            oss << std::left << "WEAK_ORDERING";
+            break;
+        case 1UL << 2:
+            oss << std::left << "WRITE_COMBINE";
+            break;
+        case 1UL << 4:
+            oss << std::left << "NO_KERNEL_MAPPING";
+            break;
+        case 1UL << 5:
+            oss << std::left << "SKIP_CPU_SYNC";
+            break;
+        case 1UL << 6:
+            oss << std::left << "FORCE_CONTIGUOUS";
+            break;
+        case 1UL << 7:
+            oss << std::left << "ALLOC_SINGLE_PAGES";
+            break;
+        case 1UL << 8:
+            oss << std::left << "NO_WARN";
+            break;
+        case 1UL << 9:
+            oss << std::left << "PRIVILEGED";
+            break;
+        default:
+            oss << std::left << "NO_WARN";
+            break;
+    }
+}
+
+void dma_free_event::handle(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"device");
+    oss << std::left << " dma_addr=";
+    print_trace_field(addr, oss,"dma_addr");
+    oss << std::left << " size=";
+    print_trace_field(addr, oss,"size");
+    oss << std::left << " virt_addr=";
+    print_trace_field(addr, oss,"virt_addr");
+    auto& filed_ptr = field_maps["attrs"];
+    ulong attrs = plugin_ptr->read_ulong(addr + filed_ptr->offset,"attrs");
+    switch (attrs) {
+        case 1UL << 1:
+            oss << std::left << "WEAK_ORDERING";
+            break;
+        case 1UL << 2:
+            oss << std::left << "WRITE_COMBINE";
+            break;
+        case 1UL << 4:
+            oss << std::left << "NO_KERNEL_MAPPING";
+            break;
+        case 1UL << 5:
+            oss << std::left << "SKIP_CPU_SYNC";
+            break;
+        case 1UL << 6:
+            oss << std::left << "FORCE_CONTIGUOUS";
+            break;
+        case 1UL << 7:
+            oss << std::left << "ALLOC_SINGLE_PAGES";
+            break;
+        case 1UL << 8:
+            oss << std::left << "NO_WARN";
+            break;
+        case 1UL << 9:
+            oss << std::left << "PRIVILEGED";
+            break;
+        default:
+            oss << std::left << "NO_WARN";
+            break;
+    }
+}
+
+void dma_map_sg_event::handle(ulong addr,std::ostringstream& oss){
+
+}
+
+void dma_unmap_sg_event::handle(ulong addr,std::ostringstream& oss){
+
+}
+
+void dma_sync_single_for_cpu_event::handle(ulong addr,std::ostringstream& oss){
+
+}
+
+void dma_sync_single_for_device_event::handle(ulong addr,std::ostringstream& oss){
+
+}
+
+void dma_sync_sg_for_cpu_event::handle(ulong addr,std::ostringstream& oss){
+
+}
+
+void dma_sync_sg_for_device_event::handle(ulong addr,std::ostringstream& oss){
+
+}
+
+void swiotlb_bounced_event::handle(ulong addr,std::ostringstream& oss){
+
+}
+
 void dwc3_ep_queue_event::handle(ulong addr,std::ostringstream& oss){
     print_dwc3_ep_status(addr,oss);
 }
@@ -76,11 +204,11 @@ void bputs_event::handle(ulong addr,std::ostringstream& oss){
 }
 
 void kernel_stack_event::handle(ulong addr,std::ostringstream& oss){
-    oss << std::left << "skipped kernel_stack_event";
+    print_stack_event(addr,oss);
 }
 
 void user_stack_event::handle(ulong addr,std::ostringstream& oss){
-    oss << std::left << "skipped user_stack_event";
+    print_stack_event(addr,oss);
 }
 
 void gpio_value_event::handle(ulong addr,std::ostringstream& oss){

@@ -248,7 +248,7 @@ void Ftrace::print_trace_array(){
 }
 
 void Ftrace::print_trace_log(int cpu){
-    fprintf(fp, "skip event: %zu \n",TraceEvent::skip_cnt);
+    if(debug)fprintf(fp, "skip event: %zu \n",TraceEvent::skip_cnt);
     if (trace_logs.size() == 0){
         for (const auto& ta : trace_list) {
             for (const auto& cpu_rb_ptr : ta->cpu_ring_buffers) {
@@ -270,7 +270,7 @@ void Ftrace::print_trace_log(int cpu){
 }
 
 void Ftrace::print_trace_log(){
-    fprintf(fp, "skip event: %zu \n",TraceEvent::skip_cnt);
+    if(debug)fprintf(fp, "skip event: %zu \n",TraceEvent::skip_cnt);
     if (trace_logs.size() == 0){
         for (const auto& ta : trace_list) {
             for (const auto& cpu_rb_ptr : ta->cpu_ring_buffers) {
@@ -289,7 +289,7 @@ void Ftrace::print_trace_log(){
 }
 
 void Ftrace::print_trace_log(std::string name){
-    fprintf(fp, "skip event: %zu \n",TraceEvent::skip_cnt);
+    if(debug)fprintf(fp, "skip event: %zu \n",TraceEvent::skip_cnt);
     if (trace_logs.size() == 0){
         for (const auto& ta : trace_list) {
             for (const auto& cpu_rb_ptr : ta->cpu_ring_buffers) {
@@ -684,23 +684,23 @@ std::shared_ptr<TraceEvent> Ftrace::parser_trace_event_call(ulong addr){
     if (id == 6) { // TRACE_BPRINT
         event_ptr = std::make_shared<bprint_event>();
         event_ptr->name = "bprint";
-        event_ptr->struct_type = "bprint";
+        event_ptr->struct_type = "bputs_entry";
     }else if (id == 5){
         event_ptr = std::make_shared<print_event>();
         event_ptr->name = "print";
-        event_ptr->struct_type = "print";
+        event_ptr->struct_type = "print_entry";
     }else if (id == 4){
         event_ptr = std::make_shared<kernel_stack_event>();
         event_ptr->name = "kernel_stack";
-        event_ptr->struct_type = "kernel_stack";
+        event_ptr->struct_type = "stack_entry";
     }else if (id == 12){
         event_ptr = std::make_shared<user_stack_event>();
         event_ptr->name = "user_stack";
-        event_ptr->struct_type = "user_stack";
+        event_ptr->struct_type = "userstack_entry";
     }else if (id == 14){
         event_ptr = std::make_shared<bputs_event>();
         event_ptr->name = "bputs";
-        event_ptr->struct_type = "bputs";
+        event_ptr->struct_type = "bputs_entry";
     }
     CREATE_EVENT_IF_MATCH(sched_switch)
     CREATE_EVENT_IF_MATCH(softirq_raise)
@@ -722,6 +722,20 @@ std::shared_ptr<TraceEvent> Ftrace::parser_trace_event_call(ulong addr){
     CREATE_EVENT_IF_MATCH(rwmmio_post_write)
     CREATE_EVENT_IF_MATCH(gpio_value)
     CREATE_EVENT_IF_MATCH(gpio_direction)
+    CREATE_EVENT_IF_MATCH(gpio_direction)
+    CREATE_EVENT_IF_MATCH(dma_map_page)
+    CREATE_EVENT_IF_MATCH(dma_unmap_page)
+    CREATE_EVENT_IF_MATCH(dma_map_resource)
+    CREATE_EVENT_IF_MATCH(dma_unmap_resource)
+    CREATE_EVENT_IF_MATCH(dma_alloc)
+    CREATE_EVENT_IF_MATCH(dma_free)
+    CREATE_EVENT_IF_MATCH(dma_map_sg)
+    CREATE_EVENT_IF_MATCH(dma_unmap_sg)
+    CREATE_EVENT_IF_MATCH(dma_sync_single_for_cpu)
+    CREATE_EVENT_IF_MATCH(dma_sync_single_for_device)
+    CREATE_EVENT_IF_MATCH(dma_sync_sg_for_cpu)
+    CREATE_EVENT_IF_MATCH(dma_sync_sg_for_device)
+    CREATE_EVENT_IF_MATCH(swiotlb_bounced)
     else{
         event_ptr = std::make_shared<TraceEvent>();
         event_ptr->name = name;
