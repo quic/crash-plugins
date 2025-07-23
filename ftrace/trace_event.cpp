@@ -44,6 +44,28 @@ void TraceEvent::print_dwc3_trb_event(ulong addr,std::ostringstream& oss){
     print_trace_field(addr, oss,"ctrl");
 }
 
+void TraceEvent::print_post_rwmmio_event(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"caller0");
+    oss << std::left << " -> ";
+    print_trace_field(addr, oss,"caller");
+    oss << std::left << " width=";
+    print_trace_field(addr, oss,"width");
+    oss << std::left << " val=";
+    print_trace_field(addr, oss,"val");
+    oss << std::left << " addr=";
+    print_trace_field(addr, oss,"addr");
+}
+
+void TraceEvent::print_rwmmio_event(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"caller0");
+    oss << std::left << " -> ";
+    print_trace_field(addr, oss,"caller");
+    oss << std::left << " width=";
+    print_trace_field(addr, oss,"width");
+    oss << std::left << " addr=";
+    print_trace_field(addr, oss,"addr");
+}
+
 void TraceEvent::print_dwc3_ep_status(ulong addr,std::ostringstream& oss){
     print_trace_field(addr, oss,"name");
     oss << std::left << ": req ";
@@ -190,6 +212,7 @@ void TraceEvent::print_trace_field(ulong addr, std::ostringstream& oss,std::stri
         }
     }else if (field_ptr->type == "__u32"
         || field_ptr->type == "u32"
+        || field_ptr->type == "unsigned"
         || field_ptr->type == "uint32_t"
         || field_ptr->type == "unsigned int") {
         oss << std::left  << std::dec << plugin_ptr->read_uint(addr + field_ptr->offset, name);
@@ -202,7 +225,7 @@ void TraceEvent::print_trace_field(ulong addr, std::ostringstream& oss,std::stri
     }else if (field_ptr->type == "bool") {
         oss << std::left  << std::dec << plugin_ptr->read_bool(addr + field_ptr->offset, name);
     }else if (field_ptr->type == "u8") {
-        oss << std::left  << std::dec << plugin_ptr->read_byte(addr + field_ptr->offset, name);
+        oss << std::left  << std::dec << static_cast<int>(plugin_ptr->read_byte(addr + field_ptr->offset, name));
     }
 }
 

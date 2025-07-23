@@ -60,7 +60,9 @@ public:
     void print_softirq(ulong addr,std::ostringstream& oss);
     void print_dwc3_ep_status(ulong addr,std::ostringstream& oss);
     void print_dwc3_trb_event(ulong addr,std::ostringstream& oss);
-    void print_ip(ulong addr,std::ostringstream& oss);
+    void print_post_rwmmio_event(ulong addr, std::ostringstream &oss);
+    void print_ip(ulong addr, std::ostringstream &oss);
+    void print_rwmmio_event(ulong addr,std::ostringstream& oss);
     bool isCharArray(const std::string &str);
     void dump();
     uint id;

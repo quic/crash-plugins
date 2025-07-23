@@ -716,6 +716,12 @@ std::shared_ptr<TraceEvent> Ftrace::parser_trace_event_call(ulong addr){
     CREATE_EVENT_IF_MATCH(dwc3_gadget_ep_cmd)
     CREATE_EVENT_IF_MATCH(dwc3_event)
     CREATE_EVENT_IF_MATCH(dwc3_complete_trb)
+    CREATE_EVENT_IF_MATCH(rwmmio_read)
+    CREATE_EVENT_IF_MATCH(rwmmio_write)
+    CREATE_EVENT_IF_MATCH(rwmmio_post_read)
+    CREATE_EVENT_IF_MATCH(rwmmio_post_write)
+    CREATE_EVENT_IF_MATCH(gpio_value)
+    CREATE_EVENT_IF_MATCH(gpio_direction)
     else{
         event_ptr = std::make_shared<TraceEvent>();
         event_ptr->name = name;
@@ -1448,4 +1454,5 @@ void Ftrace::ftrace_dump() {
     fclose(trace_file);
     fprintf(fp, "Saved to %s\n", trace_path.c_str());
 }
+
 #pragma GCC diagnostic pop
