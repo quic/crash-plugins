@@ -39,6 +39,7 @@ Support command:
 | [sched](#sched)          | √           | √            | √            | √            |  show task sched info    |
 | [systemd](#systemd)      | √           | √            | √            | √            |  show journal log        |
 | [t32](#t32)              | √           | √            | √            | √            |  get t32.bat script      |
+| [ftrace](#ftrace)        | ×           | √            | ×            | ×            |  parser trace event info |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -2329,4 +2330,68 @@ generate the launch_t32.bat script
 ```
 crash> t32 -s <path> -c <cpu_type>
 Saved launch_t32.bat to path/t32/launch_t32.bat
+```
+
+## ftrace
+This command dumps ftrace info.
+
+### ftrace -l
+List all trace array
+```
+crash> ftrace -l
+usb_xhci
+usb
+```
+
+### ftrace -a
+Display all ftrace log
+```
+crash> ftrace -a
+global     <idle>-0             [2] d.h1. 3471.171072: irq_handler_entry irq=3 name=IPI
+global     <idle>-0             [3] d.h1. 3471.170575: irq_handler_entry irq=3 name=IPI
+```
+
+### ftrace -c <cpu>
+Display ftrace log of specified trace array by cpu
+```
+crash> ftrace -c 1
+global     sh-24270             [1] ..s1. 3471.158992: softirq_exit vec=9 [action=RCU]
+global     sh-24270             [1] ..s1. 3471.158986: softirq_entry vec=9 [action=RCU]
+```
+
+### ftrace -s
+Display ftrace log of specified trace array by name
+```
+crash> ftrace -s binder
+binder     binder:943_4-1443    [0] ...1. 227.397729: binder_update_page_range proc=1067 allocate=1 offset=0 size=0
+```
+
+### ftrace -f
+Display all trace event info
+```
+crash> ftrace -f
+[25] ipi_raise: 'target_mask=%s (%s)', __get_bitmask(target_cpus), REC->reason
+    format: 'target_mask=%s (%s)'
+    args  :
+        __get_bitmask(target_cpus)
+        reason
+    trace_event_raw_ipi_raise {
+        __data_loc unsigned long[] target_cpus,offset:8, size:4
+        const char * reason,     offset:16, size:8
+    }
+```
+
+### ftrace -d
+Dump all trace to file
+```
+crash> ftrace -d
+Save to /path/ftrace.data
+```
+
+### ftrace -S
+Display all trace via trace-cmd
+```
+crash> ftrace -S
+memory:            <...>-67    [001]    43.835156: tlbi_end:             group=5800000.qcom,ipa:ipa_smmu_ap
+memory:            <...>-67    [001]    43.835160: tlbi_start:           group=5800000.qcom,ipa:ipa_smmu_ap
 ```

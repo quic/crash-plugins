@@ -166,7 +166,8 @@ public:
     std::vector<ulong> for_each_driver(std::string bus_name);
     std::vector<ulong> for_each_task_files(task_context *tc);
     ulonglong read_structure_field(ulong addr, const std::string &type, const std::string &field, bool virt = true);
-    std::string read_cstring(ulong addr,int len, const std::string& note,bool virt=true);
+    std::string read_long_string(ulong kvaddr, const std::string &note, bool virt = true);
+    std::string read_cstring(ulong addr, int len, const std::string &note, bool virt = true);
     void* read_struct(ulong addr,const std::string& type,bool virt=true);
     bool read_struct(ulong addr,void* buf, int len, const std::string& type,bool virt=true);
     void* read_memory(ulong addr,int len, const std::string& note,bool virt=true);

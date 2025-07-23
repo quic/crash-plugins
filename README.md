@@ -97,6 +97,7 @@ Support module:
 | sched         | √         | √         | parser task sched info                               |
 | systemd       | √         | √         | parser journal log                                   |
 | t32           | √         | √         | generate the launch_t32.bat script                   |
+| ftrace        | √         | ×         | parser trace event info                              |
 
 
 |  module       |   Android-11.0(30)  |  >Android-12.0(31)  |      comment               |
