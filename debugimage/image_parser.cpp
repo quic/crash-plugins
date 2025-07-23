@@ -59,7 +59,9 @@ uint64_t ImageParser::pac_ignore(uint64_t data) {
 }
 
 std::string ImageParser::get_cmm_path(std::string name, bool secure){
-    std::stringstream ss = get_curpath();
+    std::stringstream ss;
+    ss << get_curpath().str() << "/cmm";
+    mkdir(ss.str().c_str(), 0777);
     if (secure){
         ss << "/secure_world_." << name << "_regs.cmm";
     }else{

@@ -92,7 +92,7 @@ Support module:
 | icc           | √         | √         | parser icc info                                      |
 | clock         | √         | √         | parser clock info                                    |
 | pstore        | √         | √         | parser pstore log                                    |
-| boot          | √         | √         | parser pmic and boot log                             |
+| qlog          | √         | √         | parser pmic and boot log                             |
 | socinfo       | √         | √         | parser socinfo and commandline                       |
 | sched         | √         | √         | parser task sched info                               |
 | systemd       | √         | √         | parser journal log                                   |

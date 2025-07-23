@@ -116,7 +116,7 @@ list(APPEND PLUGIN_SOURCES
     ftrace/ftrace.cpp
     ftrace/trace_event.cpp
     ftrace/events.cpp
-    bootlog/boot.cpp
+    qlog/qlog.cpp
     task/task_sched.cpp
     surfaceflinger/sf.cpp
     systemd/journal.cpp
@@ -387,11 +387,12 @@ add_library(sys SHARED
             sysinfo/sys.cpp)
 set_target_properties(sys PROPERTIES PREFIX "")
 
-# =================== build boot ===================
-add_library(boot SHARED
+# =================== build qlog ===================
+add_library(qlog SHARED
             ${PLUGIN_SOURCES}
-            bootlog/boot.cpp)
-set_target_properties(boot PROPERTIES PREFIX "")
+            devicetree/devicetree.cpp
+            qlog/qlog.cpp)
+set_target_properties(qlog PROPERTIES PREFIX "")
 
 # =================== build task ===================
 add_library(sched SHARED

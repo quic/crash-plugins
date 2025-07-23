@@ -17,6 +17,7 @@
 #define BOOT_DEFS_H_
 
 #include "plugin.h"
+#include "devicetree/devicetree.h"
 
 struct pmic_event_t {
     uint8_t state;
@@ -63,7 +64,7 @@ enum pmic_pon_reset_type {
     PMIC_PON_RESET_TYPE_HARD_RESET        = 0x7,
 };
 
-class BootInfo : public ParserPlugin {
+class QLog : public ParserPlugin {
 private:
     std::unordered_map<uint32_t, std::string> pmic_pon_trigger_map;
     std::unordered_map<uint32_t, std::string> pmic_pon_reset_trigger_map;
@@ -73,20 +74,22 @@ private:
     std::vector<std::string> pmic_pon_s3_reset_reason;
     std::vector<std::string> pmic_pon_pon_pbl_status;
     std::vector<std::string> pmic_pon_reset_type_label;
+    std::shared_ptr<Devicetree> dts;
 
     void read_pmic_pon_trigger_maps();
     void pmic_pon_log_print_reason(uint8_t data, std::vector<std::string> reasons);
     void parser_pmic_pon_log_dev(ulong addr);
+    void print_sbl_log();
     void print_pmic_info();
     void print_boot_log();
     std::string remove_invalid_chars(const std::string& msg);
 
 public:
-    BootInfo();
+    QLog();
     void cmd_main(void) override;
     void init_offset(void) override;
     void init_command(void) override;
-    DEFINE_PLUGIN_INSTANCE(BootInfo)
+    DEFINE_PLUGIN_INSTANCE(QLog)
 };
 
 #endif // BOOT_DEFS_H_

@@ -47,7 +47,7 @@
 #include "pstore/pstore.h"
 #include "sysinfo/sys.h"
 #include "ftrace/ftrace.h"
-#include "bootlog/boot.h"
+#include "qlog/qlog.h"
 #include "task/task_sched.h"
 #include "surfaceflinger/sf.h"
 #include "systemd/journal.h"
@@ -123,7 +123,7 @@ std::shared_ptr<Clock>         Clock::instance         = nullptr;
 std::shared_ptr<Pstore>        Pstore::instance        = nullptr;
 std::shared_ptr<SysInfo>       SysInfo::instance       = nullptr;
 std::shared_ptr<Ftrace>        Ftrace::instance        = nullptr;
-std::shared_ptr<BootInfo>      BootInfo::instance      = nullptr;
+std::shared_ptr<QLog>          QLog::instance          = nullptr;
 std::shared_ptr<TaskSched>     TaskSched::instance     = nullptr;
 std::shared_ptr<SF>            SF::instance            = nullptr;
 std::shared_ptr<Journal>       Journal::instance       = nullptr;
@@ -165,7 +165,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<Pstore>());
     plugins.push_back(make_and_init<SysInfo>());
     plugins.push_back(make_and_init<Ftrace>());
-    plugins.push_back(make_and_init<BootInfo>());
+    plugins.push_back(make_and_init<QLog>());
     plugins.push_back(make_and_init<TaskSched>());
     plugins.push_back(make_and_init<SF>(Swap::instance));
     plugins.push_back(make_and_init<Journal>(Swap::instance));

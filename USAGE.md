@@ -35,7 +35,7 @@ Support command:
 | [ccf](#ccf)              | √           | √            | √            | √            |  show clock info         |
 | [pstore](#pstore)        | √           | √            | √            | √            |  show pstore log         |
 | [env](#env)              | √           | √            | √            | √            |  show system info        |
-| [boot](#boot)            | √           | √            | √            | √            |  show boot log info      |
+| [qlog](#qlog)            | √           | √            | √            | √            |  show boot log info      |
 | [sched](#sched)          | √           | √            | √            | √            |  show task sched info    |
 | [systemd](#systemd)      | √           | √            | √            | √            |  show journal log        |
 | [t32](#t32)              | √           | √            | √            | √            |  get t32.bat script      |
@@ -2194,13 +2194,13 @@ Product ID          : 1077
 PART_GPU            : Disable
 ```
 
-## boot
+## qlog
 This command dumps boot log info.
 
-### boot -p
+### qlog -p
 View pmic log
 ```
-crash> boot -p
+crash> qlog -p
 Fundamental Reset: PON_PBL_STATUS=XVDD
 , DVDD
 ; S3_RESET_REASON=None
@@ -2219,7 +2219,7 @@ PON Successful
 ### boot -b
 View boot log
 ```
-crash> boot -b
+crash> qlog -b
 <6>[    0.000000][    T0] Booting Linux on physical CPU 0x0000000000 [0x412fd050]
 <5>[    0.000000][    T0] Linux version 6.12.23-android16-5-maybe-dirty-debug (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Thu Jan  1 00:00:00 UTC 1970
 <6>[    0.000000][    T0] KASLR enabled
@@ -2239,6 +2239,14 @@ crash> boot -b
 <4>[    0.000000][    T0] **   NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE   **
 <4>[    0.000000][    T0] **********************************************************
 <6>[    0.000000][    T0] panic_on_taint: bitmask=0x20 nousertaint_mode=disabled
+```
+
+### qlog -x
+View xbl log
+```
+crash> qlog -x
+Format: Log Type - Time(microsec) - Message - Optional Info
+Log Type: B - Since Boot(Power On Reset),  D - Delta,  S - Statistic
 ```
 
 ## sched
