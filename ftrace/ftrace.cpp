@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,10 +32,10 @@ void Ftrace::cmd_main(void) {
     if (event_maps.size() == 0){
         parser_ftrace_events_list();
     }
-    if (common_field_maps.size()){
+    if (common_field_maps.size() == 0){
         parser_common_trace_fields();
     }
-    while ((c = getopt(argcnt, args, "als:fc:")) != EOF) {
+    while ((c = getopt(argcnt, args, "als:fc:Sd")) != EOF) {
         switch(c) {
             case 'a':
                 print_trace_log();
@@ -59,6 +59,13 @@ void Ftrace::cmd_main(void) {
                 break;
             case 'f':
                 print_event_format();
+                break;
+            case 'd':
+                ftrace_dump();
+                break;
+            case 'S':
+                ftrace_show();
+                break;
             default:
                 argerrs++;
                 break;
@@ -150,6 +157,8 @@ void Ftrace::init_command(void) {
             "  ftrace -c <cpu>\n"
             "  ftrace -s <name>\n"
             "  ftrace -f\n"
+            "  ftrace -d\n"
+            "  ftrace -S\n"
             "  This command dumps the ftrace info.",
         "\n",
         "EXAMPLES",
@@ -194,11 +203,28 @@ void Ftrace::init_command(void) {
         "               const char * reason,     offset:16, size:8",
         "           }",
         "\n",
+        "  Display ftrace log of specified trace array by cpu:",
+        "    %s> ftrace -c 1",
+        "    global     sh-24270             [1] ..s1. 3471.158992: softirq_exit vec=9 [action=RCU]",
+        "    global     sh-24270             [1] ..s1. 3471.158986: softirq_exit vec=9 [action=RCU]",
+        "\n",
+        "  Dump all trace to file:",
+        "    %s> ftrace -d",
+        "    Save to /path/ftrace.data",
+        "\n",
+        "  Display all trace via trace-cmd:",
+        "    %s> ftrace -S",
+        "    memory:            <...>-67    [001]    43.835156: tlbi_end:             group=5800000.qcom,ipa:ipa_smmu_ap",
+        "    memory:            <...>-67    [001]    43.835160: tlbi_start:           group=5800000.qcom,ipa:ipa_smmu_ap",
+        "\n",
     };
 }
 
 Ftrace::Ftrace(){
     pid_max = read_int(csymbol_value("pid_max"),"pid_max");
+    if (!try_get_symbol_data(TO_CONST_STRING("nr_cpu_ids"), sizeof(int), &nr_cpu_ids)) {
+        nr_cpu_ids = 1;
+    }
 }
 
 void Ftrace::print_event_format(){
@@ -327,7 +353,7 @@ std::shared_ptr<trace_array> Ftrace::parser_trace_array(ulong addr){
     if (is_kvaddr(name_addr)) {
         trace_ptr->name = read_cstring(name_addr,64, "name");
     }
-    // fprintf(fp, "trace_array:%#lx  %s\n",addr, trace_ptr->name.c_str());
+    // fprintf(fp, "trace_array:%#lx name:%s size:%zu \n",addr, trace_ptr->name.c_str(), trace_ptr->name.size());
     ulong array_addr = addr + field_offset(trace_array,array_buffer);
     trace_ptr->time_start = read_ulong(array_addr + field_offset(array_buffer,time_start),"time_start");
     // trace_ptr->cpu = read_uint(array_addr + field_offset(array_buffer,cpu),"cpu");
@@ -341,11 +367,11 @@ std::shared_ptr<trace_array> Ftrace::parser_trace_array(ulong addr){
 }
 
 void Ftrace::parser_trace_buffer(std::shared_ptr<trace_array> ta, ulong addr){
-    int cpus = read_int(addr + field_offset(trace_buffer, cpus), "cpus");
+    ta->cpus = read_int(addr + field_offset(trace_buffer, cpus), "cpus");
     ulong buffers = read_pointer(addr + field_offset(trace_buffer, buffers), "buffers");
     if (!is_kvaddr(buffers))
         return;
-    for (int i = 0; i < cpus; i++){
+    for (int i = 0; i < ta->cpus; i++){
         ulong rb_addr = read_pointer(buffers + i * sizeof(void *), "ring_buffer addr");
         if (!is_kvaddr(rb_addr))
             continue;
@@ -373,6 +399,7 @@ void Ftrace::parser_trace_buffer(std::shared_ptr<trace_array> ta, ulong addr){
 void Ftrace::parser_ring_buffer_per_cpu(std::shared_ptr<trace_array> ta, ulong addr){
     ulong nr_pages = read_ulong(addr + field_offset(ring_buffer_per_cpu,nr_pages),"nr_pages");
     if(nr_pages == 0) return;
+    ta->nr_pages = nr_pages;
     auto ring_buf_ptr = std::make_shared<ring_buffer_per_cpu>();
     ring_buf_ptr->addr = addr;
     ring_buf_ptr->cpu = read_int(addr + field_offset(ring_buffer_per_cpu,cpu),"cpu");;
@@ -586,10 +613,12 @@ std::string Ftrace::find_cmdline(int pid){
     }else if (savedcmd_ptr != nullptr){
         int tpid = pid & (pid_max - 1);
         int index = read_int(savedcmd_ptr->map_pid_to_cmdline + tpid * sizeof(unsigned int),"map_pid_to_cmdline");
-        if (index >= 0){
-            int cmdline_tpid = read_int(savedcmd_ptr->map_cmdline_to_pid + index * sizeof(unsigned int),"map_cmdline_to_pid");
-            if (cmdline_tpid == pid){
-                comm = read_cstring(savedcmd_ptr->saved_cmdlines + index * 16, 16, "comm");
+        ulong pid_addr = savedcmd_ptr->map_cmdline_to_pid + index * sizeof(unsigned int);
+        if (index >= 0 && is_kvaddr(pid_addr)){
+            int cmdline_tpid = read_int(pid_addr,"map_cmdline_to_pid");
+            ulong comm_addr = savedcmd_ptr->saved_cmdlines + index * 16;
+            if (cmdline_tpid == pid && is_kvaddr(comm_addr)){
+                comm = read_cstring(comm_addr, 16, "comm");
             }else{
                 struct task_context * tc = pid_to_context(pid);
                 if (tc){
@@ -687,6 +716,12 @@ std::shared_ptr<TraceEvent> Ftrace::parser_trace_event_call(ulong addr){
     CREATE_EVENT_IF_MATCH(dwc3_gadget_ep_cmd)
     CREATE_EVENT_IF_MATCH(dwc3_event)
     CREATE_EVENT_IF_MATCH(dwc3_complete_trb)
+    CREATE_EVENT_IF_MATCH(rwmmio_read)
+    CREATE_EVENT_IF_MATCH(rwmmio_write)
+    CREATE_EVENT_IF_MATCH(rwmmio_post_read)
+    CREATE_EVENT_IF_MATCH(rwmmio_post_write)
+    CREATE_EVENT_IF_MATCH(gpio_value)
+    CREATE_EVENT_IF_MATCH(gpio_direction)
     else{
         event_ptr = std::make_shared<TraceEvent>();
         event_ptr->name = name;
@@ -767,7 +802,7 @@ std::string Ftrace::get_event_type_print_fmt(ulong addr){
     std::string print_fmt;
     ulong fmt_addr = read_pointer(addr + field_offset(trace_event_call,print_fmt),"print_fmt addr");
     if (is_kvaddr(fmt_addr)) {
-        print_fmt = read_cstring(fmt_addr,2048, "print_fmt");
+        print_fmt = read_long_string(fmt_addr,"print_fmt");
     }
     return print_fmt;
 }
@@ -780,13 +815,13 @@ std::shared_ptr<trace_field> Ftrace:: parser_event_field(ulong addr){
     field_ptr->filter_type = read_int(addr + field_offset(ftrace_event_field,filter_type),"filter_type");
     ulong name_addr = read_pointer(addr + field_offset(ftrace_event_field,name),"name addr");
     if (is_kvaddr(name_addr)) {
-        field_ptr->name = read_cstring(name_addr,256, "name");
+        field_ptr->name = read_cstring(name_addr,4096, "name");
     }else{
         field_ptr->name = "";
     }
     ulong type_addr = read_pointer(addr + field_offset(ftrace_event_field,type),"type addr");
     if (is_kvaddr(type_addr)) {
-        field_ptr->type = read_cstring(type_addr,256, "type");
+        field_ptr->type = read_cstring(type_addr,4096, "type");
     }else{
         field_ptr->type = "";
     }
@@ -859,27 +894,124 @@ std::string Ftrace::get_lat_fmt(unsigned char flags, unsigned char preempt_count
 #define TRACE_CMD_FILE_VERSION_STRING "6"
 
 bool Ftrace::write_trace_data(){
-    char buffer[PATH_MAX];
-    if (getcwd(buffer, sizeof(buffer))) {
-        trace_path = buffer;
-    }
-    trace_path += "/ftrace.data";
-    trace_file = fopen(trace_path.c_str(), "wb");
-    if (!trace_file) {
-        fprintf(fp, "Can't open %s\n", trace_path.c_str());
-        return false;
-    }
-    // write_init_data();
-    // write_header_data();
+    write_init_data();
+    write_header_data();
     write_events_data();
+    write_kallsyms_data();
+    write_printk_data();
+    write_cmdlines();
+    ulonglong res_data_offset = ftell(trace_file);
+    write_res_data();
+    write_buffer_data();
+    fseek(trace_file, res_data_offset, SEEK_SET);
+    /* Fix up the global trace's options header with the instance offsets */
+    write_res_data();
     fflush(trace_file);
-    fprintf(fp, "data: \n");
-    dump_file();
-    // write_kallsyms_data();
-    // write_printk_data();
-    // write_cmdlines();
-    fclose(trace_file);
     return true;
+}
+
+void Ftrace::write_buffer_data(){
+    for (const auto& ta_ptr : trace_list) {
+        if (ta_ptr->name != "global") continue;
+        ta_ptr->offset = ftell(trace_file);
+        write_trace_array_buffers(ta_ptr);
+    }
+
+    for (const auto& ta_ptr : trace_list) {
+        if (ta_ptr->name == "global") continue;
+        ta_ptr->offset = ftell(trace_file);
+        fwrite("flyrecord", 10, 1, trace_file);
+        write_trace_array_buffers(ta_ptr);
+    }
+}
+
+// +--------------------------------+
+// | CPU Buffer Headers             |
+// |--------------------------------|<---- offset
+// | [CPU 0] Offset (8 bytes)       |
+// | [CPU 0] Size   (8 bytes)       |
+// |--------------------------------|
+// | [CPU 1] Offset (8 bytes)       |
+// | [CPU 1] Size   (8 bytes)       |
+// |--------------------------------|
+// | ...                            |
+// |--------------------------------|
+// | Padding to page_size           |
+// +------------------------------- +<---- buffer_offset
+// | CPU 0 data                     |
+// +--------------------------------+
+// | CPU 1 data                     |
+// +--------------------------------+
+// | ...                            |
+// +--------------------------------+
+void Ftrace::write_trace_array_buffers(std::shared_ptr<trace_array> ta_ptr) {
+    size_t header_start_offset = ftell(trace_file);
+    size_t header_total_size = ta_ptr->cpus * 16;
+    size_t data_start_offset = roundup(header_start_offset + header_total_size, page_size);
+    size_t buffer_offset = data_start_offset;
+    for (int cpu = 0; cpu < ta_ptr->cpus; cpu++) {
+        auto& ring_buffer = ta_ptr->cpu_ring_buffers[cpu];
+        size_t buffer_size = page_size * ring_buffer->data_pages.size();
+        fwrite(&buffer_offset, 8, 1, trace_file);
+        fwrite(&buffer_size, 8, 1, trace_file);
+        buffer_offset += buffer_size;
+    }
+    fseek(trace_file, data_start_offset, SEEK_SET);
+    for (int cpu = 0; cpu < ta_ptr->cpus; cpu++) {
+        auto& ring_buffer = ta_ptr->cpu_ring_buffers[cpu];
+        for (const auto& buffer_page : ring_buffer->data_pages) {
+            ulong page = read_pointer(buffer_page + field_offset(buffer_page, page), "buffer_page page");
+            // fprintf(fp, "page: %#lx \n", page);
+            char* buf = (char*)read_memory(page, page_size, "get page context");
+            fwrite(buf, page_size, 1, trace_file);
+            FREEBUF(buf);
+        }
+    }
+}
+
+// +------------------------------+
+// | nr_cpu_buffers (4 bytes)     |
+// +------------------------------+
+// | "options  " (10 bytes)       |
+// +------------------------------+
+// | option (2 bytes)             |
+// +------------------------------+
+// | option_size (4 bytes)        |
+// +------------------------------+
+// | offset (8 bytes)             |
+// +------------------------------+
+// | name (N+1 bytes)             |
+// +------------------------------+
+// | ...                          |
+// +------------------------------+
+// | TRACECMD_OPTION_DONE (2B)    |
+// +------------------------------+
+// | "flyrecord" (10 bytes)       |
+// +------------------------------+
+void Ftrace::write_res_data(){
+    fwrite(&nr_cpu_ids, 4, 1, trace_file);
+
+    // write_options
+    fwrite("options  ", 10, 1, trace_file);
+    unsigned short option = TRACECMD_OPTION_BUFFER;
+    for (const auto& ta_ptr : trace_list) {
+        if(ta_ptr->name == "global"){
+            continue;
+        }
+        fwrite(&option, 2, 1, trace_file);
+
+        ulonglong option_size = ta_ptr->name.size() + 1 + 8;
+        fwrite(&option_size, 4, 1, trace_file);
+
+        fwrite(&ta_ptr->offset, 8, 1, trace_file);
+        if(debug)fprintf(fp, "%s offset[%zu] \n", ta_ptr->name.c_str(), ta_ptr->offset);
+
+        fwrite(ta_ptr->name.c_str(), ta_ptr->name.size() + 1, 1, trace_file);
+    }
+    option = TRACECMD_OPTION_DONE;
+    fwrite(&option, 2, 1, trace_file);
+
+    fwrite("flyrecord", 10, 1, trace_file);
 }
 
 void Ftrace::write_cmdlines(){
@@ -890,7 +1022,7 @@ void Ftrace::write_cmdlines(){
         write_to_buf(data_buf, pos, "%d %s\n",  (int)tc[i].pid, tc[i].comm);
     }
     fwrite(&pos, 8, 1, trace_file);
-    fwrite(data_buf.data(), data_buf.size(), 1, trace_file);
+    fwrite(data_buf.data(), data_buf.size() - 1, 1, trace_file);
 }
 
 void Ftrace::write_printk_data(){
@@ -917,21 +1049,21 @@ void Ftrace::write_printk_data(){
                 write_to_buf(data_buf, pos, "0x%lx : \"",  bprintks[i]);
                 for (size_t i = 0; tmpbuf[i]; i++) {
                     switch (tmpbuf[i]) {
-                    case '\n':
-                        write_to_buf(data_buf, pos, "\\n");
-                        break;
-                    case '\t':
-                        write_to_buf(data_buf, pos, "\\t");
-                        break;
-                    case '\\':
-                        write_to_buf(data_buf, pos, "\\\\");
-                        break;
-                    case '"':
-                        write_to_buf(data_buf, pos, "\\\"");
-                        break;
-                    default:
-                        write_to_buf(data_buf, pos, "%c", tmpbuf[i]);
-                        break;
+                        case '\n':
+                            write_to_buf(data_buf, pos, "\\n");
+                            break;
+                        case '\t':
+                            write_to_buf(data_buf, pos, "\\t");
+                            break;
+                        case '\\':
+                            write_to_buf(data_buf, pos, "\\\\");
+                            break;
+                        case '"':
+                            write_to_buf(data_buf, pos, "\\\"");
+                            break;
+                        default:
+                            write_to_buf(data_buf, pos, "%c", tmpbuf[i]);
+                            break;
                     }
                 }
                 write_to_buf(data_buf, pos, "\"\n");
@@ -951,13 +1083,13 @@ void Ftrace::write_printk_data(){
         }
         ulong fmt_list = csymbol_value("trace_bprintk_fmt_list");
         struct kernel_list_head mod_fmt;
-        if(read_struct(fmt_list,&mod_fmt, sizeof(mod_fmt), "list_head")){
+        if(read_struct(fmt_list, &mod_fmt, sizeof(mod_fmt), "list_head")){
             while ((ulong)mod_fmt.next != fmt_list){
                 ulong node_addr = (ulong)mod_fmt.next + sizeof(mod_fmt);
                 if (!addr_is_array) {
-                    node_addr = read_pointer(node_addr,"node_addr");
+                    node_addr = read_ulong(node_addr,"node_addr");
                 }
-                if(read_struct((ulong)mod_fmt.next,&mod_fmt, sizeof(mod_fmt), "list_head")){
+                if(!read_struct((ulong)mod_fmt.next, &mod_fmt, sizeof(mod_fmt), "list_head")){
                     break;
                 }
                 char tmpbuf[4096];
@@ -994,8 +1126,10 @@ void Ftrace::write_printk_data(){
         unsigned int size = 0;
         fwrite(&size, 4, 1, trace_file);
     }
-    fwrite(&pos, 4, 1, trace_file);
-    fwrite(data_buf.data(), data_buf.size(), 1, trace_file);
+    if (data_buf.size() != 0){
+        fwrite(&pos, 4, 1, trace_file);
+        fwrite(data_buf.data(), data_buf.size() - 1, 1, trace_file);
+    }
 }
 
 void Ftrace::write_kallsyms_data(){
@@ -1003,6 +1137,7 @@ void Ftrace::write_kallsyms_data(){
     std::vector<char> sym_buf;
     size_t pos = 0;
     for (sp = st->symtable; sp < st->symend; sp++){
+        if (!sp)continue;
         write_to_buf(sym_buf, pos, "%lx %c %s\n",  sp->value, sp->type, sp->name);
     }
     if (MODULE_MEMORY()){
@@ -1011,11 +1146,11 @@ void Ftrace::write_kallsyms_data(){
         save_proc_kallsyms_mod_legacy(sym_buf, pos);
     }
     fwrite(&pos, 4, 1, trace_file);
-    fwrite(sym_buf.data(), sym_buf.size(), 1, trace_file);
+    fwrite(sym_buf.data(), sym_buf.size() - 1, 1, trace_file);
 }
 
 void Ftrace::save_proc_kallsyms_mod_v6_4(std::vector<char>& buf, size_t& pos){
-    int i, t;
+    int i = 0, t = 0;
     struct syment *sp;
     for (i = 0; i < st->mods_installed; i++) {
         struct load_module *lm = &st->load_modules[i];
@@ -1035,7 +1170,7 @@ void Ftrace::save_proc_kallsyms_mod_v6_4(std::vector<char>& buf, size_t& pos){
 }
 
 void Ftrace::save_proc_kallsyms_mod_legacy(std::vector<char>& buf, size_t& pos){
-    int i;
+    int i = 0;
     struct syment *sp;
     for (i = 0; i < st->mods_installed; i++) {
         struct load_module *lm = &st->load_modules[i];
@@ -1051,25 +1186,22 @@ void Ftrace::save_proc_kallsyms_mod_legacy(std::vector<char>& buf, size_t& pos){
 // ftrace events and other systems events
 void Ftrace::write_events_data(){
     uint system_id = 1;
-    std::string system = "ftrace";
-    uint index, max_system_id = 0;
+    uint index = 0;
+    std::unordered_map<std::string, uint> system_id_map;
+    system_id_map["ftrace"] = system_id++;
     for (auto &pair : event_maps) {
         std::shared_ptr<TraceEvent> event_ptr = pair.second;
-        if (event_ptr->system == "ftrace"){
-            system_id = 1;
-        }else if (event_ptr->system != system){
-            system = event_ptr->system;
-            system_id++;
+        const std::string &sys = event_ptr->system;
+        if (system_id_map.find(sys) == system_id_map.end()) {
+            system_id_map[sys] = system_id++;
         }
-        max_system_id = std::max(max_system_id,system_id);
-        event_ptr->system_id = system_id;
-        index ++;
+        event_ptr->system_id = system_id_map[sys];
+        index++;
     }
     /* ftrace events */
     write_events(1);
-
     /* other systems events */
-    uint nr_systems = max_system_id - 2;
+    uint nr_systems = system_id - 2;
     fwrite(&nr_systems, 4, 1, trace_file);
     for (uint id = 2; id < nr_systems + 2; id++){
         std::shared_ptr<TraceEvent> event_ptr;
@@ -1089,7 +1221,17 @@ void Ftrace::write_events(uint system_id){
     for (auto &pair : event_maps) {
         std::shared_ptr<TraceEvent> event_ptr = pair.second;
         if (event_ptr->system_id == system_id){
-            total ++;
+            total++;
+        }
+    }
+    if (debug){
+        fprintf(fp, "system_id:%d total:%d \n", system_id, total);
+        for (auto &pair : event_maps) {
+            std::shared_ptr<TraceEvent> event_ptr = pair.second;
+            if (event_ptr->system_id != system_id){
+                continue;
+            }
+            fprintf(fp, "   %s\n", event_ptr->name.c_str());
         }
     }
     fwrite(&total, 4, 1, trace_file);
@@ -1116,7 +1258,7 @@ void Ftrace::write_event(std::shared_ptr<TraceEvent> event_ptr){
             write_to_buf(event_buf, pos, "\tfield:%s %s;\toffset:%u;\tsize:%u;\tsigned:%d;\n", field_ptr->type.c_str(), field_ptr->name.c_str(), field_ptr->offset,field_ptr->size, !!field_ptr->is_signed);
         }else{
             write_to_buf(event_buf, pos, "\tfield:%.*s %s%s;\toffset:%u;\tsize:%u;\tsigned:%d;\n", (int)(position),
-                    field_ptr->type.c_str(), field_ptr->name.c_str(),field_ptr->type.substr(pos).c_str(), field_ptr->offset,field_ptr->size, !!field_ptr->is_signed);
+                    field_ptr->type.c_str(), field_ptr->name.c_str(), field_ptr->type.c_str() + position, field_ptr->offset, field_ptr->size, !!field_ptr->is_signed);
         }
     }
 
@@ -1129,12 +1271,16 @@ void Ftrace::write_event(std::shared_ptr<TraceEvent> event_ptr){
             write_to_buf(event_buf, pos, "\tfield:%s %s;\toffset:%u;\tsize:%u;\tsigned:%d;\n", field_ptr->type.c_str(), field_ptr->name.c_str(), field_ptr->offset,field_ptr->size, !!field_ptr->is_signed);
         }else{
             write_to_buf(event_buf, pos, "\tfield:%.*s %s%s;\toffset:%u;\tsize:%u;\tsigned:%d;\n", (int)(position),
-                    field_ptr->type.c_str(), field_ptr->name.c_str(),field_ptr->type.substr(pos).c_str(), field_ptr->offset,field_ptr->size, !!field_ptr->is_signed);
+                    field_ptr->type.c_str(), field_ptr->name.c_str(), field_ptr->type.c_str() + position, field_ptr->offset, field_ptr->size, !!field_ptr->is_signed);
         }
     }
-    write_to_buf(event_buf, pos, "\nprint fmt: %s\n", event_ptr->print_fmt.c_str());
+    write_to_buf(event_buf, pos, "\nprint fmt: %s\n", event_ptr->org_print_fmt.c_str());
     fwrite(&pos, 8, 1, trace_file);
-    fwrite(event_buf.data(), event_buf.size(), 1, trace_file);
+    // if (debug){
+    //     fprintf(fp, "%s:\n", event_ptr->name.c_str());
+    //     fprintf(fp, "%s \n\n", hexdump(0x1000,(char*)event_buf.data(), event_buf.size() - 1).c_str());
+    // }
+    fwrite(event_buf.data(), event_buf.size() - 1, 1, trace_file);
 }
 
 void Ftrace::write_header_data(){
@@ -1191,17 +1337,17 @@ void Ftrace::dump_file(){
         fprintf(fp, "Can't open %s\n", trace_path.c_str());
         return;
     }
-    fseek(tmp_file, 0, SEEK_END); // 移动文件指针到文件末尾
-    size_t fileSize = ftell(tmp_file); // 获取当前文件指针位置，即文件大小
-    rewind(tmp_file); // 将文件指针移回到文件开头
-    char* buffer = static_cast<char*>(malloc(fileSize)); // 分配内存空间
+    fseek(tmp_file, 0, SEEK_END);
+    size_t fileSize = ftell(tmp_file);
+    rewind(tmp_file);
+    char* buffer = static_cast<char*>(malloc(fileSize));
     if (buffer == nullptr) {
-        std::cerr << "Memory allocation failed" << std::endl;
+        fprintf(fp, "Memory allocation failed \n");
         return;
     }
-    size_t bytesRead = fread(buffer, 1, fileSize, tmp_file); // 读取文件内容到缓冲区
+    size_t bytesRead = fread(buffer, 1, fileSize, tmp_file);
     if (bytesRead != fileSize) {
-        std::cerr << "Error reading file fileSize:" << fileSize << ", bytesRead:" << bytesRead <<std::endl;
+        fprintf(fp, "Error reading file fileSize:%zu, bytesRead:%zu \n",fileSize,bytesRead);
         free(buffer);
         return;
     }
@@ -1242,11 +1388,71 @@ void Ftrace::write_to_buf(std::vector<char>& buffer, size_t& pos, const char* fm
     }
 }
 
-void Ftrace::ftrace_show(){
+void Ftrace::ftrace_show() {
+    char buf[4096] = {0};
+    std::string traceCmd = "trace-cmd";
+    const char* envTraceCmd = std::getenv("TRACE_CMD");
+    if (envTraceCmd) {
+        traceCmd = envTraceCmd;
+    }
+    FILE* file = popen(traceCmd.c_str(), "r");
+    if (!file) {
+        fprintf(fp, "Failed to run trace-cmd.\n");
+        return;
+    }
+    size_t ret = fread(buf, 1, sizeof(buf) - 1, file);
+    buf[ret] = '\0';
+    pclose(file);
+    if (!strstr(buf, "trace-cmd version")) {
+        if (envTraceCmd) {
+            fprintf(fp, "Invalid environment TRACE_CMD: %s\n", envTraceCmd);
+        } else {
+            fprintf(fp, "\"Ftrace -S\" requires trace-cmd.\n Please set the environment TRACE_CMD if you installed it in a special path.\n");
+        }
+        return;
+    }
+    char cwd[PATH_MAX];
+    if (!getcwd(cwd, sizeof(cwd))) {
+        return;
+    }
+    std::string tracePath = std::string(cwd) + "/ftrace.data";
+    if (access(tracePath.c_str(), F_OK) != 0) {
+        ftrace_dump();
+    }
+    // run trace-cmd report
+    std::ostringstream cmd;
+    cmd << traceCmd << " report " << tracePath;
+    file = popen(cmd.str().c_str(), "r");
+    if (!file) {
+        fprintf(fp, "Failed to run trace-cmd report.\n");
+        return;
+    }
+    while ((ret = fread(buf, 1, sizeof(buf) - 1, file)) > 0) {
+        buf[ret] = '\0';
+        fprintf(fp, "%s", buf);
+    }
+    pclose(file);
+}
+
+void Ftrace::ftrace_dump() {
+    char cwd[PATH_MAX];
+    if (!getcwd(cwd, sizeof(cwd))) {
+        return;
+    }
+    trace_path = std::string(cwd) + "/ftrace.data";
+    if (access(trace_path.c_str(), F_OK) == 0) {
+        if (unlink(trace_path.c_str()) != 0) {
+            return;
+        }
+    }
+    trace_file = fopen(trace_path.c_str(), "wb");
+    if (!trace_file) {
+        fprintf(fp, "Can't open %s\n", trace_path.c_str());
+        return;
+    }
     write_trace_data();
+    fclose(trace_file);
+    fprintf(fp, "Saved to %s\n", trace_path.c_str());
 }
 
-void Ftrace::ftrace_dump(){
-
-}
 #pragma GCC diagnostic pop

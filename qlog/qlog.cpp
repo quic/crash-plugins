@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,26 +13,29 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
-#include "boot.h"
+#include "qlog.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
 #ifndef BUILD_TARGET_TOGETHER
-DEFINE_PLUGIN_COMMAND(BootInfo)
+DEFINE_PLUGIN_COMMAND(QLog)
 #endif
 
-void BootInfo::cmd_main(void) {
+void QLog::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "pb")) != EOF) {
+    while ((c = getopt(argcnt, args, "pbx")) != EOF) {
         switch(c) {
             case 'p':
                 print_pmic_info();
                 break;
             case 'b':
                 print_boot_log();
+                break;
+            case 'x':
+                print_sbl_log();
                 break;
             default:
                 argerrs++;
@@ -43,24 +46,25 @@ void BootInfo::cmd_main(void) {
         cmd_usage(pc->curcmd, SYNOPSIS);
 }
 
-void BootInfo::init_offset(void) {
+void QLog::init_offset(void) {
     field_init(kobject,name);
     field_init(device,kobj);
     field_init(device,driver_data);
 }
 
-void BootInfo::init_command(void) {
-    cmd_name = "boot";
+void QLog::init_command(void) {
+    cmd_name = "qlog";
     help_str_list={
-        "boot",                          /* command name */
+        "qlog",                          /* command name */
         "dump pmic and boot log",        /* short description */
         "-p \n"
-            "  boot -b\n"
+            "  qlog -b\n"
+            "  qlog -x\n"
             "  This command dumps the boot info.",
         "\n",
         "EXAMPLES",
         "  Display pmic log:",
-        "    %s> boot -p",
+        "    %s> qlog -p",
         "    Reset Trigger: PS_HOLD",
         "    Reset Type: WARM_RESET",
         "    Waiting on PS_HOLD",
@@ -70,19 +74,26 @@ void BootInfo::init_command(void) {
         "    PON Successful",
         "\n",
         "  Display the boot log:",
-        "    %s> boot -b",
+        "    %s> qlog -b",
         "    <6>[    0.000000][    T0] Booting Linux on physical CPU 0x0000000000 [0x412fd050]",
         "    <5>[    0.000000][    T0] Linux version 6.12.23-android16-4-maybe-dirty-debug (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Thu Jan  1 00:00:00 UTC 1970",
         "    <6>[    0.000000][    T0] KASLR enabled",
         "    <5>[    0.000000][    T0] random: crng init done",
         "    <6>[    0.000000][    T0] Enabling dynamic shadow call stack",
         "\n",
+        "  Display the xbl log:",
+        "    %s> qlog -x",
+        "    Format: Log Type - Time(microsec) - Message - Optional Info",
+        "    Log Type: B - Since Boot(Power On Reset),  D - Delta,  S - Statistic",
+        "\n",
     };
 }
 
-BootInfo::BootInfo(){}
+QLog::QLog(){
+    dts = std::make_shared<Devicetree>();
+}
 
-void BootInfo::read_pmic_pon_trigger_maps(){
+void QLog::read_pmic_pon_trigger_maps(){
     field_init(pmic_pon_trigger_mapping,code);
     field_init(pmic_pon_trigger_mapping,label);
     struct_init(pmic_pon_trigger_mapping);
@@ -184,7 +195,7 @@ void BootInfo::read_pmic_pon_trigger_maps(){
     }
 }
 
-void BootInfo::pmic_pon_log_print_reason(uint8_t data, std::vector<std::string> reasons){
+void QLog::pmic_pon_log_print_reason(uint8_t data, std::vector<std::string> reasons){
     if (data == 0) {
         fprintf(fp, "None \n");
     }else{
@@ -198,7 +209,7 @@ void BootInfo::pmic_pon_log_print_reason(uint8_t data, std::vector<std::string> 
     }
 }
 
-void BootInfo::parser_pmic_pon_log_dev(ulong addr){
+void QLog::parser_pmic_pon_log_dev(ulong addr){
     bool is_important;
     field_init(pmic_pon_log_dev,log);
     field_init(pmic_pon_log_dev,log_len);
@@ -327,7 +338,41 @@ void BootInfo::parser_pmic_pon_log_dev(ulong addr){
     }
 }
 
-void BootInfo::print_boot_log(){
+void QLog::print_sbl_log() {
+    auto nodes = dts->find_node_by_name("uefi_log_region");
+    bool is_merged_region = false;
+    if (nodes.empty()) {
+        nodes = dts->find_node_by_name("aop_tme_uefi_merged_region");
+        if (nodes.empty()) {
+            fprintf(fp, "Can't get uefi_log or uefi_merged node!\n");
+            return;
+        }
+        is_merged_region = true;
+    }
+    auto prop = dts->getprop(nodes[0]->addr, "reg");
+    if (!prop) {
+        return;
+    }
+    const char* ptr = reinterpret_cast<const char*>(prop->value.data());
+    size_t reg_cnt = prop->length / sizeof(uint32_t);
+    if (reg_cnt < 4) {
+        return;
+    }
+    std::vector<uint32_t> regs(reg_cnt);
+    for (size_t i = 0; i < reg_cnt; ++i) {
+        regs[i] = ntohl(UINT(ptr + i * sizeof(uint32_t)));
+    }
+    ulong base_addr = (static_cast<uint64_t>(regs[0]) << 32) | regs[1];
+    ulong size = (static_cast<uint64_t>(regs[2]) << 32) | regs[3];
+    if (is_merged_region) {
+        base_addr += 0x64000;
+        size = 0x10000;
+    }
+    std::string logstring = read_cstring(base_addr, size, "uefi_log_region", false);
+    fprintf(fp, "%s", logstring.c_str());
+}
+
+void QLog::print_boot_log(){
     if (!csymbol_exists("boot_log_buf")){
         fprintf(fp, "pls load logbuf_boot_log ko symbol !\n");
         return;
@@ -360,7 +405,7 @@ void BootInfo::print_boot_log(){
     }
 }
 
-std::string BootInfo::remove_invalid_chars(const std::string& msg) {
+std::string QLog::remove_invalid_chars(const std::string& msg) {
     std::string vaildStr;
     bool hasPrintable = false;
     for (unsigned char c : msg) {
@@ -381,7 +426,7 @@ std::string BootInfo::remove_invalid_chars(const std::string& msg) {
     return vaildStr;
 }
 
-void BootInfo::print_pmic_info(){
+void QLog::print_pmic_info(){
     ulong device_addr = 0;
     for (const auto& dev_addr : for_each_device_for_bus("platform")) {
         std::string device_name;

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,6 +20,16 @@
 #include "trace_event.h"
 #include "events.h"
 
+enum {
+    TRACECMD_OPTION_DONE,         /* 0 */
+    TRACECMD_OPTION_DATE,         /* 1 */
+    TRACECMD_OPTION_CPUSTAT,      /* 2 */
+    TRACECMD_OPTION_BUFFER,       /* 3 */
+    TRACECMD_OPTION_TRACECLOCK,   /* 4 */
+    TRACECMD_OPTION_UNAME,        /* 5 */
+    TRACECMD_OPTION_HOOK,         /* 6 */
+};
+
 struct ring_buffer_per_cpu {
     ulong addr;
     int cpu;
@@ -29,8 +39,11 @@ struct ring_buffer_per_cpu {
 
 struct trace_array {
     ulong addr;
+    int cpus;
     std::string name;
     uint64_t time_start;
+    size_t nr_pages;
+    size_t offset;
     std::vector<std::shared_ptr<ring_buffer_per_cpu>> cpu_ring_buffers;
 };
 
@@ -64,6 +77,7 @@ struct trace_log {
 
 class Ftrace : public ParserPlugin {
 private:
+    bool debug = false;
     const int TRACE_FLAG_IRQS_OFF           = 0x01;
     const int TRACE_FLAG_IRQS_NOSUPPORT     = 0x02;
     const int TRACE_FLAG_NEED_RESCHED       = 0x04;
@@ -73,7 +87,7 @@ private:
     const int TRACE_FLAG_NMI                = 0x40;
     const int TRACE_FLAG_BH_OFF             = 0x80;
     int pid_max;
-    int nr_cpu_ids;
+    int nr_cpu_ids = 0;
     std::string trace_path;
     FILE* trace_file;
     std::shared_ptr<trace_array> global_trace;
@@ -88,6 +102,9 @@ private:
     void parser_trace_buffer(std::shared_ptr<trace_array> ta, ulong addr);
     void parser_ring_buffer_per_cpu(std::shared_ptr<trace_array> ta, ulong addr);
     bool write_trace_data();
+    void write_buffer_data();
+    void write_trace_array_buffers(std::shared_ptr<trace_array> ta_ptr);
+    void write_res_data();
     void write_cmdlines();
     void write_printk_data();
     void write_kallsyms_data();

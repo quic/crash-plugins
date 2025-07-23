@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -116,10 +116,12 @@ list(APPEND PLUGIN_SOURCES
     ftrace/ftrace.cpp
     ftrace/trace_event.cpp
     ftrace/events.cpp
-    bootlog/boot.cpp
+    qlog/qlog.cpp
     task/task_sched.cpp
     surfaceflinger/sf.cpp
-    systemd/journal.cpp)
+    systemd/journal.cpp
+    t32/t32.cpp)
+
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
     target_sources(plugins PRIVATE coredump/arm/arm64.cpp
@@ -385,11 +387,12 @@ add_library(sys SHARED
             sysinfo/sys.cpp)
 set_target_properties(sys PROPERTIES PREFIX "")
 
-# =================== build boot ===================
-add_library(boot SHARED
+# =================== build qlog ===================
+add_library(qlog SHARED
             ${PLUGIN_SOURCES}
-            bootlog/boot.cpp)
-set_target_properties(boot PROPERTIES PREFIX "")
+            devicetree/devicetree.cpp
+            qlog/qlog.cpp)
+set_target_properties(qlog PROPERTIES PREFIX "")
 
 # =================== build task ===================
 add_library(sched SHARED
@@ -428,4 +431,10 @@ add_library(sd SHARED
             systemd/journal.cpp)
 set_target_properties(sd PROPERTIES PREFIX "")
 target_link_libraries(sd ${ELF_LIBRARIES} ${SYSTEMD_LIBRARIES})
+
+# =================== build t32 ===================
+add_library(t32 SHARED
+            ${PLUGIN_SOURCES}
+            t32/t32.cpp)
+set_target_properties(t32 PROPERTIES PREFIX "")
 endif()

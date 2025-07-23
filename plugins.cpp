@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -47,10 +47,11 @@
 #include "pstore/pstore.h"
 #include "sysinfo/sys.h"
 #include "ftrace/ftrace.h"
-#include "bootlog/boot.h"
+#include "qlog/qlog.h"
 #include "task/task_sched.h"
 #include "surfaceflinger/sf.h"
 #include "systemd/journal.h"
+#include "t32/t32.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -122,10 +123,11 @@ std::shared_ptr<Clock>         Clock::instance         = nullptr;
 std::shared_ptr<Pstore>        Pstore::instance        = nullptr;
 std::shared_ptr<SysInfo>       SysInfo::instance       = nullptr;
 std::shared_ptr<Ftrace>        Ftrace::instance        = nullptr;
-std::shared_ptr<BootInfo>      BootInfo::instance      = nullptr;
+std::shared_ptr<QLog>          QLog::instance          = nullptr;
 std::shared_ptr<TaskSched>     TaskSched::instance     = nullptr;
 std::shared_ptr<SF>            SF::instance            = nullptr;
 std::shared_ptr<Journal>       Journal::instance       = nullptr;
+std::shared_ptr<T32>           T32::instance           = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -163,10 +165,11 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<Pstore>());
     plugins.push_back(make_and_init<SysInfo>());
     plugins.push_back(make_and_init<Ftrace>());
-    plugins.push_back(make_and_init<BootInfo>());
+    plugins.push_back(make_and_init<QLog>());
     plugins.push_back(make_and_init<TaskSched>());
     plugins.push_back(make_and_init<SF>(Swap::instance));
     plugins.push_back(make_and_init<Journal>(Swap::instance));
+    plugins.push_back(make_and_init<T32>());
     std::cout << "\033[32m"
             << std::fixed << std::setprecision(6)
             << "[Load] Constructor: " << total_construct_time.count() << " s, "

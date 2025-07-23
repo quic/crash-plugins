@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -42,4 +42,10 @@ DEFINE_EVENT(dwc3_gadget_giveback)
 DEFINE_EVENT(dwc3_gadget_ep_cmd)
 DEFINE_EVENT(dwc3_event)
 DEFINE_EVENT(dwc3_complete_trb)
+DEFINE_EVENT(rwmmio_read)
+DEFINE_EVENT(rwmmio_write)
+DEFINE_EVENT(rwmmio_post_read)
+DEFINE_EVENT(rwmmio_post_write)
+DEFINE_EVENT(gpio_value)
+DEFINE_EVENT(gpio_direction)
 #endif // EVENTS_DEFS_H_

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -81,6 +81,48 @@ void kernel_stack_event::handle(ulong addr,std::ostringstream& oss){
 
 void user_stack_event::handle(ulong addr,std::ostringstream& oss){
     oss << std::left << "skipped user_stack_event";
+}
+
+void gpio_value_event::handle(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"gpio");
+    std::shared_ptr<trace_field> filed_ptr = field_maps["get"];
+    int get = plugin_ptr->read_int(addr + filed_ptr->offset,"get");
+    if (get){
+        oss << std::left << "get";
+    }else{
+        oss << std::left << "set";
+    }
+    oss << std::left << " ";
+    print_trace_field(addr, oss,"value");
+}
+
+void gpio_direction_event::handle(ulong addr,std::ostringstream& oss){
+    print_trace_field(addr, oss,"gpio");
+    std::shared_ptr<trace_field> filed_ptr = field_maps["in"];
+    int in = plugin_ptr->read_int(addr + filed_ptr->offset,"in");
+    if (in){
+        oss << std::left << "in";
+    }else{
+        oss << std::left << "out";
+    }
+    oss << std::left << " ";
+    print_trace_field(addr, oss,"err");
+}
+
+void rwmmio_read_event::handle(ulong addr,std::ostringstream& oss){
+    print_rwmmio_event(addr,oss);
+}
+
+void rwmmio_write_event::handle(ulong addr,std::ostringstream& oss){
+    print_rwmmio_event(addr,oss);
+}
+
+void rwmmio_post_write_event::handle(ulong addr,std::ostringstream& oss){
+    print_post_rwmmio_event(addr,oss);
+}
+
+void rwmmio_post_read_event::handle(ulong addr,std::ostringstream& oss){
+    print_post_rwmmio_event(addr,oss);
 }
 
 void binder_return_event::handle(ulong addr,std::ostringstream& oss){

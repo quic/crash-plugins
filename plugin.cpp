@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -927,6 +927,36 @@ ulonglong ParserPlugin::read_structure_field(ulong addr,const std::string& type,
             result = ULONG(buf);
     }
     FREEBUF(buf);
+    return result;
+}
+
+std::string ParserPlugin::read_long_string(ulong kvaddr, const std::string& note, bool virt) {
+    // mm_vmscan_direct_reclaim_begin
+    char strbuf[MIN_PAGE_SIZE + 1] = {0};
+    std::string result;
+    ulong kp = kvaddr;
+    while (true) {
+        int page_offset = kp & (MIN_PAGE_SIZE - 1);
+        int max_read = MIN_PAGE_SIZE - page_offset;
+        BZERO(strbuf, sizeof(strbuf));
+        if (!readmem(kp, virt ? KVADDR : PHYSADDR, strbuf, max_read,
+                     TO_CONST_STRING(note.c_str()), QUIET | RETURN_ON_ERROR)) {
+            return std::string();
+        }
+        int actual_len = strnlen(strbuf, max_read);
+        if (actual_len == 0) {
+            break;  // avoid stuck at loop
+        }
+        result.append(strbuf, actual_len);
+        kp += actual_len;
+        if (actual_len < max_read) {
+            break;  // \0
+        }
+        if (result.size() > 1 << 20) {  // < 1MB
+            fprintf(fp, "Warning: string too long at address %#lx\n", kvaddr);
+            break;
+        }
+    }
     return result;
 }
 
