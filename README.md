@@ -159,7 +159,7 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
      - Add your header file.
        ```
        /**
-       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
        *
        * This program is free software; you can redistribute it and/or modify
        * it under the terms of the GNU General Public License version 2 and
@@ -193,7 +193,7 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
      - Implement your parser in cpp file.
        ```
        /**
-       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
        *
        * This program is free software; you can redistribute it and/or modify
        * it under the terms of the GNU General Public License version 2 and
@@ -265,7 +265,7 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
    - Add your header file.
        ```
        /**
-       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
        *
        * This program is free software; you can redistribute it and/or modify
        * it under the terms of the GNU General Public License version 2 and
@@ -299,7 +299,7 @@ binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:
     - Register your parser using DEFINE_PLUGIN_COMMAND(Demo) in your cpp file.
        ```
        /**
-       * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
        *
        * This program is free software; you can redistribute it and/or modify
        * it under the terms of the GNU General Public License version 2 and
