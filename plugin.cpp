@@ -964,9 +964,13 @@ std::string ParserPlugin::read_cstring(ulong addr,int len, const std::string& no
     char res[len];
     if (!readmem(addr, (virt ? KVADDR : PHYSADDR), res, len, TO_CONST_STRING(note.c_str()), RETURN_ON_ERROR|QUIET)) {
         fprintf(fp, "Can't read %s at %lx\n",TO_CONST_STRING(note.c_str()), addr);
-        return nullptr;
+        return "";
     }
-    return std::string(res);
+    try{
+        return std::string(res);
+    }catch(const std::exception& e){
+        return "";
+    }
 }
 
 bool ParserPlugin::read_bool(ulong addr,const std::string& note,bool virt){

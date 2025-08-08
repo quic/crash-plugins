@@ -829,13 +829,13 @@ std::shared_ptr<trace_field> Ftrace:: parser_event_field(ulong addr){
     field_ptr->filter_type = read_int(addr + field_offset(ftrace_event_field,filter_type),"filter_type");
     ulong name_addr = read_pointer(addr + field_offset(ftrace_event_field,name),"name addr");
     if (is_kvaddr(name_addr)) {
-        field_ptr->name = read_cstring(name_addr,4096, "name");
+        field_ptr->name = read_cstring(name_addr,512, "name");
     }else{
         field_ptr->name = "";
     }
     ulong type_addr = read_pointer(addr + field_offset(ftrace_event_field,type),"type addr");
     if (is_kvaddr(type_addr)) {
-        field_ptr->type = read_cstring(type_addr,4096, "type");
+        field_ptr->type = read_cstring(type_addr,512, "type");
     }else{
         field_ptr->type = "";
     }
