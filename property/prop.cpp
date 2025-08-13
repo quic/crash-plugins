@@ -128,7 +128,7 @@ void Prop::print_propertys(){
     size_t index = 1;
     std::ostringstream oss;
     for (const auto& pair : prop_map) {
-        oss << "[" << std::setw(4) << std::setfill('0') << index << "]"
+        oss << "[" << std::setw(4) << std::right << std::setfill('0') << std::dec << index << "]"
             << std::left << std::setw(max_len) << std::setfill(' ') << pair.first << " "
             << std::left << pair.second
             << "\n";
