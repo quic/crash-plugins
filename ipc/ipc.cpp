@@ -135,8 +135,11 @@ void IPCLog::print_ipc_log(std::string name){
         if (log_ptr->logs.size() == 0){
             parser_ipc_log_page(log_ptr);
         }
-        for (const auto& log : log_ptr->logs){
-            fprintf(fp, "%s",log.c_str());
+        for (auto& log : log_ptr->logs){
+            while (log.back() == ' ' || log.back() == '\n' || log.back() == '\r'){
+                log.pop_back();
+            }
+            fprintf(fp, "%s\n",log.c_str());
         }
     }
 }
