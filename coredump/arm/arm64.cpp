@@ -24,12 +24,30 @@ Arm64::Arm64(std::shared_ptr<Swapinfo> swap) : Core(swap){
     field_init(thread_struct, sctlr_user);
     field_init(thread_struct, mte_ctrl);
     field_init(thread_struct, uw);
+    field_init(thread_struct, tpidr2_el0);
+    field_init(pt_regs, syscallno);
 }
 
 Arm64::~Arm64(){
 
 }
 
+/*
+see aarch64_regsets in arch/arm64/kernel/ptrace.c
+for arm64, we only have the below regsets.
+NT_PRSTATUS
+NT_PRFPREG
+NT_ARM_TLS
+NT_ARM_HW_BREAK
+NT_ARM_HW_WATCH
+NT_ARM_SYSTEM_CALL
+NT_ARM_SVE
+NT_ARM_PAC_MASK
+NT_ARM_PAC_ENABLED_KEYS
+NT_ARM_PACA_KEYS
+NT_ARM_PACG_KEYS
+NT_ARM_TAGGED_ADDR_CTRL
+*/
 void* Arm64::parser_nt_arm_vfp(ulong task_addr) {
     return nullptr;
 }
@@ -41,6 +59,8 @@ void* Arm64::parser_nt_prfpreg(ulong task_addr) {
     ulong fpsimd_state_addr = task_addr + field_offset(task_struct, thread) + field_offset(thread_struct, uw) + sizeof(unsigned long) /*tp_value*/ + sizeof(unsigned long) /*tp2_value*/;
     if(!read_struct(fpsimd_state_addr, uregs, sizeof(struct user_fpsimd_state),"parser_nt_prfpreg uregs")){
         fprintf(fp, "fpr_get failed \n");
+        std::free(uregs);
+        return nullptr;
     }
     if (debug){
         fprintf(fp,  "\n\nNT_PRFPREG: task_addr:%#lx \n", task_addr);
@@ -50,7 +70,18 @@ void* Arm64::parser_nt_prfpreg(ulong task_addr) {
 }
 
 void* Arm64::parser_nt_arm_tls(ulong task_addr) {
-    return nullptr;
+    tls_t *tls = (tls_t *)std::malloc(sizeof(tls_t));
+    BZERO(tls, sizeof(tls_t));
+    ulong tp_value_addr = task_addr + field_offset(task_struct, thread) + field_offset(thread_struct, uw);
+    ulong tpidr2_el0_addr = task_addr + field_offset(task_struct, thread) + field_offset(thread_struct, tpidr2_el0);
+
+    tls->tp_value = read_ulong(tp_value_addr, "uw tp_value");
+    tls->tpidr2_el0 = read_ulonglong(tpidr2_el0_addr, "tpidr2_el0");
+    if (debug){
+        fprintf(fp,  "\n\nNT_ARM_TLS: task_addr:%#lx \n", task_addr);
+        fprintf(fp, "%s", hexdump(0x1000,(char*)tls, sizeof(tls_t)).c_str());
+    }
+    return tls;
 }
 
 void* Arm64::parser_nt_arm_hw_break(ulong task_addr) {
@@ -62,7 +93,20 @@ void* Arm64::parser_nt_arm_hw_watch(ulong task_addr) {
 }
 
 void* Arm64::parser_nt_arm_system_call(ulong task_addr) {
-    return nullptr;
+    size_t data_len = sizeof(int);
+    char *sys_call = (char*)std::malloc(data_len);
+    BZERO(sys_call, data_len);
+
+    ulong pt_regs_addr = GET_STACKTOP(task_addr) - machdep->machspec->user_eframe_offset;
+    ulong syscallno_addr = pt_regs_addr + field_offset(pt_regs, syscallno);
+    int syscallno = read_int(syscallno_addr, "syscallno");
+    memcpy(sys_call, &syscallno, data_len);
+
+    if (debug) {
+        fprintf(fp, "\n\nNT_ARM_SYSTEM_CALL: task_addr:%#lx \n", task_addr);
+        fprintf(fp, "%s", hexdump(0x1000, sys_call, sizeof(int)).c_str());
+    }
+    return sys_call;
 }
 
 void* Arm64::parser_nt_arm_sve(ulong task_addr) {
@@ -105,12 +149,65 @@ void* Arm64::parser_nt_arm_pac_enabled_keys(ulong task_addr) {
     return retval;
 }
 
+void Arm64::pac_address_keys_to_user(struct user_pac_address_keys *ukeys,
+                                     const struct ptrauth_keys_user *keys){
+    ukeys->apiakey[0] = keys->apia.lo;
+    ukeys->apiakey[1] = keys->apia.hi;
+
+    ukeys->apibkey[0] = keys->apib.lo;
+    ukeys->apibkey[1] = keys->apib.hi;
+
+    ukeys->apdakey[0] = keys->apda.lo;
+    ukeys->apdakey[1] = keys->apda.hi;
+
+    ukeys->apdbkey[0] = keys->apdb.lo;
+    ukeys->apdbkey[1] = keys->apdb.hi;
+}
+
 void* Arm64::parser_nt_arm_paca_keys(ulong task_addr) {
-    return nullptr;
+    size_t data_len = sizeof(struct user_pac_address_keys);
+    struct user_pac_address_keys* user_keys = (struct user_pac_address_keys*)std::malloc(data_len);
+    BZERO(user_keys, data_len);
+
+    struct ptrauth_keys_user keys;
+    ulong keys_user_addr = task_addr + field_offset(task_struct, thread) + field_offset(thread_struct, keys_user);
+    if(!read_struct(keys_user_addr, &keys, sizeof(struct ptrauth_keys_user),"parser_nt_arm_paca_keys keys_user")){
+        fprintf(fp, "get user_pac_address_keys failed \n");
+        std::free(user_keys);
+        return nullptr;
+    }
+    pac_address_keys_to_user(user_keys, &keys);
+    if (debug){
+        fprintf(fp,  "\n\nNT_ARM_PACA_KEYS:\n");
+        fprintf(fp, "%s", hexdump(0x1000, (char*)user_keys, data_len).c_str());
+    }
+    return user_keys;
+}
+
+void Arm64::pac_generic_keys_to_user(struct user_pac_generic_keys *ukeys,
+                                     const struct ptrauth_keys_user *keys) {
+    ukeys->apgakey[0] = keys->apga.lo;
+    ukeys->apgakey[1] = keys->apga.hi;
 }
 
 void* Arm64::parser_nt_arm_pacg_keys(ulong task_addr) {
-    return nullptr;
+    size_t data_len = sizeof(struct user_pac_generic_keys);
+    struct user_pac_generic_keys* user_keys = (struct user_pac_generic_keys*)std::malloc(data_len);
+    BZERO(user_keys, data_len);
+
+    struct ptrauth_keys_user keys;
+    ulong keys_user_addr = task_addr + field_offset(task_struct, thread) + field_offset(thread_struct, keys_user);
+    if(!read_struct(keys_user_addr, &keys, sizeof(struct ptrauth_keys_user),"parser_nt_arm_paca_keys keys_user")){
+        fprintf(fp, "get user_pac_generic_keys failed \n");
+        std::free(user_keys);
+        return nullptr;
+    }
+    pac_generic_keys_to_user(user_keys, &keys);
+    if (debug){
+        fprintf(fp,  "\n\nNT_ARM_PACG_KEYS:\n");
+        fprintf(fp, "%s", hexdump(0x1000, (char*)user_keys, data_len).c_str());
+    }
+    return user_keys;
 }
 
 void* Arm64::parser_nt_arm_tagged_addr_ctrl(ulong task_addr) {
@@ -155,6 +252,8 @@ void* Arm64::parser_prstatus(ulong task_addr,int* data_size) {
     ulong pt_regs_addr = GET_STACKTOP(task_addr) - machdep->machspec->user_eframe_offset;
     if(!read_struct(pt_regs_addr, &prstatus->pr_reg, sizeof(struct user_pt_regs),"gpr64_get user_pt_regs")){
         fprintf(fp, "get user_pt_regs failed \n");
+        std::free(prstatus);
+        return nullptr;
     }
     *data_size = data_len;
     if (debug){

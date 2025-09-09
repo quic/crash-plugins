@@ -29,7 +29,7 @@ void Coredump::cmd_main(void) {
     std::string cppString;
     Core::cmd_flags = 0;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "p:m:l:s:rf")) != EOF) {
+    while ((c = getopt(argcnt, args, "p:m:l:s:d:rf")) != EOF) {
         switch(c) {
             case 'p':
                 cppString.assign(optarg);
@@ -51,6 +51,9 @@ void Coredump::cmd_main(void) {
                 break;
             case 's':
                 Core::symbols_path.assign(optarg);
+                break;
+            case 'd':
+                Core::output_path.assign(optarg);
                 break;
             case 'l':
                 cppString.assign(optarg);

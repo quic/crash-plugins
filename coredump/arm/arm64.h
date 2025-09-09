@@ -70,7 +70,37 @@ struct elf64_prstatus {
     int pr_fpvalid;
 };
 
+struct ptrauth_key {
+    unsigned long lo;
+    unsigned long hi;
+};
+
+struct ptrauth_keys_user {
+    struct ptrauth_key apia;
+    struct ptrauth_key apib;
+    struct ptrauth_key apda;
+    struct ptrauth_key apdb;
+    struct ptrauth_key apga;
+};
+
+struct user_pac_address_keys {
+    // __uint128_t
+    __ull apiakey;
+    __ull apibkey;
+    __ull apdakey;
+    __ull apdbkey;
+};
+
+struct user_pac_generic_keys {
+    // __uint128_t
+    __ull apgakey;
+};
+
 class Arm64 : public Core {
+private:
+    void pac_generic_keys_to_user(user_pac_generic_keys *ukeys, const ptrauth_keys_user *keys);
+    void pac_address_keys_to_user(user_pac_address_keys *ukeys, const ptrauth_keys_user *keys);
+
 public:
     Arm64(std::shared_ptr<Swapinfo> swap);
     ~Arm64();

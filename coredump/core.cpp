@@ -20,6 +20,7 @@
 
 int Core::cmd_flags = 0;
 std::string Core::symbols_path;
+std::string Core::output_path;
 
 void Core::cmd_main(void) {}
 
@@ -73,10 +74,27 @@ Core::~Core(){
 void Core::parser_core_dump(void) {
     tc = pid_to_context(core_pid);
     std::stringstream ss = get_curpath();
+    if (!Core::output_path.empty()) {
+        struct stat info;
+        if (stat(Core::output_path.c_str(), &info) == 0) {
+            ss.str("");
+            ss.clear();
+            ss << Core::output_path;
+        } else {
+            fprintf(fp, "Can't access %s\n", Core::output_path.c_str());
+            Core::symbols_path.clear();
+            Core::output_path.clear();
+            task_ptr.reset();
+            return;
+        }
+    }
     ss << "/core." << std::dec << tc->pid << "." << tc->comm;
     corefile = fopen(ss.str().c_str(), "wb");
     if (!corefile) {
         fprintf(fp, "Can't open %s\n", ss.str().c_str());
+        Core::symbols_path.clear();
+        Core::output_path.clear();
+        task_ptr.reset();
         return;
     }
     task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
@@ -95,6 +113,7 @@ void Core::parser_core_dump(void) {
     write_core_file();
     fprintf(fp, "\ncore_path:%s \n", ss.str().c_str());
     Core::symbols_path.clear();
+    Core::output_path.clear();
     task_ptr.reset();
 }
 
@@ -564,73 +583,73 @@ void Core::parser_thread_core_info() {
                 thread_ptr->prstatus_ptr = note_ptr;
                 break;
             case NT_PRFPREG:
-                note_ptr->name = "LINUX";
+                note_ptr->name = "CORE";
                 note_ptr->type = NT_PRFPREG;
                 note_ptr->data = parser_nt_prfpreg(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_VFP:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_VFP;
                 note_ptr->data = parser_nt_arm_vfp(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_TLS:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_TLS;
                 note_ptr->data = parser_nt_arm_tls(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_HW_BREAK:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_HW_BREAK;
                 note_ptr->data = parser_nt_arm_hw_break(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_HW_WATCH:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_HW_WATCH;
                 note_ptr->data = parser_nt_arm_hw_watch(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_SYSTEM_CALL:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_SYSTEM_CALL;
                 note_ptr->data = parser_nt_arm_system_call(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_SVE:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_SVE;
                 note_ptr->data = parser_nt_arm_sve(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_PAC_MASK:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_PAC_MASK;
                 note_ptr->data = parser_nt_arm_pac_mask(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_PAC_ENABLED_KEYS:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_PAC_ENABLED_KEYS;
                 note_ptr->data = parser_nt_arm_pac_enabled_keys(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_PACA_KEYS:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_PACA_KEYS;
                 note_ptr->data = parser_nt_arm_paca_keys(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_PACG_KEYS:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_PACG_KEYS;
                 note_ptr->data = parser_nt_arm_pacg_keys(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
                 break;
             case NT_ARM_TAGGED_ADDR_CTRL:
-                note_ptr->name = "CORE";
+                note_ptr->name = "LINUX";
                 note_ptr->type = NT_ARM_TAGGED_ADDR_CTRL;
                 note_ptr->data = parser_nt_arm_tagged_addr_ctrl(thread_addr);
                 note_ptr->datasz = regset_ptr->n * regset_ptr->size;
@@ -676,7 +695,7 @@ void Core::parser_nt_file() {
             std::string filepath;
             if(SearchFile(Core::symbols_path, vma->name, filepath)){
                 lib_list.insert(vma->name);
-	        }
+            }
         }
         vma->name += '\0';
         total_filename_size += vma->name.size();
@@ -1003,7 +1022,7 @@ void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
     /*
        we can see the comment as below in GDB.
        at_phdr is real address in memory. pt_phdr is what pheader says it is.
-	   Relocation offset is the difference between the two.
+       Relocation offset is the difference between the two.
        sect_addr = sect_addr + (at_phdr - pt_phdr);
     */
     write_phdr(PT_PHDR, hdr_size, hdr_size, 0, page_size, PF_R, 0x8);

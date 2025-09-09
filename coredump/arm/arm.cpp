@@ -32,6 +32,13 @@ Arm::~Arm(){
 
 }
 
+/*
+see arm_regsets in arch/arm/kernel/ptrace.c
+for arm, we only have the below regsets.
+NT_PRSTATUS
+NT_PRFPREG
+NT_ARM_VFP
+*/
 void* Arm::parser_nt_arm_vfp(ulong task_addr) {
     size_t data_len = sizeof(struct user_vfp);
     struct user_vfp* vfp = (struct user_vfp*)std::malloc(data_len);
@@ -42,6 +49,8 @@ void* Arm::parser_nt_arm_vfp(ulong task_addr) {
             + field_offset(vfp_hard_struct, fpregs);
     if(!read_struct(fpregs_addr, &vfp->fpregs, field_size(vfp_hard_struct, fpregs),"parser_nt_arm_vfp fpregs")){
         fprintf(fp, "get fpregs failed \n");
+        std::free(vfp);
+        return nullptr;
     }
     ulong fpscr_addr = task_addr + field_offset(task_struct, thread_info)
             + field_offset(thread_info, vfpstate)
@@ -62,6 +71,8 @@ void* Arm::parser_nt_prfpreg(ulong task_addr) {
     ulong fpstate_addr = task_addr + field_offset(task_struct, thread_info) + field_offset(thread_info, fpstate);
     if(!read_struct(fpstate_addr, ufp, sizeof(*ufp),"parser_nt_prfpreg fpstate")){
         fprintf(fp, "get fpstate failed \n");
+        std::free(ufp);
+        return nullptr;
     }
     if (debug){
         fprintf(fp,  "\n\nNT_PRFPREG:\n");
@@ -125,6 +136,8 @@ void* Arm::parser_prstatus(ulong task_addr,int* data_size) {
     ulong pt_regs_addr = GET_STACKTOP(task_addr) - 8 - sizeof(struct arm32_pt_regs);
     if(!read_struct(pt_regs_addr, &prstatus->pr_reg, sizeof(struct arm32_pt_regs),"gpr64_get user_pt_regs")){
         fprintf(fp, "get pt_regs failed \n");
+        std::free(prstatus);
+        return nullptr;
     }
     *data_size = data_len;
     if (debug){

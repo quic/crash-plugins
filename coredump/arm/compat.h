@@ -28,11 +28,6 @@ typedef int old_time32_t;
 typedef unsigned short __compat_uid_t;
 typedef unsigned short __compat_gid_t;
 
-struct compat_user_fpsimd_state { // VFP_STATE_SIZE
-    __ull/*__uint128_t*/ vregs[16];
-    unsigned int   fpsr;
-};
-
 struct compat_elf_siginfo
 {
     compat_int_t si_signo;
