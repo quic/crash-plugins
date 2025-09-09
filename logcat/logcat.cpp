@@ -806,7 +806,7 @@ void Logcat::parser_system_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, u
 //  ==============================================================================================================================
 //  |   tagindex   |          EVENT_TYPE_LIST        |   EVENT_TYPE_INT  |   value    | EVENT_TYPE_STRING |    len    |   value  |
 //  ==============================================================================================================================
-//  			   |sizeof(uint8_t) + sizeof(uint8_t)| sizeof(uint8_t) + sizeof(value)| sizeof(uint8_t) + sizeof(uint32_t) + len  |
+//                 |sizeof(uint8_t) + sizeof(uint8_t)| sizeof(uint8_t) + sizeof(value)| sizeof(uint8_t) + sizeof(uint32_t) + len  |
 void Logcat::parser_event_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, uint16_t msg_len){
     if (!logbuf) {
         return;

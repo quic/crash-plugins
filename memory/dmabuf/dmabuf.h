@@ -92,6 +92,7 @@ public:
     void init_command(void) override;
     void print_dma_buf(std::string addr);
     void print_dma_buf_list();
+    void print_dma_buf_info();
     void print_procs();
     void print_proc(ulong pid);
     void save_dma_buf(std::string addr);

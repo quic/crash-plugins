@@ -39,8 +39,11 @@ void DmaIon::cmd_main(void) {
             heap_ptr = std::make_shared<IonHeap>(dmabuf_ptr);
         }
     }
-    while ((c = getopt(argcnt, args, "bB:hH:pP:sS:")) != EOF) {
+    while ((c = getopt(argcnt, args, "abB:hH:pP:sS:")) != EOF) {
         switch(c) {
+            case 'a':
+                dmabuf_ptr->print_dma_buf_info();
+                break;
             case 'b':
                 dmabuf_ptr->print_dma_buf_list();
                 break;

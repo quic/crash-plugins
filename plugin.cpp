@@ -444,7 +444,7 @@ std::vector<ulong> ParserPlugin::for_each_list(ulong list_head,int offset){
     }
     struct list_data ld;
     BZERO(&ld, sizeof(struct list_data));
-    ld.flags |= LIST_ALLOCATE;
+    ld.flags |= (LIST_ALLOCATE|RETURN_ON_LIST_ERROR);
     /*
     case : invalid list entry: 4000000000000000
     readflag = ld->flags & RETURN_ON_LIST_ERROR ? (RETURN_ON_ERROR|QUIET) : FAULT_ON_ERROR; in tools.c

@@ -1147,7 +1147,7 @@ void Ftrace::write_printk_data(){
 }
 
 void Ftrace::write_kallsyms_data(){
-	struct syment *sp;
+    struct syment *sp;
     std::vector<char> sym_buf;
     size_t pos = 0;
     for (sp = st->symtable; sp < st->symend; sp++){
@@ -1180,7 +1180,7 @@ void Ftrace::save_proc_kallsyms_mod_v6_4(std::vector<char>& buf, size_t& pos){
                 write_to_buf(buf, pos, "%lx %c %s\t[%s]\n",  sp->value, 'm', sp->name, lm->mod_name);
             }
         }
-	}
+    }
 }
 
 void Ftrace::save_proc_kallsyms_mod_legacy(std::vector<char>& buf, size_t& pos){

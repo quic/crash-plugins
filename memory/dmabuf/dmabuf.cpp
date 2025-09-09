@@ -258,8 +258,6 @@ void Dmabuf::get_proc_info(std::shared_ptr<dma_buf> buf_ptr){
     }
 }
 
-
-
 std::vector<std::shared_ptr<attachment>> Dmabuf::parser_attachments(ulong list_head){
     std::vector<std::shared_ptr<attachment>> res;
     int offset = field_offset(dma_buf_attachment,node);
@@ -297,6 +295,35 @@ std::vector<std::shared_ptr<attachment>> Dmabuf::parser_attachments(ulong list_h
         res.push_back(attach_ptr);
     }
     return res;
+}
+
+void Dmabuf::print_dma_buf_info(){
+    if (buf_list.size() == 0){
+        return;
+    }
+    std::sort(buf_list.begin(), buf_list.end(),[&](const std::shared_ptr<dma_buf>& a, const std::shared_ptr<dma_buf>& b){
+        return a->size > b->size;
+    });
+    std::ostringstream oss;
+    oss << "Dma-buf Objects: \n";
+    for (const auto& dma_buf : buf_list) {
+        oss << std::left <<  "  "
+            << std::left << std::setw(10)   << "Size" << " "
+            << std::left << std::setw(5)    << "Ref" << " "
+            << std::left << std::setw(25)   << "Exp_name" << " "
+            << std::left << std::setw(25)   << "Name" << "\n";
+        oss << std::left <<  "  "
+            << std::left << std::setw(10)   << csize(dma_buf->size) << " "
+            << std::left << std::setw(5)    << dma_buf->f_count << " "
+            << std::left << std::setw(25)   << dma_buf->exp_name << " "
+            << std::left << std::setw(25)   << dma_buf->name << "\n";
+        oss << "        Attached Devices: \n";
+        for (const auto& attach : dma_buf->attachments) {
+            oss << std::left << "        " << attach->device_name << "\n";
+        }
+        oss << "  Total " << dma_buf->attachments.size() << " devices attached \n\n";
+    }
+    fprintf(fp, "%s \n",oss.str().c_str());
 }
 
 void Dmabuf::print_dma_buf_list(){
