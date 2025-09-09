@@ -143,6 +143,19 @@ void Slub::init_offset(void) {
     struct_init(atomic_t);
     struct_init(track);
     struct_init(stack_record);
+    if (get_enumerator_list("_slab_flag_bits").size() > 0){
+        SLAB_RED_ZONE = 1U << read_enum_val("_SLAB_RED_ZONE");
+        SLAB_POISON = 1U << read_enum_val("_SLAB_POISON");
+        SLAB_STORE_USER = 1U << read_enum_val("_SLAB_STORE_USER");
+        OBJECT_POISON = 1U << read_enum_val("_SLAB_OBJECT_POISON");
+        SLAB_KMALLOC = 1U << read_enum_val("_SLAB_KMALLOC");
+    }else{
+        SLAB_RED_ZONE = 0x400;
+        SLAB_POISON = 0x800;
+        SLAB_STORE_USER = 0x10000;
+        OBJECT_POISON = 0x80000000;
+        SLAB_KMALLOC = 0x00001000;
+    }
 }
 
 void Slub::init_command(void) {

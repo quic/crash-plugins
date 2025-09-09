@@ -20,11 +20,6 @@
 // #include <unordered_set>
 
 /* Poison */
-#define SLAB_RED_ZONE 0x400
-#define SLAB_POISON 0x800
-#define SLAB_STORE_USER 0x10000
-#define OBJECT_POISON 0x80000000
-#define SLAB_KMALLOC 0x00001000
 #define SLUB_RED_INACTIVE 0xbb
 #define SLUB_RED_ACTIVE 0xcc
 #define POISON_INUSE 0x5a
@@ -145,6 +140,11 @@ private:
     ulong max_pfn;
     ulong depot_index;
     ulong stack_slabs;
+    uint SLAB_RED_ZONE;
+    uint SLAB_POISON;
+    uint SLAB_STORE_USER;
+    uint OBJECT_POISON;
+    uint SLAB_KMALLOC;
     // std::unordered_set<size_t> unique_hash;
 
     void parser_slab_caches();
