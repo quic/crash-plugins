@@ -15,6 +15,7 @@
 
 #include "dmabuf.h"
 #include "cmd_buf.h"
+#include <limits>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -179,13 +180,17 @@ void Dmabuf::parser_sg_table(std::shared_ptr<dma_buf> buf_ptr){
         return;
     }
     ulong sgl_addr = read_pointer(buf_ptr->sg_table + field_offset(sg_table,sgl),"sgl");
-    int cnt = read_uint(buf_ptr->sg_table + field_offset(sg_table,nents),"nents");
-    // fprintf(fp, "sg_table:%lx \n",buf_ptr->sg_table);
+    uint32_t cnt = read_uint(buf_ptr->sg_table + field_offset(sg_table,nents),"nents");
+    if (cnt >= std::numeric_limits<unsigned int>::max()){
+        return;
+    }
+    std::set<ulong> sgl_map;
+    // fprintf(fp, "sg_table:%lx cnt:%d \n",buf_ptr->sg_table,cnt);
     while (is_kvaddr(sgl_addr) && cnt){
         cnt -= 1;
-        std::shared_ptr<scatterlist> sgl_ptr = std::make_shared<scatterlist>();
         void *sgl_buf = read_struct(sgl_addr,"scatterlist");
-        if(sgl_buf == nullptr) continue;
+        if(sgl_buf == nullptr) break;
+        std::shared_ptr<scatterlist> sgl_ptr = std::make_shared<scatterlist>();
         sgl_ptr->addr = sgl_addr;
         sgl_ptr->offset = UINT(sgl_buf + field_offset(scatterlist,offset));
         sgl_ptr->length = UINT(sgl_buf + field_offset(scatterlist,length));
@@ -197,9 +202,14 @@ void Dmabuf::parser_sg_table(std::shared_ptr<dma_buf> buf_ptr){
         if (sgl_ptr->page_link == 0){
             break;
         }
+        sgl_map.insert(sgl_addr);
         sgl_addr = sg_next(sgl_addr,sgl_ptr->page_link);
         buf_ptr->sgl_list.push_back(sgl_ptr);
+        if (sgl_map.find(sgl_addr) != sgl_map.end()) {
+            break;
+        }
     }
+    sgl_map.clear();
 }
 
 void Dmabuf::get_dmabuf_from_proc(){
