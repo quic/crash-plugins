@@ -60,8 +60,6 @@ struct arm32_pt_regs{
     unsigned long ORIG_r0;
 };
 
-#define ARM_VFPREGS_SIZE ( 32 * 8 /*fpregs*/ + 4 /*fpscr*/ )
-
 struct elf32_prstatus {
     struct elf_siginfo pr_info;
     short pr_cursig;

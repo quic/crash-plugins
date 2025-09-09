@@ -54,9 +54,6 @@
 
 #define FAKE_AUXV_PHDR 0x100000
 
-typedef unsigned long long __ull[2];
-
-
 /*
                                         +--------------------------------+
                                         |           ELF Header           |
@@ -100,6 +97,7 @@ typedef unsigned long long __ull[2];
                                         +--------------------------------+
 */
 
+typedef unsigned long long __ull[2];
 
 #ifndef IS_ARM
 struct elf_prpsinfo {
@@ -218,6 +216,11 @@ typedef struct {
     ulong prev;
 } linkmap_t;
 
+struct tls_t {
+    unsigned long tp_value;
+    unsigned long long tpidr2_el0;
+};
+
 class Core : public ParserPlugin {
 private:
     void parser_exec_name(ulong addr);
@@ -270,6 +273,7 @@ protected:
 public:
     static int cmd_flags;
     static std::string symbols_path;
+    static std::string output_path;
     static const int CORE_REPLACE_HEAD = 0x0001;
     static const int CORE_FAKE_LINKMAP = 0x0002;
     std::shared_ptr<UTask> task_ptr;

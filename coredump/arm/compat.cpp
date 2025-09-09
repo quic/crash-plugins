@@ -28,29 +28,33 @@ Compat::~Compat(){
 
 }
 
+/*
+see aarch32_regsets in arch/arm64/kernel/ptrace.c
+for compat, we only have the below regsets.
+NT_PRSTATUS
+NT_ARM_VFP
+*/
 void* Compat::parser_nt_arm_vfp(ulong task_addr) {
-    size_t data_len = sizeof(struct user_fpsimd_state);
-    struct user_fpsimd_state* uregs = (struct user_fpsimd_state*)std::malloc(data_len);
-    BZERO(uregs, data_len);
+    size_t data_len = sizeof(struct user_fpsimd_state) + sizeof(compat_ulong_t);
+    compat_ulong_t fpscr;
+    char* buffer = (char *)std::malloc(data_len);
+    BZERO(buffer, data_len);
+
+    struct user_fpsimd_state* uregs = (struct user_fpsimd_state*)buffer;
     ulong fpsimd_state_addr = task_addr + field_offset(task_struct, thread) + field_offset(thread_struct, uw) + sizeof(unsigned long) /*tp_value*/ + sizeof(unsigned long) /*tp2_value*/;
-    if(!read_struct(fpsimd_state_addr, uregs, sizeof(struct user_fpsimd_state),"parser_nt_arm_vfp uregs")){
-        fprintf(fp, "compat_vfp_get failed \n");
+    if(!read_struct(fpsimd_state_addr, uregs, sizeof(struct user_fpsimd_state),"parser_nt_prfpreg uregs")){
+        fprintf(fp, "fpr_get failed \n");
+        std::free(buffer);
+        return nullptr;
     }
-
-    compat_ulong_t fpscr = (uregs->fpsr & VFP_FPSCR_STAT_MASK) | (uregs->fpcr & VFP_FPSCR_CTRL_MASK);
-
-    // task -R thread task_addr -x
-    data_len = sizeof(struct compat_user_fpsimd_state); // VFP_STATE_SIZE
-    struct compat_user_fpsimd_state* to = (struct compat_user_fpsimd_state*)std::malloc(data_len);
-    BZERO(to, data_len);
-    memcpy(to->vregs, uregs->vregs, sizeof(__ull) * 16);
-    to->fpsr = fpscr;
-    std::free(uregs);
+    fpscr = (uregs->fpsr & VFP_FPSCR_STAT_MASK) | (uregs->fpcr & VFP_FPSCR_CTRL_MASK);
+    void* fpscr_ptr = (char*)buffer + sizeof(struct user_fpsimd_state);
+    memcpy(fpscr_ptr, &fpscr, sizeof(compat_ulong_t));
     if (debug){
         fprintf(fp,  "\n\nNT_ARM_VFP: task_addr%#lx: \n", task_addr);
-        fprintf(fp, "%s", hexdump(0x1000,(char*)to, data_len).c_str());
+        fprintf(fp, "%s", hexdump(0x1000, buffer, data_len).c_str());
     }
-    return to;
+    return buffer;
 }
 
 void* Compat::parser_nt_prfpreg(ulong task_addr) {
@@ -116,6 +120,8 @@ void* Compat::parser_prstatus(ulong task_addr,int* data_size) {
     BZERO(&pt_regs_t, sizeof(struct pt_regs));
     if(!read_struct(pt_regs_addr, &pt_regs_t, sizeof(struct pt_regs), "compat_get_user_reg")){
         fprintf(fp, "get compat_get_user_reg failed \n");
+        std::free(prstatus);
+        return nullptr;
     }
     // compat_get_user_reg() in ptrace.c  uint <-> ulong
     for(int i = 0; i < 18; i++){
