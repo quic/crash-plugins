@@ -372,23 +372,26 @@ void Pageowner::print_page_owner(std::string addr,int flags){
 }
 
 void Pageowner::print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_free){
-    uint nr_size = 0;
-    ulong stack_record_addr = 0;
-    ulong entries = 0;
     ulong end_pfn = owner_ptr->pfn + power(2, owner_ptr->order);
     ulong page = pfn_to_page(owner_ptr->pfn);
     if (!is_free){
-        entries = parser_stack_record(owner_ptr->handle,&nr_size,&stack_record_addr);
-        fprintf(fp, "page_owner:%#lx PFN:%#lx~%#lx Page:%#lx Order:%d stack_record:%#lx PID:%zu ts_nsec:%lld\n",
-            owner_ptr->addr,owner_ptr->pfn,end_pfn,page,owner_ptr->order,stack_record_addr,owner_ptr->pid,owner_ptr->ts_nsec);
-        print_stack(entries,nr_size);
-        fprintf(fp, "\n");
+        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(owner_ptr->handle);
+        if (record_ptr != nullptr){
+            fprintf(fp, "page_owner:%#lx PFN:%#lx~%#lx Page:%#lx Order:%d stack_record:%#lx PID:%zu ts_nsec:%lld\n",
+                owner_ptr->addr,owner_ptr->pfn,end_pfn,page,owner_ptr->order,record_ptr->record_addr,owner_ptr->pid,owner_ptr->ts_nsec);
+            std::string stack = get_call_stack(record_ptr);
+            fprintf(fp, "%s \n",stack.c_str());
+            stack_record_page_list.insert(record_ptr->slab_addr & page_mask);
+        }
     }else{
-        entries = parser_stack_record(owner_ptr->free_handle,&nr_size,&stack_record_addr);
-        fprintf(fp, "page_owner:%#lx PFN:%#lx~%#lx Page:%#lx Order:%d stack_record:%#lx PID:%zu free_ts_nsec:%lld\n",
-        owner_ptr->addr,owner_ptr->pfn,end_pfn,page,owner_ptr->order,stack_record_addr,owner_ptr->pid,owner_ptr->free_ts_nsec);
-        print_stack(entries,nr_size);
-        fprintf(fp, "\n");
+        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(owner_ptr->free_handle);
+        if (record_ptr != nullptr){
+            fprintf(fp, "page_owner:%#lx PFN:%#lx~%#lx Page:%#lx Order:%d stack_record:%#lx PID:%zu free_ts_nsec:%lld\n",
+                owner_ptr->addr,owner_ptr->pfn,end_pfn,page,owner_ptr->order,record_ptr->record_addr,owner_ptr->pid,owner_ptr->free_ts_nsec);
+            std::string stack = get_call_stack(record_ptr);
+            fprintf(fp, "%s \n",stack.c_str());
+            stack_record_page_list.insert(record_ptr->slab_addr & page_mask);
+        }
     }
 }
 
@@ -486,10 +489,12 @@ void Pageowner::print_total_size_by_handle(){
         unsigned int handle = pair.first;
         std::shared_ptr<stack_info> stack_ptr = pair.second;
         fprintf(fp, "Allocated %ld times, Total memory: %s\n", stack_ptr->total_cnt, csize(stack_ptr->total_size).c_str());
-        uint nr_size = 0;
-        ulong stack_record_addr = 0;
-        ulong entries = parser_stack_record(handle,&nr_size,&stack_record_addr);
-        print_stack(entries,nr_size);
+        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+        if (record_ptr != nullptr){
+            std::string stack = get_call_stack(record_ptr);
+            fprintf(fp, "%s",stack.c_str());
+            stack_record_page_list.insert(record_ptr->slab_addr & page_mask);
+        }
         print_total_size_by_pid(stack_ptr->owner_list);
         fprintf(fp, "\n");
     }
@@ -518,7 +523,7 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
     std::sort(process_vec.begin(), process_vec.end(),[&](const std::pair<unsigned int, std::shared_ptr<process_info>>& a, const std::pair<unsigned int, std::shared_ptr<process_info>>& b){
         return a.second->total_cnt > b.second->total_cnt;
     });
-    fprintf(fp, "      -------------------------------------------------\n");
+    fprintf(fp, "-------------------------------------------------\n");
     std::ostringstream oss;
     oss << std::left << "      " << std::setw(8) << "PID" << " "
         << std::left << std::setw(20) << "Comm" << " "
@@ -535,26 +540,11 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
         }
         std::shared_ptr<process_info> proc_ptr = process_vec[i].second;
         oss.str("");
-        oss << std::left << "      " << std::setw(8) << pid << " "
+        oss << std::left << std::setw(8) << pid << " "
             << std::left << std::setw(20) << name << " "
             << std::left << std::setw(10) << proc_ptr->total_cnt << " "
             << std::left << std::setw(10) << csize(proc_ptr->total_size);
         fprintf(fp, "%s \n", oss.str().c_str());
-    }
-}
-
-void Pageowner::print_stack(ulong entries,uint nr_size){
-    if (is_kvaddr(entries)){
-        for (size_t i = 0; i < nr_size; i++) {
-            ulong bt_addr = read_ulong(entries + i * sizeof(void *),"stack_record entries");
-            ulong offset;
-            struct syment *sp = value_search(bt_addr, &offset);
-            if (sp) {
-                fprintf(fp, "      [<%lx>] %s+%#lx\n", bt_addr, sp->name, offset);
-            } else {
-                fprintf(fp, "      [<%lx>] %p\n", bt_addr, sp);
-            }
-        }
     }
 }
 
@@ -600,40 +590,6 @@ std::shared_ptr<page_owner> Pageowner::parser_page_owner(ulong addr){
     }
     FREEBUF(page_owner_buf);
     return owner_ptr;
-}
-
-ulong Pageowner::parser_stack_record(uint page_owner_handle,uint* stack_len, ulong* sr_addr){
-    ulong offset;
-    int slabindex;
-    union handle_parts parts = { .handle = page_owner_handle };
-    if (THIS_KERNEL_VERSION >= LINUX(6,8,0)) {
-        offset = parts.v3.offset << DEPOT_STACK_ALIGN;
-        slabindex = parts.v3.pool_index;
-    }else if (THIS_KERNEL_VERSION >= LINUX(6,1,0)) {
-        offset = parts.v2.offset << DEPOT_STACK_ALIGN;
-        slabindex = parts.v2.pool_index;
-    } else {
-        offset = parts.v1.offset << DEPOT_STACK_ALIGN;
-        slabindex = parts.v1.pool_index;
-    }
-    if (slabindex > depot_index) return 0;
-    ulong page_addr = read_pointer(stack_slabs + slabindex * sizeof(void *),"stack_record_page");
-    if (!is_kvaddr(page_addr))return 0;
-    ulong page_start = page_addr & page_mask;
-    stack_record_page_list.insert(page_start);
-
-    ulong stack_record_addr = page_addr + offset;
-    *sr_addr = stack_record_addr;
-    void *record_buf = read_struct(stack_record_addr, "stack_record");
-    if (record_buf == nullptr) return 0;
-    *stack_len = UINT(record_buf + field_offset(stack_record, size));
-    uint record_handle = UINT(record_buf + field_offset(stack_record, handle));
-    ulong entries = stack_record_addr + field_offset(stack_record, entries);
-    if (debug){
-        fprintf(fp, "stack_record:%lx page_owner_handle:%ld record_handle:%ld\n", stack_record_addr, (ulong)page_owner_handle,(ulong)record_handle);
-    }
-    FREEBUF(record_buf);
-    return entries;
 }
 
 void Pageowner::parser_all_pageowners(){

@@ -21,29 +21,6 @@
 /* from mm/page_ext.c */
 #define PAGE_EXT_INVALID    (0x1)
 
-/* from lib/stackdepot.c */
-#define DEPOT_STACK_ALIGN    4
-
-union handle_parts {
-    uint handle;
-    struct {
-        uint pool_index    : 21;
-        uint offset    : 10;
-        uint valid    : 1;
-    } v1;
-    struct {
-        uint pool_index : 16;
-        uint offset    : 10;
-        uint valid    : 1;
-        uint extra    : 5;
-    } v2;    /* 6.1 and later */
-    struct {
-        uint pool_index : 17;
-        uint offset    : 10;
-        uint extra    : 5;
-    } v3;    /* 6.8 and later */
-};
-
 struct page_owner {
     ulong addr;
     ulong pfn;
@@ -93,8 +70,6 @@ private:
     bool is_enable_pageowner();
     void parser_all_pageowners();
     std::shared_ptr<page_owner> parser_page_owner(ulong addr);
-    ulong parser_stack_record(uint handle,uint* stack_len, ulong* page_addr);
-    void print_stack(ulong entries,uint nr_size);
     ulong get_entry(ulong base, ulong pfn);
     bool page_ext_invalid(ulong page_ext);
     ulong lookup_page_ext(ulong page);

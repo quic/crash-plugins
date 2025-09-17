@@ -29,29 +29,6 @@
 #define TRACK_ALLOC 0
 #define TRACK_FREE 1
 
-/* from lib/stackdepot.c */
-#define DEPOT_STACK_ALIGN    4
-
-union handle_parts_v {
-    uint handle;
-    struct {
-        uint pool_index    : 21;
-        uint offset    : 10;
-        uint valid    : 1;
-    } v1;
-    struct {
-        uint pool_index : 16;
-        uint offset    : 10;
-        uint valid    : 1;
-        uint extra    : 5;
-    } v2;    /* 6.1 and later */
-    struct {
-        uint pool_index : 17;
-        uint offset    : 10;
-        uint extra    : 5;
-    } v3;    /* 6.8 and later */
-};
-
 struct obj {
     int index;
     /*
@@ -138,8 +115,7 @@ private:
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> alloc_trace_map;
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> free_trace_map;
     ulong max_pfn;
-    ulong depot_index;
-    ulong stack_slabs;
+    size_t max_name_len = 0;
     uint SLAB_RED_ZONE;
     uint SLAB_POISON;
     uint SLAB_STORE_USER;
@@ -172,7 +148,7 @@ private:
     int check_bytes_and_report(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, ulong obj_start, std::string what, ulong start, uint8_t value, size_t bytes);
     void print_section(std::string text, ulong page_addr, size_t length);
     void print_trailer(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, ulong obj_start);
-    void print_page_info(ulong slab_page_addr);
+    void print_page_info(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr);
     int object_err(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr, ulong object_start, std::string reason);
     int check_object_poison(std::shared_ptr<kmem_cache> cache_ptr, std::shared_ptr<slab> slab_ptr);
     void print_slub_poison(ulong kmem_cache_addr = 0);
@@ -184,7 +160,6 @@ private:
     void print_all_slub_trace(size_t stack_id = 0);
     void parser_slub_trace();
     void print_slub_trace(std::string is_free);
-    ulong parser_stack_record(uint page_owner_handle, uint& stack_len);
     void parser_track(ulong track_addr, std::shared_ptr<track> &track_ptr);
     ulong get_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
     void parser_obj_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
