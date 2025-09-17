@@ -59,38 +59,52 @@ ParserPlugin::ParserPlugin(){
     field_init(list_head, prev);
     field_init(list_head, next);
     struct_init(list_head);
-    field_init(driver_private,driver);
-    field_init(driver_private,klist_devices);
-    field_init(driver_private,knode_bus);
-    field_init(device_private,knode_bus);
-    field_init(device_private,device);
-    field_init(device_private,knode_driver);
-    field_init(device_private,knode_class);
-    field_init(subsys_private,klist_drivers);
-    field_init(subsys_private,klist_devices);
-    field_init(subsys_private,bus);
-    field_init(subsys_private,subsys);
-    field_init(subsys_private,class);
+    field_init(driver_private, driver);
+    field_init(driver_private, klist_devices);
+    field_init(driver_private, knode_bus);
+    field_init(device_private, knode_bus);
+    field_init(device_private, device);
+    field_init(device_private, knode_driver);
+    field_init(device_private, knode_class);
+    field_init(subsys_private, klist_drivers);
+    field_init(subsys_private, klist_devices);
+    field_init(subsys_private, bus);
+    field_init(subsys_private, subsys);
+    field_init(subsys_private, class);
     field_init(klist_node, n_node);
-    field_init(klist,k_list);
-    field_init(device_driver,p);
-    field_init(bus_type,p);
-    field_init(class,p);
-    field_init(class,name);
-    field_init(bus_type,name);
-    field_init(kset,kobj);
-    field_init(kset,list);
+    field_init(klist, k_list);
+    field_init(device_driver, p);
+    field_init(bus_type, p);
+    field_init(class, p);
+    field_init(class, name);
+    field_init(bus_type, name);
+    field_init(kset, kobj);
+    field_init(kset, list);
     field_init(kobject, entry);
-    field_init(char_device_struct,next);
-    field_init(char_device_struct,cdev);
-    field_init(char_device_struct,name);
-    field_init(miscdevice,list);
+    field_init(char_device_struct, next);
+    field_init(char_device_struct, cdev);
+    field_init(char_device_struct, name);
+    field_init(miscdevice, list);
+    field_init(handle_parts, pool_index);
+    field_init(handle_parts, pool_index_plus_1);
     if (BITS64()){
         std::string config = get_config_val("CONFIG_ARM64_VA_BITS");
         int va_bits = std::stoi(config);
         kaddr_mask = GENMASK_ULL((va_bits ? va_bits : 39) - 1, 0);
-    }else{
+    } else {
         kaddr_mask = GENMASK_ULL(32 - 1, 0);
+    }
+    if (csymbol_exists("depot_index")){
+        depot_index = read_int(csymbol_value("depot_index"), "depot_index");
+    } else if (csymbol_exists("pool_index")){
+        depot_index = read_int(csymbol_value("pool_index"), "pool_index");
+    } else if (csymbol_exists("pools_num")){
+        depot_index = read_int(csymbol_value("pools_num"), "pools_num");
+    }
+    if (csymbol_exists("stack_slabs")){
+        stack_slabs = csymbol_value("stack_slabs");
+    } else if (csymbol_exists("stack_pools")){ /* 6.3 and later */
+        stack_slabs = csymbol_value("stack_pools");
     }
     //print_table();
 }
@@ -1399,6 +1413,75 @@ std::stringstream ParserPlugin::get_curpath() {
     return ss;
 }
 
+std::shared_ptr<stack_record_t> ParserPlugin::get_stack_record(uint handle) {
+    ulong offset;
+    int slabindex;
+    if (handle <= 0){
+        return nullptr;
+    }
+    union handle_parts parts = { .handle = handle };
+    if (field_offset(handle_parts, pool_index_plus_1) != -1){
+        offset = parts.v3.offset << DEPOT_STACK_ALIGN;
+        slabindex = parts.v3.pool_index;
+        // https://lore.kernel.org/all/20240402001500.53533-1-pcc@google.com/T/#u
+        slabindex -= 1;
+    } else if (field_offset(handle_parts, pool_index) != -1){
+        offset = parts.v2.offset << DEPOT_STACK_ALIGN;
+        slabindex = parts.v2.pool_index;
+    } else {
+        offset = parts.v1.offset << DEPOT_STACK_ALIGN;
+        slabindex = parts.v1.pool_index;
+    }
+    if (slabindex > depot_index) return nullptr;
+    ulong page_addr = read_pointer(stack_slabs + slabindex * sizeof(void *),"stack_record_page");
+    if (!is_kvaddr(page_addr))return nullptr;
+    std::shared_ptr<stack_record_t> record_ptr = std::make_shared<stack_record_t>();
+    record_ptr->slab_index = slabindex;
+    record_ptr->record_offset = offset;
+    record_ptr->slab_addr = page_addr;
+    record_ptr->record_addr = page_addr + offset;
+    return record_ptr;
+}
+
+std::string ParserPlugin::get_call_stack(std::shared_ptr<stack_record_t> record_ptr) {
+    std::ostringstream oss;
+    if (!is_kvaddr(record_ptr->record_addr)){
+        return oss.str();
+    }
+    if (struct_size(stack_record) == -1){
+        field_init(stack_record,next);
+        field_init(stack_record,size);
+        field_init(stack_record,handle);
+        field_init(stack_record,entries);
+        struct_init(stack_record);
+    }
+    void *record_buf = read_struct(record_ptr->record_addr, "stack_record");
+    if (record_buf == nullptr) return oss.str();
+    uint32_t nr_size = UINT(record_buf + field_offset(stack_record, size));
+    // uint32_t record_handle = UINT(record_buf + field_offset(stack_record, handle));
+    FREEBUF(record_buf);
+    ulong entries = record_ptr->record_addr + field_offset(stack_record, entries);
+    uint32_t entry_len = field_size(stack_record,entries)/sizeof(unsigned long);
+    if (entry_len == 0){
+        entry_len = 64;
+    }
+    if(is_kvaddr(entries) && nr_size < entry_len){
+        for(uint i = 0; i < nr_size; i++){
+            ulong frame_addr = read_pointer(entries + sizeof(unsigned long) * i, "frame_addr");
+            if(is_kvaddr(frame_addr)){
+                struct syment *sp;
+                ulong offset;
+                sp = value_search(frame_addr, &offset);
+                if (sp){
+                    oss << "[<" << std::hex << frame_addr << ">] " << sp->name << "+" << std::hex << offset << std::dec << "\n";
+                } else {
+                    oss << "[<" << std::hex << frame_addr << ">] Unknown\n";
+                }
+            }
+        }
+    }
+    return oss.str();
+}
 
 #if defined(ARM)
 ulong* ParserPlugin::pmd_page_addr(ulong pmd){

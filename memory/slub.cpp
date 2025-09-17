@@ -242,7 +242,6 @@ std::shared_ptr<slab> Slub::parser_slab(std::shared_ptr<kmem_cache> cache_ptr, u
     }
     if(page_buf == nullptr) return nullptr;
     std::shared_ptr<slab> slab_ptr = std::make_shared<slab>();
-    // fprintf(fp, "slab_page_addr:%#lx \n", slab_page_addr);
     if (struct_size(slab) != -1){
         count = ULONG(page_buf + field_offset(slab,counters));
         freelist = ULONG(page_buf + field_offset(slab,freelist));
@@ -366,28 +365,13 @@ std::vector<std::shared_ptr<kmem_cache_cpu>> Slub::parser_kmem_cache_cpu(std::sh
 
 void Slub::parser_slab_caches(){
     cache_list.clear();
-    if (csymbol_exists("depot_index")){
-        depot_index = read_int(csymbol_value("depot_index"),"depot_index");
-    } else if (csymbol_exists("pool_index")){
-        depot_index = read_int(csymbol_value("pool_index"),"pool_index");
-    } else if(csymbol_exists("pools_num")){ /* 6.12 and later */
-        depot_index = read_int(csymbol_value("pools_num"), "pools_num");
-    }
     if (!depot_index){
         fprintf(fp, "cannot get depot_index\n");
         return;
     }
-    if (csymbol_exists("stack_slabs")){
-        stack_slabs = csymbol_value("stack_slabs");
-    } else if (csymbol_exists("stack_pools")){/* 6.3 and later */
-        stack_slabs = csymbol_value("stack_pools");
-    }
     if (!stack_slabs){
         fprintf(fp, "cannot get stack_{pools|slabs}\n");
         return;
-    }
-    if (csymbol_exists("max_pfn")){
-        max_pfn = read_ulong(csymbol_value("max_pfn"),"max_pfn");
     }
     if (!csymbol_exists("slab_caches")){
         fprintf(fp, "slab_caches doesn't exist in this kernel!\n");
@@ -395,8 +379,11 @@ void Slub::parser_slab_caches(){
     }
     ulong slab_caches_addr = csymbol_value("slab_caches");
     if (!is_kvaddr(slab_caches_addr)){
-        fprintf(fp, "invaild slab_caches addr: %lx!\n",slab_caches_addr);
+        fprintf(fp, "invaild slab_caches addr: %#lx!\n",slab_caches_addr);
         return;
+    }
+    if (csymbol_exists("max_pfn")){
+        max_pfn = read_ulong(csymbol_value("max_pfn"),"max_pfn");
     }
     int offset = field_offset(kmem_cache,list);
     for (const auto& cache_addr : for_each_list(slab_caches_addr,offset)) {
@@ -432,6 +419,7 @@ void Slub::parser_slab_caches(){
         cache_list.push_back(cache_ptr);
     }
     for (const auto& cache_ptr : cache_list) {
+        max_name_len = std::max(max_name_len, cache_ptr->name.length());
         for (const auto& node_ptr : cache_ptr->node_list) {
             // count by kernel
             cache_ptr->total_nr_slabs += node_ptr->nr_slabs;
@@ -449,6 +437,8 @@ void Slub::parser_slab_caches(){
         }
         cache_ptr->total_size = cache_ptr->total_nr_objs * cache_ptr->size;
     }
+    max_name_len += 5;
+    fprintf(fp, "SLUB info collection completed. Total kmem_cache found: %zd.\n", cache_list.size());
 }
 
 /* Poison */
@@ -458,7 +448,7 @@ int Slub::object_err(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr
     return 0;
 }
 
-void Slub::print_page_info(ulong slab_page_addr){
+void Slub::print_page_info(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr){
     ulong count;
     if (struct_size(slab) == -1){
         count = read_ulong(slab_page_addr + field_offset(page, counters), "page counters");
@@ -474,7 +464,7 @@ void Slub::print_page_info(ulong slab_page_addr){
         freelist = read_pointer(slab_page_addr + field_offset(slab, freelist), "slab freelist");
     }
     ulong flags = read_ulong(slab_page_addr + field_offset(page, flags), "page flags");
-    fprintf(fp, "INFO: Slab:%#lx objects=%ld used=%ld fp=%#lx flags=%#lx \n", slab_page_addr, objects, inuse, freelist, flags);
+    fprintf(fp, "INFO: Kmem_cache:%#lx Slab:%#lx objects=%ld used=%ld fp=%#lx flags=%#lx \n", cache_ptr->addr, slab_page_addr, objects, inuse, freelist, flags);
 }
 
 void Slub::print_section(std::string text, ulong page_addr, size_t length){
@@ -486,8 +476,8 @@ void Slub::print_section(std::string text, ulong page_addr, size_t length){
 
 void Slub::print_trailer(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr, ulong obj_start){
     ulong slab_vaddr = phy_to_virt(page_to_phy(slab_page_addr));
-    print_page_info(slab_page_addr);
-    fprintf(fp, "Object %#lx @offset=%#lx fp=%#lx\n", obj_start, obj_start - slab_vaddr, get_free_pointer(cache_ptr, obj_start));
+    print_page_info(cache_ptr, slab_page_addr);
+    fprintf(fp, "Object %#lx @offset=%#lx @red_left_pad=%d fp=%#lx\n", obj_start, obj_start - slab_vaddr, cache_ptr->red_left_pad, get_free_pointer(cache_ptr, obj_start));
     if (cache_ptr->flags & SLAB_STORE_USER) {
         print_section("Redzone  ", obj_start - cache_ptr->red_left_pad, cache_ptr->red_left_pad);
     } else if(obj_start > slab_vaddr + 16){
@@ -783,43 +773,6 @@ void Slub::print_all_slub_trace(size_t stack_id){
     fprintf(fp, "%s", oss.str().c_str());
 }
 
-ulong Slub::parser_stack_record(uint page_owner_handle, uint& stack_len){
-    ulong offset;
-    ulong slabindex;
-    union handle_parts_v parts = {.handle = page_owner_handle};
-    if (THIS_KERNEL_VERSION >= LINUX(6, 8, 0)){
-        offset = parts.v3.offset << DEPOT_STACK_ALIGN;
-        slabindex = parts.v3.pool_index;
-    }
-    else if (THIS_KERNEL_VERSION >= LINUX(6, 1, 0)){
-        offset = parts.v2.offset << DEPOT_STACK_ALIGN;
-        slabindex = parts.v2.pool_index;
-    }
-    else{
-        offset = parts.v1.offset << DEPOT_STACK_ALIGN;
-        slabindex = parts.v1.pool_index;
-    }
-    if (slabindex > depot_index)
-        return 0;
-    ulong page_addr = read_pointer(stack_slabs + slabindex * sizeof(void *), "stack_record_page");
-    if (!is_kvaddr(page_addr))
-        return 0;
-
-    ulong stack_record_addr = page_addr + offset;
-    void *record_buf = read_struct(stack_record_addr, "stack_record");
-    if (!record_buf){
-        return 0;
-    }
-    stack_len = UINT(record_buf + field_offset(stack_record, size));
-    uint record_handle = UINT(record_buf + field_offset(stack_record, handle));
-    if (record_handle != page_owner_handle){
-        FREEBUF(record_buf);
-        return 0;
-    }
-    FREEBUF(record_buf);
-    return stack_record_addr + field_offset(stack_record, entries);
-}
-
 void Slub::parser_track(ulong track_addr, std::shared_ptr<track>& track_ptr){
     void* track_buf = read_struct(track_addr, "track");
     track_ptr->cpu = UINT(track_buf + field_offset(track, cpu));
@@ -830,22 +783,16 @@ void Slub::parser_track(ulong track_addr, std::shared_ptr<track>& track_ptr){
     (get_config_val("CONFIG_STACKDEPOT") == "y") &&
     read_pointer(csymbol_value("stack_depot_disabled"), "stack_depot_disabled") == 0*/){
         ulong handle_parts_addr = track_addr + field_offset(track, handle);
-        uint handle_parts = read_uint(handle_parts_addr, "track handle");
-        uint nr_size = 0;
-        ulong entries = parser_stack_record(handle_parts, nr_size);
-        for(uint i = 0; i < nr_size; i++){
-            if(is_kvaddr(entries)){
-                ulong frame_addr = read_pointer(entries + sizeof(unsigned long) * i, "frame_addr handle");
-                if(is_kvaddr(frame_addr)){
-                    track_ptr->frame += extract_callstack(frame_addr);
-                }
-            }
+        uint handle = read_uint(handle_parts_addr, "track handle");
+        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+        if (record_ptr != nullptr){
+            track_ptr->frame += get_call_stack(record_ptr);
         }
     } else {
         ulong track_addrs_addr = track_addr + field_offset(track, addrs);
         uint frame_size = field_size(track, addrs) / sizeof(unsigned long);
-        for(uint i = 0; i < frame_size; i++){
-            if(is_kvaddr(track_addrs_addr)){
+        if(is_kvaddr(track_addrs_addr) && frame_size <= 16){
+            for(uint i = 0; i < frame_size; i++){
                 ulong frame_addr = read_pointer(track_addrs_addr + sizeof(unsigned long) * i, "frame_addr");
                 if(is_kvaddr(frame_addr)){
                     track_ptr->frame += extract_callstack(frame_addr);
@@ -890,6 +837,7 @@ void Slub::parser_slub_trace(){
     if (!alloc_trace_map.empty() && !free_trace_map.empty()){
         return;
     }
+    std::ostringstream oss;
     for (const auto& cache_ptr : cache_list) {
         if((cache_ptr->flags & SLAB_STORE_USER) == 0){
             continue;
@@ -911,6 +859,10 @@ void Slub::parser_slub_trace(){
                 parser_slab_track(cache_ptr, cpu_ptr->cur_slab);
             }
         }
+        oss.str("");
+        oss.clear();
+        oss << std::left << std::setw(max_name_len) << cache_ptr->name << "Done\n";
+        fprintf(fp, "%s", oss.str().c_str());
     }
 }
 
@@ -963,6 +915,9 @@ int Slub::check_object(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, u
         object_err(cache_ptr, page_addr, p, "Freepointer corrupt");
         ret = 0;
     }
+    if(!ret){
+        fprintf(fp, "======================= Check Object [%#lx] End ========================\n", restore_red_left(cache_ptr, object));
+    }
     return ret;
 }
 
@@ -977,7 +932,7 @@ int Slub::check_object_poison(std::shared_ptr<kmem_cache> cache_ptr, std::shared
 void Slub::print_slub_poison(ulong kmem_cache_addr){
     int ret = 1;
     std::ostringstream oss;
-    oss << std::left << std::setw(25) << "kmem_cache_name" << " "
+    oss << std::left << std::setw(max_name_len) << "kmem_cache" << " "
         << std::setw(4) << "Poison_Result" << "\n";
     for (const auto& cache_ptr : cache_list) {
         if(kmem_cache_addr != 0 && cache_ptr->addr != kmem_cache_addr){
@@ -1000,7 +955,7 @@ void Slub::print_slub_poison(ulong kmem_cache_addr){
                 ret &= check_object_poison(cache_ptr, cpu_ptr->cur_slab);
             }
         }
-        oss << std::left << std::setw(25) << cache_ptr->name << " " << std::setw(4) << (ret ? "PASS" : "FAIL") << "\n";
+        oss << std::left << std::setw(max_name_len) << cache_ptr->name << " " << std::setw(4) << (ret ? "PASS" : "FAIL") << "\n";
         ret = 1;
     }
     fprintf(fp, "%s \n", oss.str().c_str());
@@ -1077,13 +1032,9 @@ void Slub::print_slab_summary_info(){
     std::sort(cache_list.begin(), cache_list.end(),[&](const std::shared_ptr<kmem_cache>& a, const std::shared_ptr<kmem_cache>& b){
         return a->total_size > b->total_size;
     });
-    size_t max_len = 0;
-    for (const auto& cache_ptr : cache_list) {
-        max_len = std::max(max_len,cache_ptr->name.size());
-    }
     std::ostringstream oss;
     oss << std::left << std::setw(VADDR_PRLEN) << "kmem_cache" << " "
-        << std::left << std::setw(max_len) << "name" << " "
+        << std::left << std::setw(max_name_len) << "name" << " "
         << std::left << std::setw(5) << "slabs" << " "
         << std::left << std::setw(10) << "slab_size" << " "
         << std::left << std::setw(12) << "per_slab_obj" << " "
@@ -1095,7 +1046,7 @@ void Slub::print_slab_summary_info(){
     for (const auto& cache_ptr : cache_list) {
         int page_cnt = 1U << cache_ptr->page_order;
         oss << std::left << std::setw(VADDR_PRLEN) << std::hex << cache_ptr->addr << " "
-            << std::left << std::setw(max_len) << cache_ptr->name << " "
+            << std::left << std::setw(max_name_len) << cache_ptr->name << " "
             << std::left << std::setw(5) << std::dec << cache_ptr->total_nr_slabs << " "
             << std::left << std::setw(10) << csize(page_cnt * page_size) << " "
             << std::left << std::setw(12) << std::dec << cache_ptr->per_slab_obj << " "

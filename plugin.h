@@ -70,6 +70,36 @@ typedef struct {
     uint64_t val;
 } Elf64_Auxv_t;
 
+typedef struct {
+    uint slab_index;
+    uint record_offset;
+    ulong slab_addr;
+    ulong record_addr;
+} stack_record_t;
+
+/* from lib/stackdepot.c */
+#define DEPOT_STACK_ALIGN    4
+
+union handle_parts {
+    uint handle;
+    struct {
+        uint pool_index    : 21;
+        uint offset    : 10;
+        uint valid    : 1;
+    } v1;
+    struct {
+        uint pool_index : 16;
+        uint offset    : 10;
+        uint valid    : 1;
+        uint extra    : 5;
+    } v2;    /* 6.1 and later */
+    struct {
+        uint pool_index : 17;
+        uint offset    : 10;
+        uint extra    : 5;
+    } v3;    /* 6.8 and later */
+};
+
 #define VM_NONE             0x00000000
 #define VM_READ             0x00000001    /* currently active flags */
 #define VM_WRITE            0x00000002
@@ -102,6 +132,8 @@ private:
     std::vector<ulong> for_each_kobj_map(std::string map_name);
     std::vector<ulong> get_disk_by_bdevmap();
     std::vector<ulong> get_disk_by_block_device();
+    char get_printable(uint8_t d);
+    std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
 
 protected:
     static constexpr double KB = 1024.0;
@@ -113,6 +145,8 @@ public:
     const size_t page_size = PAGESIZE();
     const size_t page_shift = PAGESHIFT();
     const size_t page_mask = ~(page_size - 1);
+    int depot_index = 0;
+    ulong stack_slabs = 0;
     ulong kaddr_mask = 0;
     std::string cmd_name;
     std::vector<std::string> help_str_list;
@@ -209,13 +243,13 @@ public:
     std::vector<std::string> get_enumerator_list(const std::string &enum_name);
     long read_enum_val(const std::string &enum_name);
     std::map<std::string, ulong> read_enum_list(const std::string& enum_list_name);
-    char get_printable(uint8_t d);
-    std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
     std::string hexdump(uint64_t addr, const char* buf, size_t length, bool little_endian = true);
     std::stringstream get_curpath();
     bool load_symbols(std::string& path, std::string name);
     void uwind_irq_back_trace(int cpu, ulong x30);
     void uwind_task_back_trace(int pid, ulong x30);
+    std::shared_ptr<stack_record_t> get_stack_record(uint handle);
+    std::string get_call_stack(std::shared_ptr<stack_record_t> record_ptr);
 #if defined(ARM)
     ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
 #endif
