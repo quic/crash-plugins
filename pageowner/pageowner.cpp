@@ -23,37 +23,33 @@ DEFINE_PLUGIN_COMMAND(Pageowner)
 #endif
 
 void Pageowner::cmd_main(void) {
-    int c;
-    std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    if(!is_enable_pageowner())return;
-    if(owner_map.size() == 0){
+    if (argcnt < 2) {
+        cmd_usage(pc->curcmd, SYNOPSIS);
+        return;
+    }
+    if (!is_enable_pageowner()) {
+        return;
+    }
+    if (owner_map.empty()) {
         parser_all_pageowners();
     }
-    while ((c = getopt(argcnt, args, "afn:p:P:tm")) != EOF) {
+    int c;
+    int argerrs = 0;
+    while ((c = getopt(argcnt, args, "afs:tmp:")) != EOF) {
         switch(c) {
-            case 'a': //all alloc page_owner info
-                print_all_page_owner(true);
+            case 'a': // all alloc page_owner info
+                print_all_allocated_pages();
                 break;
-            case 'f': //all free page_owner info
-                print_all_page_owner(false);
+            case 'f': // all free page_owner info
+                print_all_freed_pages();
                 break;
-            case 'n': //print the page_owner info for specific pfn
-                cppString.assign(optarg);
-                print_page_owner(cppString,INPUT_PFN);
+            case 's': // search page_owner info by address (auto-detect type)
+                print_page_owner_auto(std::string(optarg));
                 break;
-            case 'p': //print the page_owner info for specific phys address
-                cppString.assign(optarg);
-                print_page_owner(cppString,INPUT_PYHS);
+            case 't': // sort the page_owner info by total alloc count
+                print_sorted_allocation_summary();
                 break;
-            case 'P': //print the page_owner info for specific page
-                cppString.assign(optarg);
-                print_page_owner(cppString,INPUT_PAGE);
-                break;
-            case 't': //sort the page_owner info by total alloc count
-                print_total_size_by_handle();
-                break;
-            case 'm': //print all memory info
+            case 'm': // print all memory info
                 print_memory_info();
                 break;
             default:
@@ -61,8 +57,194 @@ void Pageowner::cmd_main(void) {
                 break;
         }
     }
-    if (argerrs)
+    if (argerrs) {
         cmd_usage(pc->curcmd, SYNOPSIS);
+    }
+}
+
+void Pageowner::print_page_owner_auto(const std::string& addr_str) {
+    if (addr_str.empty()) {
+        fprintf(fp, "Empty address provided\n");
+        return;
+    }
+    ulonglong addr;
+    try {
+        addr = std::stoull(addr_str, nullptr, 16);
+    } catch (const std::exception&) {
+        fprintf(fp, "Invalid address format: %s\n", addr_str.c_str());
+        return;
+    }
+    if (addr == 0) {
+        fprintf(fp, "Invalid address: 0x0\n");
+        return;
+    }
+    AddressType addr_type = detect_address_type(addr);
+    switch (addr_type) {
+        case ADDR_PFN:
+            fprintf(fp, "Detected as PFN: 0x%llx\n", addr);
+            print_page_owner(addr_str, INPUT_PFN);
+            break;
+        case ADDR_PHYSICAL:
+            fprintf(fp, "Detected as Physical Address: 0x%llx\n", addr);
+            print_page_owner(addr_str, INPUT_PYHS);
+            break;
+        case ADDR_PAGE:
+            fprintf(fp, "Detected as Page Address: 0x%llx\n", addr);
+            print_page_owner(addr_str, INPUT_PAGE);
+            break;
+        case ADDR_VIRTUAL:
+            fprintf(fp, "Detected as Virtual Address: 0x%llx\n", addr);
+            print_page_owner(addr_str, INPUT_VADDR);
+            break;
+        case ADDR_UNKNOWN:
+        default:
+            fprintf(fp, "Cannot determine address type for: 0x%llx\n", addr);
+            break;
+    }
+}
+
+Pageowner::AddressType Pageowner::detect_address_type(ulonglong addr) {
+    if (addr >= min_low_pfn && addr <= max_pfn) {
+        ulong page = pfn_to_page(addr);
+        if (is_kvaddr(page)) {
+            return ADDR_PFN;
+        }
+    }
+    if (is_kvaddr(addr)) {
+        if (is_page_address(addr)) {
+            return ADDR_PAGE;
+        }
+        return ADDR_VIRTUAL;
+    }
+    if (is_physical_address(addr)) {
+        return ADDR_PHYSICAL;
+    }
+    physaddr_t paddr = 0;
+    if (CURRENT_TASK() && uvtop(CURRENT_CONTEXT(), addr, &paddr, 0)) {
+        return ADDR_VIRTUAL;
+    }
+    struct task_context *tc;
+    for (ulong i = 0; i < RUNNING_TASKS(); i++) {
+        tc = FIRST_CONTEXT() + i;
+        if (tc->task && uvtop(tc, addr, &paddr, 0)) {
+            return ADDR_VIRTUAL;
+        }
+    }
+    return ADDR_UNKNOWN;
+}
+
+bool Pageowner::is_page_address(ulonglong addr) {
+    try {
+        ulong pfn = page_to_pfn(addr);
+        if (pfn >= min_low_pfn && pfn <= max_pfn) {
+            ulong back_page = pfn_to_page(pfn);
+            return (back_page == addr);
+        }
+    } catch (...) {
+    }
+    return false;
+}
+
+bool Pageowner::is_physical_address(ulonglong addr) {
+    ulong pfn = phy_to_pfn(addr);
+    return (pfn >= min_low_pfn && pfn <= max_pfn);
+}
+
+void Pageowner::print_all_allocated_pages() {
+    size_t allocated_count = 0;
+    size_t total_pages = 0;
+    size_t total_size = 0;
+    for (const auto& pair : owner_map) {
+        const auto& owner_ptr = pair.second;
+        if (is_page_allocated(owner_ptr)) {
+            allocated_count++;
+            ulong page_count = 1UL << owner_ptr->order;
+            total_pages += page_count;
+            total_size += page_count * page_size;
+        }
+    }
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    fprintf(fp, "                    ALLOCATED PAGES SUMMARY\n");
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    fprintf(fp, "Total allocated entries: %zu\n", allocated_count);
+    fprintf(fp, "Total allocated pages:   %zu\n", total_pages);
+    fprintf(fp, "Total allocated memory:  %s\n", csize(total_size).c_str());
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    size_t entry_num = 0;
+    for (const auto& pair : owner_map) {
+        const auto& owner_ptr = pair.second;
+        if (is_page_allocated(owner_ptr)) {
+            entry_num++;
+            print_page_owner_entry(owner_ptr, false, entry_num, allocated_count);
+        }
+    }
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    fprintf(fp, "Displayed %zu allocated page entries\n", allocated_count);
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+}
+
+void Pageowner::print_all_freed_pages() {
+    size_t freed_count = 0;
+    size_t total_pages = 0;
+    size_t total_size = 0;
+    for (const auto& pair : owner_map) {
+        const auto& owner_ptr = pair.second;
+        if (!is_page_allocated(owner_ptr) && owner_ptr->free_handle > 0) {
+            freed_count++;
+            ulong page_count = 1UL << owner_ptr->order;
+            total_pages += page_count;
+            total_size += page_count * page_size;
+        }
+    }
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    fprintf(fp, "                      FREED PAGES SUMMARY\n");
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    fprintf(fp, "Total freed entries: %zu\n", freed_count);
+    fprintf(fp, "Total freed pages:   %zu\n", total_pages);
+    fprintf(fp, "Total freed memory:  %s\n", csize(total_size).c_str());
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    size_t entry_num = 0;
+    for (const auto& pair : owner_map) {
+        const auto& owner_ptr = pair.second;
+        if (!is_page_allocated(owner_ptr) && owner_ptr->free_handle > 0) {
+            entry_num++;
+            print_page_owner_entry(owner_ptr, true, entry_num, freed_count);
+        }
+    }
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    fprintf(fp, "Displayed %zu freed page entries\n", freed_count);
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+}
+
+void Pageowner::print_page_owner_entry(std::shared_ptr<page_owner> owner_ptr, bool is_free,
+                                       size_t entry_num, size_t total_entries) {
+    const ulong end_pfn = owner_ptr->pfn + (1UL << owner_ptr->order);
+    const ulong page = pfn_to_page(owner_ptr->pfn);
+    const unsigned int handle = is_free ? owner_ptr->free_handle : owner_ptr->handle;
+    const ulong timestamp = is_free ? owner_ptr->free_ts_nsec : owner_ptr->ts_nsec;
+    const char* action = is_free ? "FREE" : "ALLOC";
+    ulong page_count = 1UL << owner_ptr->order;
+    ulong total_size = page_count * page_size;
+    std::string comm = owner_ptr->comm;
+    if (comm.empty()) {
+        struct task_context *tc = pid_to_context(owner_ptr->pid);
+        if (tc) {
+            comm = std::string(tc->comm);
+        } else {
+            comm = "unknown";
+        }
+    }
+    std::string time_str = formatTimestamp(timestamp);
+    std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+    if (record_ptr != nullptr) {
+        fprintf(fp, "[%zu/%zu] %s: PFN:0x%lx~0x%lx (%lu page%s, %s) Page:0x%lx PID:%zu [%s] %s\n",
+            entry_num, total_entries, action, owner_ptr->pfn, end_pfn, page_count,
+            (page_count > 1) ? "s" : "", csize(total_size).c_str(),
+            page, owner_ptr->pid, comm.c_str(), time_str.c_str());
+
+        std::string stack = get_call_stack(record_ptr);
+        fprintf(fp, "%s \n", stack.c_str());
+    }
 }
 
 bool Pageowner::is_enable_pageowner(){
@@ -125,16 +307,14 @@ void Pageowner::init_command(void) {
         "-a \n"
             "  pageowner -f \n"
             "  pageowner -t \n"
-            "  pageowner -n <pfn>\n"
-            "  pageowner -p <phys addr>\n"
-            "  pageowner -P <Page addr>\n"
+            "  pageowner -s <address>\n"
             "  pageowner -m \n"
             "  This command dumps the pageowner info.",
         "\n",
         "EXAMPLES",
         "  Display alloc stack for every page:",
         "    %s> pageowner -a",
-        "    page_owner:0xffffff800737ff48 PFN:0xbfffc-0xbfffd Page:0xfffffffe01ffff00  Order:0 stack_record:0xffffff805febaac0 PID:1877 ts_nsec:84522428174",
+        "    [1/387729] ALLOC: PFN:0xbffff~0xc0000 (1 page, 4KB) Page:0xfffffffe01ffffc0 PID:68 [kswapd0] 00:09:46.363353298 (uptime)",
         "          [<ffffffde2edb039c>] post_alloc_hook+0x20c",
         "          [<ffffffde2edb3064>] prep_new_page+0x28",
         "          [<ffffffde2edb46a4>] get_page_from_freelist+0x12ac",
@@ -154,7 +334,7 @@ void Pageowner::init_command(void) {
         "\n",
         "  Display free stack for every page:",
         "    %s> pageowner -f",
-        "    page_owner:0xffffff800737ff48 PFN:0xbfffc-0xbfffd Page:0xfffffffe01ffff00  Order:0 stack_record:0xffffff805febaca0 PID:1877 free_ts_nsec:84514802444",
+        "    [1/944] FREE: PFN:0x99073~0x99074 (1 page, 4KB) Page:0xfffffffe01641cc0 PID:504 [lmkd] 00:00:12.745040350 (uptime)",
         "          [<ffffffde2edb11a0>] free_unref_page_prepare+0x2d8",
         "          [<ffffffde2edb1634>] free_unref_page_list+0xa0",
         "          [<ffffffde2ed56528>] shrink_page_list+0x1484",
@@ -172,119 +352,26 @@ void Pageowner::init_command(void) {
         "          [<ffffffde2fa5dcb0>] el0t_64_sync_handler+0x68",
         "          [<ffffffde2ea11624>] el0t_64_sync+0x1b4",
         "\n",
-        "  Display the alloc and free stack for specific pfn:",
-        "    %s> pageowner -n 0x4000e",
-        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b6eb0 PID:1 ts_nsec:3200156311",
-        "          [<ffffffde2edb039c>] post_alloc_hook+0x20c",
-        "          [<ffffffde2edb3064>] prep_new_page+0x28",
-        "          [<ffffffde2edb46a4>] get_page_from_freelist+0x12ac",
-        "          [<ffffffde2edb320c>] __alloc_pages+0xd8",
-        "          [<ffffffde2ed49210>] page_cache_ra_unbounded+0x130",
-        "          [<ffffffde2ed49754>] do_page_cache_ra+0x3c",
-        "          [<ffffffde2ed3b718>] do_sync_mmap_readahead+0x188",
-        "          [<ffffffde2ed3abc0>] filemap_fault+0x280",
-        "          [<ffffffde2ed98b7c>] __do_fault+0x6c",
-        "          [<ffffffde2ed98288>] handle_pte_fault+0x1b4",
-        "          [<ffffffde2ed94820>] do_handle_mm_fault+0x4a0",
-        "          [<ffffffde2fa97488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520",
-        "          [<ffffffde2fa96f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44",
-        "          [<ffffffde2eacbd90>] do_mem_abort+0x64",
-        "          [<ffffffde2fa5ddf4>] el0_da+0x48",
-        "          [<ffffffde2fa5dce0>] el0t_64_sync_handler+0x98",
+        "  Display the alloc and free stack for specific virtual address:",
+        "    %s> pageowner -s 0x7fff12345000",
+        "    Virtual address translation: 0x7fff12345000 -> PFN:0x4000e",
+        "    ═══════════════════════════════════════════════════════════════",
+        "           PAGE OWNER INFO FOR VIRTUAL ADDRESS 0x7fff12345000",
+        "    ═══════════════════════════════════════════════════════════════",
+        "    PFN Range:       0x4000e - 0x4000e",
+        "    Page Address:    0xfffffffe00000380",
+        "    Order:           0 (1 page, 4KB)",
+        "    Current Status:  ALLOCATED",
+        "    ═══════════════════════════════════════════════════════════════",
         "",
-        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b5350 PID:1 free_ts_nsec:3033067977",
-        "          [<ffffffde2edb11a0>] free_unref_page_prepare+0x2d8",
-        "          [<ffffffde2edb1634>] free_unref_page_list+0xa0",
-        "          [<ffffffde2ed4e808>] release_pages+0x510",
-        "          [<ffffffde2ed4e8b8>] __pagevec_release+0x34",
-        "          [<ffffffde2ed64b54>] shmem_undo_range+0x210",
-        "          [<ffffffde2ed6a9d0>] shmem_evict_inode.ac7d038029138368f3a468e11f4adc2c+0x12c",
-        "          [<ffffffde2ee4152c>] evict+0xd4",
-        "          [<ffffffde2ee3ed64>] iput+0x244",
-        "          [<ffffffde2ee25f1c>] do_unlinkat+0x1ac",
-        "          [<ffffffde2ee2605c>] __arm64_sys_unlinkat+0x48",
-        "          [<ffffffde2eab6ad4>] invoke_syscall+0x5c",
-        "          [<ffffffde2eab6a08>] el0_svc_common+0xc4",
-        "          [<ffffffde2eab68e4>] do_el0_svc+0x24",
-        "          [<ffffffde2fa5dd2c>] el0_svc+0x30",
-        "          [<ffffffde2fa5dcb0>] el0t_64_sync_handler+0x68",
-        "          [<ffffffde2ea11624>] el0t_64_sync+0x1b4",
-        "\n",
-        "  Display the alloc and free stack for specific physic address:",
-        "    %s> pageowner -p 0x4000e000",
-        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b6eb0 PID:1 ts_nsec:3200156311",
-        "          [<ffffffde2edb039c>] post_alloc_hook+0x20c",
-        "          [<ffffffde2edb3064>] prep_new_page+0x28",
-        "          [<ffffffde2edb46a4>] get_page_from_freelist+0x12ac",
-        "          [<ffffffde2edb320c>] __alloc_pages+0xd8",
-        "          [<ffffffde2ed49210>] page_cache_ra_unbounded+0x130",
-        "          [<ffffffde2ed49754>] do_page_cache_ra+0x3c",
-        "          [<ffffffde2ed3b718>] do_sync_mmap_readahead+0x188",
-        "          [<ffffffde2ed3abc0>] filemap_fault+0x280",
-        "          [<ffffffde2ed98b7c>] __do_fault+0x6c",
-        "          [<ffffffde2ed98288>] handle_pte_fault+0x1b4",
-        "          [<ffffffde2ed94820>] do_handle_mm_fault+0x4a0",
-        "          [<ffffffde2fa97488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520",
-        "          [<ffffffde2fa96f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44",
-        "          [<ffffffde2eacbd90>] do_mem_abort+0x64",
-        "          [<ffffffde2fa5ddf4>] el0_da+0x48",
-        "          [<ffffffde2fa5dce0>] el0t_64_sync_handler+0x98",
+        "    ALLOCATION HISTORY:",
+        "    Action:          ALLOC",
+        "    PID:             1 [init]",
+        "    Timestamp:       1d 00:53:20.156",
+        "    GFP Mask:        0x400dc0",
         "",
-        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b5350 PID:1 free_ts_nsec:3033067977",
-        "          [<ffffffde2edb11a0>] free_unref_page_prepare+0x2d8",
-        "          [<ffffffde2edb1634>] free_unref_page_list+0xa0",
-        "          [<ffffffde2ed4e808>] release_pages+0x510",
-        "          [<ffffffde2ed4e8b8>] __pagevec_release+0x34",
-        "          [<ffffffde2ed64b54>] shmem_undo_range+0x210",
-        "          [<ffffffde2ed6a9d0>] shmem_evict_inode.ac7d038029138368f3a468e11f4adc2c+0x12c",
-        "          [<ffffffde2ee4152c>] evict+0xd4",
-        "          [<ffffffde2ee3ed64>] iput+0x244",
-        "          [<ffffffde2ee25f1c>] do_unlinkat+0x1ac",
-        "          [<ffffffde2ee2605c>] __arm64_sys_unlinkat+0x48",
-        "          [<ffffffde2eab6ad4>] invoke_syscall+0x5c",
-        "          [<ffffffde2eab6a08>] el0_svc_common+0xc4",
-        "          [<ffffffde2eab68e4>] do_el0_svc+0x24",
-        "          [<ffffffde2fa5dd2c>] el0_svc+0x30",
-        "          [<ffffffde2fa5dcb0>] el0t_64_sync_handler+0x68",
-        "          [<ffffffde2ea11624>] el0t_64_sync+0x1b4",
-        "\n",
-        "  Display the alloc and free stack for specific page address:",
-        "    %s> pageowner -P 0xfffffffe00000380",
-        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b6eb0 PID:1 ts_nsec:3200156311",
-        "          [<ffffffde2edb039c>] post_alloc_hook+0x20c",
-        "          [<ffffffde2edb3064>] prep_new_page+0x28",
-        "          [<ffffffde2edb46a4>] get_page_from_freelist+0x12ac",
-        "          [<ffffffde2edb320c>] __alloc_pages+0xd8",
-        "          [<ffffffde2ed49210>] page_cache_ra_unbounded+0x130",
-        "          [<ffffffde2ed49754>] do_page_cache_ra+0x3c",
-        "          [<ffffffde2ed3b718>] do_sync_mmap_readahead+0x188",
-        "          [<ffffffde2ed3abc0>] filemap_fault+0x280",
-        "          [<ffffffde2ed98b7c>] __do_fault+0x6c",
-        "          [<ffffffde2ed98288>] handle_pte_fault+0x1b4",
-        "          [<ffffffde2ed94820>] do_handle_mm_fault+0x4a0",
-        "          [<ffffffde2fa97488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520",
-        "          [<ffffffde2fa96f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44",
-        "          [<ffffffde2eacbd90>] do_mem_abort+0x64",
-        "          [<ffffffde2fa5ddf4>] el0_da+0x48",
-        "          [<ffffffde2fa5dce0>] el0t_64_sync_handler+0x98",
-        "",
-        "    page_owner:0xffffff80038002a8 PFN:0x4000e-0x4000f Page:0xfffffffe00000380  Order:0 stack_record:0xffffff80086b5350 PID:1 free_ts_nsec:3033067977",
-        "          [<ffffffde2edb11a0>] free_unref_page_prepare+0x2d8",
-        "          [<ffffffde2edb1634>] free_unref_page_list+0xa0",
-        "          [<ffffffde2ed4e808>] release_pages+0x510",
-        "          [<ffffffde2ed4e8b8>] __pagevec_release+0x34",
-        "          [<ffffffde2ed64b54>] shmem_undo_range+0x210",
-        "          [<ffffffde2ed6a9d0>] shmem_evict_inode.ac7d038029138368f3a468e11f4adc2c+0x12c",
-        "          [<ffffffde2ee4152c>] evict+0xd4",
-        "          [<ffffffde2ee3ed64>] iput+0x244",
-        "          [<ffffffde2ee25f1c>] do_unlinkat+0x1ac",
-        "          [<ffffffde2ee2605c>] __arm64_sys_unlinkat+0x48",
-        "          [<ffffffde2eab6ad4>] invoke_syscall+0x5c",
-        "          [<ffffffde2eab6a08>] el0_svc_common+0xc4",
-        "          [<ffffffde2eab68e4>] do_el0_svc+0x24",
-        "          [<ffffffde2fa5dd2c>] el0_svc+0x30",
-        "          [<ffffffde2fa5dcb0>] el0t_64_sync_handler+0x68",
-        "          [<ffffffde2ea11624>] el0t_64_sync+0x1b4",
+        "    [<ffffffde2edb039c>] post_alloc_hook+0x20c",
+        "    [<ffffffde2edb3064>] prep_new_page+0x28",
         "\n",
         "  Display the alloc memory size for every stack:",
         "    %s> pageowner -t",
@@ -334,65 +421,172 @@ void Pageowner::init_command(void) {
 
 Pageowner::Pageowner(){}
 
-void Pageowner::print_page_owner(std::string addr,int flags){
-    ulonglong number = std::stoul(addr, nullptr, 16);
-    if (number <= 0)return;
+void Pageowner::print_page_owner(const std::string& addr, int flags) {
+    if (addr.empty()) return;
+
+    ulonglong number;
+    try {
+        number = std::stoull(addr, nullptr, 16);
+    } catch (const std::exception&) {
+        fprintf(fp, "Invalid address format\n");
+        return;
+    }
+
+    if (number == 0) return;
+
     ulong pfn = 0;
-    if (flags == INPUT_PFN){
-        pfn = number;
-    }else if (flags == INPUT_PYHS){
-        pfn = phy_to_pfn(number);
-    }else if (flags == INPUT_PAGE){
-        pfn = page_to_pfn(number);
+    switch (flags) {
+        case INPUT_PFN:
+            pfn = number;
+            break;
+        case INPUT_PYHS:
+            pfn = phy_to_pfn(number);
+            break;
+        case INPUT_PAGE:
+            pfn = page_to_pfn(number);
+            break;
+        case INPUT_VADDR:
+            pfn = vaddr_to_pfn(number);
+            if (pfn == 0) {
+                fprintf(fp, "Cannot translate virtual address 0x%llx to pfn\n", number);
+                return;
+            }
+            fprintf(fp, "Virtual address translation: 0x%llx -> PFN:0x%lx\n", number, pfn);
+            break;
+        default:
+            fprintf(fp, "Invalid input type\n");
+            return;
     }
-    if(pfn < min_low_pfn || pfn > max_pfn){
-        fprintf(fp, "invaild pfn\n");
+
+    if (pfn < min_low_pfn || pfn > max_pfn) {
+        fprintf(fp, "Invalid pfn: 0x%lx (valid range: 0x%lx - 0x%lx)\n", pfn, min_low_pfn, max_pfn);
         return;
     }
+
     ulong page = pfn_to_page(pfn);
-    if (!is_kvaddr(page))
+    if (!is_kvaddr(page)) {
+        fprintf(fp, "Invalid page address: 0x%lx\n", page);
         return;
+    }
+
     ulong page_ext = lookup_page_ext(page);
-    if (!is_kvaddr(page_ext))
+    if (!is_kvaddr(page_ext)) {
+        fprintf(fp, "Cannot find page_ext for PFN:0x%lx\n", pfn);
         return;
+    }
     ulong page_ext_flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
-    if (!((page_ext_flags & (1UL << PAGE_EXT_OWNER)) != 0))
+    if (!(page_ext_flags & (1UL << PAGE_EXT_OWNER))) {
+        fprintf(fp, "Page owner not enabled for PFN:0x%lx\n", pfn);
         return;
-    if (!((page_ext_flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0))
+    }
+    if (!(page_ext_flags & (1UL << PAGE_EXT_OWNER_ALLOCATED))) {
+        fprintf(fp, "Page owner not allocated for PFN:0x%lx\n", pfn);
         return;
+    }
     ulong page_owner_addr = get_page_owner(page_ext);
     std::shared_ptr<page_owner> owner_ptr = parser_page_owner(page_owner_addr);
-    owner_ptr->pfn = pfn;
-    if(owner_ptr->handle > 0){
-        print_page_owner(owner_ptr,false);
+    if (!owner_ptr) {
+        fprintf(fp, "Cannot parse page owner for PFN:0x%lx\n", pfn);
+        return;
     }
-    if(owner_ptr->free_handle > 0){
-        print_page_owner(owner_ptr,true);
+    owner_ptr->pfn = pfn;
+    bool currently_allocated = is_page_allocated(owner_ptr);
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    if (flags == INPUT_VADDR) {
+        fprintf(fp, "           PAGE OWNER INFO FOR VIRTUAL ADDRESS 0x%llx\n", number);
+    } else {
+        fprintf(fp, "                    PAGE OWNER INFO FOR PFN:0x%lx\n", pfn);
+    }
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+
+    ulong page_count = 1UL << owner_ptr->order;
+    ulong total_size = page_count * page_size;
+    fprintf(fp, "PFN Range      :   0x%lx - 0x%lx\n", pfn, pfn + page_count - 1);
+    fprintf(fp, "Page Address   :   0x%lx\n", page);
+    fprintf(fp, "Order          :   %d (%lu page%s, %s)\n", owner_ptr->order, page_count,
+            (page_count > 1) ? "s" : "", csize(total_size).c_str());
+    fprintf(fp, "Current Status :   %s\n",
+            currently_allocated ? "ALLOCATED" : "FREED");
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    if (owner_ptr->handle > 0) {
+        fprintf(fp, "ALLOCATION HISTORY:\n");
+        print_page_owner_detailed(owner_ptr, false);
+    }
+    if (owner_ptr->free_handle > 0) {
+        fprintf(fp, "FREE HISTORY:\n");
+        print_page_owner_detailed(owner_ptr, true);
+    }
+    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+}
+
+ulong Pageowner::vaddr_to_pfn(ulong vaddr) {
+    physaddr_t paddr = 0;
+    if (kvtop(NULL, vaddr, &paddr, 0)) {
+        return phy_to_pfn(paddr);
+    }
+    if (CURRENT_TASK() && uvtop(CURRENT_CONTEXT(), vaddr, &paddr, 0)) {
+        return phy_to_pfn(paddr);
+    }
+    struct task_context *tc;
+    for (ulong i = 0; i < RUNNING_TASKS(); i++) {
+        tc = FIRST_CONTEXT() + i;
+        if (tc->task && uvtop(tc, vaddr, &paddr, 0)) {
+            fprintf(fp, "Found virtual address in task PID:%ld [%s]\n",
+                    task_to_pid(tc->task), tc->comm);
+            return phy_to_pfn(paddr);
+        }
+    }
+    return 0;
+}
+
+void Pageowner::print_page_owner_detailed(std::shared_ptr<page_owner> owner_ptr, bool is_free) {
+    const unsigned int handle = is_free ? owner_ptr->free_handle : owner_ptr->handle;
+    const ulong timestamp = is_free ? owner_ptr->free_ts_nsec : owner_ptr->ts_nsec;
+    const char* action = is_free ? "FREE" : "ALLOC";
+    std::string comm = owner_ptr->comm;
+    if (comm.empty()) {
+        struct task_context *tc = pid_to_context(owner_ptr->pid);
+        if (tc) {
+            comm = std::string(tc->comm);
+        } else {
+            comm = "unknown";
+        }
+    }
+
+    std::string time_str = formatTimestamp(timestamp);
+    std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+    if (record_ptr != nullptr) {
+        fprintf(fp, "Status     :   %s\n", action);
+        fprintf(fp, "PID        :   %zu [%s]\n", owner_ptr->pid, comm.c_str());
+        fprintf(fp, "Timestamp  :   %s\n", time_str.c_str());
+        fprintf(fp, "GFP Mask   :   0x%x\n", owner_ptr->gfp_mask);
+        if (owner_ptr->last_migrate_reason >= 0) {
+            fprintf(fp, "Migrate Reason:  %d\n", owner_ptr->last_migrate_reason);
+        }
+        std::string stack = get_call_stack(record_ptr);
+        fprintf(fp, "%s \n", stack.c_str());
     }
 }
 
-void Pageowner::print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_free){
-    ulong end_pfn = owner_ptr->pfn + power(2, owner_ptr->order);
+bool Pageowner::is_page_allocated(std::shared_ptr<page_owner> owner_ptr) {
+    if (owner_ptr->ts_nsec > 0 && owner_ptr->free_ts_nsec > 0) {
+        return owner_ptr->ts_nsec > owner_ptr->free_ts_nsec;
+    }
     ulong page = pfn_to_page(owner_ptr->pfn);
-    if (!is_free){
-        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(owner_ptr->handle);
-        if (record_ptr != nullptr){
-            fprintf(fp, "page_owner:%#lx PFN:%#lx~%#lx Page:%#lx Order:%d stack_record:%#lx PID:%zu ts_nsec:%lld\n",
-                owner_ptr->addr,owner_ptr->pfn,end_pfn,page,owner_ptr->order,record_ptr->record_addr,owner_ptr->pid,owner_ptr->ts_nsec);
-            std::string stack = get_call_stack(record_ptr);
-            fprintf(fp, "%s \n",stack.c_str());
-            stack_record_page_list.insert(record_ptr->slab_addr & page_mask);
-        }
-    }else{
-        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(owner_ptr->free_handle);
-        if (record_ptr != nullptr){
-            fprintf(fp, "page_owner:%#lx PFN:%#lx~%#lx Page:%#lx Order:%d stack_record:%#lx PID:%zu free_ts_nsec:%lld\n",
-                owner_ptr->addr,owner_ptr->pfn,end_pfn,page,owner_ptr->order,record_ptr->record_addr,owner_ptr->pid,owner_ptr->free_ts_nsec);
-            std::string stack = get_call_stack(record_ptr);
-            fprintf(fp, "%s \n",stack.c_str());
-            stack_record_page_list.insert(record_ptr->slab_addr & page_mask);
+    if (is_kvaddr(page)) {
+        ulong page_ext = lookup_page_ext(page);
+        if (is_kvaddr(page_ext)) {
+            ulong flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
+            return (flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0;
         }
     }
+    if (owner_ptr->handle > 0 && owner_ptr->free_handle <= 0) {
+        return true;
+    }
+    if (owner_ptr->free_handle > 0 && owner_ptr->handle <= 0) {
+        return false;
+    }
+    return true;
 }
 
 void Pageowner::print_memory_info(){
@@ -403,104 +597,135 @@ void Pageowner::print_memory_info(){
         << std::left << std::setw(10) << "Size";
     fprintf(fp, "%s \n", oss.str().c_str());
 
-    ulong page_owner_size = page_owner_page_list.size()*page_size;
+    const ulong page_owner_size = page_owner_page_list.size() * page_size;
     oss.str("");
     oss << std::left << std::setw(8) << "" << " "
         << std::left << std::setw(20) << "page_owner" << " "
         << std::left << std::setw(10) << "" << " "
         << std::left << std::setw(10) << csize(page_owner_size);
-    fprintf(fp, "%s \n",oss.str().c_str());
-
-    ulong stack_record_size = stack_record_page_list.size()*page_size;
-    oss.str("");
-    oss << std::left << std::setw(8) << "" << " "
-    << std::left << std::setw(20) << "stack_record" << " "
-    << std::left << std::setw(10) << "" << " "
-    << std::left << std::setw(10) << csize(stack_record_size);
     fprintf(fp, "%s \n", oss.str().c_str());
 
-    std::unordered_map<size_t, std::shared_ptr<process_info>> process_map; //<pid,process_info>
+    const ulong stack_record_size = stack_record_page_list.size() * page_size;
+    oss.str("");
+    oss << std::left << std::setw(8) << "" << " "
+        << std::left << std::setw(20) << "stack_record" << " "
+        << std::left << std::setw(10) << "" << " "
+        << std::left << std::setw(10) << csize(stack_record_size);
+    fprintf(fp, "%s \n", oss.str().c_str());
+
+    std::unordered_map<size_t, std::shared_ptr<process_info>> process_map;
+    process_map.reserve(owner_map.size() / 4); // Reserve space to reduce reallocations
+
     for (const auto& pair : owner_map) {
-        std::shared_ptr<page_owner> owner_ptr = pair.second;
-        if(owner_ptr->handle <= 0 || owner_ptr->pid <= 0) continue;
-        std::shared_ptr<process_info> proc_ptr;
-        if (process_map.find(owner_ptr->pid) != process_map.end()) { //exists
-            proc_ptr = process_map[owner_ptr->pid];
-            proc_ptr->total_cnt += 1;
-            proc_ptr->total_size += power(2, owner_ptr->order) * page_size;
+        const auto& owner_ptr = pair.second;
+        if (owner_ptr->handle <= 0 || owner_ptr->pid <= 0) continue;
+
+        const ulong page_size_for_order = power(2, owner_ptr->order) * page_size;
+        auto result = process_map.emplace(owner_ptr->pid, nullptr);
+        auto it = result.first;
+        bool inserted = result.second;
+
+        if (inserted) {
+            it->second = std::make_shared<process_info>();
+            it->second->total_cnt = 1;
+            it->second->total_size = page_size_for_order;
         } else {
-            proc_ptr = std::make_shared<process_info>();
-            proc_ptr->total_cnt = 1;
-            proc_ptr->total_size = power(2, owner_ptr->order) * page_size;
-            process_map[owner_ptr->pid] = proc_ptr;
+            it->second->total_cnt += 1;
+            it->second->total_size += page_size_for_order;
         }
     }
-    //sort
-    std::vector<std::pair<unsigned int, std::shared_ptr<process_info>>> process_vec(process_map.begin(), process_map.end());
-    std::sort(process_vec.begin(), process_vec.end(),[&](const std::pair<unsigned int, std::shared_ptr<process_info>>& a, const std::pair<unsigned int, std::shared_ptr<process_info>>& b){
-        return a.second->total_cnt > b.second->total_cnt;
-    });
-    size_t print_cnt = 50; //only print top 50
-    for (size_t i = 0; i < process_vec.size() && i < print_cnt; i++){
-        size_t pid = process_vec[i].first;
+
+    // Sort by total count
+    std::vector<std::pair<size_t, std::shared_ptr<process_info>>> process_vec;
+    process_vec.reserve(process_map.size());
+    for (auto& pair : process_map) {
+        auto& pid = pair.first;
+        auto& proc_ptr = pair.second;
+        process_vec.emplace_back(pid, std::move(proc_ptr));
+    }
+
+    std::sort(process_vec.begin(), process_vec.end(),
+              [](const auto& a, const auto& b) {
+                  return a.second->total_cnt > b.second->total_cnt;
+              });
+
+    constexpr size_t print_cnt = 50;
+    const size_t max_print = std::min(process_vec.size(), print_cnt);
+
+    for (size_t i = 0; i < max_print; ++i) {
+        const auto& pair = process_vec[i];
+        const auto& pid = pair.first;
+        const auto& proc_ptr = pair.second;
+
         std::string name = "unknow";
-        struct task_context *tc = pid_to_context(pid);
-        if (tc){
-            name = std::string(tc->comm);
+        if (struct task_context* tc = pid_to_context(pid)) {
+            name = tc->comm;
         }
-        std::shared_ptr<process_info> proc_ptr = process_vec[i].second;
+
         oss.str("");
         oss << std::left << std::setw(8) << pid << " "
             << std::left << std::setw(20) << name << " "
             << std::left << std::setw(10) << proc_ptr->total_cnt << " "
             << std::left << std::setw(10) << csize(proc_ptr->total_size);
-        fprintf(fp, "%s \n",oss.str().c_str());
+        fprintf(fp, "%s \n", oss.str().c_str());
     }
 }
 
-void Pageowner::print_total_size_by_handle(){
-    if (handle_map.size() == 0){
+void Pageowner::print_sorted_allocation_summary(){
+    if (handle_map.empty()){
+        handle_map.reserve(owner_map.size() / 4); // Reserve space to reduce reallocations
+
         for (const auto& pair : owner_map) {
-            ulong pfn = pair.first;
-            std::shared_ptr<page_owner> owner_ptr = pair.second;
+            const ulong pfn = pair.first;
+            const auto& owner_ptr = pair.second;
             if(owner_ptr->handle <= 0) continue;
-            std::shared_ptr<stack_info> stack_ptr;
-            if (handle_map.find(owner_ptr->handle) != handle_map.end()) { //exists
-                stack_ptr = handle_map[owner_ptr->handle];
-                stack_ptr->total_cnt += 1;
-                stack_ptr->total_size += power(2, owner_ptr->order) * page_size;
-                stack_ptr->owner_list[pfn] = owner_ptr;
+
+            const ulong page_size_for_order = power(2, owner_ptr->order) * page_size;
+            auto result = handle_map.emplace(owner_ptr->handle, nullptr);
+            auto it = result.first;
+            bool inserted = result.second;
+
+            if (inserted) {
+                it->second = std::make_shared<stack_info>();
+                it->second->total_cnt = 1;
+                it->second->total_size = page_size_for_order;
+                it->second->handle = owner_ptr->handle;
+                it->second->owner_list.reserve(64); // Reserve space for owner_list
             } else {
-                stack_ptr = std::make_shared<stack_info>();
-                stack_ptr->total_cnt = 1;
-                stack_ptr->total_size = power(2, owner_ptr->order) * page_size;
-                stack_ptr->handle = owner_ptr->handle;
-                handle_map[owner_ptr->handle] = stack_ptr;
-                stack_ptr->owner_list[pfn] = owner_ptr;
+                it->second->total_cnt += 1;
+                it->second->total_size += page_size_for_order;
             }
+            it->second->owner_list[pfn] = owner_ptr;
         }
     }
-    //sort
-    std::vector<std::pair<unsigned int, std::shared_ptr<stack_info>>> handle_vec(handle_map.begin(), handle_map.end());
-    std::sort(handle_vec.begin(), handle_vec.end(),[&](const std::pair<unsigned int, std::shared_ptr<stack_info>>& a, const std::pair<unsigned int, std::shared_ptr<stack_info>>& b){
-        return a.second->total_cnt > b.second->total_cnt;
-    });
+
+    // Sort by total count
+    std::vector<std::pair<unsigned int, std::shared_ptr<stack_info>>> handle_vec;
+    handle_vec.reserve(handle_map.size());
+    for (auto& pair : handle_map) {
+        handle_vec.emplace_back(pair.first, std::move(pair.second));
+    }
+
+    std::sort(handle_vec.begin(), handle_vec.end(),
+              [](const auto& a, const auto& b) {
+                  return a.second->total_cnt > b.second->total_cnt;
+              });
+
     for (const auto& pair : handle_vec) {
-        unsigned int handle = pair.first;
-        std::shared_ptr<stack_info> stack_ptr = pair.second;
+        const unsigned int handle = pair.first;
+        const auto& stack_ptr = pair.second;
         fprintf(fp, "Allocated %ld times, Total memory: %s\n", stack_ptr->total_cnt, csize(stack_ptr->total_size).c_str());
         std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
         if (record_ptr != nullptr){
             std::string stack = get_call_stack(record_ptr);
             fprintf(fp, "%s",stack.c_str());
-            stack_record_page_list.insert(record_ptr->slab_addr & page_mask);
         }
-        print_total_size_by_pid(stack_ptr->owner_list);
+        print_process_memory_summary(stack_ptr->owner_list);
         fprintf(fp, "\n");
     }
 }
 
-void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list){
+void Pageowner::print_process_memory_summary(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list){
     std::unordered_map<size_t, std::shared_ptr<process_info>> process_map; //<pid,process_info>
     for (const auto& pair : owner_list) {
         std::shared_ptr<page_owner> owner_ptr = pair.second;
@@ -525,7 +750,7 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
     });
     fprintf(fp, "-------------------------------------------------\n");
     std::ostringstream oss;
-    oss << std::left << "      " << std::setw(8) << "PID" << " "
+    oss << std::left << std::setw(8) << "PID" << " "
         << std::left << std::setw(20) << "Comm" << " "
         << std::left << std::setw(10) << "Times" << " "
         << std::left << std::setw(10) << "Size";
@@ -548,46 +773,45 @@ void Pageowner::print_total_size_by_pid(std::unordered_map<size_t, std::shared_p
     }
 }
 
-void Pageowner::print_all_page_owner(bool alloc){
-    for (const auto& pair : owner_map) {
-        std::shared_ptr<page_owner> owner_ptr = pair.second;
-        if(alloc){
-            if(owner_ptr->handle <= 0) continue;
-            print_page_owner(owner_ptr,false);
-        }else{
-            if(owner_ptr->free_handle <= 0) continue;
-            print_page_owner(owner_ptr,true);
-        }
-    }
-}
-
 std::shared_ptr<page_owner> Pageowner::parser_page_owner(ulong addr){
-    if (!is_kvaddr(addr))return nullptr;
-    // fprintf(fp, "page_owner:%lx\n", addr);
+    if (!is_kvaddr(addr)) return nullptr;
+
     void *page_owner_buf = read_struct(addr, "page_owner");
-    if (page_owner_buf == nullptr)return nullptr;
-    std::shared_ptr<page_owner> owner_ptr = std::make_shared<page_owner>();
+    if (page_owner_buf == nullptr) return nullptr;
+
+    auto owner_ptr = std::make_shared<page_owner>();
     owner_ptr->addr = addr;
-    owner_ptr->order = SHORT(page_owner_buf + field_offset(page_owner, order));
-    owner_ptr->handle = UINT(page_owner_buf + field_offset(page_owner, handle));
-    owner_ptr->free_handle = UINT(page_owner_buf + field_offset(page_owner, free_handle));
-    owner_ptr->last_migrate_reason = SHORT(page_owner_buf + field_offset(page_owner, last_migrate_reason));
-    owner_ptr->ts_nsec = ULONG(page_owner_buf + field_offset(page_owner, ts_nsec));
-    owner_ptr->free_ts_nsec = ULONG(page_owner_buf + field_offset(page_owner, free_ts_nsec));
-    owner_ptr->gfp_mask = INT(page_owner_buf + field_offset(page_owner, gfp_mask));
-    owner_ptr->pid = INT(page_owner_buf + field_offset(page_owner, pid));
-    if (field_offset(page_owner, comm) > 0){
-        owner_ptr->comm = read_cstring(addr + field_offset(page_owner, comm),64,"page_owner_comm");
+
+    // Read all fields in one go to minimize pointer arithmetic
+    const char* buf_base = static_cast<const char*>(page_owner_buf);
+    owner_ptr->order = SHORT(buf_base + field_offset(page_owner, order));
+    owner_ptr->handle = UINT(buf_base + field_offset(page_owner, handle));
+    owner_ptr->free_handle = UINT(buf_base + field_offset(page_owner, free_handle));
+    owner_ptr->last_migrate_reason = SHORT(buf_base + field_offset(page_owner, last_migrate_reason));
+    owner_ptr->ts_nsec = ULONG(buf_base + field_offset(page_owner, ts_nsec));
+    owner_ptr->free_ts_nsec = ULONG(buf_base + field_offset(page_owner, free_ts_nsec));
+    owner_ptr->gfp_mask = INT(buf_base + field_offset(page_owner, gfp_mask));
+    owner_ptr->pid = INT(buf_base + field_offset(page_owner, pid));
+
+    // Handle optional fields
+    const auto comm_offset = field_offset(page_owner, comm);
+    if (comm_offset > 0) {
+        owner_ptr->comm = read_cstring(addr + comm_offset, 64, "page_owner_comm");
     }
-    if (field_offset(page_owner, tgid) > 0){
-        owner_ptr->tgid = INT(page_owner_buf + field_offset(page_owner, tgid));
-    }else{
+
+    const auto tgid_offset = field_offset(page_owner, tgid);
+    if (tgid_offset > 0) {
+        owner_ptr->tgid = INT(buf_base + tgid_offset);
+    } else {
         struct task_context *tc = pid_to_context(owner_ptr->pid);
-        if (tc){
+        if (tc) {
             owner_ptr->tgid = task_tgid(tc->task);
-            owner_ptr->comm = std::string(tc->comm);
+            if (comm_offset <= 0) {
+                owner_ptr->comm = std::string(tc->comm);
+            }
         }
     }
+
     FREEBUF(page_owner_buf);
     return owner_ptr;
 }
@@ -618,40 +842,13 @@ void Pageowner::parser_all_pageowners(){
         fprintf(fp, "cannot get ops_offset value\n");
         return;
     }
-    // fprintf(fp, "ops_offset:%zu\n", ops_offset);
-    if (csymbol_exists("depot_index")){
-        depot_index = read_int(csymbol_value("depot_index"),"depot_index");
-    }else if (csymbol_exists("pool_index")){
-        depot_index = read_int(csymbol_value("pool_index"),"pool_index");
-    } else if(csymbol_exists("pools_num")){
-        depot_index = read_int(csymbol_value("pools_num"), "pools_num");
-    }
-    if (csymbol_exists("stack_slabs")){
-        stack_slabs = csymbol_value("stack_slabs");
-    }else if (csymbol_exists("stack_pools")){/* 6.3 and later */
-        stack_slabs = csymbol_value("stack_pools");
-    }
     if (!stack_slabs){
         fprintf(fp, "cannot get stack_{pools|slabs}\n");
         return;
     }
-    ulong page_start = stack_slabs & page_mask;
-    stack_record_page_list.insert(page_start);
-    page_start = (stack_slabs + depot_index * sizeof(void *)) & page_mask;
-    stack_record_page_list.insert(page_start);
-    /* max_pfn */
-    if (csymbol_exists("max_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
-    }
-    /* min_low_pfn */
-    if (csymbol_exists("min_low_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn);
-    }
     /* PAGE_EXT_OWNER{,_ALLOCATED} */
     PAGE_EXT_OWNER = read_enum_val("PAGE_EXT_OWNER");
     PAGE_EXT_OWNER_ALLOCATED = read_enum_val("PAGE_EXT_OWNER_ALLOCATED");
-    // fprintf(fp, "min_low_pfn:%ld\n", min_low_pfn);
-    // fprintf(fp, "max_pfn:%ld\n", max_pfn);
     for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
         ulong page = pfn_to_page(pfn);
         if (!is_kvaddr(page))
@@ -665,8 +862,7 @@ void Pageowner::parser_all_pageowners(){
         if (!((flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0))
             continue;
         ulong page_owner_addr = get_page_owner(page_ext);
-        ulong page_start = page_owner_addr & page_mask;
-        page_owner_page_list.insert(page_start);
+        page_owner_page_list.insert(page_owner_addr & page_mask);
         std::shared_ptr<page_owner> owner_ptr = parser_page_owner(page_owner_addr);
         if (debug){
             fprintf(fp, "pfn:%zu page_ext:%lx page_owner:%lx handle:%ld free_handle:%ld\n",
@@ -676,6 +872,15 @@ void Pageowner::parser_all_pageowners(){
         if (!IS_ALIGNED(pfn, 1 << owner_ptr->order))
             continue;
         owner_ptr->pfn = pfn;
+        std::shared_ptr<stack_record_t> record_ptr;
+        if(owner_ptr->free_handle > 0){
+            record_ptr = get_stack_record(owner_ptr->free_handle);
+            stack_record_page_list.insert(record_ptr->record_addr & page_mask);
+        }
+        if(owner_ptr->handle > 0){
+            record_ptr = get_stack_record(owner_ptr->handle);
+            stack_record_page_list.insert(record_ptr->record_addr & page_mask);
+        }
         owner_map[pfn] = owner_ptr;
     }
 }
@@ -685,27 +890,28 @@ ulong Pageowner::get_page_owner(ulong page_ext){
 }
 
 ulong Pageowner::lookup_page_ext(ulong page) {
-    ulong pfn = page_to_pfn(page);
-    ulong page_ext = 0;
     if(get_config_val("CONFIG_PAGE_EXTENSION") != "y"){
         return 0;
     }
+
+    const ulong pfn = page_to_pfn(page);
+    ulong page_ext = 0;
+
     if(get_config_val("CONFIG_SPARSEMEM") == "y"){
-        ulong section = 0;
-        ulong section_nr = pfn_to_section_nr(pfn);
-        if (!(section = valid_section_nr(section_nr)))
+        const ulong section_nr = pfn_to_section_nr(pfn);
+        const ulong section = valid_section_nr(section_nr);
+        if (!section || !is_kvaddr(section))
             return 0;
-        if (!is_kvaddr(section))return 0;
-        // fprintf(fp, "section:%lx\n", section);
         page_ext = read_pointer(section + field_offset(mem_section,page_ext),"mem_section_page_ext");
-        if (page_ext_invalid(page_ext))return 0;
-        return get_entry(page_ext, pfn);
-    }else{
-        int nid = page_to_nid(page);
-        struct node_table *nt = &vt->node_table[nid];
+        if (page_ext_invalid(page_ext))
+            return 0;
+    } else {
+        const int nid = page_to_nid(page);
+        const struct node_table *nt = &vt->node_table[nid];
         page_ext = read_pointer(nt->pgdat + field_offset(pglist_data,node_page_ext),"pglist_data_node_page_ext");
-        return get_entry(page_ext, pfn);
     }
+
+    return get_entry(page_ext, pfn);
 }
 
 ulong Pageowner::get_entry(ulong base, ulong pfn) {

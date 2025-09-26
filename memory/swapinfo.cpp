@@ -338,7 +338,7 @@ char* Swapinfo::do_swap_page(ulonglong task_addr,ulonglong uvaddr){
                 fprintf(fp, "can't found swap_info !\n");
                 return nullptr;
             }
-            ulong zram_addr = get_zram_addr(swap_ptr,pte);
+            ulong zram_addr = get_zram_addr(swap_ptr);
             if (!is_kvaddr(zram_addr)){
                 fprintf(fp, "invaild zram addr: %#lx !\n",zram_addr);
                 return nullptr;
@@ -379,7 +379,7 @@ std::shared_ptr<swap_info> Swapinfo::get_swap_info(ulonglong pte_val){
     return nullptr;
 }
 
-ulong Swapinfo::get_zram_addr(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val){
+ulong Swapinfo::get_zram_addr(std::shared_ptr<swap_info> swap_ptr){
     if (swap_ptr->swap_file.rfind("zram") == std::string::npos) {
         return 0;
     }

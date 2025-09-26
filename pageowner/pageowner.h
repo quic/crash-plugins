@@ -50,15 +50,19 @@ struct stack_info {
 
 class Pageowner : public ParserPlugin {
 private:
+    enum AddressType {
+        ADDR_PFN,
+        ADDR_PHYSICAL,
+        ADDR_PAGE,
+        ADDR_VIRTUAL,
+        ADDR_UNKNOWN
+    };
     static const int INPUT_PFN = 0x0001;
     static const int INPUT_PYHS = 0x0002;
     static const int INPUT_PAGE = 0x0004;
+    static const int INPUT_VADDR = 0x0008;
     bool debug = false;
     int page_ext_size;
-    int depot_index;
-    ulong stack_slabs;
-    ulong max_pfn;
-    ulong min_low_pfn;
     size_t ops_offset;
     long PAGE_EXT_OWNER;
     long PAGE_EXT_OWNER_ALLOCATED;
@@ -74,12 +78,22 @@ private:
     bool page_ext_invalid(ulong page_ext);
     ulong lookup_page_ext(ulong page);
     ulong get_page_owner(ulong page_ext);
-    void print_all_page_owner(bool alloc);
-    void print_page_owner(std::string addr,int flags);
-    void print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_free);
-    void print_total_size_by_handle();
-    void print_total_size_by_pid(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list);
+    void print_page_owner(const std::string& addr,int flags);
+    bool is_page_allocated(std::shared_ptr<page_owner> owner_ptr);
+    void print_sorted_allocation_summary();
+    void print_process_memory_summary(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list);
     void print_memory_info();
+    void print_all_allocated_pages();
+    void print_all_freed_pages();
+    void print_page_owner_entry(std::shared_ptr<page_owner> owner_ptr, bool is_free,
+                               size_t entry_num, size_t total_entries);
+    ulong vaddr_to_pfn(ulong vaddr);
+    void print_page_owner_detailed(std::shared_ptr<page_owner> owner_ptr, bool is_free);
+    void print_page_owner_auto(const std::string& addr_str);
+    AddressType detect_address_type(ulonglong addr);
+    bool is_page_address(ulonglong addr);
+    bool is_physical_address(ulonglong addr);
+    bool is_user_virtual_address(ulonglong addr);
 
 public:
     Pageowner();

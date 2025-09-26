@@ -42,7 +42,7 @@ private:
 
     char* do_swap_page(ulonglong task_addr,ulonglong uvaddr);
     std::shared_ptr<swap_info> get_swap_info(ulonglong pte_val);
-    ulong get_zram_addr(std::shared_ptr<swap_info> swap_ptr, ulonglong pte_val);
+    ulong get_zram_addr(std::shared_ptr<swap_info> swap_ptr);
     ulong lookup_swap_cache(ulonglong pte_val);
     bool uread_bool(ulonglong task_addr,ulonglong uvaddr,const std::string& note);
     int uread_int(ulonglong task_addr,ulonglong uvaddr,const std::string& note);

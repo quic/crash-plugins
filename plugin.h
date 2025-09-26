@@ -148,6 +148,8 @@ public:
     int depot_index = 0;
     ulong stack_slabs = 0;
     ulong kaddr_mask = 0;
+    ulong max_pfn;
+    ulong min_low_pfn;
     std::string cmd_name;
     std::vector<std::string> help_str_list;
     char** cmd_help;
@@ -237,7 +239,8 @@ public:
     bool is_binary_stripped(std::string& filename);
     bool add_symbol_file(std::string& filename);
     void verify_userspace_symbol(std::string& symbol_name);
-    bool isNumber(const std::string& str);
+    std::string formatTimestamp(uint64_t timestamp_ns);
+    bool isNumber(const std::string &str);
     std::string extract_string(const char *input);
     int is_bigendian(void);
     std::vector<std::string> get_enumerator_list(const std::string &enum_name);

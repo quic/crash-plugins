@@ -106,7 +106,32 @@ ParserPlugin::ParserPlugin(){
     } else if (csymbol_exists("stack_pools")){ /* 6.3 and later */
         stack_slabs = csymbol_value("stack_pools");
     }
+    /* max_pfn */
+    max_pfn = csymbol_exists("max_pfn") ?
+        (try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn), max_pfn) : 0;
+    /* min_low_pfn */
+    min_low_pfn = csymbol_exists("min_low_pfn") ?
+        (try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn), min_low_pfn) : 0;
     //print_table();
+}
+
+std::string ParserPlugin::formatTimestamp(uint64_t timestamp_ns) {
+    uint64_t total_seconds = timestamp_ns / 1000000000ULL;
+    uint64_t ns_part = timestamp_ns % 1000000000ULL;
+
+    uint64_t days = total_seconds / 86400;
+    uint64_t hours = (total_seconds % 86400) / 3600;
+    uint64_t minutes = (total_seconds % 3600) / 60;
+    uint64_t seconds = total_seconds % 60;
+
+    std::ostringstream oss;
+    if (days > 0) {
+        oss << days << "d ";
+    }
+    oss << std::setfill('0') << std::setw(2) << hours << ":"
+        << std::setw(2) << minutes << ":" << std::setw(2) << seconds
+        << "." << std::setw(9) << ns_part << " (uptime)";
+    return oss.str();
 }
 
 bool ParserPlugin::isNumber(const std::string& str) {
