@@ -34,6 +34,29 @@ Zraminfo::Zraminfo(){
     ZRAM_COMP_PRIORITY_BIT1 = ZRAM_FLAG_SHIFT + 7;
     ZRAM_COMP_PRIORITY_MASK = 0x3;
     group_cnt = field_size(size_class,fullness_list)/sizeof(struct kernel_list_head);
+#if defined(ARM64)
+    struct machine_specific *ms = machdep->machspec;
+    // https://lore.kernel.org/all/20240503144604.151095-4-ryan.roberts@arm.com/
+    if (THIS_KERNEL_VERSION >= LINUX(6, 10, 0)) {
+        ms->__SWP_TYPE_SHIFT = 6;
+        ms->__SWP_TYPE_BITS = 5;
+        ms->__SWP_TYPE_MASK = ((1 <<  ms->__SWP_TYPE_BITS) - 1);
+        ms->__SWP_OFFSET_SHIFT = 12;
+        ms->__SWP_OFFSET_BITS = 50;
+        ms->__SWP_OFFSET_MASK = ((1UL << ms->__SWP_TYPE_BITS) - 1);
+        ms->PTE_PROT_NONE = (1UL << 58);
+        ms->PTE_FILE = 0;  /* unused */
+    }
+#endif
+
+#if defined(ARM)
+    // https://lore.kernel.org/all/1419423766-114457-13-git-send-email-kirill.shutemov@linux.intel.com/
+    #undef __SWP_TYPE_SHIFT
+    #define __SWP_TYPE_SHIFT 2
+    // https://lore.kernel.org/all/1343318468-10412-3-git-send-email-will.deacon@arm.com/
+    #undef __SWP_TYPE_BITS
+    #define __SWP_TYPE_BITS 5
+#endif
 }
 
 void Zraminfo::init_offset(void) {
