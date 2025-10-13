@@ -13,7 +13,7 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
-#include "Logcat_parser.h"
+#include "logcat_parser.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
