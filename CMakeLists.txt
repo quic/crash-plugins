@@ -107,7 +107,7 @@ list(APPEND PLUGIN_SOURCES
     thermal/thermal.cpp
     memory/meminfo.cpp
     watchdog/wdt.cpp
-    pagecache/pageinfo.cpp
+    pagecache/cache.cpp
     debugimage/debugimage.cpp
     debugimage/image_parser.cpp
     debugimage/cpu32_ctx.cpp
@@ -309,7 +309,7 @@ add_plugin(wdt
 
 # =================== build pagecache ===================
 add_plugin(cache
-    pagecache/pageinfo.cpp)
+    pagecache/cache.cpp)
 
 # =================== build debugimage ===================
 add_plugin(dbi

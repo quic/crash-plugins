@@ -38,7 +38,7 @@
 #include "thermal/thermal.h"
 #include "memory/meminfo.h"
 #include "watchdog/wdt.h"
-#include "pagecache/pageinfo.h"
+#include "pagecache/cache.h"
 #include "debugimage/debugimage.h"
 #include "ipc/ipc.h"
 #include "regulator/regulator.h"
@@ -115,7 +115,7 @@ std::shared_ptr<Coredump>      Coredump::instance      = nullptr;
 std::shared_ptr<Thermal>       Thermal::instance       = nullptr;
 std::shared_ptr<Meminfo>       Meminfo::instance       = nullptr;
 std::shared_ptr<Watchdog>      Watchdog::instance      = nullptr;
-std::shared_ptr<Pageinfo>      Pageinfo::instance      = nullptr;
+std::shared_ptr<Cache>         Cache::instance         = nullptr;
 std::shared_ptr<DebugImage>    DebugImage::instance    = nullptr;
 std::shared_ptr<IPCLog>        IPCLog::instance        = nullptr;
 std::shared_ptr<Regulator>     Regulator::instance     = nullptr;
@@ -158,7 +158,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<Thermal>());
     plugins.push_back(make_and_init<Meminfo>());
     plugins.push_back(make_and_init<Watchdog>());
-    plugins.push_back(make_and_init<Pageinfo>());
+    plugins.push_back(make_and_init<Cache>());
     plugins.push_back(make_and_init<DebugImage>());
     plugins.push_back(make_and_init<IPCLog>());
     plugins.push_back(make_and_init<Regulator>());
