@@ -1809,12 +1809,16 @@ This command dumps the page cache info.
 Display all file info.
 ```
 crash> cache -f
-Total File cache size: 704.48MB
+Total cached files: 2951, total size: 427.85MB
 ===============================================
 inode            address_space    nrpages  size       Path
-ffffff8030288f68 ffffff8030289130 8901     34.77MB    /system/framework/framework.jar
-ffffff80546f3178 ffffff80546f3340 8747     34.17MB    /priv-app/Settings/Settings.apk
-ffffff8035864cb8 ffffff8035864e80 5312     20.75MB    /system/framework/services.jar
+ffffff880089cb68 ffffff880089cd30 5654     22.09MB    /lib/modules/6.1.115-android14-11-maybe-dirty-debug/kiwi_v2.ko
+ffffff88044ef388 ffffff88044ef550 5503     21.50MB    /usr/lib/hw/camera.qcom.so
+ffffff880bc64f08 ffffff880bc650d0 2660     10.39MB    /tmp/weston.log
+ffffff8041b8fc68 ffffff8041b8fe30 2532     9.89MB     unknown
+ffffff88012efa38 ffffff88012efc00 2062     8.05MB     /usr/lib/librsvg-2.so.2.48.0
+ffffff803dfb9548 ffffff803dfb9710 2048     8MB        /run/log/journal/701d5770d3884580b981e8dad7fdc802/system.journal
+ffffff8045363e88 ffffff8045364050 2048     8MB        /run/log/journal/0306e3733ef9480a8ef2e76eaa2834f9/system.journal
 ```
 
 ### cache -a
@@ -1825,6 +1829,35 @@ page:0xfffffffe00000000  paddr:0x40000000
 page:0xfffffffe00000040  paddr:0x40001000
 page:0xfffffffe00000080  paddr:0x40002000
 page:0xfffffffe000000c0  paddr:0x40003000
+```
+### cache -l
+Display the file info of special path.
+```
+crash> cache -l /run/log/journal/0306e3733ef9480a8ef2e76eaa2834f9/
+DENTRY             INODE              PERMISSIONS      UID      GID     SIZE   NRPAGE TIME         PATH
+0xffffff8802487138 0xffffff8045363e88 -rw-r-----         0      995  8388608     2048 Jan 02 03:43 system.journal
+0xffffff8802487c18 0xffffff8045362e08 -rw-r-----         0      995  8388608     1382 Jan 02 03:38 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000c340d-000000103eef2e0f.journal
+0xffffff880261a740 0xffffff8802c03648 -rw-r-----         0      995  8388608     1382 Jan 02 03:22 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000c0990-0000001005f39a2b.journal
+0xffffff8802486ae0 0xffffff8045364ae8 -rw-r-----         0      995  8388608     1382 Jan 02 03:06 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000bdf13-0000000fccca8480.journal
+0xffffff880102b308 0xffffff804c559548 -rw-r-----         0      995  8388608     1382 Jan 02 02:51 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000bb496-0000000f939ee27e.journal
+0xffffff8802487790 0xffffff8045360d08 -rw-r-----         0      995  8388608     1382 Jan 02 02:35 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b8a19-0000000f5a5e7b48.journal
+0xffffff88011e13f0 0xffffff804bc89968 -rw-r-----         0      995  5658816     1382 Jan 02 02:19 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b5f9c-0000000f215ccc3c.journal
+0xffffff8802487878 0xffffff8045367848 -rw-r-----         0      995  8388608     1484 Jan 02 02:03 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b32da-0000000ee9031143.journal
+0xffffff880261a488 0xffffff8802c01d88 -rw-r-----         0      995  8388608     1381 Jan 02 01:47 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b08a6-0000000eb0889fb1.journal
+0xffffff880261b308 0xffffff8802c01548 -rw-r-----         0      995  8388608     1382 Jan 02 01:31 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000ade28-0000000e77a80a2d.journal
+0xffffff8802486658 0xffffff8045361548 -rw-r-----         0      995  8388608     1382 Jan 02 01:15 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000ab3aa-0000000e3ece08da.journal
+0xffffff8802487d00 0xffffff8045363228 -rw-r-----         0      995  8388608     1382 Jan 02 00:59 system@bf00ed31f63c44bd8311c1e4185809e9-00000000000a892c-0000000e05db5bbd.journal
+```
+### cache -d
+Dump the file content of special file.
+```
+crash> cache -d /run/log/journal/0306e3733ef9480a8ef2e76eaa2834f9/system.journal
+Save system.journal to xxx/cache//run/log/journal/0306e3733ef9480a8ef2e76eaa2834f9/system.journal
+  - File size: 8388608 bytes
+  - Pages processed: 2048
+  - Pages written: 2048
+  - Pages excluded: 0
+  - Success rate: 100.0%
 ```
 
 ## dbi
@@ -2268,59 +2301,74 @@ kworker/R-slub_      7       0   0.0202512       0               6.6823e-05     
 ## systemd
 This command dumps journal log.
 
-### systemd -lv
-List the journal log from process vma.
+### systemd -l
+List the journal log.
 ```
-crash> systemd -lv
-system.journal
-system@e7e04b540aff4d36914dcc77bc924bb2-00000000000005d0-00000687d4c49d31.journal
-user-1000.journal
-user-1001.journal
-user-1010.journal
-user-1021.journal
+crash> systemd -l
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            SYSTEMD JOURNAL FILES                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+Process Memory (VMA) - 2 files:
+ [ 1] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000c340d-000000103eef2e0f.journal   8.00MB     SYSTEM
+ [ 2] system.journal                                       8.00MB     SYSTEM
+
+Page Cache (Inodes) - 12 files:
+ [ 1] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000a892c-0000000e05db5bbd.journal      8MB  1382p  67%   SYSTEM
+ [ 2] system.journal                                8MB  2048p 100%   SYSTEM
+ [ 3] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000c340d-000000103eef2e0f.journal      8MB  1382p  67%   SYSTEM
+ [ 4] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b8a19-0000000f5a5e7b48.journal      8MB  1382p  67%   SYSTEM
+ [ 5] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000bdf13-0000000fccca8480.journal      8MB  1382p  67%   SYSTEM
+ [ 6] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000ade28-0000000e77a80a2d.journal      8MB  1382p  67%   SYSTEM
+ [ 7] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000c0990-0000001005f39a2b.journal      8MB  1382p  67%   SYSTEM
+ [ 8] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b08a6-0000000eb0889fb1.journal      8MB  1381p  67%   SYSTEM
+ [ 9] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b32da-0000000ee9031143.journal      8MB  1484p  72%   SYSTEM
+ [10] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000bb496-0000000f939ee27e.journal      8MB  1382p  67%   SYSTEM
+ [11] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000ab3aa-0000000e3ece08da.journal      8MB  1382p  67%   SYSTEM
+ [12] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000b5f9c-0000000f215ccc3c.journal   5.40MB  1382p 100%   SYSTEM
+
+Summary Statistics:
+   Total Journal Files: 14
+     ├─ In Process Memory (VMA): 2          (Total: 16.01MB)
+     └─ In Page Cache (Inode):   12         (Total: 93.40MB)
+
+   Page Cache Statistics:
+    ├─ Total Cached Pages: 17351
+    └─ Cache Memory Usage: 67.78MB
+
+Use 'systemd -d' to dump journal log
+Use 'systemd -s' to show journal log contents
+
 ```
-### systemd -dv
-Dump the journal log from process vma.
+### systemd -d
+Dump the journal log.
 ```
-crash> systemd -dv
-Save system.journal to xxx/systemd/system.journal
+crash> systemd -d
+Save system@bf00ed31f63c44bd8311c1e4185809e9-00000000000a892c-0000000e05db5bbd.journal to xxx/cache//system@bf00ed31f63c44bd8311c1e4185809e9-00000000000a892c-0000000e05db5bbd.journal
+  - File size: 8388608 bytes
+  - Pages processed: 1382
+  - Pages written: 1382
+  - Pages excluded: 0
+  - Success rate: 100.0%
+
+Journal dump summary:
+  - Page cache files dumped: 12
+  - VMA files dumped: 2
+  - Total files dumped: 14
 ```
 
-### systemd -svf 'log name'
-View the journal log from process vma.
+### systemd -s
+View the journal log.
 ```
-crash> systemd -svf system.journal
-[2025-06-17 19:34:45] PID=594 System clock time unset or jumped backwards, restoring from recorded timestamp: Tue 2025-06-17 11:34:45 UTC
-[2025-06-17 19:34:45] PID=593 Using system hostname 'qcs6490-odk'.
-[2025-06-17 19:34:45] PID=1 Started Network Time Synchronization.
-[2025-06-17 19:34:45] PID=1 Started Network Name Resolution.
-[2025-06-17 19:34:45] PID=1 Reached target Network.
-[2025-06-17 19:34:45] PID=1 Reached target Network is Online.
-[2025-06-17 19:34:45] PID=1 Reached target System Initialization.
-[2025-06-17 19:34:45] PID=1 Started Monitor /dev/socket path to start logd.
-[2025-06-17 19:34:45] PID=1 Started Daily Cleanup of Temporary Directories.
+crash> systemd -s
+Journal Logs (137135 entries):
+================================================================================
+Jan 02 00:43:47 pineapple kernel: [drm:sde_encoder_wait_for_event:6374] [sde error]enc66 intf_type:16, event:0 i:0, failed:-110
+Jan 02 00:43:47 pineapple systemd-journal[320]: Data hash table of /run/log/journal/0306e3733ef9480a8ef2e76eaa2834f9/system.journal has a fill level at 75.0 (10923 of 14563 items, 8388608 file size, 767 bytes per hash table item), suggesting rotation.
+Jan 02 00:43:47 pineapple systemd-journal[320]: /run/log/journal/0306e3733ef9480a8ef2e76eaa2834f9/system.journal: Journal header limits reached or header out-of-date, rotating.
+Jan 02 00:43:47 pineapple kernel: [drm:sde_kms_wait_for_commit_done:1720] [sde error]crtc:209, enc:66, cwb_d:0, wait for commit done failed ret:-110
+Jan 02 00:43:48 pineapple kernel: [drm:_sde_encoder_phys_cmd_handle_wr_ptr_timeout:2141] [sde error]enc66 intf1 wr_ptr_irq wait failed, switch_te:0
+Jan 02 00:43:48 pineapple kernel: [drm:sde_connector_esd_status:2863] [sde error]ESD recovery already pending
 ```
-
-### systemd -lc
-We can try to resume the journal log from pagecache.
-```
-crash> systemd -lc
-user-1000@000006867b6bd57c-66947a3228a6eb72.journal~
-user-1021@000006867b6bef21-8b1347aadfa395e8.journal~
-system@aaf133826bae43239cf4d8af75ab530d-00000000000005d0-00000686463119b1.journal
-system@11be06652b3743dd8c5e160346822b9b-0000000000000001-00061b1bd31c6794.journal
-user-1021@000006864631df61-4988bc3f085e3a76.journal~
-```
-
-### systemd -dc
-Dump the journal log from pagecache.
-```
-crash> systemd -dc
-Save system.journal to xxx/systemd/system.journal
-```
-
-### systemd -scf 'log name'
-View the journal log from pagecache,same with systemd -svf.
 
 ## t32
 This command generate launch_t32.bat script.
