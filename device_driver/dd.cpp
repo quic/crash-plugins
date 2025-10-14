@@ -614,7 +614,7 @@ std::shared_ptr<partition> DDriver::parser_hd_struct(ulong addr){
         }
     }
     //find the block_device for this hd_struct
-    for (auto& bd_addr : for_each_block_device()) {
+    for (auto& bd_addr : for_each_bdev()) {
         ulong bd_part_addr = read_pointer(bd_addr + field_offset(block_device,bd_part),"bd_part");
         if (bd_part_addr != addr){
             continue;
@@ -725,7 +725,7 @@ void DDriver::print_block_device(){
     std::string devname = "";
     std::ostringstream oss;
     std::set<ulong> bd_list;
-    for (auto& addr : for_each_block_device()) {
+    for (auto& addr : for_each_bdev()) {
         bd_list.insert(addr);
     }
     if (bd_list.size() == 0){
@@ -834,7 +834,7 @@ void DDriver::print_misc_device(){
             << std::left << std::setw(10)           << "minor"      << " "
             << std::left << std::setw(30)           << "ops"        << " "
             << std::left << "name" << "\n";
-    for (auto& addr : for_each_misc_device()) {
+    for (auto& addr : for_each_misc_dev()) {
         uint32_t minor = read_uint(addr + field_offset(miscdevice,minor),"minor");
         std::string name = "";
         size_t name_addr = read_pointer(addr + field_offset(miscdevice,name),"name addr");

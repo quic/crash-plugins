@@ -123,6 +123,12 @@ union handle_parts {
 
 #define GENMASK_ULL(h, l) (((1ULL<<(h+1))-1)&(~((1ULL<<l)-1)))
 
+struct mount_point {
+    ulong addr;
+    std::string path;
+    ulong root_dentry;
+};
+
 class ParserPlugin {
 private:
 #if defined(ARM)
@@ -131,11 +137,10 @@ private:
     std::vector<ulong> get_block_device_by_bdevs();
     std::vector<ulong> get_block_device_by_class();
     std::vector<ulong> get_block_device_by_bdevfs();
-    std::vector<ulong> for_each_kobj_map(std::string map_name);
-    std::vector<ulong> get_disk_by_bdevmap();
+    std::vector<ulong> for_each_kobj_map(const std::string& map_name);
     std::vector<ulong> get_disk_by_block_device();
-    char get_printable(uint8_t d);
-    std::string print_line(uint64_t addr, const std::vector<uint8_t>& data);
+    std::vector<ulong> get_disk_by_bdevmap();
+    ulong find_vfsmount_by_superblock(ulong dentry);
 
 protected:
     static constexpr double KB = 1024.0;
@@ -164,8 +169,8 @@ public:
     void initialize(void);
     std::string csize(uint64_t size);
     std::string csize(uint64_t size, int unit, int precision);
-    task_context* find_proc(std::string name);
-    task_context* find_proc(ulong pid);
+    struct task_context* find_proc(const std::string& name);
+    struct task_context* find_proc(ulong pid);
     bool page_buddy(ulong page_addr);
     int page_count(ulong page_addr);
     void print_table();
@@ -188,21 +193,24 @@ public:
     std::vector<ulong> for_each_inode();
     std::vector<ulong> for_each_process();
     std::vector<ulong> for_each_threads();
-    std::vector<ulong> for_each_vma(ulong& task_addr);
+    std::vector<ulong> for_each_vma(ulong task_addr);
     std::vector<ulong> for_each_char_device();
     std::vector<ulong> for_each_cdev();
     std::vector<ulong> for_each_disk();
-    std::vector<ulong> for_each_misc_device();
-    std::vector<ulong> for_each_block_device();
+    std::vector<ulong> for_each_misc_dev();
+    std::vector<ulong> for_each_bdev();
     std::vector<ulong> for_each_bus();
     std::vector<ulong> for_each_class();
-    ulong get_bus_subsys_private(std::string bus_name);
-    ulong get_class_subsys_private(std::string class_name);
-    std::vector<ulong> for_each_device_for_bus(std::string bus_name);
-    std::vector<ulong> for_each_device_for_class(std::string class_name);
+    std::vector<ulong> for_each_address_space(ulong i_mapping);
+    std::vector<ulong> for_each_subdirs(ulong dentry);
+    std::vector<ulong> for_each_device_for_bus(const std::string& bus_name);
+    std::vector<ulong> for_each_device_for_class(const std::string& class_name);
     std::vector<ulong> for_each_device_for_driver(ulong driver_addr);
-    std::vector<ulong> for_each_driver(std::string bus_name);
+    std::vector<ulong> for_each_driver(const std::string& bus_name);
     std::vector<ulong> for_each_task_files(task_context *tc);
+    ulong get_bus_subsys_private(const std::string& bus_name);
+    ulong get_class_subsys_private(const std::string& class_name);
+
     ulonglong read_structure_field(ulong addr, const std::string &type, const std::string &field, bool virt = true);
     std::string read_long_string(ulong kvaddr, const std::string &note, bool virt = true);
     std::string read_cstring(ulong addr, int len, const std::string &note, bool virt = true);
@@ -240,9 +248,8 @@ public:
 
     bool is_binary_stripped(std::string& filename);
     bool add_symbol_file(std::string& filename);
-    void verify_userspace_symbol(std::string& symbol_name);
     std::string formatTimestamp(uint64_t timestamp_ns);
-    bool isNumber(const std::string &str);
+    bool isNumber(const std::string& str);
     std::string extract_string(const char *input);
     int is_bigendian(void);
     std::vector<std::string> get_enumerator_list(const std::string &enum_name);
@@ -255,6 +262,15 @@ public:
     void uwind_task_back_trace(int pid, ulong x30);
     std::shared_ptr<stack_record_t> get_stack_record(uint handle);
     std::string get_call_stack(std::shared_ptr<stack_record_t> record_ptr);
+    std::vector<std::shared_ptr<mount_point>> get_mntpoint_list(task_context *tc);
+    std::string get_dentry_path(ulong dentry);
+    std::string get_dentry_name(ulong dentry);
+    ulong path_to_dentry(const std::string& orig_path);
+    ulong find_file_in_dir(ulong dentry, const std::string& name);
+    void normalize_path(std::string &path);
+    ulong get_inode(ulong dentry);
+    bool create_directories_recursive(const std::string& path);
+    void write_pagecache_to_file(ulong inode_addr, const std::string& filename, const std::string& dst_dir, bool show_log=false);
 #if defined(ARM)
     ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
 #endif
