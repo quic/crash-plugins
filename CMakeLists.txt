@@ -14,51 +14,58 @@
 cmake_minimum_required(VERSION 3.21.1)
 project(plugins)
 
+# =================== Basic Configuration ===================
 string(TOUPPER "${CMAKE_BUILD_TARGET_ARCH}" BUILD_TARGET_ARCH)
-add_definitions(-D${BUILD_TARGET_ARCH})
-add_definitions(-D__LITTLE_ENDIAN)
-add_definitions(-D_FILE_OFFSET_BITS=64)
+add_definitions(
+    -D${BUILD_TARGET_ARCH}
+    -D__LITTLE_ENDIAN
+    -D_FILE_OFFSET_BITS=64)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -rdynamic -Wall")
-
 include_directories(.)
 
+# Architecture-specific configuration
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
-set(CMAKE_LIBRARY_ARCHITECTURE x86_64-linux-gnu)
+    set(CMAKE_LIBRARY_ARCHITECTURE x86_64-linux-gnu)
 elseif(CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
-set(CMAKE_LIBRARY_ARCHITECTURE i386-linux-gnu)
+    set(CMAKE_LIBRARY_ARCHITECTURE i386-linux-gnu)
 endif()
 
-if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm" OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64")
-add_compile_definitions(IS_ARM)
+if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm|aarch64")
+    add_compile_definitions(IS_ARM)
 endif()
 
+# =================== Dependency Library Detection ===================
 find_package(PkgConfig REQUIRED)
+
+# Check for required libraries
 # sudo apt-get install libzstd-dev libzstd-dev:i386
 pkg_check_modules(ZSTD REQUIRED libzstd)
 if(NOT ZSTD_FOUND)
-    message(FATAL_ERROR "libzstd library not found")
+    message(FATAL_ERROR "libzstd library not found.")
 endif()
+
 # sudo apt-get install libelf-dev libelf-dev:i386
 pkg_check_modules(ELF REQUIRED libelf)
 if(NOT ELF_FOUND)
-    message(FATAL_ERROR "libelf library not found")
+    message(FATAL_ERROR "libelf library not found.")
 endif()
 
-# sudo apt install libsystemd-dev libsystemd-dev:i386
+# sudo apt-get install libsystemd-dev libsystemd-dev:i386
 pkg_check_modules(SYSTEMD REQUIRED libsystemd)
 if(NOT SYSTEMD_FOUND)
-    message(FATAL_ERROR "libsystemd library not found")
+    message(FATAL_ERROR "libsystemd library not found.")
 endif()
 
-set(PLUGIN_SOURCES
-    plugin.cpp)
+# =================== Common Source Files ===================
+set(PLUGIN_SOURCES plugin.cpp logger/logger_core.cpp)
 
 if(DEFINED BUILD_TARGET_TOGETHER)
 add_definitions(-DBUILD_TARGET_TOGETHER)
 list(APPEND PLUGIN_SOURCES
     plugins.cpp
+    logger/logger.cpp
     utils/utask.cpp
     lib/lzo/lzo1x_decompress_safe.c
     lib/lz4/lz4_decompress.c
@@ -87,7 +94,7 @@ list(APPEND PLUGIN_SOURCES
     partition/filesystem.cpp
     property/propinfo.cpp
     property/prop.cpp
-    logcat/Logcat_parser.cpp
+    logcat/logcat_parser.cpp
     logcat/logcat.cpp
     logcat/logcatS.cpp
     logcat/logcatR.cpp
@@ -124,317 +131,259 @@ list(APPEND PLUGIN_SOURCES
 
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
-    target_sources(plugins PRIVATE coredump/arm/arm64.cpp
-                                coredump/arm/compat.cpp)
+    target_sources(plugins PRIVATE
+        coredump/arm/arm64.cpp
+        coredump/arm/compat.cpp)
 elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
-    target_sources(plugins PRIVATE coredump/arm/arm.cpp)
+    target_sources(plugins PRIVATE
+        coredump/arm/arm.cpp)
 endif()
 
 set_target_properties(plugins PROPERTIES PREFIX "")
-target_link_libraries(plugins ${ELF_LIBRARIES} ${ZSTD_LIBRARIES} ${SYSTEMD_LIBRARIES})
+target_link_libraries(plugins
+    ${ELF_LIBRARIES}
+    ${ZSTD_LIBRARIES}
+    ${SYSTEMD_LIBRARIES})
+
 else()
+add_library(plugin_common INTERFACE)
+target_link_libraries(plugin_common INTERFACE ${ELF_LIBRARIES})
+target_include_directories(plugin_common INTERFACE .)
+
+macro(add_plugin name)
+    add_library(${name} SHARED ${PLUGIN_SOURCES} ${ARGN})
+    set_target_properties(${name} PROPERTIES PREFIX "")
+    target_link_libraries(${name} plugin_common)
+endmacro()
+
+# =================== build logger ===================
+add_plugin(logger
+    logger/logger.cpp)
+
 # =================== build dmabuf ===================
-add_library(dmabuf SHARED
-            ${PLUGIN_SOURCES}
-            memory/dmabuf/cmd_buf.cpp
-            memory/dmabuf/dmabuf.cpp
-            memory/dmabuf/heap.cpp
-            memory/dmabuf/dma_heap.cpp
-            memory/dmabuf/ion_heap.cpp)
-set_target_properties(dmabuf PROPERTIES PREFIX "")
+add_plugin(dmabuf
+    memory/dmabuf/cmd_buf.cpp
+    memory/dmabuf/dmabuf.cpp
+    memory/dmabuf/heap.cpp
+    memory/dmabuf/dma_heap.cpp
+    memory/dmabuf/ion_heap.cpp)
 
 # =================== build binder ===================
-add_library(binder SHARED
-            ${PLUGIN_SOURCES}
-            binder/binder.cpp)
-set_target_properties(binder PROPERTIES PREFIX "")
+add_plugin(binder
+    binder/binder.cpp)
 
 # =================== build cma ===================
-add_library(cma SHARED
-            ${PLUGIN_SOURCES}
-            memory/cma.cpp)
-set_target_properties(cma PROPERTIES PREFIX "")
+add_plugin(cma
+    memory/cma.cpp)
 
 # =================== build slub ===================
-add_library(slub SHARED
-            ${PLUGIN_SOURCES}
-            memory/slub.cpp)
-set_target_properties(slub PROPERTIES PREFIX "")
+add_plugin(slub
+    memory/slub.cpp)
 
 # =================== build pageowner ===================
-add_library(pageowner SHARED
-            ${PLUGIN_SOURCES}
-            pageowner/pageowner.cpp)
-set_target_properties(pageowner PROPERTIES PREFIX "")
+add_plugin(pageowner
+    pageowner/pageowner.cpp)
 
 # =================== build procrank ===================
-add_library(procrank SHARED
-            ${PLUGIN_SOURCES}
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            procrank/procrank.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c
-            utils/utask.cpp)
-set_target_properties(procrank PROPERTIES PREFIX "")
-target_link_libraries(procrank ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+add_plugin(procrank
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    procrank/procrank.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c
+    utils/utask.cpp)
+target_link_libraries(procrank ${ZSTD_LIBRARIES})
 
 # =================== build dts ===================
-add_library(dts SHARED
-            ${PLUGIN_SOURCES}
-            devicetree/dts.cpp
-            devicetree/devicetree.cpp)
-set_target_properties(dts PROPERTIES PREFIX "")
+add_plugin(dts
+    devicetree/dts.cpp
+    devicetree/devicetree.cpp)
 
 # =================== build memblock ===================
-add_library(memblock SHARED
-            ${PLUGIN_SOURCES}
-            memory/memblock.cpp)
-set_target_properties(memblock PROPERTIES PREFIX "")
+add_plugin(memblock
+    memory/memblock.cpp)
 
 # =================== build wq ===================
-add_library(wq SHARED
-            ${PLUGIN_SOURCES}
-            workqueue/workqueue.cpp)
-set_target_properties(wq PROPERTIES PREFIX "")
+add_plugin(wq
+    workqueue/workqueue.cpp)
 
 # =================== build reserved ===================
-add_library(reserved SHARED
-            ${PLUGIN_SOURCES}
-            memory/reserved.cpp
-            devicetree/devicetree.cpp)
-set_target_properties(reserved PROPERTIES PREFIX "")
+add_plugin(reserved
+    memory/reserved.cpp
+    devicetree/devicetree.cpp)
 
 # =================== build iomem ===================
-add_library(iomem SHARED
-            ${PLUGIN_SOURCES}
-            memory/iomem.cpp)
-set_target_properties(iomem PROPERTIES PREFIX "")
+add_plugin(iomem
+    memory/iomem.cpp)
 
 # =================== build vmalloc ===================
-add_library(vmalloc SHARED
-            ${PLUGIN_SOURCES}
-            memory/vmalloc.cpp)
-set_target_properties(vmalloc PROPERTIES PREFIX "")
+add_plugin(vmalloc
+    memory/vmalloc.cpp)
 
 # =================== build buddy ===================
-add_library(buddy SHARED
-            ${PLUGIN_SOURCES}
-            memory/buddy.cpp)
-set_target_properties(buddy PROPERTIES PREFIX "")
+add_plugin(buddy
+    memory/buddy.cpp)
 
 # =================== build rtb ===================
-add_library(rtb SHARED
-            ${PLUGIN_SOURCES}
-            rtb/rtb.cpp)
-set_target_properties(rtb PROPERTIES PREFIX "")
+add_plugin(rtb
+    rtb/rtb.cpp)
 
 # =================== build zram ===================
-add_library(zram SHARED
-            ${PLUGIN_SOURCES}
-            memory/zraminfo.cpp
-            memory/zram.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c)
-set_target_properties(zram PROPERTIES PREFIX "")
-target_link_libraries(zram)
+add_plugin(zram
+    memory/zraminfo.cpp
+    memory/zram.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c)
 
 # =================== build swap ===================
-add_library(swap SHARED
-            ${PLUGIN_SOURCES}
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            memory/swap.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c)
-set_target_properties(swap PROPERTIES PREFIX "")
-target_link_libraries(swap ${ELF_LIBRARIES})
+add_plugin(swap
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    memory/swap.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c)
 
 # =================== build prop ===================
-add_library(prop SHARED
-            ${PLUGIN_SOURCES}
-            utils/utask.cpp
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            property/propinfo.cpp
-            property/prop.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c)
-set_target_properties(prop PROPERTIES PREFIX "")
-target_link_libraries(prop ${ELF_LIBRARIES})
+add_plugin(prop
+    utils/utask.cpp
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    property/propinfo.cpp
+    property/prop.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c)
 
 # =================== build logcat ===================
-add_library(logcat SHARED
-            ${PLUGIN_SOURCES}
-            utils/utask.cpp
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            property/propinfo.cpp
-            logcat/Logcat_parser.cpp
-            logcat/logcat.cpp
-            logcat/logcatS.cpp
-            logcat/logcatR.cpp
-            logcat/logcatLE.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c)
-set_target_properties(logcat PROPERTIES PREFIX "")
-target_link_libraries(logcat ${ELF_LIBRARIES} ${ZSTD_LIBRARIES})
+add_plugin(logcat
+    utils/utask.cpp
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    property/propinfo.cpp
+    logcat/logcat_parser.cpp
+    logcat/logcat.cpp
+    logcat/logcatS.cpp
+    logcat/logcatR.cpp
+    logcat/logcatLE.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c)
+target_link_libraries(logcat ${ZSTD_LIBRARIES})
 
 # =================== build dd ===================
-add_library(dd SHARED
-            ${PLUGIN_SOURCES}
-            device_driver/dd.cpp)
-set_target_properties(dd PROPERTIES PREFIX "")
+add_plugin(dd
+    device_driver/dd.cpp)
 
 # =================== build cpuinfo ===================
-add_library(cpuinfo SHARED
-            ${PLUGIN_SOURCES}
-            cpu/cpuinfo.cpp)
-set_target_properties(cpuinfo PROPERTIES PREFIX "")
+add_plugin(cpuinfo
+    cpu/cpuinfo.cpp)
+
 # =================== build core ===================
-add_library(core SHARED
-            ${PLUGIN_SOURCES}
-            utils/utask.cpp
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            coredump/coredump.cpp
-            coredump/core.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c)
+add_plugin(core
+    utils/utask.cpp
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    coredump/coredump.cpp
+    coredump/core.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c)
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
-    target_sources(core PRIVATE coredump/arm/arm64.cpp
-                                coredump/arm/compat.cpp)
+    target_sources(core PRIVATE
+        coredump/arm/arm64.cpp
+        coredump/arm/compat.cpp)
 elseif (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm")
-    target_sources(core PRIVATE coredump/arm/arm.cpp)
+    target_sources(core PRIVATE
+        coredump/arm/arm.cpp)
 endif()
-set_target_properties(core PROPERTIES PREFIX "")
-target_link_libraries(core ${ELF_LIBRARIES})
+
 # =================== build thermal ===================
-add_library(tm SHARED
-            ${PLUGIN_SOURCES}
-            thermal/thermal.cpp)
-set_target_properties(tm PROPERTIES PREFIX "")
+add_plugin(tm
+    thermal/thermal.cpp)
 
 # =================== build meminfo ===================
-add_library(meminfo SHARED
-            ${PLUGIN_SOURCES}
-            devicetree/devicetree.cpp
-            memory/meminfo.cpp)
-set_target_properties(meminfo PROPERTIES PREFIX "")
+add_plugin(meminfo
+    devicetree/devicetree.cpp
+    memory/meminfo.cpp)
 
 # =================== build watchdog ===================
-add_library(wdt SHARED
-            ${PLUGIN_SOURCES}
-            watchdog/wdt.cpp)
-set_target_properties(wdt PROPERTIES PREFIX "")
+add_plugin(wdt
+    watchdog/wdt.cpp)
 
 # =================== build pagecache ===================
-add_library(cache SHARED
-            ${PLUGIN_SOURCES}
-            pagecache/pageinfo.cpp)
-set_target_properties(cache PROPERTIES PREFIX "")
+add_plugin(cache
+    pagecache/pageinfo.cpp)
 
 # =================== build debugimage ===================
-add_library(dbi SHARED
-            ${PLUGIN_SOURCES}
-            debugimage/debugimage.cpp
-            debugimage/image_parser.cpp
-            debugimage/cpu32_ctx.cpp
-            debugimage/cpu64_ctx_v13.cpp
-            debugimage/cpu64_ctx_v14.cpp
-            debugimage/cpu64_ctx_v20.cpp)
-set_target_properties(dbi PROPERTIES PREFIX "")
+add_plugin(dbi
+    debugimage/debugimage.cpp
+    debugimage/image_parser.cpp
+    debugimage/cpu32_ctx.cpp
+    debugimage/cpu64_ctx_v13.cpp
+    debugimage/cpu64_ctx_v14.cpp
+    debugimage/cpu64_ctx_v20.cpp)
 
 # =================== build IPC log ===================
-add_library(ipc SHARED
-            ${PLUGIN_SOURCES}
-            ipc/ipc.cpp)
-set_target_properties(ipc PROPERTIES PREFIX "")
+add_plugin(ipc
+    ipc/ipc.cpp)
 
 # =================== build regulator ===================
-add_library(reg SHARED
-            ${PLUGIN_SOURCES}
-            regulator/regulator.cpp)
-set_target_properties(reg PROPERTIES PREFIX "")
+add_plugin(reg
+    regulator/regulator.cpp)
 
 # =================== build icc ===================
-add_library(icc SHARED
-            ${PLUGIN_SOURCES}
-            icc/icc.cpp)
-set_target_properties(icc PROPERTIES PREFIX "")
+add_plugin(icc
+    icc/icc.cpp)
 
 # =================== build clock ===================
-add_library(ccf SHARED
-            ${PLUGIN_SOURCES}
-            clock/clock.cpp)
-set_target_properties(ccf PROPERTIES PREFIX "")
+add_plugin(ccf
+    clock/clock.cpp)
 
 # =================== build pstore ===================
-add_library(pstore SHARED
-            ${PLUGIN_SOURCES}
-            utils/utask.cpp
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c
-            pstore/pstore.cpp)
-set_target_properties(pstore PROPERTIES PREFIX "")
-target_link_libraries(pstore ${ELF_LIBRARIES})
+add_plugin(pstore
+    utils/utask.cpp
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c
+    pstore/pstore.cpp)
 
 # =================== build sys ===================
-add_library(sys SHARED
-            ${PLUGIN_SOURCES}
-            sysinfo/sys.cpp)
-set_target_properties(sys PROPERTIES PREFIX "")
+add_plugin(sys
+    sysinfo/sys.cpp)
 
 # =================== build qlog ===================
-add_library(qlog SHARED
-            ${PLUGIN_SOURCES}
-            devicetree/devicetree.cpp
-            qlog/qlog.cpp)
-set_target_properties(qlog PROPERTIES PREFIX "")
+add_plugin(qlog
+    devicetree/devicetree.cpp
+    qlog/qlog.cpp)
 
 # =================== build task ===================
-add_library(sched SHARED
-            ${PLUGIN_SOURCES}
-            task/task_sched.cpp)
-set_target_properties(sched PROPERTIES PREFIX "")
+add_plugin(sched
+    task/task_sched.cpp)
 
 # =================== build ftrace ===================
-add_library(ftrace SHARED
-            ${PLUGIN_SOURCES}
-            ftrace/ftrace.cpp
-            ftrace/events.cpp
-            ftrace/trace_event.cpp)
-set_target_properties(ftrace PROPERTIES PREFIX "")
+add_plugin(ftrace
+    ftrace/ftrace.cpp
+    ftrace/events.cpp
+    ftrace/trace_event.cpp)
 
 # =================== build sf ===================
-add_library(sf SHARED
-            ${PLUGIN_SOURCES}
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            utils/utask.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c
-            surfaceflinger/sf.cpp)
-set_target_properties(sf PROPERTIES PREFIX "")
-target_link_libraries(sf ${ELF_LIBRARIES})
+add_plugin(sf
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    utils/utask.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c
+    surfaceflinger/sf.cpp)
 
 # =================== build systemd ===================
-add_library(sd SHARED
-            ${PLUGIN_SOURCES}
-            memory/zraminfo.cpp
-            memory/swapinfo.cpp
-            utils/utask.cpp
-            lib/lzo/lzo1x_decompress_safe.c
-            lib/lz4/lz4_decompress.c
-            systemd/journal.cpp)
-set_target_properties(sd PROPERTIES PREFIX "")
-target_link_libraries(sd ${ELF_LIBRARIES} ${SYSTEMD_LIBRARIES})
+add_plugin(sd
+    memory/zraminfo.cpp
+    memory/swapinfo.cpp
+    utils/utask.cpp
+    lib/lzo/lzo1x_decompress_safe.c
+    lib/lz4/lz4_decompress.c
+    systemd/journal.cpp)
+target_link_libraries(sd ${SYSTEMD_LIBRARIES})
 
 # =================== build t32 ===================
-add_library(t32 SHARED
-            ${PLUGIN_SOURCES}
-            t32/t32.cpp)
-set_target_properties(t32 PROPERTIES PREFIX "")
+add_plugin(t32
+    t32/t32.cpp)
 endif()

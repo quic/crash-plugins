@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <functional>
 #include <algorithm>
@@ -39,6 +40,7 @@
 #include <sstream>
 #include <gelf.h>
 #include <map>
+#include "logger/logger_core.h"
 
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -263,7 +265,9 @@ public:
     static std::shared_ptr<class_name> instance;                                                                \
     static void wrapper_func() {                                                                                \
         if (instance) {                                                                                         \
+            SimpleLogger::set_context(instance->cmd_name);                                                      \
             instance->cmd_main();                                                                               \
+            SimpleLogger::clear_context();                                                                      \
         }                                                                                                       \
     }                                                                                                           \
     cmd_func_t get_wrapper_func() override {                                                                    \
@@ -283,7 +287,9 @@ public:
         class_name::instance = std::make_shared<class_name>();                                                  \
         class_name::instance->init_command();                                                                   \
         class_name::instance->initialize();                                                                     \
-        class_name::instance->init_offset();                                                                    \
+        if (class_name::instance->do_init_offset) {                                                             \
+            class_name::instance->init_offset();                                                                \
+        }                                                                                                       \
         command_table[0] = {&class_name::instance->cmd_name[0],                                                 \
             class_name::instance->get_wrapper_func(),                                                           \
             class_name::instance->cmd_help,                                                                     \
