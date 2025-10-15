@@ -53,52 +53,68 @@ This command is used to view detailed information about memblock.
 ### memblock -a
 ```
 crash> memblock -a
-membock_type:c1f39ed8 [memory] total_size:864.34MB
-  [00000]memblock_region:c2172b68 range:[40000000~45a00000] size:90MB       flags:MEMBLOCK_NONE
-  [00001]memblock_region:c2172b74 range:[45f10000~45fff000] size:956KB      flags:MEMBLOCK_NONE
-  [00002]memblock_region:c2172b80 range:[46300000~4ab00000] size:72MB       flags:MEMBLOCK_NONE
-  [00003]memblock_region:c2172b8c range:[52717000~60000000] size:216.91MB   flags:MEMBLOCK_NONE
-  [00004]memblock_region:c2172b98 range:[60100000~60e00000] size:13MB       flags:MEMBLOCK_NONE
-  [00005]memblock_region:c2172ba4 range:[61f00000~7f680000] size:471.50MB   flags:MEMBLOCK_NONE
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Type:                memory                                                 │
+│  memblock_type:       0xffffffdd7acdc4f8                                     │
+│  Total Size:          5.75GB                                                 │
+│  Region Count:        14                                                     │
+├─────┬────────────────────┬────────────────────────────┬────────────┬─────────┤
+│    #│memblock_region     │Physical Range              │Size        │Flags    │
+├─────┼────────────────────┼────────────────────────────┼────────────┼─────────┤
+│    0│0xffffffdd7b2b3e58  │[0x080e00000~0x081800000]   │        10MB│NONE     │
+│    1│0xffffffdd7b2b3e70  │[0x081cf5000~0x081cff000]   │        40KB│NONE     │
+│    2│0xffffffdd7b2b3e88  │[0x081f20000~0x0824a0000]   │      5.50MB│NONE     │
+│    3│0xffffffdd7b2b3ea0  │[0x082800000~0x099280000]   │    362.50MB│NONE     │
+│    8│0xffffffdd7b2b3f18  │[0x0ea700000~0x0fc800000]   │       289MB│NONE     │
+│    9│0xffffffdd7b2b3f30  │[0x0fca00000~0x100000000]   │        54MB│NONE     │
+│   10│0xffffffdd7b2b3f48  │[0x880000000~0x8afbff000]   │    764.00MB│NONE     │
+│   11│0xffffffdd7b2b3f60  │[0x8b0000000~0x8ba700000]   │       167MB│NONE     │
+│   12│0xffffffdd7b2b3f78  │[0x8bf800000~0x97ffff000]   │      3.01GB│NONE     │
+│   13│0xffffffdd7b2b3f90  │[0x97ffff000~0x980000000]   │         4KB│NO-MAP   │
+└─────┴────────────────────┴────────────────────────────┴────────────┴─────────┘
 
-memblock_type:c1f39eec [reserved] total_size:150.70MB
-  [00000]memblock_region:c2173168 range:[40004000~40008000] size:16KB       flags:MEMBLOCK_NONE
-  [00001]memblock_region:c2173174 range:[40100000~4277f094] size:38.50MB    flags:MEMBLOCK_NONE
-  [00002]memblock_region:c2173180 range:[453b2000~453fe11e] size:304.28KB   flags:MEMBLOCK_NONE
-  [00003]memblock_region:c217318c range:[455b3000~456ff000] size:1.30MB     flags:MEMBLOCK_NONE
-  [00004]memblock_region:c2173198 range:[459fdf10~45a00000] size:8.23KB     flags:MEMBLOCK_NONE
-  [00005]memblock_region:c21731a4 range:[5cf00000~5d000000] size:1MB        flags:MEMBLOCK_NONE
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Type:                reserved                                               │
+│  memblock_type:       0xffffffdd7acdc520                                     │
+│  Total Size:          429.90MB                                               │
+│  Region Count:        55                                                     │
+├─────┬────────────────────┬────────────────────────────┬────────────┬─────────┤
+│    #│memblock_region     │Physical Range              │Size        │Flags    │
+├─────┼────────────────────┼────────────────────────────┼────────────┼─────────┤
+│    0│0xffffffdd7b2b9e58  │[0x082800000~0x084800000]   │        32MB│NONE     │
+│    1│0xffffffdd7b2b9e70  │[0x0a8010000~0x0ab257000]   │     50.28MB│NONE     │
+│    2│0xffffffdd7b2b9e88  │[0x0ab25a000~0x0ab260000]   │        24KB│NONE     │
+│    3│0xffffffdd7b2b9ea0  │[0x0affffb80~0x0b0000000]   │      1.12KB│NONE     │
+│   53│0xffffffdd7b2ba350  │[0x97d8c5a28~0x97d8c5a54]   │         44B│NONE     │
+│   54│0xffffffdd7b2ba368  │[0x97d8c5a58~0x980000000]   │     39.23MB│NONE     │
+└─────┴────────────────────┴────────────────────────────┴────────────┴─────────┘
+
+Summary:
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Total Memory Regions:    69                                                 │
+│  Memory Size:             5.75GB                                             │
+│  Reserved Size:           429.90MB                                           │
+│  Bottom Up:               No                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 ## reserved
 This command is used to view detailed information about reserved memory.
 ### reserved -a
 ```
 crash> reserved -a
-==============================================================================================================
-[000]deepsleep_region@45A00000  reserved_mem:c24a5fb4 range:[45a00000~45b00000] size:1MB      [no-map  ]
-[001]hyp_region@45B00000        reserved_mem:c24a5fd0 range:[45b00000~45e00000] size:3MB      [no-map  ]
-[002]xbl_aop_mem@45e00000       reserved_mem:c24a5fec range:[45e00000~45f10000] size:1.06MB   [no-map  ]
-[003]sec_apps_region@45fff000   reserved_mem:c24a6008 range:[45fff000~46000000] size:4KB      [no-map  ]
-[004]smem@46000000              reserved_mem:c24a6024 range:[46000000~46200000] size:2MB      [no-map  ]
-[005]wlan_msa_region@46200000   reserved_mem:c24a6040 range:[46200000~46300000] size:1MB      [no-map  ]
-[006]modem_region@4ab00000      reserved_mem:c24a605c range:[4ab00000~50900000] size:94MB     [no-map  ]
-[007]pil_video_region@50900000  reserved_mem:c24a6078 range:[50900000~50e00000] size:5MB      [no-map  ]
-[008]adsp_regions@50E00000      reserved_mem:c24a6094 range:[50e00000~52700000] size:25MB     [no-map  ]
-[009]ips_fw_region@52700000     reserved_mem:c24a60b0 range:[52700000~52710000] size:64KB     [no-map  ]
-[010]ipa_gsi_region@52710000    reserved_mem:c24a60cc range:[52710000~52715000] size:20KB     [no-map  ]
-[011]gpu_region@52715000        reserved_mem:c24a60e8 range:[52715000~52717000] size:8KB      [no-map  ]
-[012]splash_region@5c000000     reserved_mem:c24a6104 range:[5c000000~5cf00000] size:15MB     [unknow  ]
-[013]dfps_data_region@5cf00000  reserved_mem:c24a6120 range:[5cf00000~5d000000] size:1MB      [unknow  ]
-[014]stats_region@60000000      reserved_mem:c24a613c range:[60000000~60100000] size:1MB      [no-map  ]
-[015]removed_region@60100000    reserved_mem:c24a6158 range:[60e00000~61f00000] size:17MB     [no-map  ]
-[016]linux,cma                  reserved_mem:c24a5f98 range:[79000000~7b000000] size:32MB     [reusable]
-[017]qseecom_ta_region          reserved_mem:c24a5f7c range:[7b000000~7c000000] size:16MB     [reusable]
-[018]mem_dump_region            reserved_mem:c24a5f60 range:[7c000000~7c800000] size:8MB      [reusable]
-[019]adsp_region                reserved_mem:c24a5f44 range:[7c800000~7d000000] size:8MB      [reusable]
-[020]qseecom_region             reserved_mem:c24a5f28 range:[7d000000~7e400000] size:20MB     [reusable]
-[021]user_contig_region         reserved_mem:c24a5f0c range:[7e400000~7f400000] size:16MB     [reusable]
-==============================================================================================================
-Total:266.16MB nomap:150.16MB reuse:100MB unknow:16MB
+Reserved Memory Regions Overview
+┌────┬──────────────────────────────────┬──────────────────┬───────────────────────────┬──────────┬──────────┐
+│   #│Region Name                       │Base Address      │Physical Memory Range      │Total Size│Status    │
+├────┼──────────────────────────────────┼──────────────────┼───────────────────────────┼──────────┼──────────┤
+│ 33 │splash_region                     │0x00000000e3940000│[0x0e3940000~0x0e6440000]  │      43MB│Unknow    │
+│ 34 │qtee_region@e8900000              │0x00000000e8900000│[0x0e8900000~0x0e8e00000]  │       5MB│NO-MAP    │
+│ 35 │tags_region@e8e00000              │0x00000000e8e00000│[0x0e8e00000~0x0e9500000]  │       7MB│NO-MAP    │
+│ 36 │trusted_apps_region@e9500000      │0x00000000e9500000│[0x0e9500000~0x0ea700000]  │      18MB│NO-MAP    │
+│ 37 │linux,cma                         │0x00000000f6800000│[0x0f6800000~0x0f8800000]  │      32MB│REUSABLE  │
+│ 44 │mem_dump_region                   │0x000000097e400000│[0x97e400000~0x97fc00000]  │      24MB│REUSABLE  │
+├────┴──────────────────────────────────┴──────────────────┴───────────────────────────┴──────────┴──────────┤
+│ Regions: 45 | Total: 403.57MB | Nomap: 168.57MB | Reuse: 192MB | Unknow: 43MB                              │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 ## cma
 This command is used to view detailed information about cma memory.
@@ -106,55 +122,40 @@ This command is used to view detailed information about cma memory.
 View cma memory information
 ```
 crash> cma -a
-==============================================================================================================
-[01]user_contig_region  cma:c2432db8 range:[7e400000~7f400000] size:16MB     used:0B       order:0
-[02]qseecom_region      cma:c2432e04 range:[7d000000~7e400000] size:20MB     used:744KB    order:0
-[03]adsp_region         cma:c2432e50 range:[7c800000~7d000000] size:8MB      used:2MB      order:0
-[04]mem_dump_region     cma:c2432e9c range:[7c000000~7c800000] size:8MB      used:0B       order:0
-[05]qseecom_ta_region   cma:c2432ee8 range:[7b000000~7c000000] size:16MB     used:0B       order:0
-[06]linux,cma           cma:c2432f34 range:[79000000~7b000000] size:32MB     used:6.89MB   order:0
-==============================================================================================================
-Total:100MB allocated:9.61MB
+CMA (Contiguous Memory Allocator) Areas Overview
+┌────┬───────────────────────────┬──────────────────┬───────────────────────────┬──────────┬──────────┬────────┬──────┐
+│  # │CMA Area Name              │CMA Address       │Physical Memory Range      │Total Size│ Used Size│  Usage%│ Order│
+├────┼───────────────────────────┼──────────────────┼───────────────────────────┼──────────┼──────────┼────────┼──────┤
+│  1 │qdss_apps_region@82800000  │0xffffffdd7b88e298│[0x082800000~0x084800000]  │      32MB│        0B│    0.0%│     0│
+│  2 │linux,cma                  │0xffffffdd7b88e188│[0x0f6800000~0x0f8800000]  │      32MB│   17.66MB│   55.2%│     0│
+│  3 │qseecom_ta_region          │0xffffffdd7b88e078│[0x0f8800000~0x0f9800000]  │      16MB│        0B│    0.0%│     0│
+│  4 │adsp_heap_region           │0xffffffdd7b88df68│[0x0f9800000~0x0fa400000]  │      12MB│    5.20MB│   43.3%│     0│
+│  5 │qseecom_region             │0xffffffdd7b88de58│[0x0fa400000~0x0fb800000]  │      20MB│    1.06MB│    5.3%│     0│
+│  6 │va_md_mem_region           │0xffffffdd7b88dc38│[0x0fb800000~0x0fc800000]  │      16MB│        0B│    0.0%│     0│
+│  7 │secure_cdsp_region         │0xffffffdd7b88db28│[0x0fd400000~0x0ffc00000]  │      40MB│        0B│    0.0%│     0│
+│  8 │mem_dump_region            │0xffffffdd7b88dd48│[0x97e400000~0x97fc00000]  │      24MB│   20.66MB│   86.1%│     0│
+├────┴───────────────────────────┴──────────────────┴───────────────────────────┴──────────┴──────────┴────────┴──────┤
+│ Areas: 8 | Total: 192MB | Used: 44.57MB (23.2%)                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 ### cma -u 'cma name'
-View allocted pages of cma region with cma name.
+Check page status by physical addr.
 ```
-crash> cma -u adsp_region
-
-========================================================================
-Name      : adsp_region
-Base_pfn  : 7c800
-End_pfn   : 7d000
-Count     : 2048
-Size      : 8MB
-Bitmap    : f77d6200 ~ f77d6300
-========================================================================
-[00001]Pfn:7c800 Page:f848d000 paddr:7c800000 allocted
-[00002]Pfn:7c801 Page:f848d024 paddr:7c801000 allocted
-[00003]Pfn:7c802 Page:f848d048 paddr:7c802000 allocted
-[00004]Pfn:7c803 Page:f848d06c paddr:7c803000 allocted
-[00005]Pfn:7c804 Page:f848d090 paddr:7c804000 allocted
-[00006]Pfn:7c805 Page:f848d0b4 paddr:7c805000 allocted
+crash> cma -p 0x082810000
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  CMA Region:              qdss_apps_region@82800000                          │
+│  Total Size:              32MB                                               │
+│  Address Range:           [0x082800000~0x084800000]                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+Page Information:
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Bit Index:               16                                                 │
+│  Page Range:              [0x082810000~0x082811000]                          │
+│  Page Size:               4KB                                                │
+│  Status:                  FREE                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### cma -f 'cma name'
-View free pages of cma region with cma name.
-```
-crash> cma -f adsp_region
-
-========================================================================
-Name      : adsp_region
-Base_pfn  : 7c800
-End_pfn   : 7d000
-Count     : 2048
-Size      : 8MB
-Bitmap    : f77d6200 ~ f77d6300
-========================================================================
-[00001]Pfn:7ca00 Page:f8491800 paddr:7ca00000 free
-[00002]Pfn:7ca01 Page:f8491824 paddr:7ca01000 free
-[00003]Pfn:7ca02 Page:f8491848 paddr:7ca02000 free
-[00004]Pfn:7ca03 Page:f849186c paddr:7ca03000 free
-```
 ## buddy
 This command is used to view detailed information about buddy memory.
 ### buddy -a
@@ -878,10 +879,10 @@ crash> dts -f
         };
 ```
 
-### dts -n 'node name'
+### dts -s 'node name'
 Display one node info by node name or node path.
 ```
-crash> dts -n memory
+crash> dts -s memory
 /soc/memory@045f0000
 0xf7b79248:memory@045f0000{
         0xf7b79300:compatible=<,rpm-msg-ram>;
@@ -905,25 +906,28 @@ crash> dts -n memory
 Display physic memory config.
 ```
 crash> dts -m
-DDR memory ranges:
-===================================================
-[01]<90880000  ~  908b0000> : 192KB
-[02]<908c0000  ~  908f0000> : 192KB
-[03]<90c00000  ~  91a00000> : 14MB
-[04]<d00000000 ~ f80000000> : 10GB
-[05]<a80000000 ~ c00000000> : 6GB
-[06]<900000000 ~ a80000000> : 6GB
-[07]<100000000 ~ 400000000> : 12GB
-[08]<d5100000  ~ 100000000> : 687MB
-[09]<b0800000  ~  beb00000> : 227MB
-[10]<91b00000  ~  93b00000> : 32MB
-[11]<95900000  ~  95c00000> : 3MB
-[12]<97a00000  ~  97b00000> : 1MB
-[13]<9b700000  ~  9b800000> : 1MB
-[14]<9d602000  ~  9d700000> : 1016KB
-[15]<a0300000  ~  b0000000> : 253MB
-===================================================
-Total size:35.19GB
+┌────────────────────────────────────────────────────────────┐
+│                   DDR MEMORY RANGES                        │
+├─────┬────────────────────┬────────────────────┬────────────┤
+│ No. │    Start Address   │     End Address    │    Size    │
+├─────┼────────────────────┼────────────────────┼────────────┤
+│   1 │ 0x0000000080e00000 │ 0x00000000817fffff │       10MB │
+│   2 │ 0x0000000081cf5000 │ 0x0000000081cfefff │       40KB │
+│   3 │ 0x0000000081f20000 │ 0x000000008249ffff │     5.50MB │
+│   4 │ 0x0000000082800000 │ 0x000000009927ffff │   362.50MB │
+│   5 │ 0x000000009ea9c000 │ 0x000000009eafffff │      400KB │
+│   6 │ 0x000000009f300000 │ 0x00000000a63fffff │      113MB │
+│   7 │ 0x00000000a7000000 │ 0x00000000e05fffff │      918MB │
+│   8 │ 0x00000000e0a00000 │ 0x00000000e88fffff │      127MB │
+│   9 │ 0x00000000ea700000 │ 0x00000000fc7fffff │      289MB │
+│  10 │ 0x00000000fca00000 │ 0x00000000ffffffff │       54MB │
+│  11 │ 0x0000000880000000 │ 0x00000008afbfefff │   764.00MB │
+│  12 │ 0x00000008b0000000 │ 0x00000008ba6fffff │      167MB │
+│  13 │ 0x00000008bf800000 │ 0x00000008bfffffff │        8MB │
+│  14 │ 0x00000008c0000000 │ 0x000000097fffffff │        3GB │
+├─────┴────────────────────┴────────────────────┴────────────┤
+│ Total Memory Size: 5.75GB                                  │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ### dts -b 'file path'
@@ -941,197 +945,142 @@ This command dumps the pageowner info.
 Display alloc stack for every page.
 ```
 crash> pageowner -a
-page_owner:0xffffff800737ffd8 PFN:0xbffff~0xc0000 Page:0xfffffffe01ffffc0 Order:0 stack_record:0xffffff805b9f5ad0 PID:1881 ts_nsec:78473104509
-      [<ffffffd4d55b039c>] post_alloc_hook+0x20c
-      [<ffffffd4d55b3064>] prep_new_page+0x28
-      [<ffffffd4d55b46a4>] get_page_from_freelist+0x12ac
-      [<ffffffd4d55b320c>] __alloc_pages+0xd8
-      [<ffffffd4d34bfb64>] zs_malloc+0x1c8
-      [<ffffffd4d37538e4>] zram_bvec_rw+0x2a8
-      [<ffffffd4d375340c>] zram_rw_page.4e8b0154c58fc8baa75c3124f9a25b1c+0x9c
-      [<ffffffd4d58ddba4>] bdev_write_page+0x88
-      [<ffffffd4d55c21cc>] __swap_writepage+0x64
-      [<ffffffd4d55c2120>] swap_writepage+0x50
-      [<ffffffd4d5555dbc>] shrink_page_list+0xd18
-      [<ffffffd4d5556cb0>] reclaim_pages+0x1fc
-      [<ffffffd4d55c132c>] madvise_cold_or_pageout_pte_range.50c4f95024e08bb75653a011da8190a2+0x79c
-      [<ffffffd4d55a4f44>] walk_pgd_range+0x324
-      [<ffffffd4d55a4a34>] walk_page_range+0x1cc
-      [<ffffffd4d55bfe40>] madvise_vma_behavior.50c4f95024e08bb75653a011da8190a2+0x900
+═══════════════════════════════════════════════════════════════
+                    ALLOCATED PAGES SUMMARY
+═══════════════════════════════════════════════════════════════
+Total allocated entries: 380953
+Total allocated pages:   429866
+Total allocated memory:  1.64GB
+═══════════════════════════════════════════════════════════════
+[1/380953] ALLOC: PFN:0xbffff~0xc0000 (1 page, 4KB) Page:0xfffffffe01ffffc0 PID:1881 [CachedAppOptimi] 00:01:18.473104509 (uptime)
+[<ffffffd4d55b039c>] post_alloc_hook+20c
+[<ffffffd4d55b3064>] prep_new_page+28
+[<ffffffd4d55b46a4>] get_page_from_freelist+12ac
+[<ffffffd4d55b320c>] __alloc_pages+d8
+[<ffffffd4d34bfb64>] zs_malloc+1c8
+[<ffffffd4d37538e4>] zram_bvec_rw+2a8
+[<ffffffd4d375340c>] zram_rw_page.4e8b0154c58fc8baa75c3124f9a25b1c+9c
+[<ffffffd4d58ddba4>] bdev_write_page+88
+[<ffffffd4d55c21cc>] __swap_writepage+64
+[<ffffffd4d55c2120>] swap_writepage+50
+[<ffffffd4d5555dbc>] shrink_page_list+d18
+[<ffffffd4d5556cb0>] reclaim_pages+1fc
+[<ffffffd4d55c132c>] madvise_cold_or_pageout_pte_range.50c4f95024e08bb75653a011da8190a2+79c
+[<ffffffd4d55a4f44>] walk_pgd_range+324
+[<ffffffd4d55a4a34>] walk_page_range+1cc
+[<ffffffd4d55bfe40>] madvise_vma_behavior.50c4f95024e08bb75653a011da8190a2+900
 ```
 
 ### pageowner -f
 Display free stack for every page
 ```
 crash> pageowner -f
-page_owner:0xffffff800737ffd8 PFN:0xbffff~0xc0000 Page:0xfffffffe01ffffc0 Order:0 stack_record:0xffffff805b9f5d50 PID:1881 free_ts_nsec:78470217478
-      [<ffffffd4d55b11a0>] free_unref_page_prepare+0x2d8
-      [<ffffffd4d55b1634>] free_unref_page_list+0xa0
-      [<ffffffd4d5556528>] shrink_page_list+0x1484
-      [<ffffffd4d5556cb0>] reclaim_pages+0x1fc
-      [<ffffffd4d55c132c>] madvise_cold_or_pageout_pte_range.50c4f95024e08bb75653a011da8190a2+0x79c
-      [<ffffffd4d55a4f44>] walk_pgd_range+0x324
-      [<ffffffd4d55a4a34>] walk_page_range+0x1cc
-      [<ffffffd4d55bfe40>] madvise_vma_behavior.50c4f95024e08bb75653a011da8190a2+0x900
-      [<ffffffd4d55bf354>] do_madvise+0x168
-      [<ffffffd4d55c015c>] __arm64_sys_process_madvise+0x150
-      [<ffffffd4d52b6ad4>] invoke_syscall+0x5c
-      [<ffffffd4d52b69d8>] el0_svc_common+0x94
-      [<ffffffd4d52b6a6c>] do_el0_svc_compat+0x1c
-      [<ffffffd4d625ec24>] el0_svc_compat+0x30
-      [<ffffffd4d625ebc8>] el0t_32_sync_handler+0x60
-      [<ffffffd4d5211d08>] el0t_32_sync+0x1b8
+═══════════════════════════════════════════════════════════════
+                      FREED PAGES SUMMARY
+═══════════════════════════════════════════════════════════════
+Total freed entries: 14
+Total freed pages:   14
+Total freed memory:  56KB
+═══════════════════════════════════════════════════════════════
+[1/14] FREE: PFN:0x58050~0x58051 (1 page, 4KB) Page:0xfffffffe00601400 PID:499 [lmkd] 00:00:11.878516285 (uptime)
+[<ffffffd4d55b11a0>] free_unref_page_prepare+2d8
+[<ffffffd4d55b1634>] free_unref_page_list+a0
+[<ffffffd4d554e808>] release_pages+510
+[<ffffffd4d55c3988>] free_pages_and_swap_cache+4c
+[<ffffffd4d55a1678>] tlb_finish_mmu+8c
+[<ffffffd4d55a03e8>] exit_mmap+130
+[<ffffffd4d532f74c>] __mmput+38
+[<ffffffd4d532f6e4>] mmput+30
+[<ffffffd4d533b180>] do_exit+30c
+[<ffffffd4d533bc88>] do_group_exit+98
+[<ffffffd4d533bca8>] __wake_up_parent+0
+[<ffffffd4d52b6ad4>] invoke_syscall+5c
+[<ffffffd4d52b6a08>] el0_svc_common+c4
+[<ffffffd4d52b6a6c>] do_el0_svc_compat+1c
+[<ffffffd4d625ec24>] el0_svc_compat+30
+[<ffffffd4d625ebc8>] el0t_32_sync_handler+60
 ```
 ### pageowner -t
 Display the alloc memory size for every stack.
 ```
-Allocated 19147 times, Total memory: 74.79MB
-      [<ffffffd4d55b039c>] post_alloc_hook+0x20c
-      [<ffffffd4d55b3064>] prep_new_page+0x28
-      [<ffffffd4d55b46a4>] get_page_from_freelist+0x12ac
-      [<ffffffd4d55b320c>] __alloc_pages+0xd8
-      [<ffffffd4d5549210>] page_cache_ra_unbounded+0x130
-      [<ffffffd4d5549754>] do_page_cache_ra+0x3c
-      [<ffffffd4d553b718>] do_sync_mmap_readahead+0x188
-      [<ffffffd4d553abc0>] filemap_fault+0x280
-      [<ffffffd4d5598b7c>] __do_fault+0x6c
-      [<ffffffd4d5598288>] handle_pte_fault+0x1b4
-      [<ffffffd4d5594820>] do_handle_mm_fault+0x4a0
-      [<ffffffd4d6297488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520
-      [<ffffffd4d6296f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44
-      [<ffffffd4d52cbd90>] do_mem_abort+0x64
-      [<ffffffd4d625ddf4>] el0_da+0x48
-      [<ffffffd4d625ebe0>] el0t_32_sync_handler+0x78
-      -------------------------------------------------
-      PID      Comm                 Times      Size
-      3867     binder:1067_18       3920       15.31MB
-      712      main                 2188       8.55MB
-      3791     unknow               1324       5.17MB
-      2023     ndroid.systemui      1035       4.04MB
-      3769     unknow               922        3.60MB
-      4183     unknow               675        2.64MB
-      4268     ndroid.settings      660        2.58MB
-      2193     ll.splashscreen      524        2.05MB
-      1067     system_server        495        1.93MB
+Allocated 127522 times, Total memory: 498.13MB
+[<ffffffd4d55b039c>] post_alloc_hook+20c
+[<ffffffd4d55b3064>] prep_new_page+28
+[<ffffffd4d55b46a4>] get_page_from_freelist+12ac
+[<ffffffd4d55b320c>] __alloc_pages+d8
+[<ffffffd4d52cc40c>] alloc_zeroed_user_highpage_movable+38
+[<ffffffd4d5598568>] handle_pte_fault+494
+[<ffffffd4d5594820>] do_handle_mm_fault+4a0
+[<ffffffd4d55898cc>] __get_user_pages+1cc
+[<ffffffd4d5589c88>] __mm_populate+134
+[<ffffffd4d559b038>] do_mlock+240
+[<ffffffd4d559a700>] __arm64_sys_mlock+1c
+[<ffffffd4d52b6ad4>] invoke_syscall+5c
+[<ffffffd4d52b6a08>] el0_svc_common+c4
+[<ffffffd4d52b6a6c>] do_el0_svc_compat+1c
+[<ffffffd4d625ec24>] el0_svc_compat+30
+[<ffffffd4d625ebc8>] el0t_32_sync_handler+60
+-------------------------------------------------
+PID      Comm                 Times      Size
+3772     memtester            127522     498.13MB
 ```
-### pageowner -n pfn
-Display the alloc and free stack for specific pfn.
+### pageowner -n pfn/PA/VA
+Display the alloc and free stack for specific pfn/PA/VA.
 ```
 crash> pageowner -n 0xbfffe
-page_owner:0xffffff800737ffa8 PFN:0xbfffe~0xbffff Page:0xfffffffe01ffff80 Order:0 stack_record:0xffffff8067a672c0 PID:3772 ts_nsec:118885025674
-      [<ffffffd4d55b039c>] post_alloc_hook+0x20c
-      [<ffffffd4d55b3064>] prep_new_page+0x28
-      [<ffffffd4d55b46a4>] get_page_from_freelist+0x12ac
-      [<ffffffd4d55b4a74>] __alloc_pages_slowpath+0x2a8
-      [<ffffffd4d55b32b0>] __alloc_pages+0x17c
-      [<ffffffd4d52cc40c>] alloc_zeroed_user_highpage_movable+0x38
-      [<ffffffd4d5598568>] handle_pte_fault+0x494
-      [<ffffffd4d5594820>] do_handle_mm_fault+0x4a0
-      [<ffffffd4d55898cc>] __get_user_pages+0x1cc
-      [<ffffffd4d5589c88>] __mm_populate+0x134
-      [<ffffffd4d559b038>] do_mlock+0x240
-      [<ffffffd4d559a700>] __arm64_sys_mlock+0x1c
-      [<ffffffd4d52b6ad4>] invoke_syscall+0x5c
-      [<ffffffd4d52b6a08>] el0_svc_common+0xc4
-      [<ffffffd4d52b6a6c>] do_el0_svc_compat+0x1c
-      [<ffffffd4d625ec24>] el0_svc_compat+0x30
+Detected as PFN: 0xbffff
+═══════════════════════════════════════════════════════════════
+                    PAGE OWNER INFO FOR PFN:0xbffff
+═══════════════════════════════════════════════════════════════
+PFN Range      :   0xbffff - 0xbffff
+Page Address   :   0xfffffffe01ffffc0
+Order          :   0 (1 page, 4KB)
+Current Status :   ALLOCATED
+═══════════════════════════════════════════════════════════════
+ALLOCATION HISTORY:
+Status     :   ALLOC
+PID        :   1881 [CachedAppOptimi]
+Timestamp  :   00:01:18.473104509 (uptime)
+GFP Mask   :   0x810280a
+[<ffffffd4d55b039c>] post_alloc_hook+20c
+[<ffffffd4d55b3064>] prep_new_page+28
+[<ffffffd4d55b46a4>] get_page_from_freelist+12ac
+[<ffffffd4d55b320c>] __alloc_pages+d8
+[<ffffffd4d34bfb64>] zs_malloc+1c8
+[<ffffffd4d37538e4>] zram_bvec_rw+2a8
+[<ffffffd4d375340c>] zram_rw_page.4e8b0154c58fc8baa75c3124f9a25b1c+9c
+[<ffffffd4d58ddba4>] bdev_write_page+88
+[<ffffffd4d55c21cc>] __swap_writepage+64
+[<ffffffd4d55c2120>] swap_writepage+50
+[<ffffffd4d5555dbc>] shrink_page_list+d18
+[<ffffffd4d5556cb0>] reclaim_pages+1fc
+[<ffffffd4d55c132c>] madvise_cold_or_pageout_pte_range.50c4f95024e08bb75653a011da8190a2+79c
+[<ffffffd4d55a4f44>] walk_pgd_range+324
+[<ffffffd4d55a4a34>] walk_page_range+1cc
+[<ffffffd4d55bfe40>] madvise_vma_behavior.50c4f95024e08bb75653a011da8190a2+900
 
-page_owner:0xffffff800737ffa8 PFN:0xbfffe~0xbffff Page:0xfffffffe01ffff80 Order:0 stack_record:0xffffff805a538500 PID:3772 free_ts_nsec:118877743539
-      [<ffffffd4d55b11a0>] free_unref_page_prepare+0x2d8
-      [<ffffffd4d55b1634>] free_unref_page_list+0xa0
-      [<ffffffd4d554e808>] release_pages+0x510
-      [<ffffffd4d55c3988>] free_pages_and_swap_cache+0x4c
-      [<ffffffd4d55a14dc>] tlb_flush_mmu+0x58
-      [<ffffffd4d5590348>] unmap_page_range+0x638
-      [<ffffffd4d55906b4>] unmap_vmas+0x11c
-      [<ffffffd4d55a03cc>] exit_mmap+0x114
-      [<ffffffd4d532f74c>] __mmput+0x38
-      [<ffffffd4d532f6e4>] mmput+0x30
-      [<ffffffd4d533b180>] do_exit+0x30c
-      [<ffffffd4d533bc74>] do_group_exit+0x84
-      [<ffffffd4d534df7c>] get_signal+0x1d8
-      [<ffffffd4d52a86f0>] do_notify_resume+0x144
-      [<ffffffd4d625ec5c>] el0_svc_compat+0x68
-      [<ffffffd4d625ebc8>] el0t_32_sync_handler+0x60
-```
-### pageowner -p 'phys addr'
-Display the alloc and free stack for specific physic address.
-```
-crash> pageowner -p 0x40001000
-page_owner:0xffffff8003800038 PFN:0x40001~0x40002 Page:0xfffffffe00000040 Order:0 stack_record:0xffffff8067a672c0 PID:3772 ts_nsec:118825932080
-      [<ffffffd4d55b039c>] post_alloc_hook+0x20c
-      [<ffffffd4d55b3064>] prep_new_page+0x28
-      [<ffffffd4d55b46a4>] get_page_from_freelist+0x12ac
-      [<ffffffd4d55b4a74>] __alloc_pages_slowpath+0x2a8
-      [<ffffffd4d55b32b0>] __alloc_pages+0x17c
-      [<ffffffd4d52cc40c>] alloc_zeroed_user_highpage_movable+0x38
-      [<ffffffd4d5598568>] handle_pte_fault+0x494
-      [<ffffffd4d5594820>] do_handle_mm_fault+0x4a0
-      [<ffffffd4d55898cc>] __get_user_pages+0x1cc
-      [<ffffffd4d5589c88>] __mm_populate+0x134
-      [<ffffffd4d559b038>] do_mlock+0x240
-      [<ffffffd4d559a700>] __arm64_sys_mlock+0x1c
-      [<ffffffd4d52b6ad4>] invoke_syscall+0x5c
-      [<ffffffd4d52b6a08>] el0_svc_common+0xc4
-      [<ffffffd4d52b6a6c>] do_el0_svc_compat+0x1c
-      [<ffffffd4d625ec24>] el0_svc_compat+0x30
-
-page_owner:0xffffff8003800038 PFN:0x40001~0x40002 Page:0xfffffffe00000040 Order:0 stack_record:0xffffff804d0bdb80 PID:3772 free_ts_nsec:118817821507
-      [<ffffffd4d55b11a0>] free_unref_page_prepare+0x2d8
-      [<ffffffd4d55b1634>] free_unref_page_list+0xa0
-      [<ffffffd4d554e808>] release_pages+0x510
-      [<ffffffd4d55c3988>] free_pages_and_swap_cache+0x4c
-      [<ffffffd4d55a1678>] tlb_finish_mmu+0x8c
-      [<ffffffd4d55907c0>] zap_page_range+0x104
-      [<ffffffd4d55bf5fc>] madvise_vma_behavior.50c4f95024e08bb75653a011da8190a2+0xbc
-      [<ffffffd4d55bf354>] do_madvise+0x168
-      [<ffffffd4d55bfffc>] __arm64_sys_madvise+0x24
-      [<ffffffd4d52b6ad4>] invoke_syscall+0x5c
-      [<ffffffd4d52b69d8>] el0_svc_common+0x94
-      [<ffffffd4d52b6a6c>] do_el0_svc_compat+0x1c
-      [<ffffffd4d625ec24>] el0_svc_compat+0x30
-      [<ffffffd4d625ebc8>] el0t_32_sync_handler+0x60
-      [<ffffffd4d5211d08>] el0t_32_sync+0x1b8
-```
-### pageowner -P 'page addr'
-Display the alloc and free stack for specific page address.
-```
-crash> pageowner -P fffffffe00000100
-page_owner:0xffffff80038000c8 PFN:0x40004~0x40005 Page:0xfffffffe00000100 Order:0 stack_record:0xffffff801388e220 PID:1 ts_nsec:3217151623
-      [<ffffffd4d55b039c>] post_alloc_hook+0x20c
-      [<ffffffd4d55b3064>] prep_new_page+0x28
-      [<ffffffd4d55b46a4>] get_page_from_freelist+0x12ac
-      [<ffffffd4d55b320c>] __alloc_pages+0xd8
-      [<ffffffd4d5549210>] page_cache_ra_unbounded+0x130
-      [<ffffffd4d5549754>] do_page_cache_ra+0x3c
-      [<ffffffd4d553b718>] do_sync_mmap_readahead+0x188
-      [<ffffffd4d553abc0>] filemap_fault+0x280
-      [<ffffffd4d5598b7c>] __do_fault+0x6c
-      [<ffffffd4d5598288>] handle_pte_fault+0x1b4
-      [<ffffffd4d5594820>] do_handle_mm_fault+0x4a0
-      [<ffffffd4d6297488>] do_page_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x520
-      [<ffffffd4d6296f50>] do_translation_fault.edea7eadbbe8ee1d4acc94c9444fd9d5+0x44
-      [<ffffffd4d52cbd90>] do_mem_abort+0x64
-      [<ffffffd4d625ddf4>] el0_da+0x48
-      [<ffffffd4d625ebe0>] el0t_32_sync_handler+0x78
-
-page_owner:0xffffff80038000c8 PFN:0x40004~0x40005 Page:0xfffffffe00000100 Order:0 stack_record:0xffffff801388cd00 PID:1 free_ts_nsec:3016601310
-      [<ffffffd4d55b11a0>] free_unref_page_prepare+0x2d8
-      [<ffffffd4d55b1634>] free_unref_page_list+0xa0
-      [<ffffffd4d554e808>] release_pages+0x510
-      [<ffffffd4d554e8b8>] __pagevec_release+0x34
-      [<ffffffd4d5564b54>] shmem_undo_range+0x210
-      [<ffffffd4d556a9d0>] shmem_evict_inode.ac7d038029138368f3a468e11f4adc2c+0x12c
-      [<ffffffd4d564152c>] evict+0xd4
-      [<ffffffd4d563ed64>] iput+0x244
-      [<ffffffd4d5625f1c>] do_unlinkat+0x1ac
-      [<ffffffd4d562605c>] __arm64_sys_unlinkat+0x48
-      [<ffffffd4d52b6ad4>] invoke_syscall+0x5c
-      [<ffffffd4d52b6a08>] el0_svc_common+0xc4
-      [<ffffffd4d52b6a6c>] do_el0_svc_compat+0x1c
-      [<ffffffd4d625ec24>] el0_svc_compat+0x30
-      [<ffffffd4d625ebc8>] el0t_32_sync_handler+0x60
-      [<ffffffd4d5211d08>] el0t_32_sync+0x1b8
+FREE HISTORY:
+Status     :   FREE
+PID        :   1881 [CachedAppOptimi]
+Timestamp  :   00:01:18.470217478 (uptime)
+GFP Mask   :   0x810280a
+[<ffffffd4d55b11a0>] free_unref_page_prepare+2d8
+[<ffffffd4d55b1634>] free_unref_page_list+a0
+[<ffffffd4d5556528>] shrink_page_list+1484
+[<ffffffd4d5556cb0>] reclaim_pages+1fc
+[<ffffffd4d55c132c>] madvise_cold_or_pageout_pte_range.50c4f95024e08bb75653a011da8190a2+79c
+[<ffffffd4d55a4f44>] walk_pgd_range+324
+[<ffffffd4d55a4a34>] walk_page_range+1cc
+[<ffffffd4d55bfe40>] madvise_vma_behavior.50c4f95024e08bb75653a011da8190a2+900
+[<ffffffd4d55bf354>] do_madvise+168
+[<ffffffd4d55c015c>] __arm64_sys_process_madvise+150
+[<ffffffd4d52b6ad4>] invoke_syscall+5c
+[<ffffffd4d52b69d8>] el0_svc_common+94
+[<ffffffd4d52b6a6c>] do_el0_svc_compat+1c
+[<ffffffd4d625ec24>] el0_svc_compat+30
+[<ffffffd4d625ebc8>] el0t_32_sync_handler+60
+[<ffffffd4d5211d08>] el0t_32_sync+1b8
+═══════════════════════════════════════════════════════════════
 ```
 ### pageowner -m
 Display the alloc memory size for every process.
@@ -1640,13 +1589,9 @@ crash> mod -s zsmalloc ./lib/zsmalloc.ko
      MODULE       NAME                             BASE            SIZE  OBJECT FILE
 ffffffd4d34c6200  zsmalloc                   ffffffd4d34bf000     57344  ./lib/zsmalloc.ko
 
-crash> logcat -s xxx/symbols
-add symbol table from file "xxx/symbols/system/lib/bootstrap/libc.so"
-Reading symbols from xxx/symbols/system/lib/bootstrap/libc.so...
-Add symbol:xxx/symbols/system/lib/bootstrap/libc.so succ
-add symbol table from file "xxx/symbols/system/bin/logd"
-Reading symbols from xxx/symbols/system/bin/logd...
-Add symbol:xxx/symbols/system/bin/logd succ
+crash> logcat -s path
+Add symbol table from file "path/libc.so"
+Reading symbols from path/libc.so...
 ```
 ###  logcat -b 'log id'
 Display all logcat log.
