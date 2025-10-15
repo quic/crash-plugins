@@ -23,61 +23,63 @@ DEFINE_PLUGIN_COMMAND(Dts)
 #endif
 
 void Dts::cmd_main(void) {
-    int c;
-    int flags;
-    std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    if (root_node == nullptr){
+    if (argcnt < 2) {
+        cmd_usage(pc->curcmd, SYNOPSIS);
+        return;
+    }
+
+    if (root_node == nullptr) {
         root_node = read_node("", root_addr);
     }
-    while ((c = getopt(argcnt, args, "afb:n:m")) != EOF) {
+
+    int c;
+    int argerrs = 0;
+
+    while ((c = getopt(argcnt, args, "afb:s:m")) != EOF) {
         switch(c) {
-            case 'a': //print dts info
-            {
-                flags = DTS_SHOW;
-                print_node(root_node,0,flags);
+            case 'a':
+                print_node(root_node, 0, DTS_SHOW);
+                break;
+            case 'f':
+                print_node(root_node, 0, DTS_SHOW | DTS_ADDR);
+                break;
+            case 'b': {
+                std::string dtb_path(optarg);
+                read_dtb(dtb_path);
                 break;
             }
-            case 'f': //print dts info with address
-            {
-                flags = DTS_SHOW | DTS_ADDR;
-                print_node(root_node,0,flags);
-                break;
-            }
-            case 'b': //store dts info to devicetree.dtb
-                cppString.assign(optarg);
-                read_dtb(cppString);
-                break;
-            case 'n': //print a specified node info by name or path
-            {
-                flags = DTS_SHOW | DTS_ADDR;
-                cppString.assign(optarg);
-                if (isNumber(cppString)){
-                    unsigned long addr = std::stoul(cppString, nullptr, 16);
-                    if(is_kvaddr(addr)){
-                        std::shared_ptr<device_node> node_ptr = find_node_by_addr(addr);
-                        print_node(node_ptr,flags);
-                    }else{
-                        fprintf(fp, "invalid address %lx\n",addr);
+            case 's': {
+                const int flags = DTS_SHOW | DTS_ADDR;
+                std::string node_arg(optarg);
+                if (isNumber(node_arg)) {
+                    unsigned long addr = std::stoul(node_arg, nullptr, 16);
+                    if (is_kvaddr(addr)) {
+                        if (auto node_ptr = find_node_by_addr(addr)) {
+                            print_node(node_ptr, flags);
+                        }
+                    } else {
+                        LOGE("invalid address %lx\n", addr);
                     }
-                }else{
-                    std::vector<std::shared_ptr<device_node>> node_list = find_node_by_name(cppString);
+                } else {
+                    auto node_list = find_node_by_name(node_arg);
                     for (const auto& node_ptr : node_list) {
-                        print_node(node_ptr,flags);
+                        print_node(node_ptr, flags);
                     }
                 }
                 break;
             }
-            case 'm': //print memory size
+            case 'm':
                 print_ddr_info();
                 break;
+
             default:
                 argerrs++;
                 break;
         }
     }
-    if (argerrs)
+    if (argerrs) {
         cmd_usage(pc->curcmd, SYNOPSIS);
+    }
 }
 
 void Dts::init_offset(void) {}
@@ -90,7 +92,7 @@ void Dts::init_command(void) {
         "-a \n"
             "  dts -f\n"
             "  dts -b <path of *.dtb>\n"
-            "  dts -n <name>\n"
+            "  dts -s <name>\n"
             "  dts -m\n"
             "  This command dumps the dts info.",
         "\n",
@@ -121,13 +123,30 @@ void Dts::init_command(void) {
         "           reg=< 0x0 0x40000000 0x0 0x3ee00000 0x0 0x80000000 0x0 0x40000000 >;",
         "       };",
         "\n",
-        "  Display physic memory total size:",
+        "  Display physical memory ranges:",
         "    %s> dts -m",
-        "       =========================================",
-        "         0x40000000~0x7ee00000  size:0x3ee00000 ",
-        "         0x80000000~0xc0000000  size:0x40000000 ",
-        "       =========================================",
-        "          Total size:    2030M ",
+        "       ┌────────────────────────────────────────────────────────────┐",
+        "       │                   DDR MEMORY RANGES                        │",
+        "       ├─────┬────────────────────┬────────────────────┬────────────┤",
+        "       │ No. │    Start Address   │     End Address    │    Size    │",
+        "       ├─────┼────────────────────┼────────────────────┼────────────┤",
+        "       │   1 │ 0x0000000080e00000 │ 0x00000000817fffff │       10MB │",
+        "       │   2 │ 0x0000000081cf5000 │ 0x0000000081cfefff │       40KB │",
+        "       │   3 │ 0x0000000081f20000 │ 0x000000008249ffff │     5.50MB │",
+        "       │   4 │ 0x0000000082800000 │ 0x000000009927ffff │   362.50MB │",
+        "       │   5 │ 0x000000009ea9c000 │ 0x000000009eafffff │      400KB │",
+        "       │   6 │ 0x000000009f300000 │ 0x00000000a63fffff │      113MB │",
+        "       │   7 │ 0x00000000a7000000 │ 0x00000000e05fffff │      918MB │",
+        "       │   8 │ 0x00000000e0a00000 │ 0x00000000e88fffff │      127MB │",
+        "       │   9 │ 0x00000000ea700000 │ 0x00000000fc7fffff │      289MB │",
+        "       │  10 │ 0x00000000fca00000 │ 0x00000000ffffffff │       54MB │",
+        "       │  11 │ 0x0000000880000000 │ 0x00000008afbfefff │   764.00MB │",
+        "       │  12 │ 0x00000008b0000000 │ 0x00000008ba6fffff │      167MB │",
+        "       │  13 │ 0x00000008bf800000 │ 0x00000008bfffffff │        8MB │",
+        "       │  14 │ 0x00000008c0000000 │ 0x000000097fffffff │        3GB │",
+        "       ├─────┴────────────────────┴────────────────────┴────────────┤",
+        "       │ Total Memory Size: 5.75GB                                  │",
+        "       └────────────────────────────────────────────────────────────┘",
         "\n",
         "  Read out the whole dtb memory:",
         "    %s> dts -b ./dts.dtb",
@@ -141,34 +160,47 @@ void Dts::init_command(void) {
 
 Dts::Dts(){}
 
-void Dts::print_ddr_info(){
-    ulong total_size = 0;
-    std::vector<DdrRange> ranges = get_ddr_size();
-    fprintf(fp, "DDR memory ranges:\n");
-    fprintf(fp, "===================================================\n");
-    int index = 1;
-    std::ostringstream oss;
-    for (auto it = ranges.begin(); it != ranges.end(); ++it) {
-        DdrRange item = *it;
-        oss << "[" << std::setw(2) << std::setfill('0') << std::right << std::dec << index << "]"
-            << "<" << std::left << std::hex  << std::setfill(' ') << std::setw(10) << item.address
-            << "~" << std::right << std::hex  << std::setfill(' ') << std::setw(10) << (item.address + item.size) << "> "
-            << ": " << std::left << csize(item.size)
-            << "\n";
-        total_size += item.size;
-        index++;
+void Dts::print_ddr_info() {
+    const auto& ddr_ranges = get_ddr_size();
+    PRINT("┌────────────────────────────────────────────────────────────┐\n");
+    PRINT("│                   DDR MEMORY RANGES                        │\n");
+    if (ddr_ranges.empty()) {
+        PRINT("\nNo DDR memory ranges found.\n");
+        return;
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
-    fprintf(fp, "===================================================\n");
-    fprintf(fp, "Total size:%s\n",csize(total_size).c_str());
+    uint64_t total_size = 0;
+    for (const auto& range : ddr_ranges) {
+        total_size += range.size;
+    }
+    std::vector<DdrRange> sorted_ranges = ddr_ranges;
+    std::sort(sorted_ranges.begin(), sorted_ranges.end(),
+              [](const DdrRange& a, const DdrRange& b) {
+                  return a.address < b.address;
+              });
+    PRINT("├─────┬────────────────────┬────────────────────┬────────────┤\n");
+    PRINT("│ No. │    Start Address   │     End Address    │    Size    │\n");
+    PRINT("├─────┼────────────────────┼────────────────────┼────────────┤\n");
+    for (size_t i = 0; i < sorted_ranges.size(); ++i) {
+        const auto& range = sorted_ranges[i];
+        uint64_t end_addr = (range.size > 0) ? (range.address + range.size - 1) : range.address;
+        PRINT("│ %3zu │ 0x%016" PRIx64 " │ 0x%016" PRIx64 " │ %10s │\n",
+            i + 1,
+            range.address,
+            end_addr,
+            csize(range.size).c_str());
+    }
+    PRINT("├─────┴────────────────────┴────────────────────┴────────────┤\n");
+    PRINT("│ Total Memory Size: %-37s   │\n",csize(total_size).c_str());
+    PRINT("└────────────────────────────────────────────────────────────┘\n");
+    PRINT("\n");
 }
 
 void Dts::print_node(std::shared_ptr<device_node> node_ptr,int flag){
-    fprintf(fp, "%s\n",node_ptr->node_path.c_str());
+    PRINT("%s\n",node_ptr->node_path.c_str());
     if (flag & DTS_ADDR){
-        fprintf(fp, "%#lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
+        PRINT("%#lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
     }else{
-        fprintf(fp, "%s{\n",node_ptr->full_name.c_str());
+        PRINT("%s{\n",node_ptr->full_name.c_str());
     }
     bool is_symbol_node = false;
     if (node_ptr->full_name.find("symbols") != std::string::npos || node_ptr->full_name.find("aliases") != std::string::npos) {
@@ -178,15 +210,15 @@ void Dts::print_node(std::shared_ptr<device_node> node_ptr,int flag){
         print_properties(node_ptr->props,0,is_symbol_node,flag);
     }
     if (node_ptr->child != nullptr){
-        fprintf(fp, "\n");
+        PRINT("\n");
         print_node(node_ptr->child,1,flag);
     }
-    fprintf(fp, "};\n\n");
+    PRINT("};\n\n");
 }
 
 void Dts::read_dtb(std::string& path){
     if (!csymbol_exists("initial_boot_params")){
-       fprintf(fp, "initial_boot_params doesn't exist in this kernel!\n");
+       LOGD("initial_boot_params doesn't exist in this kernel!\n");
        return;
     }
     ulong initial_boot_params_addr = csymbol_value("initial_boot_params");
@@ -202,28 +234,28 @@ void Dts::read_dtb(std::string& path){
     }
     ulong magic = UINT(header);
     if (magic != 0xEDFE0DD0){
-        fprintf(fp, "magic:%lx is not correct !\n",magic);
+        LOGD("magic:%lx is not correct !\n",magic);
         FREEBUF(header);
         return;
     }
     ulong db_size = ULONG(header + 4);
     db_size=((db_size & 0xFF)<<24)|((db_size & 0xFF00)<<8)|((db_size & 0xFF0000)>>8)|((db_size & 0xFF000000)>>24);
     if(db_size > DTB_MAX_SIZE) {
-        fprintf(fp, "too large dtb size %ld\n",db_size);
+        LOGE("too large dtb size %ld\n",db_size);
         FREEBUF(header);
         return;
     }
-    // fprintf(fp, "magic:%x\n",magic);
-    fprintf(fp, "dtb addr:%#lx, size:%ld\n",initial_boot_params,db_size);
+    // LOGD("magic:%x\n",magic);
+    LOGD("dtb addr:%#lx, size:%ld\n",initial_boot_params,db_size);
     FREEBUF(header);
     FILE *file = fopen(path.c_str(), "wb");
     if (file == nullptr) {
-        fprintf(fp, "Failed to open file");
+        LOGE("Failed to open file");
         return;
     }
     void *dtb_buf = read_memory(initial_boot_params,db_size,"read dtb");
     fwrite(dtb_buf, db_size, 1, file);
-    fprintf(fp, "save dtb to %s",path.c_str());
+    PRINT("save dtb to %s",path.c_str());
     fclose(file);
     FREEBUF(dtb_buf);
 }
@@ -231,12 +263,12 @@ void Dts::read_dtb(std::string& path){
 void Dts::print_node(std::shared_ptr<device_node> node_ptr,int level,int flag){
     if (flag & DTS_SHOW){
         for (int i = 0; i < level; i++) {
-            fprintf(fp, "\t");
+            PRINT("\t");
         }
         if (flag & DTS_ADDR){
-            fprintf(fp, "%#lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
+            PRINT("%#lx:%s{\n",node_ptr->addr, node_ptr->full_name.c_str());
         }else{
-            fprintf(fp, "%s{\n",node_ptr->full_name.c_str());
+            PRINT("%s{\n",node_ptr->full_name.c_str());
         }
     }
     bool is_symbol_node = false;
@@ -250,16 +282,16 @@ void Dts::print_node(std::shared_ptr<device_node> node_ptr,int level,int flag){
     int chil_level = level;
     if (node_ptr->child != nullptr){
         if (flag & DTS_SHOW){
-            fprintf(fp, "\n");
+            PRINT("\n");
         }
         chil_level += 1;
         print_node(node_ptr->child,chil_level,flag);
     }
     if (flag & DTS_SHOW){
         for (int i = 0; i < level; i++) {
-            fprintf(fp, "\t");
+            PRINT("\t");
         }
-        fprintf(fp, "};\n\n");
+        PRINT("};\n\n");
     }
     if (node_ptr->sibling != nullptr){
         print_node(node_ptr->sibling,sibl_level,flag);
@@ -275,41 +307,41 @@ void Dts::print_properties(std::vector<std::shared_ptr<Property>> props,int leve
         ulong prop_addr = ptr->addr;
         int prop_length = ptr->length;
         for (int i = 0; i < prop_level; i++) {
-            fprintf(fp, "\t");
+            PRINT("\t");
         }
         if (prop_length == 0){
             if (flag & DTS_ADDR){
-                fprintf(fp, "%#lx:%s;\n",prop_addr,prop_name.c_str());
+                PRINT("%#lx:%s;\n",prop_addr,prop_name.c_str());
             }else{
-                fprintf(fp, "%s;\n",prop_name.c_str());
+                PRINT("%s;\n",prop_name.c_str());
             }
         }else{
             if (is_symbol || is_str_prop(prop_name)){
                 if (flag & DTS_ADDR){
-                    fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+                    PRINT("%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
                 }else{
-                    fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
+                    PRINT("%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
                 }
             }else if (is_int_prop(prop_name) || ((prop_length % 4) == 0)){
                 if (flag & DTS_ADDR){
-                    fprintf(fp, "%#lx:%s=<",prop_addr,prop_name.c_str());
+                    PRINT("%#lx:%s=<",prop_addr,prop_name.c_str());
                 }else{
-                    fprintf(fp, "%s=<",prop_name.c_str());
+                    PRINT("%s=<",prop_name.c_str());
                 }
                 for (int i = 0; i < (prop_length / 4); ++i) {
                     int val = UINT(prop_val + i * sizeof(int));
                     if (i == (prop_length / 4)-1){
-                        fprintf(fp, "%#x",ntohl(val));
+                        PRINT("%#x",ntohl(val));
                     }else{
-                        fprintf(fp, "%#x ",ntohl(val));
+                        PRINT("%#x ",ntohl(val));
                     }
                 }
-                fprintf(fp, ">;\n");
+                PRINT(">;\n");
             }else{
                 if (flag & DTS_ADDR){
-                    fprintf(fp, "%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
+                    PRINT("%#lx:%s=<%s>;\n",prop_addr,prop_name.c_str(),(char*)prop_val);
                 }else{
-                    fprintf(fp, "%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
+                    PRINT("%s=<%s>;\n",prop_name.c_str(),(char*)prop_val);
                 }
             }
         }

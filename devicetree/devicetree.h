@@ -76,8 +76,6 @@ private:
     std::unordered_map<ulong, std::shared_ptr<device_node>> node_addr_maps;
     std::unordered_map<std::string, std::shared_ptr<device_node>> node_path_maps;
 
-    std::vector<DdrRange> parse_memory_regs(std::shared_ptr<Property> prop);
-
 public:
     ulong root_addr;
     std::shared_ptr<device_node> root_node;
@@ -92,6 +90,7 @@ public:
     bool is_str_prop(const std::string& name);
     bool is_int_prop(const std::string& name);
     std::vector<DdrRange> get_ddr_size();
+    std::vector<DdrRange> parse_memory_regs(const std::shared_ptr<Property>& prop);
     std::vector<std::shared_ptr<Property>> read_propertys(ulong addr);
     std::shared_ptr<device_node> read_node(const std::string& path, ulong node_addr);
 

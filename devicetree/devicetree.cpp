@@ -18,15 +18,15 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-Devicetree::Devicetree(){
+Devicetree::Devicetree() : root_addr(0), root_node(nullptr) {
     init_offset();
     if (!csymbol_exists("of_root")){
-        fprintf(fp,  "of_root doesn't exist in this kernel!\n");
+        LOGE( "of_root doesn't exist in this kernel!\n");
         return;
     }
     ulong of_root_addr = csymbol_value("of_root");
     if (!is_kvaddr(of_root_addr)) {
-        fprintf(fp, "of_root address is invalid!\n");
+        LOGE("of_root address is invalid!\n");
         return;
     }
     root_addr = read_pointer(of_root_addr,"of_root");
@@ -54,15 +54,17 @@ void Devicetree::init_offset(void) {
     struct_init(property);
 }
 
-std::shared_ptr<Property> Devicetree::getprop(ulong node_addr,const std::string& name){
-    if (root_node == nullptr){
+std::shared_ptr<Property> Devicetree::getprop(ulong node_addr, const std::string& name) {
+    if (root_node == nullptr) {
         root_node = read_node("", root_addr);
     }
-    std::shared_ptr<device_node> node_ptr = find_node_by_addr(node_addr);
-    if(node_ptr == nullptr) return nullptr;
-    for (auto it = node_ptr->props.begin(); it != node_ptr->props.end(); ++it) {
-        std::shared_ptr<Property> prop = *it;
-        if(prop->name == name){
+    auto node_it = node_addr_maps.find(node_addr);
+    if (node_it == node_addr_maps.end()) {
+        return nullptr;
+    }
+    const auto& props = node_it->second->props;
+    for (const auto& prop : props) {
+        if (prop->name == name) {
             return prop;
         }
     }
@@ -71,8 +73,16 @@ std::shared_ptr<Property> Devicetree::getprop(ulong node_addr,const std::string&
 
 std::shared_ptr<device_node> Devicetree::read_node(const std::string& path, ulong node_addr){
     if (!is_kvaddr(node_addr)) return nullptr;
+
+    // Check if node already exists in cache
+    auto node_it = node_addr_maps.find(node_addr);
+    if (node_it != node_addr_maps.end()) {
+        return node_it->second;
+    }
+
     void *node_buf = read_struct(node_addr,"device_node");
     if(node_buf == nullptr) return nullptr;
+
     std::shared_ptr<device_node> node_ptr = std::make_shared<device_node>();
     node_ptr->addr = node_addr;
 
@@ -85,51 +95,68 @@ std::shared_ptr<device_node> Devicetree::read_node(const std::string& path, ulon
     }else{
         node_path = path + "/" + full_name;
     }
-    node_ptr->full_name = full_name;
-    std::string temstr = node_path;
-    if (temstr.size() >= 2 && temstr[0] == '/' && temstr[1] == '/') {
-        node_ptr->node_path = temstr.substr(1);
+    node_ptr->full_name = std::move(full_name);
+
+    if (node_path.size() >= 2 && node_path[0] == '/' && node_path[1] == '/') {
+        node_ptr->node_path = node_path.substr(1);
+    } else {
+        node_ptr->node_path = std::move(node_path);
     }
+
     ulong name_addr = ULONG(node_buf + field_offset(device_node,name));
     node_ptr->name = read_cstring(name_addr,64, "device_node name");
+
     ulong prop_addr = ULONG(node_buf + field_offset(device_node,properties));
     if (is_kvaddr(prop_addr)){
-        std::vector<std::shared_ptr<Property>> props = read_propertys(prop_addr);
-        node_ptr->props = props;
+        node_ptr->props = read_propertys(prop_addr);
     }
+
+    // Cache the node before reading children to avoid infinite recursion
+    node_addr_maps[node_addr] = node_ptr;
+    node_path_maps[node_ptr->node_path] = node_ptr;
+
     ulong child = ULONG(node_buf + field_offset(device_node,child));
     if (is_kvaddr(child)){
-        node_ptr->child = read_node(node_path,child);
+        node_ptr->child = read_node(node_ptr->node_path, child);
     }
+
     ulong sibling = ULONG(node_buf + field_offset(device_node,sibling));
     if (is_kvaddr(sibling)){
-        node_ptr->sibling = read_node(path,sibling);
+        node_ptr->sibling = read_node(path, sibling);
     }
-    node_addr_maps[node_addr] = node_ptr;
-    node_path_maps[node_path] = node_ptr;
+
     FREEBUF(node_buf);
     return node_ptr;
 }
 
 std::vector<std::shared_ptr<Property>> Devicetree::read_propertys(ulong addr){
     std::vector<std::shared_ptr<Property>> res;
+    res.reserve(8); // Reserve space for typical number of properties
+
     while (is_kvaddr(addr)){
-        std::shared_ptr<Property> prop = std::make_shared<Property>();
-        prop->addr = addr;
         void *prop_buf = read_struct(addr,"property");
-        if(prop_buf == nullptr) return res;
+        if(prop_buf == nullptr) break;
+
+        auto prop = std::make_shared<Property>();
+        prop->addr = addr;
+
         ulong name_addr = ULONG(prop_buf + field_offset(property,name));
         prop->name = read_cstring(name_addr,64,"property_name");
+
         int length = UINT(prop_buf + field_offset(property,length));
         prop->length = length;
-        ulong value_addr = ULONG(prop_buf + field_offset(property,value));
+
         if(length > 0){
+            ulong value_addr = ULONG(prop_buf + field_offset(property,value));
             prop->value.resize(length);
             void *prop_val = read_memory(value_addr,length,"property_value");
-            memcpy(prop->value.data(), prop_val, length);
-            FREEBUF(prop_val);
+            if(prop_val != nullptr) {
+                memcpy(prop->value.data(), prop_val, length);
+                FREEBUF(prop_val);
+            }
         }
-        res.push_back(prop);
+
+        res.push_back(std::move(prop));
         addr = ULONG(prop_buf + field_offset(property,next));
         FREEBUF(prop_buf);
     }
@@ -140,16 +167,19 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
     if (root_node == nullptr){
         root_node = read_node("", root_addr);
     }
-    std::vector<DdrRange> res;
     std::vector<std::shared_ptr<device_node>> nodes = find_node_by_name("memory");
-    if (nodes.size() == 0)
-        return res;
-    for (auto node: nodes){
+    if (nodes.empty())
+        return {};
+    std::vector<DdrRange> res;
+    res.reserve(nodes.size()); // Reserve space to avoid reallocations
+    for (const auto& node : nodes){
         std::shared_ptr<Property> prop = getprop(node->addr,"device_type");
-        if (prop == nullptr){
+        if (prop == nullptr || prop->value.empty()){
             continue;
         }
-        std::string tempstr = (char *)prop->value.data();
+        // Ensure null-terminated string comparison
+        std::string tempstr(reinterpret_cast<const char*>(prop->value.data()),
+                           strnlen(reinterpret_cast<const char*>(prop->value.data()), prop->value.size()));
         if (tempstr != "memory"){
             continue;
         }
@@ -157,24 +187,33 @@ std::vector<DdrRange> Devicetree::get_ddr_size(){
         //       <|  start     | |   size     |
         // reg = <0x0 0x40000000 0x0 0x3ee00000 0x0 0x80000000 0x0 0x40000000>
         prop = getprop(node->addr,"reg");
-        res = parse_memory_regs(prop);
+        if (prop != nullptr) {
+            auto memory_ranges = parse_memory_regs(prop);
+            res.insert(res.end(), memory_ranges.begin(), memory_ranges.end());
+        }
     }
     return res;
 }
 
-std::vector<DdrRange> Devicetree::parse_memory_regs(std::shared_ptr<Property> prop){
-    std::vector<DdrRange> result;
-    char* ptr = reinterpret_cast<char*>(prop->value.data());
-    // prop->length how many byte of this prop val
-    size_t reg_cnt = prop->length / 4;
-    size_t regs[reg_cnt];
-    for (size_t i = 0; i < reg_cnt; ++i) {
-        regs[i] = ntohl(UINT(ptr + i * sizeof(int)));
+std::vector<DdrRange> Devicetree::parse_memory_regs(const std::shared_ptr<Property>& prop) {
+    if (!prop || prop->value.empty() || prop->length < 16) {
+        return {};
     }
-    int group_cnt = reg_cnt / 4;
+    std::vector<DdrRange> result;
+    const char* ptr = reinterpret_cast<const char*>(prop->value.data());
+    const size_t reg_cnt = prop->length / 4;
+    const int group_cnt = reg_cnt / 4;
+    result.reserve(group_cnt);
     for (int i = 0; i < group_cnt; ++i) {
-        uint64_t address = (static_cast<uint64_t>(regs[i * 4 + 0]) << 32) | regs[i * 4 + 1];
-        size_t size = static_cast<size_t>((static_cast<uint64_t>(regs[i * 4 + 2]) << 32) | regs[i * 4 + 3]);
+        const size_t base_idx = i * 4;
+        const uint32_t addr_high = ntohl(*reinterpret_cast<const uint32_t*>(ptr + (base_idx + 0) * 4));
+        const uint32_t addr_low = ntohl(*reinterpret_cast<const uint32_t*>(ptr + (base_idx + 1) * 4));
+        const uint32_t size_high = ntohl(*reinterpret_cast<const uint32_t*>(ptr + (base_idx + 2) * 4));
+        const uint32_t size_low = ntohl(*reinterpret_cast<const uint32_t*>(ptr + (base_idx + 3) * 4));
+
+        const uint64_t address = (static_cast<uint64_t>(addr_high) << 32) | addr_low;
+        const size_t size = static_cast<size_t>((static_cast<uint64_t>(size_high) << 32) | size_low);
+
         result.push_back({address, size});
     }
     return result;
@@ -203,12 +242,8 @@ std::shared_ptr<device_node> Devicetree::find_node_by_addr(ulong addr){
     if (root_node == nullptr){
         root_node = read_node("", root_addr);
     }
-    for (const auto& node_item : node_addr_maps) {
-        if(node_item.first == addr){
-            return node_item.second;
-        }
-    }
-    return nullptr;
+    auto it = node_addr_maps.find(addr);
+    return (it != node_addr_maps.end()) ? it->second : nullptr;
 }
 
 bool Devicetree::is_str_prop(const std::string& name) {
