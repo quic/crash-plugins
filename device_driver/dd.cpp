@@ -22,75 +22,147 @@
 DEFINE_PLUGIN_COMMAND(DDriver)
 #endif
 
+/**
+ * Initialize field offsets for kernel structures
+ */
 void DDriver::init_offset(void) {
-    field_init(bus_type,probe);
-    field_init(device,kobj);
-    field_init(device,driver);
-    field_init(kobject,name);
-    field_init(device_driver,name);
-    field_init(device_driver,mod_name);
-    field_init(device_driver,probe);
-    field_init(device_driver,of_match_table);
-    field_init(of_device_id,compatible);
-    field_init(char_device_struct,major);
-    field_init(char_device_struct,baseminor);
-    field_init(char_device_struct,minorct);
-    field_init(char_device_struct, cdev);
-    field_init(char_device_struct, name);
-    field_init(miscdevice,minor);
-    field_init(miscdevice,name);
-    field_init(miscdevice,fops);
-    struct_init(gendisk);
-    field_init(gendisk,major);
-    field_init(gendisk,minors);
-    field_init(gendisk,disk_name);
-    field_init(gendisk,part_tbl);
-    field_init(disk_part_tbl,len);
-    field_init(disk_part_tbl,part);
-    struct_init(block_device);
-    field_init(block_device,bd_start_sect);
-    field_init(block_device,bd_nr_sectors);
-    field_init(block_device,bd_disk);
-    field_init(block_device,bd_mapping);
-    field_init(block_device,bd_meta_info);
-    field_init(block_device,bd_super);
-    field_init(block_device,bd_part);
-    field_init(block_device,bd_block_size);
-    field_init(block_device,bd_partno);
-    field_init(super_block,s_blocksize);
-    field_init(super_block,s_type);
-    field_init(super_block, s_list);
-    field_init(super_block,s_bdev);
-    field_init(file_system_type,name);
-    field_init(file_system_type,fs_flags);
-    struct_init(hd_struct);
-    field_init(hd_struct,info);
-    field_init(hd_struct,__dev);
-    field_init(hd_struct,start_sect);
-    field_init(hd_struct,nr_sects);
-    field_init(hd_struct,partno);
-    field_init(partition_meta_info,uuid);
-    field_init(partition_meta_info,volname);
+    // ========================================================================
+    // Bus and Device Core Structures
+    // ========================================================================
+    // bus_type: Represents a bus type (platform, pci, usb, etc.)
+    field_init(bus_type, probe);
+
+    // device: Core device structure
+    field_init(device, kobj);           // Embedded kobject for sysfs
+    field_init(device, driver);         // Pointer to bound driver
+
+    // kobject: Kernel object for sysfs representation
+    field_init(kobject, name);          // Device name
+
+    // ========================================================================
+    // Device Driver Structures
+    // ========================================================================
+    field_init(device_driver, name);            // Driver name
+    field_init(device_driver, mod_name);        // Module name
+    field_init(device_driver, probe);           // Probe function pointer
+    field_init(device_driver, of_match_table);  // Device tree match table
+
+    // of_device_id: Device tree matching structure
+    field_init(of_device_id, compatible);       // Compatible string
+
+    // ========================================================================
+    // Character Device Structures
+    // ========================================================================
+    field_init(char_device_struct, major);      // Major number
+    field_init(char_device_struct, baseminor);  // Base minor number
+    field_init(char_device_struct, minorct);    // Minor count
+    field_init(char_device_struct, cdev);       // Character device structure
+    field_init(char_device_struct, name);       // Device name
+
+    // miscdevice: Miscellaneous character device (major 10)
+    field_init(miscdevice, minor);              // Minor number
+    field_init(miscdevice, name);               // Device name
+    field_init(miscdevice, fops);               // File operations
+
+    // ========================================================================
+    // Block Device and Disk Structures
+    // ========================================================================
+    struct_init(gendisk);                       // Initialize structure size
+    field_init(gendisk, major);                 // Major number
+    field_init(gendisk, minors);                // Number of minors
+    field_init(gendisk, disk_name);             // Disk name (e.g., "sda")
+    field_init(gendisk, part_tbl);              // Partition table
+
+    // disk_part_tbl: Disk partition table (legacy)
+    field_init(disk_part_tbl, len);             // Number of partitions
+    field_init(disk_part_tbl, part);            // Partition array
+
+    // block_device: Block device structure
+    struct_init(block_device);                  // Initialize structure size
+    field_init(block_device, bd_start_sect);    // Start sector
+    field_init(block_device, bd_nr_sectors);    // Number of sectors
+    field_init(block_device, bd_disk);          // Associated gendisk
+    field_init(block_device, bd_mapping);       // Address space mapping
+    field_init(block_device, bd_meta_info);     // Partition metadata
+    field_init(block_device, bd_super);         // Superblock pointer
+    field_init(block_device, bd_part);          // Partition (hd_struct)
+    field_init(block_device, bd_block_size);    // Block size
+    field_init(block_device, bd_partno);        // Partition number
+
+    // ========================================================================
+    // Filesystem and Superblock Structures
+    // ========================================================================
+    // super_block: Filesystem superblock
+    field_init(super_block, s_blocksize);       // Block size
+    field_init(super_block, s_type);            // Filesystem type
+    field_init(super_block, s_list);            // List of superblocks
+    field_init(super_block, s_bdev);            // Block device
+
+    // file_system_type: Filesystem type descriptor
+    field_init(file_system_type, name);         // Filesystem name (e.g., "ext4")
+    field_init(file_system_type, fs_flags);     // Filesystem flags
+
+    // ========================================================================
+    // Partition Structures (Legacy and Modern)
+    // ========================================================================
+    // hd_struct: Legacy partition structure (pre-5.11 kernels)
+    struct_init(hd_struct);                     // Initialize structure size
+    field_init(hd_struct, info);                // Partition metadata
+    field_init(hd_struct, __dev);               // Device structure
+    field_init(hd_struct, start_sect);          // Start sector
+    field_init(hd_struct, nr_sects);            // Number of sectors
+    field_init(hd_struct, partno);              // Partition number
+
+    // partition_meta_info: Partition metadata (UUID, volume name)
+    field_init(partition_meta_info, uuid);      // Partition UUID
+    field_init(partition_meta_info, volname);   // Volume name
 }
 
+/**
+ * Main command entry point
+ * Parses command line arguments and dispatches to appropriate handler functions
+ */
 void DDriver::cmd_main(void) {
     int c;
     std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    if (bus_list.size() == 0 || class_list.size() == 0){
-        init_offset();
+    // Check if at least one argument is provided
+    if (argcnt < 2) {
+        LOGE("Insufficient arguments provided (count: %d)\n", argcnt);
+        cmd_usage(pc->curcmd, SYNOPSIS);
+        return;
     }
-    if (bus_list.size() == 0){
+
+    // Initialize field offsets if not already done
+    if (bus_list.empty() || class_list.empty()){
+        init_offset();
+    } else {
+        LOGD("Using cached data: %zu buses, %zu classes\n",
+             bus_list.size(), class_list.size());
+    }
+    // Parse bus information if not cached
+    if (bus_list.empty()){
         parser_bus_info();
+        // Parse devices and drivers for each bus
         for (auto& bus_ptr : bus_list) {
             bus_ptr->device_list = parser_bus_device_list(bus_ptr->name);
             bus_ptr->driver_list = parser_driver_list(bus_ptr->name);
+            LOGD("Bus '%s': %zu devices, %zu drivers\n",
+                    bus_ptr->name.c_str(),
+                    bus_ptr->device_list.size(),
+                    bus_ptr->driver_list.size());
         }
     }
-    if (class_list.size() == 0){
+
+    // Parse class information if not cached
+    if (class_list.empty()){
         parser_class_info();
+        // Parse devices for each class
         for (auto& class_ptr : class_list) {
+            LOGD("Processing class: '%s' (addr: 0x%lx)\n", class_ptr->name.c_str(), class_ptr->addr);
             class_ptr->device_list = parser_class_device_list(class_ptr->name);
+            LOGD("Class '%s': %zu devices\n",
+                    class_ptr->name.c_str(),
+                    class_ptr->device_list.size());
         }
     }
     while ((c = getopt(argcnt, args, "bB:cC:lLs:amDdp:")) != EOF) {
@@ -105,7 +177,7 @@ void DDriver::cmd_main(void) {
             case 'c': //list all class
                 print_class_info();
                 break;
-            case 'C'://list all device under specified bus
+            case 'C'://list all device under specified class
                 cppString.assign(optarg);
                 print_device_driver_for_class(cppString);
                 break;
@@ -136,12 +208,15 @@ void DDriver::cmd_main(void) {
                 print_partition(cppString);
                 break;
             default:
+                LOGE("Unknown option: %c\n", c);
                 argerrs++;
                 break;
         }
     }
-    if (argerrs)
+    if (argerrs) {
+        LOGE("Command parsing failed with %d errors\n", argerrs);
         cmd_usage(pc->curcmd, SYNOPSIS);
+    }
 }
 
 void DDriver::init_command(void) {
@@ -270,6 +345,17 @@ DDriver::DDriver(){
     do_init_offset = false;
 }
 
+/**
+ * Print all device class information in formatted table
+ *
+ * Displays a formatted table containing all device classes found in the system.
+ * The table includes class address, name, and subsys_private pointer.
+ *
+ * Output format:
+ *   class      name                 subsys_private
+ *   <addr>     <class_name>         <subsys_private_addr>
+ *
+ */
 void DDriver::print_class_info(){
     size_t name_max_len = 20;
     for (auto& class_ptr : class_list) {
@@ -286,9 +372,20 @@ void DDriver::print_class_info(){
             << std::left << std::hex                                << class_ptr->subsys_private
             << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all bus type information in formatted table
+ *
+ * Displays a formatted table containing all bus types found in the system.
+ * The table includes bus_type address, name, subsys_private pointer, and probe function.
+ *
+ * Output format:
+ *   bus_type   name         subsys_private   probe func
+ *   <addr>     <bus_name>   <subsys_addr>    <probe_func>
+ *
+ */
 void DDriver::print_bus_info(){
     size_t name_max_len = 10;
     for (auto& bus_ptr : bus_list) {
@@ -307,9 +404,20 @@ void DDriver::print_bus_info(){
             << std::left                                            << bus_ptr->probe
             << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all devices across all buses in formatted table
+ *
+ * Displays a comprehensive table of all devices found on all buses in the system.
+ * For each device, shows its address, name, associated bus, and bound driver (if any).
+ *
+ * Output format:
+ *   device     name                 Bus             driver     driver_name
+ *   <addr>     <device_name>        <bus_name>      <drv_addr> <driver_name>
+ *
+ */
 void DDriver::print_device_list(){
     size_t name_max_len = 10;
     for (auto& bus_ptr : bus_list) {
@@ -337,9 +445,26 @@ void DDriver::print_device_list(){
             }
         }
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all devices and drivers for a specific bus
+ *
+ * Displays two formatted tables:
+ * 1. All devices on the specified bus with their bound drivers
+ * 2. All drivers registered on the specified bus with their properties
+ *
+ * Device table format:
+ *   device     name                 driver     driver_name
+ *   <addr>     <device_name>        <drv_addr> <driver_name>
+ *
+ * Driver table format:
+ *   device_driver    name            compatible          probe func
+ *   <addr>           <driver_name>   <compatible_str>    <probe_func>
+ *
+ * @param bus_name Name of the bus to query (e.g., "platform", "pci", "usb")
+ */
 void DDriver::print_device_driver_for_bus(std::string bus_name){
     std::vector<std::shared_ptr<device>> device_list;
     std::vector<std::shared_ptr<driver>> driver_list;
@@ -350,9 +475,9 @@ void DDriver::print_device_driver_for_bus(std::string bus_name){
             break;
         }
     }
-    fprintf(fp, "============================================================================\n");
-    fprintf(fp, "                                All devices                                 \n");
-    fprintf(fp, "============================================================================\n");
+    PRINT("============================================================================\n");
+    PRINT("                                All devices                                 \n");
+    PRINT("============================================================================\n");
     std::ostringstream oss;
     if (device_list.size() > 0){
         size_t name_max_len = 10;
@@ -398,9 +523,21 @@ void DDriver::print_device_driver_for_bus(std::string bus_name){
                 << std::left << driv_ptr->probe << "\n";
         }
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all devices for a specific device class
+ *
+ * Displays a formatted table of all devices belonging to the specified device class.
+ * Shows device address, name, and bound driver information (if any).
+ *
+ * Output format:
+ *   device     name                 driver     driver_name
+ *   <addr>     <device_name>        <drv_addr> <driver_name>
+ *
+ * @param class_name Name of the device class to query (e.g., "block", "net", "input")
+ */
 void DDriver::print_device_driver_for_class(std::string class_name){
     std::vector<std::shared_ptr<device>> device_list;
     for (auto& class_ptr : class_list) {
@@ -409,9 +546,9 @@ void DDriver::print_device_driver_for_class(std::string class_name){
             break;
         }
     }
-    fprintf(fp, "============================================================================\n");
-    fprintf(fp, "                                All devices                                 \n");
-    fprintf(fp, "============================================================================\n");
+    PRINT("============================================================================\n");
+    PRINT("                                All devices                                 \n");
+    PRINT("============================================================================\n");
     if (device_list.size() > 0){
         size_t name_max_len = 10;
         for (auto& dev_ptr : device_list) {
@@ -430,10 +567,20 @@ void DDriver::print_device_driver_for_class(std::string class_name){
                     << std::left << dev_ptr->driv->name << "\n";
             }
         }
-        fprintf(fp, "%s \n",oss.str().c_str());
+        PRINT("%s \n",oss.str().c_str());
     }
 }
 
+/**
+ * Print all character device structures in formatted table
+ *
+ * Displays information about all character devices registered in the system.
+ * Shows major number, minor count, cdev pointer, and device name.
+ *
+ * Output format:
+ *   char_device_struct   major      minorct    cdev               name
+ *   <addr>               <major>    <count>    <cdev_addr>        <dev_name>
+ */
 void DDriver::print_char_device(){
     std::ostringstream oss;
     oss  << std::left << std::setw(20)           << "char_device_struct" << " "
@@ -453,9 +600,20 @@ void DDriver::print_char_device(){
             << std::left << std::setw(VADDR_PRLEN + 2)  << std::hex   << cdev_addr<< " "
             << std::left << name << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all generic disk (gendisk) structures in formatted table
+ *
+ * Displays information about all block devices (disks) in the system.
+ * Shows disk address, minor number, major number, partition count, and disk name.
+ *
+ * Output format:
+ *   gendisk            minor major partitions name
+ *   <addr>             <min> <maj> <count>     <disk_name>
+ *
+ */
 void DDriver::print_gendisk(){
     int major = 0;
     int minor = 0;
@@ -492,9 +650,25 @@ void DDriver::print_gendisk(){
             << std::left << std::setw(10)   << std::dec << partition_cnt    << " "
             << std::left << name << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all partitions for a specific disk in formatted table
+ *
+ * Displays detailed information about all partitions on the specified disk.
+ * Shows partition number, start sector, size, filesystem type, device name, volume name, and UUID.
+ *
+ * Output format (for hd_struct):
+ *   hd_struct      partno start_sect sectors    size       bsize  type   devname    volname    UUID
+ *   <addr>         <num>  <start>    <sectors>  <size_str> <bsz>  <fs>   <devname>  <volname>  <uuid>
+ *
+ * Output format (for block_device):
+ *   block_device   partno start_sect sectors    size       bsize  type   devname    volname    UUID
+ *   <addr>         <num>  <start>    <sectors>  <size_str> <bsz>  <fs>   <devname>  <volname>  <uuid>
+ *
+ * @param disk_name Name of the disk to query (e.g., "sda", "mmcblk0", "nvme0n1")
+ */
 void DDriver::print_partition(std::string disk_name){
     std::vector<ulong> ptbl;
     for (auto& addr : for_each_disk()) {
@@ -585,9 +759,26 @@ void DDriver::print_partition(std::string disk_name){
             << std::left << std::setw(20)   << part_ptr->volname  << " "
             << std::left << part_ptr->uuid  << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Parse legacy hd_struct (hard disk structure) from kernel memory
+ *
+ * Extracts partition information from the legacy hd_struct kernel structure.
+ * This structure was used in older kernel versions to represent disk partitions.
+ *
+ * Extracted information includes:
+ * - Partition number (partno)
+ * - Start sector (start_sect)
+ * - Number of sectors (nr_sects)
+ * - Partition metadata (UUID, volume name)
+ * - Device name
+ * - Filesystem type and block size (by finding associated block_device)
+ *
+ * @param addr Kernel virtual address of the hd_struct structure
+ * @return Shared pointer to partition object containing parsed data, or nullptr on failure
+ */
 std::shared_ptr<partition> DDriver::parser_hd_struct(ulong addr){
     std::shared_ptr<partition> part_ptr = std::make_shared<partition>();
     part_ptr->addr = addr;
@@ -638,9 +829,28 @@ std::shared_ptr<partition> DDriver::parser_hd_struct(ulong addr){
             }
         }
     }
+    LOGD("=== parser_hd_struct(0x%lx) - Complete ===\n", addr);
     return part_ptr;
 }
 
+/**
+ * Parse block_device structure from kernel memory
+ *
+ * Extracts partition information from the modern block_device kernel structure.
+ * This structure is used in newer kernel versions to represent disk partitions.
+ *
+ * Extracted information includes:
+ * - Partition number (bd_partno)
+ * - Start sector (bd_start_sect)
+ * - Number of sectors (bd_nr_sectors)
+ * - Block size (bd_block_size)
+ * - Partition metadata (UUID, volume name from bd_meta_info)
+ * - Device name
+ * - Filesystem type (from associated super_block)
+ *
+ * @param addr Kernel virtual address of the block_device structure
+ * @return Shared pointer to partition object containing parsed data, or nullptr on failure
+ */
 std::shared_ptr<partition> DDriver::parser_block_device(ulong addr){
     void *buf = read_struct(addr,"block_device");
     if (!buf) {
@@ -715,6 +925,17 @@ std::shared_ptr<partition> DDriver::parser_block_device(ulong addr){
     return part_ptr;
 }
 
+/**
+ * Print all block devices in formatted table
+ *
+ * Displays comprehensive information about all block devices in the system.
+ * Shows block device address, associated super_block, filesystem type, block size,
+ * device name, volume name, and UUID.
+ *
+ * Output format:
+ *   block_device      super_block       type  bsize devname         volname              UUID
+ *   <bd_addr>         <sb_addr>         <fs>  <bsz> <devname>       <volname>            <uuid>
+ */
 void DDriver::print_block_device(){
     uint64_t bd_block_size = 0;
     ulong bd_meta_info = 0;
@@ -825,9 +1046,21 @@ void DDriver::print_block_device(){
             << std::left << std::setw(20)   << volname                      << " "
             << std::left << uuid << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all miscellaneous devices in formatted table
+ *
+ * Displays information about all miscellaneous character devices registered in the system.
+ * Miscellaneous devices are character devices that share major number 10.
+ * Shows device address, minor number, file operations structure name, and device name.
+ *
+ * Output format:
+ *   miscdevice           minor      ops                            name
+ *   <addr>               <minor>    <fops_symbol_name>             <dev_name>
+ *
+ */
 void DDriver::print_misc_device(){
     std::ostringstream oss;
     oss  << std::left << std::setw(20)           << "miscdevice" << " "
@@ -855,9 +1088,21 @@ void DDriver::print_misc_device(){
             << std::left << std::setw(30)   << ops_name             << " "
             << std::left << name << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all devices bound to a specific driver
+ *
+ * Displays a formatted table of all devices that are currently bound to the specified driver.
+ * Shows device address and device name for each bound device.
+ *
+ * Output format:
+ *      device     name
+ *      <addr>     <device_name>
+ *
+ * @param driver_name Name of the driver to query (e.g., "ahci", "e1000e", "usbhid")
+ */
 void DDriver::print_device_list_for_driver(std::string driver_name){
     std::vector<std::shared_ptr<device>> device_list;
     bool found = false;
@@ -887,9 +1132,20 @@ void DDriver::print_device_list_for_driver(std::string driver_name){
         oss << std::left << "   " << std::hex << std::setw(VADDR_PRLEN + 2) << dev_ptr->addr << " "
             << std::left << std::setw(name_max_len) << dev_ptr->name << " " << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Print all drivers across all buses in formatted table
+ *
+ * Displays a comprehensive table of all device drivers registered on all buses in the system.
+ * Shows driver address, name, associated bus, device tree compatible string, and probe function.
+ *
+ * Output format:
+ *   device_driver    name                 Bus         compatible          probe func
+ *   <addr>           <driver_name>        <bus_name>  <compatible_str>    <probe_func>
+ *
+ */
 void DDriver::print_driver_list(){
     size_t name_max_len = 10;
     size_t compat_max_len = 10;
@@ -916,41 +1172,77 @@ void DDriver::print_driver_list(){
                 << "\n";
         }
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * Parse all device class information from kernel memory
+ * Iterates through all device classes and extracts their properties
+ */
 void DDriver::parser_class_info(){
+    int class_count = 0;
     for (const auto& class_addr : for_each_class()) {
-        std::shared_ptr<class_type> class_ptr = std::make_shared<class_type>();
-        class_ptr->addr = class_addr;
-        // fprintf(fp, "class_addr: %zx\n",class_addr);
-        size_t name_addr = read_pointer(class_addr + field_offset(class,name),"name addr");
-        if (is_kvaddr(name_addr)){
-            class_ptr->name = read_cstring(name_addr,64, "class name");
-        }
-        if (class_ptr->name.empty()){
+        LOGD("Processing class #%d at address: 0x%lx\n", class_count + 1, class_addr);
+        if (!is_kvaddr(class_addr)) {
+            LOGE("Invalid class address 0x%lx, skipping\n", class_addr);
             continue;
         }
-        if (!class_ptr->name.empty() && *class_ptr->name.rbegin() == '\n') {
+        std::shared_ptr<class_type> class_ptr = std::make_shared<class_type>();
+        class_ptr->addr = class_addr;
+        // Read the class name from kernel memory
+        size_t name_addr = read_pointer(class_addr + field_offset(class,name),"name addr");
+        if (!is_kvaddr(name_addr)){
+            LOGE("Invalid name address 0x%lx for class at 0x%lx, skipping\n",
+                 name_addr, class_addr);
+            continue;
+        }
+        class_ptr->name = read_cstring(name_addr, 64, "class name");
+        // Skip if name is empty
+        if (class_ptr->name.empty()){
+            LOGE("Empty class name at address 0x%lx, skipping\n", class_addr);
+            continue;
+        }
+        // Remove trailing newline if present
+        if (*class_ptr->name.rbegin() == '\n') {
             class_ptr->name.pop_back();
         }
+        LOGD("Class name: '%s' subsys_private: 0x%lx \n", class_ptr->name.c_str(),class_ptr->subsys_private);
+        // Get the subsys_private pointer for this class
         class_ptr->subsys_private = get_class_subsys_private(class_ptr->name);
         class_list.push_back(class_ptr);
+        class_count++;
     }
 }
 
+/**
+ * Parse all bus type information from kernel memory
+ * Iterates through all bus types and extracts their properties including probe functions
+ */
 void DDriver::parser_bus_info(){
     std::ostringstream oss;
+    int bus_count = 0;
     for (const auto& bus_addr : for_each_bus()) {
-        std::shared_ptr<bus_type> bus_ptr = std::make_shared<bus_type>();
-        bus_ptr->addr = bus_addr;
-        size_t name_addr = read_pointer(bus_addr + field_offset(bus_type,name),"name addr");
-        if (is_kvaddr(name_addr)){
-            bus_ptr->name = read_cstring(name_addr,64, "bus name");
-        }
-        if (bus_ptr->name.empty()){
+        LOGD("Processing bus #%d at address: 0x%lx\n", bus_count + 1, bus_addr);
+        if (!is_kvaddr(bus_addr)) {
+            LOGE("Invalid bus address 0x%lx, skipping\n", bus_addr);
             continue;
         }
+        std::shared_ptr<bus_type> bus_ptr = std::make_shared<bus_type>();
+        bus_ptr->addr = bus_addr;
+        // Read the bus name from kernel memory
+        size_t name_addr = read_pointer(bus_addr + field_offset(bus_type,name),"name addr");
+        if (!is_kvaddr(name_addr)){
+            LOGE("Invalid name address 0x%lx for bus at 0x%lx, skipping\n",
+                 name_addr, bus_addr);
+            continue;
+        }
+        bus_ptr->name = read_cstring(name_addr, 128, "bus name");
+        // Skip if name is empty
+        if (bus_ptr->name.empty()){
+            LOGE("Empty bus name at address 0x%lx, skipping\n", bus_addr);
+            continue;
+        }
+        // Read and resolve the probe function address
         size_t probe_addr = read_pointer(bus_addr + field_offset(bus_type,probe),"probe addr");
         if (is_kvaddr(probe_addr)){
             ulong offset;
@@ -958,93 +1250,192 @@ void DDriver::parser_bus_info(){
             oss.str("");
             oss.clear();
             if (sp) {
+                // Found symbol, format as "symbol+offset"
                 oss << sp->name << "+" << offset;
             } else {
+                // Symbol not found, use raw address
                 oss << std::hex << probe_addr;
             }
             bus_ptr->probe = oss.str();
         }else{
             bus_ptr->probe = "";
         }
+
+        // Get the subsys_private pointer for this bus
         bus_ptr->subsys_private = get_bus_subsys_private(bus_ptr->name);
+        LOGD("Bus name:%s subsys_private:0x%lx\n", bus_ptr->name.c_str(), bus_ptr->subsys_private);
         bus_list.push_back(bus_ptr);
+        bus_count++;
     }
+    LOGD("Successfully parsed: %d bus types\n", bus_count);
 }
 
+/**
+ * Parse all devices belonging to a specific device class
+ * @param class_name The name of the device class
+ * @return Vector of device pointers belonging to the class
+ */
 std::vector<std::shared_ptr<device>> DDriver::parser_class_device_list(std::string class_name){
     std::vector<std::shared_ptr<device>> device_list;
+    int device_count = 0;
     for (const auto& device_addr : for_each_device_for_class(class_name)) {
-        // fprintf(fp, "device_addr:%#zx \n",device_addr);
+        LOGD("Parsing device #%d at address: 0x%lx\n", device_count + 1, device_addr);
         std::shared_ptr<device> dev_ptr = parser_device(device_addr);
-        if (dev_ptr == nullptr) continue;
+        if (dev_ptr == nullptr) {
+            LOGE("Failed to parse device at 0x%lx\n", device_addr);
+            continue;
+        }
+        LOGD("Successfully parsed device: '%s'\n", dev_ptr->name.c_str());
         device_list.push_back(dev_ptr);
+        device_count++;
     }
     return device_list;
 }
 
+/**
+ * Parse all devices belonging to a specific bus
+ * @param bus_name The name of the bus
+ * @return Vector of device pointers on the bus
+ */
 std::vector<std::shared_ptr<device>> DDriver::parser_bus_device_list(std::string bus_name){
     std::vector<std::shared_ptr<device>> device_list;
+    int device_count = 0;
     for (const auto& device_addr : for_each_device_for_bus(bus_name)) {
-        // fprintf(fp, "device_addr:%#zx \n",device_addr);
+        LOGD("Parsing device #%d at address: 0x%lx for bus %s\n", device_count + 1, device_addr, bus_name.c_str());
         std::shared_ptr<device> dev_ptr = parser_device(device_addr);
-        if (dev_ptr == nullptr) continue;
+        if (dev_ptr == nullptr) {
+            LOGE("Failed to parse device at 0x%lx\n", device_addr);
+            continue;
+        }
+        LOGD("Successfully parsed device: '%s'\n", dev_ptr->name.c_str());
         device_list.push_back(dev_ptr);
+        device_count++;
     }
     return device_list;
 }
 
+/**
+ * Parse all drivers registered on a specific bus
+ * Also parses all devices bound to each driver
+ * @param bus_name The name of the bus
+ * @return Vector of driver pointers on the bus
+ */
 std::vector<std::shared_ptr<driver>> DDriver::parser_driver_list(std::string bus_name){
     std::vector<std::shared_ptr<driver>> driver_list;
+    int driver_count = 0;
+    int failed_driver_count = 0;
     for (const auto& driver_addr : for_each_driver(bus_name)) {
-        // fprintf(fp, "driver_addr:%#zx \n",driver_addr);
+        LOGD("Parsing driver #%d at address: 0x%lx\n", driver_count + 1, driver_addr);
         std::shared_ptr<driver> driv_ptr = parser_driver(driver_addr);
-        if (driv_ptr == nullptr) continue;
-        for (const auto& device_addr : for_each_device_for_driver(driver_addr)) {
-            // fprintf(fp, "device_addr:%#zx \n",device_addr);
-            std::shared_ptr<device> dev_ptr = parser_device(device_addr);
-            if (dev_ptr == nullptr) continue;
-            driv_ptr->device_list.push_back(dev_ptr);
+        if (driv_ptr == nullptr) {
+            LOGE("Failed to parse driver at 0x%lx\n", driver_addr);
+            failed_driver_count++;
+            continue;
         }
+        // Parse all devices bound to this driver
+        int bound_device_count = 0;
+        for (const auto& device_addr : for_each_device_for_driver(driver_addr)) {
+            std::shared_ptr<device> dev_ptr = parser_device(device_addr);
+            if (dev_ptr == nullptr) {
+                LOGE("Failed to parse bound device at 0x%lx\n", device_addr);
+                continue;
+            }
+            driv_ptr->device_list.push_back(dev_ptr);
+            bound_device_count++;
+        }
+        LOGD("Driver '%s': bound %d devices \n",driv_ptr->name.c_str(), bound_device_count);
         driver_list.push_back(driv_ptr);
+        driver_count++;
     }
     return driver_list;
 }
 
+/**
+ * Parse a single device structure from kernel memory
+ * Extracts device name and associated driver information
+ *
+ * This function reads the device structure from kernel memory and extracts:
+ * - Device name (through kobject->name pointer chain)
+ * - Associated driver information (if device is bound to a driver)
+ *
+ * @param addr Kernel virtual address of the device structure
+ * @return Shared pointer to parsed device, or nullptr if invalid address
+ */
 std::shared_ptr<device> DDriver::parser_device(size_t addr){
-    if (!is_kvaddr(addr)) return nullptr;
+    // Validate the address is a kernel virtual address
+    if (!is_kvaddr(addr)) {
+        LOGE("Invalid device address 0x%lx\n", addr);
+        return nullptr;
+    }
+    LOGD("Parsing device at address 0x%lx\n", addr);
+    // Create new device object to store parsed information
     std::shared_ptr<device> dev_ptr = std::make_shared<device>();
     dev_ptr->addr = addr;
-    size_t name_addr = read_pointer(addr + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
+    // Read device name through kobject->name pointer chain
+    // Path: device->kobj->name
+    size_t kobj_offset = field_offset(device, kobj);
+    size_t name_offset = field_offset(kobject, name);
+    size_t name_addr = read_pointer(addr + kobj_offset + name_offset, "device name addr");
     if (is_kvaddr(name_addr)){
-        dev_ptr->name = read_cstring(name_addr,100, "device name");
+        // Read the device name string from kernel memory
+        dev_ptr->name = read_cstring(name_addr, 100, "device name");
     }else{
+        // Invalid name address, set empty string
         dev_ptr->name = "";
+        LOGE("Invalid device name address 0x%lx, using empty string\n", name_addr);
     }
-    size_t driver_addr = read_pointer(addr + field_offset(device,driver) ,"driver addr");
+    // Read associated driver if device is bound to one
+    // Path: device->driver
+    size_t driver_offset = field_offset(device, driver);
+    size_t driver_addr = read_pointer(addr + driver_offset, "driver addr");
     if (is_kvaddr(driver_addr)){
+        // Device is bound to a driver, parse the driver information
+        LOGD("Device bound to driver at 0x%lx\n", driver_addr);
         dev_ptr->driv = parser_driver(driver_addr);
+    } else {
+        // Device is not bound to any driver
+        LOGD("Device '%s' is not bound to any driver\n", dev_ptr->name.c_str());
+        dev_ptr->driv = nullptr;
     }
     return dev_ptr;
 }
 
+/**
+ * Parse a single driver structure from kernel memory
+ * Extracts driver name, probe function, and device tree compatible string
+ * @param addr Kernel virtual address of the device_driver structure
+ * @return Shared pointer to parsed driver, or nullptr if invalid
+ */
 std::shared_ptr<driver> DDriver::parser_driver(size_t addr){
-    if (!is_kvaddr(addr)) return nullptr;
+    // Validate the address is a kernel virtual address
+    if (!is_kvaddr(addr)) {
+        LOGE("Invalid driver address 0x%lx\n", addr);
+        return nullptr;
+    }
+    LOGD("Parsing driver at address 0x%lx\n", addr);
     std::shared_ptr<driver> driv_ptr = std::make_shared<driver>();
     driv_ptr->addr = addr;
-    size_t name_addr = read_pointer(addr + field_offset(device_driver,name),"driver name addr");
+    // Read driver name
+    size_t name_offset = field_offset(device_driver, name);
+    size_t name_addr = read_pointer(addr + name_offset, "driver name addr");
     if (is_kvaddr(name_addr)){
-        driv_ptr->name = read_cstring(name_addr,100, "driver name");
+        driv_ptr->name = read_cstring(name_addr, 100, "driver name");
     }else{
         driv_ptr->name = "";
+        LOGE("Invalid driver name address 0x%lx\n", name_addr);
     }
-    size_t probe_addr = read_pointer(addr + field_offset(device_driver,probe),"probe addr");
+    // Read and resolve probe function address
+    size_t probe_offset = field_offset(device_driver, probe);
+    size_t probe_addr = read_pointer(addr + probe_offset, "probe addr");
     std::ostringstream oss;
     if (is_kvaddr(probe_addr)){
         ulong offset;
         struct syment *sp = value_search(probe_addr, &offset);
         if (sp) {
+            // Found symbol, format as "symbol+offset"
             oss << sp->name << "+" << offset;
         } else {
+            // Symbol not found, use raw address
             oss << std::hex << probe_addr;
         }
         driv_ptr->probe = oss.str();
@@ -1052,9 +1443,11 @@ std::shared_ptr<driver> DDriver::parser_driver(size_t addr){
     }else{
         driv_ptr->probe = "";
     }
-    size_t match_table = read_pointer(addr + field_offset(device_driver,of_match_table),"match_table addr");
+    // Read device tree compatible string if present
+    size_t match_table_offset = field_offset(device_driver, of_match_table);
+    size_t match_table = read_pointer(addr + match_table_offset, "match_table addr");
     if (is_kvaddr(match_table)){
-        driv_ptr->compatible = read_cstring(match_table + field_offset(of_device_id,compatible),128, "compatible");
+        driv_ptr->compatible = read_cstring(match_table + field_offset(of_device_id,compatible), 128, "compatible");
     }else{
         driv_ptr->compatible = "";
     }

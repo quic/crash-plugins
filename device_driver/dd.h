@@ -65,30 +65,34 @@ struct partition {
 
 class DDriver : public ParserPlugin {
 private:
+    // Cached lists of buses and classes to avoid repeated parsing
     std::vector<std::shared_ptr<bus_type>> bus_list;
     std::vector<std::shared_ptr<class_type>> class_list;
 
-    void print_class_info();
-    void print_bus_info();
-    void print_device_list();
-    void print_device_driver_for_bus(std::string bus_name);
-    void print_device_driver_for_class(std::string class_name);
-    void print_char_device();
-    void print_gendisk();
-    void print_partition(std::string disk_name);
-    std::shared_ptr<partition> parser_hd_struct(ulong addr);
-    std::shared_ptr<partition> parser_block_device(ulong addr);
-    void print_block_device();
-    void print_misc_device();
-    void print_device_list_for_driver(std::string driver_name);
-    void print_driver_list();
-    void parser_bus_info();
-    std::vector<std::shared_ptr<device>> parser_bus_device_list(std::string bus_name);
-    std::vector<std::shared_ptr<device>> parser_class_device_list(std::string class_name);
-    void parser_class_info();
-    std::shared_ptr<driver> parser_driver(size_t addr);
-    std::vector<std::shared_ptr<driver>> parser_driver_list(std::string bus_name);
-    std::shared_ptr<device> parser_device(size_t addr);
+    // Print functions - display formatted information
+    void print_class_info();                                          // Print all device classes
+    void print_bus_info();                                            // Print all bus types
+    void print_device_list();                                         // Print all devices
+    void print_device_driver_for_bus(std::string bus_name);          // Print devices/drivers for specific bus
+    void print_device_driver_for_class(std::string class_name);      // Print devices/drivers for specific class
+    void print_char_device();                                         // Print character devices
+    void print_gendisk();                                             // Print generic disks
+    void print_partition(std::string disk_name);                      // Print partitions for a disk
+    void print_block_device();                                        // Print block devices
+    void print_misc_device();                                         // Print miscellaneous devices
+    void print_device_list_for_driver(std::string driver_name);      // Print devices for specific driver
+    void print_driver_list();                                         // Print all drivers
+
+    // Parser functions - extract and parse kernel structures
+    std::shared_ptr<partition> parser_hd_struct(ulong addr);         // Parse hd_struct (legacy partition)
+    std::shared_ptr<partition> parser_block_device(ulong addr);      // Parse block_device structure
+    void parser_bus_info();                                           // Parse all bus information
+    void parser_class_info();                                         // Parse all class information
+    std::vector<std::shared_ptr<device>> parser_bus_device_list(std::string bus_name);    // Parse devices on a bus
+    std::vector<std::shared_ptr<device>> parser_class_device_list(std::string class_name); // Parse devices in a class
+    std::vector<std::shared_ptr<driver>> parser_driver_list(std::string bus_name);        // Parse drivers on a bus
+    std::shared_ptr<driver> parser_driver(size_t addr);              // Parse single driver structure
+    std::shared_ptr<device> parser_device(size_t addr);              // Parse single device structure
 
 public:
     DDriver();
