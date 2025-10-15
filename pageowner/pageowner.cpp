@@ -14,6 +14,7 @@
  */
 
 #include "pageowner.h"
+#include <chrono>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -22,114 +23,183 @@
 DEFINE_PLUGIN_COMMAND(Pageowner)
 #endif
 
+/**
+ * cmd_main - Main entry point for the pageowner command
+ *
+ * This function processes command-line arguments and dispatches to the appropriate
+ * handler based on the options provided. It supports various operations like
+ * displaying allocated/freed pages, searching by address, and memory statistics.
+ */
 void Pageowner::cmd_main(void) {
+    // Check if sufficient arguments are provided
     if (argcnt < 2) {
+        LOGD("Insufficient arguments: argcnt=%d", argcnt);
         cmd_usage(pc->curcmd, SYNOPSIS);
         return;
     }
+
+    // Verify page_owner is enabled in the kernel
     if (!is_enable_pageowner()) {
+        LOGE("Page owner is not enabled in kernel");
         return;
     }
+
+    // Parse all page owner information if not already done (lazy initialization)
     if (owner_map.empty()) {
+        LOGD("Owner map is empty, parsing all page owners...");
         parser_all_pageowners();
+        LOGD("Parsed %zu page owner entries", owner_map.size());
+    } else {
+        LOGD("Using cached owner_map with %zu entries", owner_map.size());
     }
+
     int c;
     int argerrs = 0;
+
+    // Process command-line options
     while ((c = getopt(argcnt, args, "afs:tmp:")) != EOF) {
         switch(c) {
-            case 'a': // all alloc page_owner info
+            case 'a': // Display all allocated page_owner info
                 print_all_allocated_pages();
                 break;
-            case 'f': // all free page_owner info
+            case 'f': // Display all freed page_owner info
                 print_all_freed_pages();
                 break;
-            case 's': // search page_owner info by address (auto-detect type)
+            case 's': // Search page_owner info by address (auto-detect type)
                 print_page_owner_auto(std::string(optarg));
                 break;
-            case 't': // sort the page_owner info by total alloc count
+            case 't': // Sort and display page_owner info by total allocation count
                 print_sorted_allocation_summary();
                 break;
-            case 'm': // print all memory info
+            case 'm': // Display overall memory information
                 print_memory_info();
                 break;
             default:
+                LOGE("Unknown option: %c", c);
                 argerrs++;
                 break;
         }
     }
+
+    // Display usage if there were argument errors
     if (argerrs) {
         cmd_usage(pc->curcmd, SYNOPSIS);
     }
 }
 
+/**
+ * print_page_owner_auto - Automatically detect address type and print page owner info
+ * @addr_str: Address string in hexadecimal format
+ *
+ * This function automatically detects whether the provided address is a PFN,
+ * physical address, page structure address, or virtual address, then displays
+ * the corresponding page owner information.
+ */
 void Pageowner::print_page_owner_auto(const std::string& addr_str) {
+    // Validate input string
     if (addr_str.empty()) {
-        fprintf(fp, "Empty address provided\n");
+        LOGE("Empty address string provided");
         return;
     }
+    // Parse hexadecimal address string
     ulonglong addr;
     try {
         addr = std::stoull(addr_str, nullptr, 16);
-    } catch (const std::exception&) {
-        fprintf(fp, "Invalid address format: %s\n", addr_str.c_str());
+    } catch (const std::exception& e) {
+        LOGE("Failed to parse address: %s", addr_str.c_str());
         return;
     }
+    // Reject null address
     if (addr == 0) {
-        fprintf(fp, "Invalid address: 0x0\n");
+        LOGE("Null address provided");
         return;
     }
+    // Detect address type and dispatch to appropriate handler
     AddressType addr_type = detect_address_type(addr);
+    LOGD("Detected address type: %d", addr_type);
     switch (addr_type) {
         case ADDR_PFN:
-            fprintf(fp, "Detected as PFN: 0x%llx\n", addr);
+            LOGD("Address 0x%llx identified as PFN", addr);
             print_page_owner(addr_str, INPUT_PFN);
             break;
         case ADDR_PHYSICAL:
-            fprintf(fp, "Detected as Physical Address: 0x%llx\n", addr);
+            LOGD("Address 0x%llx identified as Physical Address", addr);
             print_page_owner(addr_str, INPUT_PYHS);
             break;
         case ADDR_PAGE:
-            fprintf(fp, "Detected as Page Address: 0x%llx\n", addr);
+            LOGD("Address 0x%llx identified as Page Structure Address", addr);
             print_page_owner(addr_str, INPUT_PAGE);
             break;
         case ADDR_VIRTUAL:
-            fprintf(fp, "Detected as Virtual Address: 0x%llx\n", addr);
+            LOGD("Address 0x%llx identified as Virtual Address", addr);
             print_page_owner(addr_str, INPUT_VADDR);
             break;
         case ADDR_UNKNOWN:
         default:
-            fprintf(fp, "Cannot determine address type for: 0x%llx\n", addr);
+            LOGE("Cannot determine address type for 0x%llx", addr);
             break;
     }
 }
 
+/**
+ * detect_address_type - Determine the type of a given address
+ * @addr: Address to analyze
+ *
+ * This function uses various heuristics to determine whether an address is:
+ * - A Page Frame Number (PFN)
+ * - A physical memory address
+ * - A kernel page structure address
+ * - A virtual address (kernel or user space)
+ *
+ * Returns: AddressType enum value indicating the detected type
+ */
 Pageowner::AddressType Pageowner::detect_address_type(ulonglong addr) {
+    // Check if address is in valid PFN range
+    // PFNs are typically small numbers representing page frame indices
     if (addr >= min_low_pfn && addr <= max_pfn) {
         ulong page = pfn_to_page(addr);
         if (is_kvaddr(page)) {
+            LOGD("Address in PFN range [0x%lx, 0x%lx]", min_low_pfn, max_pfn);
             return ADDR_PFN;
         }
     }
+
+    // Check if it's a kernel virtual address
     if (is_kvaddr(addr)) {
+        // Distinguish between page structure address and other kernel addresses
         if (is_page_address(addr)) {
+            LOGD("Address is a page address");
             return ADDR_PAGE;
         }
+        LOGD("Address is a generic kernel virtual address");
         return ADDR_VIRTUAL;
     }
+
+    // Check if it's a physical address
     if (is_physical_address(addr)) {
+        LOGD("Address is a physical address");
         return ADDR_PHYSICAL;
     }
+
+    // Try to translate as user virtual address from current task
     physaddr_t paddr = 0;
     if (CURRENT_TASK() && uvtop(CURRENT_CONTEXT(), addr, &paddr, 0)) {
+        LOGD("Address translates in current task context to phys: 0x%llx", (ulonglong)paddr);
         return ADDR_VIRTUAL;
     }
+
+    // Search through all tasks to find if this is a user virtual address
     struct task_context *tc;
     for (ulong i = 0; i < RUNNING_TASKS(); i++) {
         tc = FIRST_CONTEXT() + i;
         if (tc->task && uvtop(tc, addr, &paddr, 0)) {
+            LOGD("Address found in task PID:%ld [%s], phys: 0x%llx", task_to_pid(tc->task), tc->comm, (ulonglong)paddr);
             return ADDR_VIRTUAL;
         }
     }
+
+    // Unable to determine address type
+    LOGD("Unable to determine address type");
     return ADDR_UNKNOWN;
 }
 
@@ -163,13 +233,13 @@ void Pageowner::print_all_allocated_pages() {
             total_size += page_count * page_size;
         }
     }
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
-    fprintf(fp, "                    ALLOCATED PAGES SUMMARY\n");
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
-    fprintf(fp, "Total allocated entries: %zu\n", allocated_count);
-    fprintf(fp, "Total allocated pages:   %zu\n", total_pages);
-    fprintf(fp, "Total allocated memory:  %s\n", csize(total_size).c_str());
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+    PRINT("                    ALLOCATED PAGES SUMMARY\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+    PRINT("Total allocated entries: %zu\n", allocated_count);
+    PRINT("Total allocated pages:   %zu\n", total_pages);
+    PRINT("Total allocated memory:  %s\n", csize(total_size).c_str());
+    PRINT("═══════════════════════════════════════════════════════════════\n");
     size_t entry_num = 0;
     for (const auto& pair : owner_map) {
         const auto& owner_ptr = pair.second;
@@ -178,9 +248,9 @@ void Pageowner::print_all_allocated_pages() {
             print_page_owner_entry(owner_ptr, false, entry_num, allocated_count);
         }
     }
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
-    fprintf(fp, "Displayed %zu allocated page entries\n", allocated_count);
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+    PRINT("Displayed %zu allocated page entries\n", allocated_count);
+    PRINT("═══════════════════════════════════════════════════════════════\n");
 }
 
 void Pageowner::print_all_freed_pages() {
@@ -196,13 +266,13 @@ void Pageowner::print_all_freed_pages() {
             total_size += page_count * page_size;
         }
     }
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
-    fprintf(fp, "                      FREED PAGES SUMMARY\n");
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
-    fprintf(fp, "Total freed entries: %zu\n", freed_count);
-    fprintf(fp, "Total freed pages:   %zu\n", total_pages);
-    fprintf(fp, "Total freed memory:  %s\n", csize(total_size).c_str());
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+    PRINT("                      FREED PAGES SUMMARY\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+    PRINT("Total freed entries: %zu\n", freed_count);
+    PRINT("Total freed pages:   %zu\n", total_pages);
+    PRINT("Total freed memory:  %s\n", csize(total_size).c_str());
+    PRINT("═══════════════════════════════════════════════════════════════\n");
     size_t entry_num = 0;
     for (const auto& pair : owner_map) {
         const auto& owner_ptr = pair.second;
@@ -211,9 +281,9 @@ void Pageowner::print_all_freed_pages() {
             print_page_owner_entry(owner_ptr, true, entry_num, freed_count);
         }
     }
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
-    fprintf(fp, "Displayed %zu freed page entries\n", freed_count);
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+    PRINT("Displayed %zu freed page entries\n", freed_count);
+    PRINT("═══════════════════════════════════════════════════════════════\n");
 }
 
 void Pageowner::print_page_owner_entry(std::shared_ptr<page_owner> owner_ptr, bool is_free,
@@ -237,30 +307,30 @@ void Pageowner::print_page_owner_entry(std::shared_ptr<page_owner> owner_ptr, bo
     std::string time_str = formatTimestamp(timestamp);
     std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
     if (record_ptr != nullptr) {
-        fprintf(fp, "[%zu/%zu] %s: PFN:0x%lx~0x%lx (%lu page%s, %s) Page:0x%lx PID:%zu [%s] %s\n",
+        PRINT("[%zu/%zu] %s: PFN:0x%lx~0x%lx (%lu page%s, %s) Page:0x%lx PID:%zu [%s] %s\n",
             entry_num, total_entries, action, owner_ptr->pfn, end_pfn, page_count,
             (page_count > 1) ? "s" : "", csize(total_size).c_str(),
             page, owner_ptr->pid, comm.c_str(), time_str.c_str());
 
         std::string stack = get_call_stack(record_ptr);
-        fprintf(fp, "%s \n", stack.c_str());
+        PRINT("%s \n", stack.c_str());
     }
 }
 
 bool Pageowner::is_enable_pageowner(){
     if(get_config_val("CONFIG_PAGE_OWNER") != "y"){
-        fprintf(fp, "page_owner is disabled\n");
+        LOGE("page_owner is disabled\n");
         return false;
     }
     if (!csymbol_exists("page_owner_inited")){
-        fprintf(fp, "page_owner is disabled\n");
+        LOGE("page_owner is disabled\n");
         return false;
     }
     int inited;
     // see set_page_owner in page_owner.h
     try_get_symbol_data(TO_CONST_STRING("page_owner_inited"), sizeof(int), &inited);
     if (inited != 1){
-        fprintf(fp, "page_owner is disabled, pls check the page_owner=on in cmdline\n");
+        LOGE("page_owner is disabled, pls check the page_owner=on in cmdline\n");
         return false;
     }
     return true;
@@ -280,11 +350,8 @@ void Pageowner::init_offset(void) {
     field_init(page_owner,free_pid);
     field_init(page_owner,free_tgid);
     struct_init(page_owner);
-    if(get_config_val("CONFIG_SPARSEMEM") == "y"){
-        field_init(mem_section,page_ext);
-    }else{
-        field_init(pglist_data,node_page_ext);
-    }
+    field_init(mem_section,page_ext);
+    field_init(pglist_data,node_page_ext);
     field_init(page_ext,flags);
     struct_init(page_ext);
 
@@ -428,7 +495,7 @@ void Pageowner::print_page_owner(const std::string& addr, int flags) {
     try {
         number = std::stoull(addr, nullptr, 16);
     } catch (const std::exception&) {
-        fprintf(fp, "Invalid address format\n");
+        LOGE("Invalid address format\n");
         return;
     }
 
@@ -448,75 +515,75 @@ void Pageowner::print_page_owner(const std::string& addr, int flags) {
         case INPUT_VADDR:
             pfn = vaddr_to_pfn(number);
             if (pfn == 0) {
-                fprintf(fp, "Cannot translate virtual address 0x%llx to pfn\n", number);
+                LOGE("Cannot translate virtual address 0x%llx to pfn\n", number);
                 return;
             }
-            fprintf(fp, "Virtual address translation: 0x%llx -> PFN:0x%lx\n", number, pfn);
+            LOGD( "Virtual address translation: 0x%llx -> PFN:0x%lx\n", number, pfn);
             break;
         default:
-            fprintf(fp, "Invalid input type\n");
+            LOGE("Invalid input type\n");
             return;
     }
 
     if (pfn < min_low_pfn || pfn > max_pfn) {
-        fprintf(fp, "Invalid pfn: 0x%lx (valid range: 0x%lx - 0x%lx)\n", pfn, min_low_pfn, max_pfn);
+        LOGE("Invalid pfn: 0x%lx (valid range: 0x%lx - 0x%lx)\n", pfn, min_low_pfn, max_pfn);
         return;
     }
 
     ulong page = pfn_to_page(pfn);
     if (!is_kvaddr(page)) {
-        fprintf(fp, "Invalid page address: 0x%lx\n", page);
+        LOGE("Invalid page address: 0x%lx\n", page);
         return;
     }
 
     ulong page_ext = lookup_page_ext(page);
     if (!is_kvaddr(page_ext)) {
-        fprintf(fp, "Cannot find page_ext for PFN:0x%lx\n", pfn);
+        LOGE("Cannot find page_ext for PFN:0x%lx\n", pfn);
         return;
     }
     ulong page_ext_flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
     if (!(page_ext_flags & (1UL << PAGE_EXT_OWNER))) {
-        fprintf(fp, "Page owner not enabled for PFN:0x%lx\n", pfn);
+        LOGE("Page owner not enabled for PFN:0x%lx\n", pfn);
         return;
     }
     if (!(page_ext_flags & (1UL << PAGE_EXT_OWNER_ALLOCATED))) {
-        fprintf(fp, "Page owner not allocated for PFN:0x%lx\n", pfn);
+        LOGE("Page owner not allocated for PFN:0x%lx\n", pfn);
         return;
     }
     ulong page_owner_addr = get_page_owner(page_ext);
     std::shared_ptr<page_owner> owner_ptr = parser_page_owner(page_owner_addr);
     if (!owner_ptr) {
-        fprintf(fp, "Cannot parse page owner for PFN:0x%lx\n", pfn);
+        LOGE("Cannot parse page owner for PFN:0x%lx\n", pfn);
         return;
     }
     owner_ptr->pfn = pfn;
     bool currently_allocated = is_page_allocated(owner_ptr);
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
     if (flags == INPUT_VADDR) {
-        fprintf(fp, "           PAGE OWNER INFO FOR VIRTUAL ADDRESS 0x%llx\n", number);
+        PRINT("           PAGE OWNER INFO FOR VIRTUAL ADDRESS 0x%llx\n", number);
     } else {
-        fprintf(fp, "                    PAGE OWNER INFO FOR PFN:0x%lx\n", pfn);
+        PRINT("                    PAGE OWNER INFO FOR PFN:0x%lx\n", pfn);
     }
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
 
     ulong page_count = 1UL << owner_ptr->order;
     ulong total_size = page_count * page_size;
-    fprintf(fp, "PFN Range      :   0x%lx - 0x%lx\n", pfn, pfn + page_count - 1);
-    fprintf(fp, "Page Address   :   0x%lx\n", page);
-    fprintf(fp, "Order          :   %d (%lu page%s, %s)\n", owner_ptr->order, page_count,
+    PRINT("PFN Range      :   0x%lx - 0x%lx\n", pfn, pfn + page_count - 1);
+    PRINT("Page Address   :   0x%lx\n", page);
+    PRINT("Order          :   %d (%lu page%s, %s)\n", owner_ptr->order, page_count,
             (page_count > 1) ? "s" : "", csize(total_size).c_str());
-    fprintf(fp, "Current Status :   %s\n",
+    PRINT("Current Status :   %s\n",
             currently_allocated ? "ALLOCATED" : "FREED");
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
     if (owner_ptr->handle > 0) {
-        fprintf(fp, "ALLOCATION HISTORY:\n");
+        PRINT("ALLOCATION HISTORY:\n");
         print_page_owner_detailed(owner_ptr, false);
     }
     if (owner_ptr->free_handle > 0) {
-        fprintf(fp, "FREE HISTORY:\n");
+        PRINT("FREE HISTORY:\n");
         print_page_owner_detailed(owner_ptr, true);
     }
-    fprintf(fp, "═══════════════════════════════════════════════════════════════\n");
+    PRINT("═══════════════════════════════════════════════════════════════\n");
 }
 
 ulong Pageowner::vaddr_to_pfn(ulong vaddr) {
@@ -531,7 +598,7 @@ ulong Pageowner::vaddr_to_pfn(ulong vaddr) {
     for (ulong i = 0; i < RUNNING_TASKS(); i++) {
         tc = FIRST_CONTEXT() + i;
         if (tc->task && uvtop(tc, vaddr, &paddr, 0)) {
-            fprintf(fp, "Found virtual address in task PID:%ld [%s]\n",
+            LOGD("Found virtual address in task PID:%ld [%s]\n",
                     task_to_pid(tc->task), tc->comm);
             return phy_to_pfn(paddr);
         }
@@ -556,15 +623,15 @@ void Pageowner::print_page_owner_detailed(std::shared_ptr<page_owner> owner_ptr,
     std::string time_str = formatTimestamp(timestamp);
     std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
     if (record_ptr != nullptr) {
-        fprintf(fp, "Status     :   %s\n", action);
-        fprintf(fp, "PID        :   %zu [%s]\n", owner_ptr->pid, comm.c_str());
-        fprintf(fp, "Timestamp  :   %s\n", time_str.c_str());
-        fprintf(fp, "GFP Mask   :   0x%x\n", owner_ptr->gfp_mask);
+        PRINT( "Status     :   %s\n", action);
+        PRINT( "PID        :   %zu [%s]\n", owner_ptr->pid, comm.c_str());
+        PRINT( "Timestamp  :   %s\n", time_str.c_str());
+        PRINT( "GFP Mask   :   0x%x\n", owner_ptr->gfp_mask);
         if (owner_ptr->last_migrate_reason >= 0) {
-            fprintf(fp, "Migrate Reason:  %d\n", owner_ptr->last_migrate_reason);
+            PRINT( "Migrate Reason:  %d\n", owner_ptr->last_migrate_reason);
         }
         std::string stack = get_call_stack(record_ptr);
-        fprintf(fp, "%s \n", stack.c_str());
+        PRINT( "%s \n", stack.c_str());
     }
 }
 
@@ -595,7 +662,7 @@ void Pageowner::print_memory_info(){
         << std::left << std::setw(20) << "Comm" << " "
         << std::left << std::setw(10) << "Times" << " "
         << std::left << std::setw(10) << "Size";
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 
     const ulong page_owner_size = page_owner_page_list.size() * page_size;
     oss.str("");
@@ -603,7 +670,7 @@ void Pageowner::print_memory_info(){
         << std::left << std::setw(20) << "page_owner" << " "
         << std::left << std::setw(10) << "" << " "
         << std::left << std::setw(10) << csize(page_owner_size);
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 
     const ulong stack_record_size = stack_record_page_list.size() * page_size;
     oss.str("");
@@ -611,7 +678,7 @@ void Pageowner::print_memory_info(){
         << std::left << std::setw(20) << "stack_record" << " "
         << std::left << std::setw(10) << "" << " "
         << std::left << std::setw(10) << csize(stack_record_size);
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 
     std::unordered_map<size_t, std::shared_ptr<process_info>> process_map;
     process_map.reserve(owner_map.size() / 4); // Reserve space to reduce reallocations
@@ -667,7 +734,7 @@ void Pageowner::print_memory_info(){
             << std::left << std::setw(20) << name << " "
             << std::left << std::setw(10) << proc_ptr->total_cnt << " "
             << std::left << std::setw(10) << csize(proc_ptr->total_size);
-        fprintf(fp, "%s \n", oss.str().c_str());
+        PRINT( "%s \n", oss.str().c_str());
     }
 }
 
@@ -714,14 +781,14 @@ void Pageowner::print_sorted_allocation_summary(){
     for (const auto& pair : handle_vec) {
         const unsigned int handle = pair.first;
         const auto& stack_ptr = pair.second;
-        fprintf(fp, "Allocated %ld times, Total memory: %s\n", stack_ptr->total_cnt, csize(stack_ptr->total_size).c_str());
+        PRINT( "Allocated %ld times, Total memory: %s\n", stack_ptr->total_cnt, csize(stack_ptr->total_size).c_str());
         std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
         if (record_ptr != nullptr){
             std::string stack = get_call_stack(record_ptr);
-            fprintf(fp, "%s",stack.c_str());
+            PRINT( "%s",stack.c_str());
         }
         print_process_memory_summary(stack_ptr->owner_list);
-        fprintf(fp, "\n");
+        PRINT( "\n");
     }
 }
 
@@ -730,7 +797,7 @@ void Pageowner::print_process_memory_summary(std::unordered_map<size_t, std::sha
     for (const auto& pair : owner_list) {
         std::shared_ptr<page_owner> owner_ptr = pair.second;
         if(owner_ptr->pid <= 0) continue;
-        // fprintf(fp, "pid:%zu, handle:%ld order:%d\n",owner_ptr->pid,(ulong)owner_ptr->handle,owner_ptr->order);
+        LOGD("pid:%zu, handle:%ld order:%d\n",owner_ptr->pid,(ulong)owner_ptr->handle,owner_ptr->order);
         std::shared_ptr<process_info> proc_ptr;
         if (process_map.find(owner_ptr->pid) != process_map.end()) { //exists
             proc_ptr = process_map[owner_ptr->pid];
@@ -748,13 +815,13 @@ void Pageowner::print_process_memory_summary(std::unordered_map<size_t, std::sha
     std::sort(process_vec.begin(), process_vec.end(),[&](const std::pair<unsigned int, std::shared_ptr<process_info>>& a, const std::pair<unsigned int, std::shared_ptr<process_info>>& b){
         return a.second->total_cnt > b.second->total_cnt;
     });
-    fprintf(fp, "-------------------------------------------------\n");
+    PRINT( "-------------------------------------------------\n");
     std::ostringstream oss;
     oss << std::left << std::setw(8) << "PID" << " "
         << std::left << std::setw(20) << "Comm" << " "
         << std::left << std::setw(10) << "Times" << " "
         << std::left << std::setw(10) << "Size";
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
     size_t print_cnt = 20; //only print top 20
     for (size_t i = 0; i < process_vec.size() && i < print_cnt; i++){
         size_t pid = process_vec[i].first;
@@ -769,7 +836,7 @@ void Pageowner::print_process_memory_summary(std::unordered_map<size_t, std::sha
             << std::left << std::setw(20) << name << " "
             << std::left << std::setw(10) << proc_ptr->total_cnt << " "
             << std::left << std::setw(10) << csize(proc_ptr->total_size);
-        fprintf(fp, "%s \n", oss.str().c_str());
+        PRINT( "%s \n", oss.str().c_str());
     }
 }
 
@@ -816,73 +883,139 @@ std::shared_ptr<page_owner> Pageowner::parser_page_owner(ulong addr){
     return owner_ptr;
 }
 
+/**
+ * parser_all_pageowners - Parse all page owner information from crash dump
+ *
+ * This function iterates through all physical page frames in the system and
+ * extracts page owner information for pages that have tracking enabled.
+ * It builds the owner_map which maps PFN to page_owner structures.
+ *
+ * This is a performance-critical function that may take significant time
+ * for systems with large amounts of memory.
+ */
 void Pageowner::parser_all_pageowners(){
+    // Verify page_owner is enabled before proceeding
     if (!is_enable_pageowner()){
+        LOGE("Page owner is not enabled, cannot parse");
         return;
     }
-    if (csymbol_exists("page_ext_size")) {/* 5.4 and later */
+    // Determine page_ext_size based on kernel version
+    // Kernel 5.4+ uses page_ext_size symbol directly
+    if (csymbol_exists("page_ext_size")) {
         try_get_symbol_data(TO_CONST_STRING("page_ext_size"), sizeof(ulong), &page_ext_size);
-    }else if (csymbol_exists("extra_mem") && struct_size(page_ext)) {
+        LOGD("Found page_ext_size symbol: %d", page_ext_size);
+    } else if (csymbol_exists("extra_mem") && struct_size(page_ext)) {
+        // Older kernels: calculate from struct size + extra_mem
         ulong extra_mem;
         if (try_get_symbol_data(TO_CONST_STRING("extra_mem"), sizeof(ulong), &extra_mem)){
             page_ext_size = struct_size(page_ext) + extra_mem;
+            LOGD("Calculated page_ext_size from extra_mem: %d", page_ext_size);
         }
     }
     if (page_ext_size <= 0){
-        fprintf(fp, "cannot get page_ext_size value\n");
+        LOGE("Cannot determine page_ext_size value");
         return;
     }
-    // fprintf(fp, "page_ext_size:%d\n", page_ext_size);
+    LOGD("page_ext_size: %d bytes", page_ext_size);
+    // Get the offset of page_owner within page_ext structure
     if (csymbol_exists("page_owner_ops")){
         ulong ops_addr = csymbol_value("page_owner_ops");
-        // fprintf(fp, "ops_addr:%lx\n", ops_addr);
         ops_offset = read_ulong(ops_addr + field_offset(page_ext_operations,offset),"page_owner_ops.offset");
+        LOGD("ops_offset: %zu", ops_offset);
     }
     if (ops_offset < 0){
-        fprintf(fp, "cannot get ops_offset value\n");
+        LOGE("Cannot determine ops_offset value");
         return;
     }
+    // Verify stack_slabs is available for stack trace lookup
     if (!stack_slabs){
-        fprintf(fp, "cannot get stack_{pools|slabs}\n");
+        LOGE("stack_slabs not available");
         return;
     }
-    /* PAGE_EXT_OWNER{,_ALLOCATED} */
+    // Read page extension flag bit positions
     PAGE_EXT_OWNER = read_enum_val("PAGE_EXT_OWNER");
     PAGE_EXT_OWNER_ALLOCATED = read_enum_val("PAGE_EXT_OWNER_ALLOCATED");
+    LOGD("Starting to parse page owners from PFN range: 0x%lx - 0x%lx", min_low_pfn, max_pfn);
+    size_t total_pfns = max_pfn - min_low_pfn;
+    size_t processed = 0;
+    size_t valid_owners = 0;
+    size_t progress_interval = total_pfns / 10; // Log progress every 10%
+    // Iterate through all page frame numbers in the system
     for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
+        processed++;
+        // Log progress periodically for large memory systems
+        if (progress_interval > 0 && processed % progress_interval == 0) {
+            LOGD("Parsing progress: %zu/%zu PFNs (%.1f%%)",
+                     processed, total_pfns, (processed * 100.0) / total_pfns);
+        }
+
+        // Convert PFN to page structure address
         ulong page = pfn_to_page(pfn);
-        if (!is_kvaddr(page))
+        if (!is_kvaddr(page)) {
+            LOGE("PFN 0x%zx: invalid page address 0x%lx", pfn, page);
             continue;
+        }
+
+        // Lookup the page_ext structure for this page
         ulong page_ext = lookup_page_ext(page);
-        if (!is_kvaddr(page_ext))
+        if (!is_kvaddr(page_ext)) {
+            LOGE("PFN 0x%zx: invalid page_ext address", pfn);
             continue;
+        }
+
+        // Check if page owner tracking is enabled for this page
         ulong flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
-        if (!((flags & (1UL << PAGE_EXT_OWNER)) != 0))
+        if (!((flags & (1UL << PAGE_EXT_OWNER)) != 0)) {
+            LOGE("PFN 0x%zx: PAGE_EXT_OWNER not set", pfn);
             continue;
-        if (!((flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0))
+        }
+        if (!((flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0)) {
+            LOGE("PFN 0x%zx: PAGE_EXT_OWNER_ALLOCATED not set", pfn);
             continue;
+        }
+
+        // Get page_owner structure address and parse it
         ulong page_owner_addr = get_page_owner(page_ext);
         page_owner_page_list.insert(page_owner_addr & page_mask);
+
         std::shared_ptr<page_owner> owner_ptr = parser_page_owner(page_owner_addr);
-        if (debug){
-            fprintf(fp, "pfn:%zu page_ext:%lx page_owner:%lx handle:%ld free_handle:%ld\n",
+        LOGD( "pfn:%zu page_ext:%lx page_owner:%lx handle:%ld free_handle:%ld\n",
                 pfn,page_ext,page_owner_addr,(ulong)owner_ptr->handle,(ulong)owner_ptr->free_handle);
-        }
-        if(owner_ptr == nullptr)continue;
-        if (!IS_ALIGNED(pfn, 1 << owner_ptr->order))
+
+        if(owner_ptr == nullptr) {
+            LOGE("PFN 0x%zx: failed to parse page_owner", pfn);
             continue;
+        }
+
+        // Verify PFN alignment with allocation order
+        // Pages are allocated in power-of-2 blocks, so PFN must be aligned
+        if (!IS_ALIGNED(pfn, 1 << owner_ptr->order)) {
+            LOGE("PFN 0x%zx: not aligned to order %d", pfn, owner_ptr->order);
+            continue;
+        }
         owner_ptr->pfn = pfn;
+
+        // Retrieve and cache stack trace records for both allocation and free
         std::shared_ptr<stack_record_t> record_ptr;
         if(owner_ptr->free_handle > 0){
             record_ptr = get_stack_record(owner_ptr->free_handle);
-            stack_record_page_list.insert(record_ptr->record_addr & page_mask);
+            if (record_ptr) {
+                stack_record_page_list.insert(record_ptr->record_addr & page_mask);
+            }
         }
         if(owner_ptr->handle > 0){
             record_ptr = get_stack_record(owner_ptr->handle);
-            stack_record_page_list.insert(record_ptr->record_addr & page_mask);
+            if (record_ptr) {
+                stack_record_page_list.insert(record_ptr->record_addr & page_mask);
+            }
         }
+        // Store in the owner map for later retrieval
         owner_map[pfn] = owner_ptr;
+        valid_owners++;
     }
+    LOGD("Parsing complete: processed %zu PFNs, found %zu valid page owners", processed, valid_owners);
+    LOGD("page_owner structures use %zu pages (%s)", page_owner_page_list.size(), csize(page_owner_page_list.size() * page_size).c_str());
+    LOGD("stack_record structures use %zu pages (%s)", stack_record_page_list.size(),csize(stack_record_page_list.size() * page_size).c_str());
 }
 
 ulong Pageowner::get_page_owner(ulong page_ext){
@@ -891,31 +1024,34 @@ ulong Pageowner::get_page_owner(ulong page_ext){
 
 ulong Pageowner::lookup_page_ext(ulong page) {
     if(get_config_val("CONFIG_PAGE_EXTENSION") != "y"){
+        LOGD("Not enable CONFIG_PAGE_EXTENSION \n");
         return 0;
     }
-
     const ulong pfn = page_to_pfn(page);
     ulong page_ext = 0;
 
     if(get_config_val("CONFIG_SPARSEMEM") == "y"){
         const ulong section_nr = pfn_to_section_nr(pfn);
         const ulong section = valid_section_nr(section_nr);
-        if (!section || !is_kvaddr(section))
+        if (!section || !is_kvaddr(section)){
+            LOGD("invaild section %#lx \n",section);
             return 0;
+        }
         page_ext = read_pointer(section + field_offset(mem_section,page_ext),"mem_section_page_ext");
-        if (page_ext_invalid(page_ext))
+        if (page_ext_invalid(page_ext)){
+            LOGD("invaild page_ext %#lx \n",page_ext);
             return 0;
+        }
     } else {
         const int nid = page_to_nid(page);
         const struct node_table *nt = &vt->node_table[nid];
         page_ext = read_pointer(nt->pgdat + field_offset(pglist_data,node_page_ext),"pglist_data_node_page_ext");
     }
-
     return get_entry(page_ext, pfn);
 }
 
 ulong Pageowner::get_entry(ulong base, ulong pfn) {
-    // fprintf(fp, "page_ext:%lx pfn:%lx\n", base,pfn);
+    LOGD("page_ext:%lx pfn:%lx\n", base,pfn);
 #ifdef ARM64
     return base + page_ext_size * pfn;
 #else
