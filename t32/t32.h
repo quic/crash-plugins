@@ -19,6 +19,26 @@
 #include "plugin.h"
 #include <random>
 
+class TCR_EL1 : public ParserPlugin {
+private:
+    // TCR_EL1 default values
+    static constexpr uint64_t DEFAULT_VALUE_NON_CORTEX = 0x00000032B5193519ULL;
+    static constexpr uint64_t DEFAULT_VALUE_CORTEX = 0x00000012B5193519ULL;
+    uint64_t value;
+    void set_field(uint8_t msb, uint8_t lsb, uint64_t field_value);
+    uint8_t get_tg1_value(uint64_t page_size);
+    uint8_t get_tg0_value(uint64_t page_size);
+
+public:
+    explicit TCR_EL1(bool is_cortexa);
+    uint64_t get_value() const { return value; }
+
+    void cmd_main() override {}
+    void init_offset() override {}
+    void init_command() override {}
+};
+
+
 class T32 : public ParserPlugin {
 private:
     const std::string t32_launch_bat = "launch_t32.bat";
