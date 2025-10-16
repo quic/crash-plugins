@@ -253,7 +253,6 @@ private:
 
 protected:
     void* hdr_ptr;
-    bool debug = false;
     int core_pid;
     FILE* corefile;
     ulong thread_info_flags;
