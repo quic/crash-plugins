@@ -72,6 +72,7 @@ Core::~Core(){
 }
 
 void Core::parser_core_dump(void) {
+    LOGD("Starting parser_core_dump");
     tc = pid_to_context(core_pid);
     std::stringstream ss = get_curpath();
     if (!Core::output_path.empty()) {
@@ -81,7 +82,7 @@ void Core::parser_core_dump(void) {
             ss.clear();
             ss << Core::output_path;
         } else {
-            fprintf(fp, "Can't access %s\n", Core::output_path.c_str());
+            LOGE("Cannot access output path: %s", Core::output_path.c_str());
             Core::symbols_path.clear();
             Core::output_path.clear();
             task_ptr.reset();
@@ -91,18 +92,20 @@ void Core::parser_core_dump(void) {
     ss << "/core." << std::dec << tc->pid << "." << tc->comm;
     corefile = fopen(ss.str().c_str(), "wb");
     if (!corefile) {
-        fprintf(fp, "Can't open %s\n", ss.str().c_str());
+        LOGE("Failed to open core file: %s", ss.str().c_str());
         Core::symbols_path.clear();
         Core::output_path.clear();
         task_ptr.reset();
         return;
     }
+    LOGI("Core file opened: %s", ss.str().c_str());
     task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
     if (BITS64()){
         user_view_var_name = task_ptr->is_compat() ? "user_aarch32_view" : "user_aarch64_view";
     }else{
         user_view_var_name = "user_arm_view";
     }
+    LOGD("Using user view: %s", user_view_var_name.c_str());
     parser_user_regset_view();
     parser_prpsinfo();
     parser_siginfo();
@@ -111,7 +114,7 @@ void Core::parser_core_dump(void) {
     parser_exec_name(task_ptr->get_auxv(AT_EXECFN));
     parser_thread_core_info();
     write_core_file();
-    fprintf(fp, "\ncore_path:%s \n", ss.str().c_str());
+    PRINT("\ncore_path: %s\n", ss.str().c_str());
     Core::symbols_path.clear();
     Core::output_path.clear();
     task_ptr.reset();
@@ -123,6 +126,7 @@ void Core::parser_exec_name(ulong addr){
     }else{
         exe_name = tc->comm;
     }
+    LOGD("Executable name: %s", exe_name.c_str());
 }
 
 bool Core::SearchFile(const std::string& directory, const std::string& name, std::string& result) {
@@ -194,11 +198,14 @@ void Core::ListFiles(const std::string& directory, std::string name, std::string
 }
 
 bool Core::write_pt_note(void) {
+    LOGD("Writing PT_NOTE section");
     size_t note_data_start = get_pt_note_data_start();
     if (fseek(corefile, note_data_start, SEEK_SET) != 0) {
+        LOGE("Failed to seek to note data start: %zu", note_data_start);
         fclose(corefile);
         return false;
     }
+    LOGI("Writing %zu thread notes", thread_list.size());
     for (size_t i = 0; i < thread_list.size(); i++){
         const auto& thread_ptr = thread_list[i];
         writenote(thread_ptr->prstatus_ptr);
@@ -246,6 +253,7 @@ bool Core::write_pt_note(void) {
         }
     }
     thread_list.clear();
+    LOGD("PT_NOTE section written successfully");
     return true;
 }
 
@@ -266,6 +274,7 @@ bool Core::write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, s
         p_filesz = p_memsz;
     }
     if (fseek(corefile, phdr_pos, SEEK_SET) != 0) {
+        LOGE("Failed to seek to phdr position: %zu", phdr_pos);
         fclose(corefile);
         return false;
     }
@@ -274,10 +283,10 @@ bool Core::write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, s
     if (vma_dump_size(vma_ptr)) {
         return true;
     }
-    if(debug){
-        fprintf(fp, "phdr_start: %zu data_start: %zu\n",phdr_pos, data_pos);
-    }
+    LOGD("Writing PT_LOAD: phdr_pos=%zu data_pos=%zu vma=[%#lx-%#lx]",
+         phdr_pos, data_pos, vma_ptr->vm_start, vma_ptr->vm_end);
     if (fseek(corefile, data_pos, SEEK_SET) != 0) {
+        LOGE("Failed to seek to data position: %zu", data_pos);
         fclose(corefile);
         return false;
     }
@@ -318,17 +327,9 @@ bool Core::write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, s
             size_t memsz = vma_ptr->vm_end - vma_ptr->vm_start;
             size_t pgoff = vma_ptr->vm_pgoff << 12;
             fwrite(reinterpret_cast<char*>(map) + pgoff, memsz, 1, corefile);
-            if(debug){
-                fprintf(fp, "overwrite %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
-                    vma_ptr->name.c_str(), memsz,vma_ptr->vm_pgoff << 12, vma_ptr->vm_start, vma_ptr->vm_end);
-            } else {
-                std::cout << "overwrite " << vma_ptr->name
-                    << ":[size:" << std::hex << std::showbase << memsz
-                    << " off:" << std::hex << std::showbase << (vma_ptr->vm_pgoff << 12)
-                    << " to core:[" << std::hex << std::showbase << vma_ptr->vm_start
-                    << " - " << std::hex << std::showbase << vma_ptr->vm_end
-                    << "]\n";
-            }
+            PRINT("overwrite %s:[size:%#zx off:%#lx] to core:[%#lx - %#lx]\n",
+                  vma_ptr->name.c_str(), memsz, vma_ptr->vm_pgoff << 12,
+                  vma_ptr->vm_start, vma_ptr->vm_end);
             munmap(map, map_size);
             data_pos += memsz;
             replace = true;
@@ -346,37 +347,34 @@ bool Core::write_pt_load(std::shared_ptr<vma_struct> vma_ptr, size_t phdr_pos, s
 
 size_t Core::replace_phdr_load(std::shared_ptr<vma_struct> vma_ptr){
     if (Core::symbols_path.empty()){
+        LOGW("Symbols path is empty, cannot replace PHDR");
         return -1;
     }
     std::string filepath;
     if(!SearchFile(Core::symbols_path, vma_ptr->name, filepath)){
+        LOGW("Symbol file not found for: %s", vma_ptr->name.c_str());
         return -1;
     }
+    LOGI("Found symbol file: %s", filepath.c_str());
     size_t map_size = 0;
     void *map = map_elf_file(filepath, map_size);
     if (map == nullptr){
+        LOGE("Failed to map ELF file: %s", filepath.c_str());
         return -1;
     }
     size_t memsz = vma_ptr->vm_end - vma_ptr->vm_start;
     size_t pgoff = vma_ptr->vm_pgoff << 12;
     fwrite(reinterpret_cast<char*>(map) + pgoff, memsz, 1, corefile);
     if (munmap(map, map_size) == -1) {
-        fprintf(fp, "munmap PHDR failed \n");
+        LOGE("munmap PHDR failed");
     }
-    if(debug){
-        fprintf(fp, "overwrite PHDR %s:[size:0x%zx off:%#lx] to core:[%#lx - %#lx] \n",
-            vma_ptr->name.c_str(), memsz, vma_ptr->vm_pgoff << 12, vma_ptr->vm_start, vma_ptr->vm_end);
-    } else {
-        std::cout << "overwrite PHDR " << vma_ptr->name
-        << ":[size:" << std::hex << std::showbase << memsz
-        << " off:" << std::hex << std::showbase << (vma_ptr->vm_pgoff << 12)
-        << " to core:[" << std::hex << std::showbase << vma_ptr->vm_start
-        << " - " << std::hex << std::showbase << vma_ptr->vm_end
-        << "]\n";
-    }
+    PRINT("overwrite PHDR %s:[size:%#zx off:%#lx] to core:[%#lx - %#lx]\n",
+          vma_ptr->name.c_str(), memsz, vma_ptr->vm_pgoff << 12,
+          vma_ptr->vm_start, vma_ptr->vm_end);
     return memsz;
 }
 void Core::write_core_file(void) {
+    LOGI("Starting core file generation");
     size_t pt_note_size = 0;
     pt_note_size += notesize(auxv);
     pt_note_size += notesize(psinfo);
@@ -389,17 +387,21 @@ void Core::write_core_file(void) {
             }
         }
     }
+    LOGD("PT_NOTE total size: %zu bytes", pt_note_size);
     int segs = task_ptr->for_each_vma_list().size() + 1; // for PT_NOTE
     if (Core::cmd_flags & CORE_FAKE_LINKMAP){
         segs += lib_list.size() ? 1 : 0; // for Fake
     }
     int e_phnum = segs > PN_XNUM ? PN_XNUM : segs;
+    LOGI("Total segments: %d (e_phnum: %d)", segs, e_phnum);
     // ===========================================
     //  Writing ELF header
     // ===========================================
+    LOGD("Writing ELF header");
     size_t hdr_size = 0;
     hdr_ptr = fill_elf_header(ET_CORE, e_phnum, hdr_size);
     if (fseek(corefile, 0, SEEK_SET) != 0) {
+        LOGE("Failed to seek to file start");
         fclose(corefile);
         std::free(hdr_ptr);
         return;
@@ -409,8 +411,10 @@ void Core::write_core_file(void) {
     //  ===========================================
     //  Writing PT_NOTE
     //  ===========================================
+    LOGD("Writing PT_NOTE program header");
     size_t phdr_pos = get_phdr_start();
     if (fseek(corefile, phdr_pos, SEEK_SET) != 0) {
+        LOGE("Failed to seek to phdr start");
         fclose(corefile);
         std::free(hdr_ptr);
         return;
@@ -420,10 +424,12 @@ void Core::write_core_file(void) {
             size_t hdr_size = (BITS64() && !task_ptr->is_compat()) ? sizeof(Elf64_Ehdr) : sizeof(Elf32_Ehdr);
             task_ptr->set_auxv(AT_PHDR,FAKE_AUXV_PHDR + hdr_size);
             task_ptr->set_auxv(AT_EXECFN,0);
+            LOGI("Fake linkmap enabled with %zu libraries", lib_list.size());
         }
     }
     write_phdr(PT_NOTE, get_pt_note_data_start(), 0, pt_note_size, 0, 0, 0);
     if (!write_pt_note()){
+        LOGE("Failed to write PT_NOTE");
         fclose(corefile);
         std::free(hdr_ptr);
         return;
@@ -435,6 +441,7 @@ void Core::write_core_file(void) {
     size_t load_data_pos = roundup((get_pt_note_data_start() + pt_note_size), page_size);
     if (Core::cmd_flags & CORE_FAKE_LINKMAP){
         if(lib_list.size()){
+            LOGD("Writing fake LOAD section");
             phdr_pos += get_phdr_size(); // header note
             write_fake_data(load_data_pos, phdr_pos);
         }
@@ -444,24 +451,25 @@ void Core::write_core_file(void) {
     //  Writing PT LOAD
     //  ===========================================
     // auto start = std::chrono::high_resolution_clock::now();
+    LOGI("Writing %zu PT_LOAD segments", task_ptr->for_each_vma_list().size());
     size_t vma_count = task_ptr->for_each_vma_list().size();
     for (const auto& vma_ptr : task_ptr->for_each_vma_list()) {
         phdr_pos += get_phdr_size();
         if (!write_pt_load(vma_ptr,phdr_pos,load_data_pos)){
+            LOGW("Failed to write PT_LOAD for VMA [%#lx-%#lx]",
+                 vma_ptr->vm_start, vma_ptr->vm_end);
+            --vma_count;
             continue;
         }
-        if(debug){
-            fprintf(fp, "Written page to core file. Remaining VMA count: %zd\n", --vma_count);
-        } else {
-            std::cout << "Written page to core file. Remaining VMA count: " << std::dec << --vma_count << std::endl;
-        }
+        --vma_count;
+        PRINT("Written page to core file. Remaining VMA count: %zu\n", vma_count);
     }
     // auto end = std::chrono::high_resolution_clock::now();
     // std::chrono::duration<double> elapsed = end - start;
     // fprintf(fp, "time: %.6f s\n",elapsed.count());
     fclose(corefile);
     std::free(hdr_ptr);
-    return;
+    LOGI("Core file generation completed successfully");
 }
 
 int Core::vma_dump_size(std::shared_ptr<vma_struct> vma_ptr) {
@@ -497,25 +505,31 @@ int Core::vma_dump_size(std::shared_ptr<vma_struct> vma_ptr) {
 }
 
 bool Core::parser_user_regset_view(void) {
+    LOGD("Parsing user_regset_view: %s", user_view_var_name.c_str());
     ulong addr = csymbol_value(user_view_var_name);
     if(!addr){
-        fprintf(fp, "Can't found %s\n",user_view_var_name.c_str());
+        PRINT("ERROR: Can't found %s\n", user_view_var_name.c_str());
         return false;
     }
     void *buf = read_struct(addr,"user_regset_view");
-    if (!buf) return false;
+    if (!buf) {
+        LOGE("Failed to read user_regset_view structure");
+        return false;
+    }
     urv_ptr = std::make_shared<user_regset_view>();
     ulong name_addr = ULONG(buf + field_offset(user_regset_view,name));
-    if (!is_kvaddr(name_addr)) return false;
+    if (!is_kvaddr(name_addr)) {
+        LOGE("Invalid kernel address for name: %#lx", name_addr);
+        return false;
+    }
     urv_ptr->name = read_cstring(name_addr, 32, "user_regset_view name");
     urv_ptr->n = UINT(buf + field_offset(user_regset_view,n));
     urv_ptr->e_flags = UINT(buf + field_offset(user_regset_view,e_flags));
     urv_ptr->e_machine = USHORT(buf + field_offset(user_regset_view,e_machine));
     urv_ptr->ei_osabi = UCHAR(buf + field_offset(user_regset_view,ei_osabi));
-    if (debug){
-        fprintf(fp, "[%s]:%lx, name:%s cnt:%d e_flags:%d e_machine:%d ei_osabi:%d\n",
-            user_view_var_name.c_str(), addr, urv_ptr->name.c_str(), urv_ptr->n,urv_ptr->e_flags, urv_ptr->e_machine, urv_ptr->ei_osabi);
-    }
+    LOGI("user_regset_view: name=%s cnt=%d e_flags=%d e_machine=%d ei_osabi=%d",
+         urv_ptr->name.c_str(), urv_ptr->n, urv_ptr->e_flags,
+         urv_ptr->e_machine, urv_ptr->ei_osabi);
     ulong regset_array_addr = ULONG(buf + field_offset(user_regset_view,regsets));
     FREEBUF(buf);
     for (size_t i = 0; i < urv_ptr->n; i++){
@@ -525,10 +539,8 @@ bool Core::parser_user_regset_view(void) {
         if(!read_struct(regsets_addr,regset_ptr.get(),sizeof(user_regset),"user_regset")){
             continue;
         }
-        if (debug){
-            fprintf(fp, "user_regset:%lx, core_note_type:%d cnt:%d size:%d\n",
-                regsets_addr,regset_ptr->core_note_type,regset_ptr->n,regset_ptr->size);
-        }
+        LOGD("user_regset[%zu]: core_note_type=%d cnt=%d size=%d",
+             i, regset_ptr->core_note_type, regset_ptr->n, regset_ptr->size);
         urv_ptr->regsets.push_back(regset_ptr);
     }
     return true;
@@ -545,6 +557,7 @@ std::string Core::vma_flags_to_str(unsigned long flags) {
 }
 
 void Core::print_proc_mapping(){
+    LOGD("Printing process mapping for pid %d", core_pid);
     tc = pid_to_context(core_pid);
     task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
     std::ostringstream oss;
@@ -558,11 +571,12 @@ void Core::print_proc_mapping(){
             << std::right << std::hex << std::setw(8) << std::setfill('0') << vma_ptr->vm_pgoff << " "
             << vma_ptr->name << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s\n", oss.str().c_str());
     task_ptr.reset();
 }
 
 void Core::parser_thread_core_info() {
+    LOGD("Parsing thread core info");
     int offset = field_offset(task_struct, thread_node);
     ulong signal_addr = read_pointer(tc->task + field_offset(task_struct, signal), "task_struct signal");
     ulong list_head = signal_addr + field_offset(signal_struct, thread_head);
@@ -571,9 +585,7 @@ void Core::parser_thread_core_info() {
         thread_ptr->task_addr = thread_addr;
         for(const auto& regset_ptr: urv_ptr->regsets){
             std::shared_ptr<memelfnote> note_ptr = std::make_shared<memelfnote>();
-            if(debug) {
-                fprintf(fp, "core_note_type: %x \n", regset_ptr->core_note_type);
-            }
+            LOGD("Processing regset: core_note_type=%#x", regset_ptr->core_note_type);
             switch (regset_ptr->core_note_type)
             {
             case NT_PRSTATUS:
@@ -664,10 +676,11 @@ void Core::parser_thread_core_info() {
 }
 
 void Core::parser_auvx(){
+    LOGD("Parsing AUXV");
     size_t auxv_size = field_size(mm_struct, saved_auxv);
     void* auxv_buf = task_ptr->read_auxv();
     if(!auxv_buf){
-        fprintf(fp, "fill_auvx_note auxv_buf is NULL \n");
+        LOGE("AUXV buffer is NULL");
         return;
     }
     auxv = std::make_shared<memelfnote>();
@@ -677,13 +690,12 @@ void Core::parser_auvx(){
     memcpy(auxv->data, auxv_buf, auxv_size);
     FREEBUF(auxv_buf);
     auxv->datasz = auxv_size;
-    if (debug){
-        fprintf(fp,  "\n\nNT_AUXV:\n");
-        fprintf(fp, "%s", hexdump(0x1000, (char*)auxv->data, auxv_size).c_str());
-    }
+    LOGD("NT_AUXV:\n");
+    LOGD("\n%s", hexdump(0x1000, (char*)auxv->data, auxv_size).c_str());
 }
 
 void Core::parser_nt_file() {
+    LOGD("Parsing NT_FILE");
     std::unique_ptr<std::vector<char>> data_ptr = std::make_unique<std::vector<char>>();
     size_t files_count = 0;
     int size_data = BITS64() ? (task_ptr->is_compat() ? 4 : sizeof(long)) : sizeof(long);
@@ -695,12 +707,15 @@ void Core::parser_nt_file() {
             std::string filepath;
             if(SearchFile(Core::symbols_path, vma->name, filepath)){
                 lib_list.insert(vma->name);
+                LOGD("Found symbol for library: %s", vma->name.c_str());
             }
         }
         vma->name += '\0';
         total_filename_size += vma->name.size();
         files_count++;
     }
+    LOGI("NT_FILE: %zu files, total_vma_size=%zu, total_filename_size=%zu",
+         files_count, total_vma_size, total_filename_size);
     data_ptr->reserve(2 * size_data + total_vma_size + total_filename_size);
     data_ptr->insert(data_ptr->end(), reinterpret_cast<const char*>(&files_count), reinterpret_cast<const char*>(&files_count) + size_data);
     data_ptr->insert(data_ptr->end(), reinterpret_cast<const char*>(&page_size), reinterpret_cast<const char*>(&page_size) + size_data);
@@ -712,10 +727,8 @@ void Core::parser_nt_file() {
     for (const auto& vma : task_ptr->for_each_file_vma()) {
         data_ptr->insert(data_ptr->end(), vma->name.begin(), vma->name.end());
     }
-    if (debug) {
-        fprintf(fp, "\n\nNT_FILE:\n");
-        fprintf(fp, "%s\n\n", hexdump(0x1000, data_ptr->data(), data_ptr->size()).c_str());
-    }
+    LOGD("NT_FILE:\n");
+    LOGD("\n%s", hexdump(0x1000, data_ptr->data(), data_ptr->size()).c_str());
     files = std::make_shared<memelfnote>();
     files->name = "CORE";
     files->type = NT_FILE;
@@ -733,7 +746,7 @@ void Core::dump_align(std::streampos position, std::streamsize align) {
         std::streamsize padding_size = align - mod;
         std::vector<char> padding(padding_size, 0);
         if (fwrite(padding.data(), 1, padding_size, corefile) != static_cast<size_t>(padding_size)) {
-            fprintf(fp, "Error writing padding to core file\n");
+            LOGE("Error writing padding to core file");
         }
     }
 }
@@ -866,10 +879,8 @@ void* Core::fill_elf_header(int type, int phnum, size_t& hdr_size) {
         elf_hdr->e_ehsize = hdr_size;
         elf_hdr->e_phentsize = phdr_size;
         elf_hdr->e_phnum = phnum;
-        if (debug) {
-            fprintf(fp, "\n\nelf_hdr:\n");
-            fprintf(fp, "%s", hexdump(0, (char*)elf_hdr, hdr_size).c_str());
-        }
+        LOGD("elf_hdr:\n");
+        LOGD("\n%s", hexdump(0, (char*)elf_hdr, hdr_size).c_str());
     };
     if (BITS64() && !task_ptr->is_compat()) {
         Elf64_Ehdr* elf_hdr = reinterpret_cast<Elf64_Ehdr*>(hdr);
@@ -911,7 +922,7 @@ void* Core::map_elf_file(std::string filepath, size_t& len){
     }
     void* map = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (map == MAP_FAILED) {
-        fprintf(fp, "mmap failed \n");
+        LOGE("mmap failed \n");
         close(fd);
         return nullptr;
     }
@@ -923,11 +934,11 @@ void* Core::map_elf_file(std::string filepath, size_t& len){
 bool Core::check_elf_file(void* map){
     auto check_header  = [&](auto* elf_hdr) {
         if (memcmp(elf_hdr->e_ident, ELFMAG, SELFMAG) != 0) {
-            fprintf(fp, "Not an ELF file\n");
+            LOGE("Not an ELF file\n");
             return false;
         }
         if (elf_hdr->e_type != ET_DYN) {
-            fprintf(fp, "Not a shared object (ET_DYN) file\n");
+            LOGE("Not a shared object (ET_DYN) file\n");
             return false;
         }
         return true;
@@ -1014,10 +1025,8 @@ void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
     size_t hdr_size = 0;
     void* hdr = fill_elf_header(ET_DYN, 2, hdr_size);
     fwrite(hdr, hdr_size, 1, corefile);
-    if (debug) {
-        fprintf(fp, "\n\nfake elf_hdr:\n");
-        fprintf(fp, "%s", hexdump(0, (char*)hdr, hdr_size).c_str());
-    }
+    LOGD("fake elf_hdr:\n");
+    LOGD("\n%s", hexdump(0, (char*)hdr, hdr_size).c_str());
     std::free(hdr);
     /*
        we can see the comment as below in GDB.
@@ -1035,19 +1044,15 @@ void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
     BZERO(&dyn, sizeof(dynamic_t));
     dyn.type = DT_DEBUG;
     dyn.value = FAKE_AUXV_PHDR + page_size /* first page */ + sizeof(dynamic_t);
-    if (debug) {
-        fprintf(fp, "\n\nfake DYNAMINC:\n");
-        fprintf(fp, "%s", hexdump(0, (char*)&dyn, sizeof(dynamic_t)).c_str());
-    }
+    LOGD("fake DYNAMINC:\n");
+    LOGD("\n%s", hexdump(0, (char*)&dyn, sizeof(dynamic_t)).c_str());
     fwrite(&dyn, sizeof(dynamic_t), 1, corefile);
     r_debug_t r_debug;
     BZERO(&r_debug, sizeof(r_debug_t));
     r_debug.version = 1;
     r_debug.map = FAKE_AUXV_PHDR + page_size /* first page */ + page_size /* second page */;
-    if (debug) {
-        fprintf(fp, "\n\nfake DT_DEBUG:\n");
-        fprintf(fp, "%s", hexdump(0, (char*)&r_debug, sizeof(r_debug_t)).c_str());
-    }
+    LOGD("fake DT_DEBUG:\n");
+    LOGD("\n%s", hexdump(0, (char*)&r_debug, sizeof(r_debug_t)).c_str());
     fwrite(&r_debug, sizeof(r_debug_t), 1, corefile);
     dump_align(ftell(corefile), page_size);
 
@@ -1096,9 +1101,8 @@ void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
         }
         // the addr of dynamic
         linkmap->ld = linkmap->addr + sym_ptr->dynamic_vaddr;
-        if (debug){
-            fprintf(fp, "linkmap->addr:%#lx linkmap->ld:%#lx %s\n", linkmap->addr,linkmap->ld,phdr_vma_ptr->name.c_str());
-        }
+        LOGD("linkmap->addr:%#lx linkmap->ld:%#lx %s",
+             linkmap->addr, linkmap->ld, phdr_vma_ptr->name.c_str());
         linkmap->name = cur_strtab_vaddr;
         linkmap->prev = cur_linkmap_vaddr;
         cur_linkmap_vaddr = cur_linkmap_vaddr + sizeof(linkmap_t);
@@ -1111,13 +1115,11 @@ void Core::write_fake_data(size_t &data_pos, size_t phdr_pos){
     linkmap->next = 0;
     // strtab_len = roundup(strtab.str().size(), page_size);
     data_pos += strtab.str().size();
-    if(debug){
-        fprintf(fp, "\n\nLINKMAP:\n");
-        fprintf(fp, "%s", hexdump(FAKE_AUXV_PHDR + 2 * page_size, (char*)linkmap_buf.get(), linkmap_size).c_str());
+    LOGD("LINKMAP:\n");
+    LOGD("\n%s", hexdump(FAKE_AUXV_PHDR + 2 * page_size, (char*)linkmap_buf.get(), linkmap_size).c_str());
 
-        fprintf(fp, "\n\nSTRTAB:\n");
-        fprintf(fp, "%s", hexdump(FAKE_AUXV_PHDR + 2 * page_size + linkmap_size, (char*)strtab.str().c_str(), strtab.str().size()).c_str());
-    }
+    LOGD("STRTAB:\n");
+    LOGD("\n%s", hexdump(FAKE_AUXV_PHDR + 2 * page_size + linkmap_size, (char*)strtab.str().c_str(), strtab.str().size()).c_str());
     fwrite(linkmap_buf.get(), linkmap_size, 1, corefile);
     fwrite(strtab.str().c_str(), strtab.str().size(), 1, corefile);
 
@@ -1147,7 +1149,7 @@ void Core::print_linkmap(){
 #endif
     tc = pid_to_context(core_pid);
     if (!tc) {
-        fprintf(fp, "pid_to_context failed\n");
+        LOGE("pid_to_context failed for pid %d", core_pid);
         return;
     }
     task_ptr = std::make_shared<UTask>(swap_ptr, tc->task);
@@ -1156,30 +1158,36 @@ void Core::print_linkmap(){
          * If you want to enable compatibility, you need to add the following code:
          * Every struct should use 32-bit(uint32_t and Elf32_type), including all parameters passed in swapinfo.
          */
-        fprintf(fp, "We do not support compat for the linkmap feature\n");
+        LOGW("Compat mode not supported for linkmap feature");
         return;
     }
     size_t at_phdr = task_ptr->get_auxv(AT_PHDR);
     size_t at_phnum = task_ptr->get_auxv(AT_PHNUM);
     size_t at_phent = task_ptr->get_auxv(AT_PHENT);
     size_t at_entry = task_ptr->get_auxv(AT_ENTRY);
+    LOGD("AUXV values: AT_PHDR=%#lx AT_PHNUM=%zu AT_PHENT=%zu AT_ENTRY=%#lx",
+         at_phdr, at_phnum, at_phent, at_entry);
     parser_exec_name(task_ptr->get_auxv(AT_EXECFN));
     std::string exec_file_path;
     if(!SearchFile(Core::symbols_path, exe_name, exec_file_path)){
-        fprintf(fp, "can't find %s\n",exe_name.c_str());
+        LOGE("Cannot find executable: %s", exe_name.c_str());
         return;
     }
+    LOGI("Found executable: %s", exec_file_path.c_str());
     int fd = open(exec_file_path.c_str(), O_RDONLY);
     if (fd == -1) {
+        LOGE("Failed to open executable file: %s", exec_file_path.c_str());
         return;
     }
     struct stat st;
     if (fstat(fd, &st) == -1) {
+        LOGE("Failed to fstat executable file");
         close(fd);
         return;
     }
     void* exec_map = mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (exec_map == MAP_FAILED) {
+        LOGE("Failed to mmap executable file");
         close(fd);
         return;
     }
@@ -1187,6 +1195,7 @@ void Core::print_linkmap(){
     Elf(Phdr)* phdr = reinterpret_cast<Elf(Phdr)*>((static_cast<char*>(exec_map) + ehdr->e_phoff));
     std::vector<char> core_phdr = task_ptr->read_data(at_phdr,at_phnum * at_phent);
     if(core_phdr.size() == 0){
+        LOGE("Failed to read core PHDR data");
         munmap(exec_map, st.st_size);
         close(fd);
         return;
@@ -1199,18 +1208,21 @@ void Core::print_linkmap(){
         if (phdr[i].p_type == PT_DYNAMIC) {
             dyn = reinterpret_cast<Elf(Dyn)*>((static_cast<char*>(exec_map) + phdr[i].p_offset));
             exec_dynamic_vaddr = phdr[i].p_vaddr;
+            LOGD("Found PT_DYNAMIC at vaddr=%#lx", exec_dynamic_vaddr);
         }
         // see the svr4_exec_displacement in GDB.
         if (memcmp(&phdr[i], &core_phdr[i * sizeof(Elf(Phdr))], sizeof(Elf(Phdr))) != 0) {
             if(flags){
-                fprintf(fp, "the phdr is not correct in coredump, core phnum:%zd, exec phnum:%d \n", at_phnum, ehdr->e_phnum);
+                LOGW("PHDR mismatch detected: core phnum=%zu, exec phnum=%d",
+                     at_phnum, ehdr->e_phnum);
                 flags = false;
             }
         }
     }
     ulong linkmap_addr = 0;
     ulong exec_displacement = at_entry - exec_pt_Load_x_vaddr;
-    // fprintf(fp, "at_entry: %#lx exec_pt_Load_x_vaddr:%#lx exec_dynamic_vaddr:%#lx exec_displacement:%#lx \n", at_entry, exec_pt_Load_x_vaddr, exec_dynamic_vaddr, exec_displacement);
+    LOGD("exec_displacement=%#lx (at_entry=%#lx - exec_pt_Load_x_vaddr=%#lx)",
+         exec_displacement, at_entry, exec_pt_Load_x_vaddr);
     if (dyn) {
         for (int count = 0;; ++count) {
             if (dyn[count].d_tag == DT_NULL) {
@@ -1219,22 +1231,22 @@ void Core::print_linkmap(){
             if (dyn[count].d_tag == DT_DEBUG) {
                 ulong dyn_ptr = exec_displacement + exec_dynamic_vaddr + count * sizeof(Elf(Dyn)) + sizeof(void*) /* 8 & 4*/;
                 linkmap_addr = task_ptr->uread_ulong(dyn_ptr);
-                // fprintf(fp, "dyn_ptr: %#lx, base:%#lx\n", dyn_ptr, linkmap_addr);
+                LOGD("Found DT_DEBUG: dyn_ptr=%#lx, linkmap_addr=%#lx", dyn_ptr, linkmap_addr);
             }
         }
     }
     if (!is_uvaddr(linkmap_addr, tc)) {
-        fprintf(fp, "linkmap addr not uvaddr:%#lx\n", linkmap_addr);
+        LOGE("Invalid linkmap address: %#lx", linkmap_addr);
         munmap(exec_map, st.st_size);
         close(fd);
         return;
     }
     linkmap_addr += sizeof(void*);
     linkmap_addr = task_ptr->uread_ulong(linkmap_addr);
-    // fprintf(fp, "the fisrt linkmap: %#lx\n", linkmap_addr);
+    LOGD("First linkmap address: %#lx", linkmap_addr);
     std::vector<char> lp = task_ptr->read_data(linkmap_addr,sizeof(linkmap_t));
     if(lp.size() == 0){
-        fprintf(fp, "linkmap: read fail\n");
+        LOGE("Failed to read linkmap data");
         munmap(exec_map, st.st_size);
         close(fd);
         return;
@@ -1257,12 +1269,12 @@ void Core::print_linkmap(){
     while (linkmap->next) {
         ulong linkmap_next = linkmap->next;
         if (!is_uvaddr(linkmap_next, tc)) {
-            fprintf(fp, "linkmap addr not uvaddr:%#lx\n", linkmap_next);
+            LOGE("Invalid linkmap next address: %#lx", linkmap_next);
             break;
         }
         std::vector<char> lp = task_ptr->read_data(linkmap_next,sizeof(linkmap_t));
         if(lp.size() == 0){
-            fprintf(fp, "linkmap: read fail\n");
+            LOGE("Failed to read linkmap data at %#lx", linkmap_next);
             break;
         }
         linkmap = reinterpret_cast<linkmap_t*>(lp.data());
@@ -1273,7 +1285,7 @@ void Core::print_linkmap(){
             << std::setw(20) << task_ptr->uread_cstring(linkmap->name, 128)
             << "\n";
     }
-    fprintf(fp, "%s", oss.str().c_str());
+    PRINT("%s", oss.str().c_str());
     munmap(exec_map, st.st_size);
     close(fd);
     task_ptr.reset();

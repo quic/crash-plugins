@@ -48,7 +48,7 @@ void* Arm::parser_nt_arm_vfp(ulong task_addr) {
             + field_offset(vfp_state, hard)
             + field_offset(vfp_hard_struct, fpregs);
     if(!read_struct(fpregs_addr, &vfp->fpregs, field_size(vfp_hard_struct, fpregs),"parser_nt_arm_vfp fpregs")){
-        fprintf(fp, "get fpregs failed \n");
+        LOGE("get fpregs failed \n");
         std::free(vfp);
         return nullptr;
     }
@@ -57,10 +57,8 @@ void* Arm::parser_nt_arm_vfp(ulong task_addr) {
             + field_offset(vfp_state, hard)
             + field_offset(vfp_hard_struct, fpscr);
     vfp->fpscr = read_ulong(fpscr_addr,"parser_nt_arm_vfp fpscr");
-    if (debug){
-        fprintf(fp, "\n\nNT_ARM_VFP:\n");
-        fprintf(fp, "%s", hexdump(0x1000,(char*)vfp, data_len).c_str());
-    }
+    LOGD("NT_ARM_VFP:\n");
+    LOGD("\n%s", hexdump(0x1000,(char*)vfp, data_len).c_str());
     return vfp;
 }
 
@@ -70,14 +68,12 @@ void* Arm::parser_nt_prfpreg(ulong task_addr) {
     BZERO(ufp, data_len);
     ulong fpstate_addr = task_addr + field_offset(task_struct, thread_info) + field_offset(thread_info, fpstate);
     if(!read_struct(fpstate_addr, ufp, sizeof(*ufp),"parser_nt_prfpreg fpstate")){
-        fprintf(fp, "get fpstate failed \n");
+        LOGE("get fpstate failed \n");
         std::free(ufp);
         return nullptr;
     }
-    if (debug){
-        fprintf(fp,  "\n\nNT_PRFPREG:\n");
-        fprintf(fp, "%s", hexdump(0x1000,(char*)ufp, data_len).c_str());
-    }
+    LOGD("NT_PRFPREG:\n");
+    LOGD("\n%s", hexdump(0x1000,(char*)ufp, data_len).c_str());
     return ufp;
 }
 
@@ -135,16 +131,14 @@ void* Arm::parser_prstatus(ulong task_addr,int* data_size) {
     // #define task_pt_regs(p) ((struct pt_regs *)(THREAD_SIZE - 8 + task->stack) - 1)
     ulong pt_regs_addr = GET_STACKTOP(task_addr) - 8 - sizeof(struct arm32_pt_regs);
     if(!read_struct(pt_regs_addr, &prstatus->pr_reg, sizeof(struct arm32_pt_regs),"gpr64_get user_pt_regs")){
-        fprintf(fp, "get pt_regs failed \n");
+        LOGE("get pt_regs failed \n");
         std::free(prstatus);
         return nullptr;
     }
     *data_size = data_len;
-    if (debug){
-        fprintf(fp, "pid: %d, task_addr:%#lx, pt_regs_addr:%#lx, struct_size:%#zx stack_top:%#lx \n", prstatus->pr_pid, task_addr, pt_regs_addr, sizeof(struct arm32_pt_regs), GET_STACKTOP(task_addr));
-        fprintf(fp,  "\n\nNT_PRSTATUS:\n");
-        fprintf(fp, "%s", hexdump(0x1000, (char*)prstatus, data_len).c_str());
-    }
+    LOGD("pid: %d, task_addr:%#lx, pt_regs_addr:%#lx, struct_size:%#zx stack_top:%#lx \n", prstatus->pr_pid, task_addr, pt_regs_addr, sizeof(struct arm32_pt_regs), GET_STACKTOP(task_addr));
+    LOGD("NT_PRSTATUS:\n");
+    LOGD("\n%s", hexdump(0x1000, (char*)prstatus, data_len).c_str());
     return prstatus;
 }
 
@@ -176,10 +170,8 @@ void Arm::parser_prpsinfo() {
     prpsinfo->pr_uid = read_uint(cred_addr + field_offset(cred, uid), "cred uid");
     prpsinfo->pr_gid = read_uint(cred_addr + field_offset(cred, gid), "cred gid");
     copy_and_fill_char(prpsinfo->pr_fname, tc->comm, strlen(tc->comm));
-    if (debug){
-        fprintf(fp,  "\n\nNT_PRPSINFO:\n");
-        fprintf(fp, "%s", hexdump(0x1000, (char*)prpsinfo, data_size).c_str());
-    }
+    LOGD("NT_PRPSINFO:\n");
+    LOGD("\n%s", hexdump(0x1000, (char*)prpsinfo, data_size).c_str());
     psinfo = std::make_shared<memelfnote>();
     psinfo->name = "CORE";
     psinfo->type = NT_PRPSINFO;
@@ -192,10 +184,8 @@ void Arm::parser_siginfo() {
     struct elf_siginfo* sinfo = (struct elf_siginfo*)std::malloc(data_size);
     BZERO(sinfo, data_size);
     sinfo->si_signo = 6;
-    if (debug){
-        fprintf(fp,  "\n\nNT_SIGINFO:\n");
-        fprintf(fp, "%s", hexdump(0x1000,(char*)sinfo,data_size).c_str());
-    }
+    LOGD("NT_SIGINFO:\n");
+    LOGD("\n%s", hexdump(0x1000,(char*)sinfo,data_size).c_str());
     signote = std::make_shared<memelfnote>();
     signote->name = "CORE";
     signote->type = NT_SIGINFO;

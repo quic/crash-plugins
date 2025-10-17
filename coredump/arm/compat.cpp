@@ -43,17 +43,17 @@ void* Compat::parser_nt_arm_vfp(ulong task_addr) {
     struct user_fpsimd_state* uregs = (struct user_fpsimd_state*)buffer;
     ulong fpsimd_state_addr = task_addr + field_offset(task_struct, thread) + field_offset(thread_struct, uw) + sizeof(unsigned long) /*tp_value*/ + sizeof(unsigned long) /*tp2_value*/;
     if(!read_struct(fpsimd_state_addr, uregs, sizeof(struct user_fpsimd_state),"parser_nt_prfpreg uregs")){
-        fprintf(fp, "fpr_get failed \n");
+        LOGE( "fpr_get failed \n");
         std::free(buffer);
         return nullptr;
     }
     fpscr = (uregs->fpsr & VFP_FPSCR_STAT_MASK) | (uregs->fpcr & VFP_FPSCR_CTRL_MASK);
     void* fpscr_ptr = (char*)buffer + sizeof(struct user_fpsimd_state);
     memcpy(fpscr_ptr, &fpscr, sizeof(compat_ulong_t));
-    if (debug){
-        fprintf(fp,  "\n\nNT_ARM_VFP: task_addr%#lx: \n", task_addr);
-        fprintf(fp, "%s", hexdump(0x1000, buffer, data_len).c_str());
-    }
+    LOGD("NT_ARM_VFP (compat): fpscr=%#x (fpsr=%#x, fpcr=%#x)",
+         fpscr, uregs->fpsr, uregs->fpcr);
+    LOGD( "NT_ARM_VFP: task_addr%#lx: \n", task_addr);
+    LOGD("\n%s", hexdump(0x1000, buffer, data_len).c_str());
     return buffer;
 }
 
@@ -119,7 +119,7 @@ void* Compat::parser_prstatus(ulong task_addr,int* data_size) {
     struct pt_regs pt_regs_t;
     BZERO(&pt_regs_t, sizeof(struct pt_regs));
     if(!read_struct(pt_regs_addr, &pt_regs_t, sizeof(struct pt_regs), "compat_get_user_reg")){
-        fprintf(fp, "get compat_get_user_reg failed \n");
+        LOGE( "get compat_get_user_reg failed \n");
         std::free(prstatus);
         return nullptr;
     }
@@ -136,11 +136,9 @@ void* Compat::parser_prstatus(ulong task_addr,int* data_size) {
         }
     }
     *data_size = data_len;
-    if(debug){
-        fprintf(fp, "pid: %d, task_addr:%#lx, pt_regs_addr:%#lx, struct_size:%#zx stack_top:%#lx user_eframe_offset:%#lx \n",prstatus->common.pr_pid, task_addr, pt_regs_addr, sizeof(struct pt_regs), GET_STACKTOP(task_addr), machdep->machspec->user_eframe_offset);
-        fprintf(fp,  "\n\nNT_PRSTATUS:\n");
-        fprintf(fp, "%s", hexdump(0x1000,(char*)prstatus, data_len).c_str());
-    }
+    LOGD( "pid: %d, task_addr:%#lx, pt_regs_addr:%#lx, struct_size:%#zx stack_top:%#lx user_eframe_offset:%#lx \n",prstatus->common.pr_pid, task_addr, pt_regs_addr, sizeof(struct pt_regs), GET_STACKTOP(task_addr), machdep->machspec->user_eframe_offset);
+    LOGD( "NT_PRSTATUS:\n");
+    LOGD("\n%s", hexdump(0x1000,(char*)prstatus, data_len).c_str());
     return prstatus;
 }
 
@@ -172,10 +170,8 @@ void Compat::parser_prpsinfo() {
     prpsinfo->pr_uid = read_ushort(cred_addr + field_offset(cred, uid), "cred uid");
     prpsinfo->pr_gid = read_ushort(cred_addr + field_offset(cred, gid), "cred gid");
     copy_and_fill_char(prpsinfo->pr_fname, tc->comm, strlen(tc->comm));
-    if (debug){
-        fprintf(fp,  "\n\nNT_PRPSINFO:\n");
-        fprintf(fp, "%s", hexdump(0x1000,(char*)prpsinfo,data_size).c_str());
-    }
+    LOGD( "NT_PRPSINFO:\n");
+    LOGD("\n%s", hexdump(0x1000,(char*)prpsinfo,data_size).c_str());
     psinfo = std::make_shared<memelfnote>();
     psinfo->name = "CORE";
     psinfo->type = NT_PRPSINFO;
@@ -188,10 +184,8 @@ void Compat::parser_siginfo() {
     struct elf_siginfo* sinfo = (struct elf_siginfo*)std::malloc(data_size);
     BZERO(sinfo, data_size);
     sinfo->si_signo = 6;
-    if (debug){
-        fprintf(fp,  "\n\nNT_SIGINFO:\n");
-        fprintf(fp, "%s", hexdump(0x1000,(char*)sinfo,data_size).c_str());
-    }
+    LOGD( "NT_SIGINFO:\n");
+    LOGD("\n%s", hexdump(0x1000,(char*)sinfo,data_size).c_str());
     signote = std::make_shared<memelfnote>();
     signote->name = "CORE";
     signote->type = NT_SIGINFO;

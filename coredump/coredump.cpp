@@ -36,7 +36,7 @@ void Coredump::cmd_main(void) {
                 try {
                     pid = std::stoi(cppString);
                 } catch (...) {
-                    fprintf(fp, "invaild pid arg %s\n",cppString.c_str());
+                    LOGE("Invalid PID argument: %s", cppString.c_str());
                 }
                 flags |= PRINT_COREDUMP;
                 break;
@@ -45,7 +45,7 @@ void Coredump::cmd_main(void) {
                 try {
                     pid = std::stoi(cppString);
                 } catch (...) {
-                    fprintf(fp, "invaild pid arg %s\n",cppString.c_str());
+                    LOGE("Invalid PID argument: %s", cppString.c_str());
                 }
                 flags |= PRINT_PROCMAP;
                 break;
@@ -114,17 +114,17 @@ void Coredump::print_linkmap(int pid){
 bool Coredump::get_core_parser(int pid){
     struct task_context *tc = pid_to_context(pid);
     if (!tc) {
-        fprintf(fp, "No such pid: %d\n", pid);
+        LOGE("No task context found for pid %d", pid);
         return false;
     }
     set_context(tc->task, NO_PID, TRUE);
     ulong task_flags = read_structure_field(tc->task,"task_struct","flags");
     if (task_flags & PF_KTHREAD) {
-        fprintf(fp, "pid %d is kernel thread,no vm.\n", pid);
+        LOGE("PID %d is a kernel thread (no VM)", pid);
         return false;
     }
     if (!tc->mm_struct) {
-        fprintf(fp, "pid %d have no virtual memory space.\n", pid);
+        LOGE("PID %d has no virtual memory space", pid);
         return false;
     }
     fill_thread_info(tc->thread_info);
@@ -132,9 +132,7 @@ bool Coredump::get_core_parser(int pid){
         ulong thread_flags = read_ulong(tc->task + field_offset(task_struct, thread_info) + field_offset(thread_info, flags), "coredump task_struct thread_info flags");
         if(thread_flags & (1 << 22)){
             is_compat = true;
-            if(debug){
-                fprintf(fp, "is_compat: %d\n", is_compat);
-            }
+            LOGI("Process is running in compat mode (32-bit)");
         }
     }
 #if defined(ARM64)
@@ -178,14 +176,15 @@ void Coredump::init_command(void){
         "generate process coredump",        /* short description */
         "-p <pid>\n"
             "  coredump -m <pid>\n"
+            "  coredump -d <path>\n"
             "  coredump -p <pid> -s <symbols_path> -f\n"
             "  coredump -p <pid> -s <symbols_path> -r\n"
             "  coredump -l <pid> -s <symbols_path>\n"
             "  This command generate process coredump.",
         "\n",
         "EXAMPLES",
-        "  Generate process coredump:",
-        "    %s> coredump -p 323",
+        "  Generate process coredump, the default path is the current directory:",
+        "    %s> coredump -p 323 -d <path>",
         "\n",
         "  Generate process fake coredump with symbols:",
         "    %s> coredump -p 323 -s <symbols_path> -f",
