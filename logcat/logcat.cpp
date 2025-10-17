@@ -559,282 +559,484 @@ std::unordered_map<uint, std::string> event_tags_map = {
 };
 
 bool Logcat::is_LE = false;
+
+/**
+ * Constructor - Initialize logcat parser
+ * @param swap: Shared pointer to swap information
+ */
 Logcat::Logcat(std::shared_ptr<Swapinfo> swap) : swap_ptr(swap){
+    LOGD("Initializing logcat parser\n");
     tc_logd = find_proc("logd");
+    if (tc_logd) {
+        LOGD("Found logd process: PID=%ld\n", tc_logd->pid);
+    } else {
+        LOGD("logd process not found\n");
+    }
 }
 
+/**
+ * Destructor - Cleanup resources
+ */
 Logcat::~Logcat(){
+    LOGD("Destroying logcat parser\n");
+}
+
+/**
+ * Initialize field offsets for logcat structures
+ */
+void Logcat::init_offset(void) {
 
 }
 
-void Logcat::init_offset(void) {}
+/**
+ * Main command entry point
+ */
+void Logcat::cmd_main(void) {
 
-void Logcat::cmd_main(void) {}
+}
 
-void Logcat::init_command(void) {}
+/**
+ * Initialize command help information
+ */
+void Logcat::init_command(void) {
 
+}
+
+/**
+ * Convert log level enum to character representation
+ * @param level: Log level enum value
+ * @return: Single character representing the log level
+ */
 std::string Logcat::getLogLevelChar(LogLevel level) {
     switch (level) {
-        case LOG_DEFAULT: return "D";
-        case LOG_VERBOSE: return "V";
-        case LOG_DEBUG: return "D";
-        case LOG_INFO: return "I";
-        case LOG_WARN: return "W";
-        case LOG_ERROR: return "E";
-        case LOG_FATAL: return "F";
-        case LOG_SILENT: return "S";
-        default: return "";
+        case LOG_DEFAULT: return "D";  // Default level
+        case LOG_VERBOSE: return "V";  // Verbose level
+        case LOG_DEBUG: return "D";    // Debug level
+        case LOG_INFO: return "I";     // Info level
+        case LOG_WARN: return "W";     // Warning level
+        case LOG_ERROR: return "E";    // Error level
+        case LOG_FATAL: return "F";    // Fatal level
+        case LOG_SILENT: return "S";   // Silent level
+        default: return "";            // Unknown level
     }
 }
 
+/**
+ * Parse logcat logs from logd process memory
+ * Main entry point for extracting logs from crash dump
+ */
 void Logcat::parser_logcat_log(){
+    LOGD("Starting logcat log parsing\n");
+    // Verify logd process exists
     if (!tc_logd){
-        fprintf(fp, "Can't found logd process !");
+        LOGE("Can't find logd process!\n");
         return;
     }
-    if (log_list.size() > 0){
+    // Check if logs already parsed
+    if (!log_list.empty()){
+        LOGE("Logs already parsed, count: %zu\n", log_list.size());
         return;
     }
+    // Create task context for memory access
+    LOGD("Creating task context for logd process\n");
     task_ptr = std::make_shared<UTask>(swap_ptr, tc_logd->task);
+
+    // Parse log buffer address from logd memory
+    LOGD("Parsing log buffer address\n");
     ulong logbuf_vaddr = parser_logbuf_addr();
-    if (!is_uvaddr(logbuf_vaddr,tc_logd)){
-        fprintf(fp, "invaild vaddr:0x%lx \n",logbuf_vaddr);
+
+    // Validate the virtual address
+    if (!is_uvaddr(logbuf_vaddr, tc_logd)){
+        LOGE("Invalid virtual address: %#lx\n", logbuf_vaddr);
         return;
     }
+    LOGD("Log buffer address: %#lx\n", logbuf_vaddr);
+
     /*
-    only for S, the address of LogBuffer(SerializedLogBuffer) is not same as
-    std::list<SerializedLogChunk> logs_[LOG_ID_MAX] GUARDED_BY(logd_lock);
-    */
+     * Note: For Android S and later, the address of LogBuffer (SerializedLogBuffer)
+     * is not the same as std::list<SerializedLogChunk> logs_[LOG_ID_MAX] GUARDED_BY(logd_lock);
+     * Need to handle version-specific differences
+     */
     parser_logbuf(logbuf_vaddr);
+
+    // Cleanup task context
     task_ptr.reset();
+    LOGD("Log parsing completed, total logs: %zu\n", log_list.size());
 }
 
-// Remove invalid characters
+/**
+ * Remove invalid characters from log message
+ * Filters out non-printable characters while preserving newlines
+ * @param msg: Input message string
+ * @return: Cleaned message string with only valid characters
+ */
 std::string Logcat::remove_invalid_chars(const std::string& msg) {
-    std::string vaildStr;
+    if (msg.empty()) {
+        return "";
+    }
+    // Pre-allocate string to avoid reallocations
+    std::string validStr;
+    validStr.reserve(msg.size());
     bool hasPrintable = false;
+
+    // Process each character
     for (unsigned char c : msg) {
         if (c == '\n') {
-            vaildStr += '\n';
+            // Preserve newlines
+            validStr += '\n';
         } else if (c >= 0x20 && c <= 0x7E) {
-            vaildStr += c;
+            // Keep printable ASCII characters (space to tilde)
+            validStr += c;
             if (c != ' ' && c != '\t') {
                 hasPrintable = true;
             }
         } else {
-            vaildStr += ' ';
+            // Replace invalid characters with space
+            validStr += ' ';
         }
     }
-    if (!hasPrintable || std::all_of(vaildStr.begin(), vaildStr.end(), [](unsigned char c) {
-        return std::isspace(c);
-    })) {
+    // Return empty string if no printable content
+    if (!hasPrintable) {
         return "";
     }
-    return vaildStr;
+    return validStr;
 }
 
+
+/**
+ * Print logcat logs in formatted output
+ * @param id: Log ID to filter (ALL for all logs)
+ * Format: timestamp pid tid uid level tag message
+ */
 void Logcat::print_logcat_log(LOG_ID id){
-    // fprintf(fp, "log_list len:%zu  \n", log_list.size());
+    if (log_list.empty()) {
+        LOGE("No logs to print\n");
+        return;
+    }
+    LOGD("Printing logs for ID: %d, total entries: %zu\n", id, log_list.size());
     std::ostringstream oss;
-    for (auto &log_ptr : log_list){
+    // Iterate through all log entries
+    for (const auto &log_ptr : log_list){
+        // Filter by log ID if not ALL
         if(id != ALL && log_ptr->logid != id){
-            // std::cout << log_ptr->msg << std::endl;
             continue;
         }
-        std::string vaild_msg = remove_invalid_chars(log_ptr->msg);
-        if(vaild_msg.empty()){
+
+        // Clean invalid characters from message
+        std::string valid_msg = remove_invalid_chars(log_ptr->msg);
+        if(valid_msg.empty()){
              continue;
         }
-        while (vaild_msg.back() == ' ' || vaild_msg.back() == '\n' || vaild_msg.back() == '\r'){
-            vaild_msg.pop_back();
+
+        // Trim trailing whitespace more efficiently
+        auto end = valid_msg.find_last_not_of(" \n\r");
+        if (end != std::string::npos) {
+            valid_msg.erase(end + 1);
+        } else {
+            continue; // String contains only whitespace
         }
-        if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO
-            || log_ptr->logid == CRASH || log_ptr->logid == KERNEL){
-            oss << std::setw(18) << std::left << log_ptr->timestamp << " "
-                << std::setw(5) << std::right << log_ptr->pid << " "
-                << std::setw(5) << std::right << log_ptr->tid << " "
-                << std::setw(6) << std::right << log_ptr->uid << " "
-                << getLogLevelChar(log_ptr->priority) << " "
-                << log_ptr->tag << " "
-                << vaild_msg
-                << "\n";
-        }else{ // event log
-            std::string tag = log_ptr->tag;
-            try {
-                uint tag_index = std::stoi(log_ptr->tag);
-                auto it = event_tags_map.find(tag_index);
-                if (it != event_tags_map.end()) {
-                    tag = it->second;
-                }
-            } catch (const std::exception& e) {
-            }
-            oss << std::setw(18) << std::left << log_ptr->timestamp << " "
+
+        // Format log entry: timestamp pid tid uid level tag message
+        oss << std::setw(18) << std::left << log_ptr->timestamp << " "
             << std::setw(5) << std::right << log_ptr->pid << " "
             << std::setw(5) << std::right << log_ptr->tid << " "
             << std::setw(6) << std::right << log_ptr->uid << " "
-            << getLogLevelChar(log_ptr->priority) << " "
-            << tag << " "
-            << vaild_msg
-            << "\n";
+            << getLogLevelChar(log_ptr->priority) << " ";
+
+        // Handle different log types
+        if (log_ptr->logid == MAIN || log_ptr->logid == SYSTEM || log_ptr->logid == RADIO
+            || log_ptr->logid == CRASH || log_ptr->logid == KERNEL){
+            // Regular logs: use tag directly
+            oss << log_ptr->tag;
+        } else {
+            // Event logs: map tag index to event name
+            try {
+                uint tag_index = std::stoi(log_ptr->tag);
+                auto it = event_tags_map.find(tag_index);
+                oss << (it != event_tags_map.end() ? it->second : log_ptr->tag);
+            } catch (const std::exception&) {
+                oss << log_ptr->tag;
+            }
         }
+        oss << " " << valid_msg << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+
+    const std::string& output = oss.str();
+    if (!output.empty()) {
+        PRINT("%s\n", output.c_str());
+    }
 }
 
+
+/**
+ * Parse event log data and extract event information
+ * @param pos: Current position in data buffer
+ * @param data: Pointer to event data
+ * @param len: Total length of data buffer
+ * @return: LogEvent structure containing parsed event data
+ */
 LogEvent Logcat::get_event(size_t pos, char* data, size_t len) {
     LogEvent event = {-1, "", -1};
+
+    // Validate buffer bounds
     if ((pos + sizeof(int8_t)) >= len) {
+        LOGE("Buffer overflow in get_event at pos %zu\n", pos);
         return event;
     }
+
+    // Read event type
     int8_t event_type = *reinterpret_cast<int8_t*>(data);
+
     switch (event_type) {
-        case TYPE_INT:{
-            if (pos + sizeof(android_event_int_t) > len) {
+        case TYPE_INT: {
+            // Parse integer event (32-bit)
+            constexpr size_t required_size = sizeof(android_event_int_t);
+            if (pos + required_size > len) {
+                LOGE("Insufficient data for TYPE_INT\n");
                 return event;
             }
-            android_event_int_t event_int = *reinterpret_cast<android_event_int_t*>(data);
-            event.len = sizeof(android_event_int_t);
+            const android_event_int_t& event_int = *reinterpret_cast<const android_event_int_t*>(data);
+            event.len = required_size;
             event.type = event_int.type;
             event.val = std::to_string(event_int.data);
+            break;
         }
-        break;
-        case TYPE_LONG:{
-            if (pos + sizeof(android_event_long_t) > len) {
+        case TYPE_LONG: {
+            // Parse long integer event (64-bit)
+            constexpr size_t required_size = sizeof(android_event_long_t);
+            if (pos + required_size > len) {
+                LOGE("Insufficient data for TYPE_LONG\n");
                 return event;
             }
-            android_event_long_t event_long = *reinterpret_cast<android_event_long_t*>(data);
-            event.len = sizeof(android_event_long_t);
+            const android_event_long_t& event_long = *reinterpret_cast<const android_event_long_t*>(data);
+            event.len = required_size;
             event.type = event_long.type;
             event.val = std::to_string(event_long.data);
+            break;
         }
-        break;
-        case TYPE_FLOAT:{
-            if (pos + sizeof(android_event_float_t) > len) {
+        case TYPE_FLOAT: {
+            // Parse floating point event
+            constexpr size_t required_size = sizeof(android_event_float_t);
+            if (pos + required_size > len) {
+                LOGE("Insufficient data for TYPE_FLOAT\n");
                 return event;
             }
-            android_event_float_t event_float = *reinterpret_cast<android_event_float_t*>(data);
-            event.len = sizeof(android_event_float_t);
+            const android_event_float_t& event_float = *reinterpret_cast<const android_event_float_t*>(data);
+            event.len = required_size;
             event.type = event_float.type;
             event.val = std::to_string(event_float.data);
+            break;
         }
-        break;
-        case TYPE_LIST:{
-            if (pos + sizeof(android_event_list_t) > len) {
+        case TYPE_LIST: {
+            // Parse list event (contains multiple elements)
+            constexpr size_t required_size = sizeof(android_event_list_t);
+            if (pos + required_size > len) {
+                LOGE("Insufficient data for TYPE_LIST\n");
                 return event;
             }
-            android_event_list_t event_list = *reinterpret_cast<android_event_list_t*>(data);
-            event.len = sizeof(android_event_list_t);
+            const android_event_list_t& event_list = *reinterpret_cast<const android_event_list_t*>(data);
+            event.len = required_size;
             event.type = event_list.type;
             event.val = std::to_string(event_list.element_count);
+            break;
         }
-        break;
-        case TYPE_STRING:{
-            if (pos + sizeof(android_event_string_t) > len) {
+        case TYPE_STRING: {
+            // Parse string event (variable length)
+            constexpr size_t header_size = sizeof(android_event_string_t);
+            if (pos + header_size > len) {
+                LOGE("Insufficient data for TYPE_STRING header\n");
                 return event;
             }
-            android_event_string_t event_str = *reinterpret_cast<android_event_string_t*>(data);
-            if (pos + sizeof(android_event_string_t) + event_str.length > len) {
+            const android_event_string_t& event_str = *reinterpret_cast<const android_event_string_t*>(data);
+            const size_t total_size = header_size + event_str.length;
+            if (pos + total_size > len) {
+                LOGE("Insufficient data for TYPE_STRING content\n");
                 return event;
             }
-            event.len = sizeof(android_event_string_t) + event_str.length;
+            event.len = total_size;
             event.type = event_str.type;
-            event.val.assign(data + sizeof(android_event_string_t), event_str.length);
+            event.val.assign(data + header_size, event_str.length);
+            break;
         }
-        break;
         default:
+            LOGE("Unknown event type: %d\n", event_type);
             break;
     }
     return event;
 }
 
+/**
+ * Format timestamp for log display
+ * @param tv_sec: Seconds since epoch
+ * @param tv_nsec: Nanoseconds component
+ * @return: Formatted timestamp string (MM-DD HH:MM:SS.mmm)
+ */
 std::string Logcat::formatTime(uint32_t tv_sec, long tv_nsec) {
-    std::chrono::seconds sec(tv_sec);
-    std::chrono::nanoseconds nsec(tv_nsec);
-    auto tp = std::chrono::time_point<std::chrono::system_clock>(sec) + nsec;
-    std::time_t rtc_time = std::chrono::system_clock::to_time_t(tp);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % 1000;
+    // Convert to time_t for standard time functions
+    std::time_t rtc_time = static_cast<std::time_t>(tv_sec);
+
+    // Calculate milliseconds from nanoseconds
+    auto ms = (tv_nsec / 1000000) % 1000;
+
+    // Convert to GMT time structure
     std::tm* tm = std::gmtime(&rtc_time);
-    char buffer[30];
+
+    // Format date and time
+    char buffer[20];
     strftime(buffer, sizeof(buffer), "%m-%d %H:%M:%S", tm);
-    std::ostringstream oss;
-    oss << buffer << "." << std::setw(3) << std::setfill('0') << ms.count();
-    return oss.str();
+
+    // Append milliseconds
+    char result[64];
+    snprintf(result, sizeof(result), "%s.%03ld", buffer, ms);
+
+    return std::string(result);
 }
 
-size_t Logcat::get_stdlist(std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (ulong)> obj_callback){
+/**
+ * Search for std::list in process memory
+ * Iterates through anonymous VMAs to find std::list structures
+ * @param vma_callback: Callback to filter VMA regions
+ * @param obj_callback: Callback to validate list objects
+ * @return: Address of found std::list, or 0 if not found
+ */
+size_t Logcat::get_stdlist(const std::function<bool(std::shared_ptr<vma_struct>)>& vma_callback, const std::function<bool(ulong)>& obj_callback) {
+    if (!task_ptr) {
+        LOGE("Task pointer is null\n");
+        return 0;
+    }
+
+    LOGD("Searching for std::list in process memory\n");
     int index = 0;
+
+    // Iterate through all anonymous VMA regions
     for (const auto& vma_ptr : task_ptr->for_each_anon_vma()) {
+        // Apply VMA filter callback if provided
         if (vma_callback && !vma_callback(vma_ptr)) {
             continue;
         }
-        if (debug){
-            fprintf(fp, "check vma:[%d]%#lx-%#lx\n", index,vma_ptr->vm_start,vma_ptr->vm_end);
-        }
-        ulong list_addr = task_ptr->search_stdlist(vma_ptr,vma_ptr->vm_start, obj_callback);
-        if (list_addr > 0){
-            if (debug) fprintf(fp, "Found list at %#lx \n", list_addr);
+        LOGD("Checking VMA[%d]: %#lx-%#lx\n", index, vma_ptr->vm_start, vma_ptr->vm_end);
+        // Search for std::list in this VMA
+        ulong list_addr = task_ptr->search_stdlist(vma_ptr, vma_ptr->vm_start, obj_callback);
+        if (list_addr > 0) {
+            LOGD("Found std::list at address: %#lx\n", list_addr);
             return list_addr;
         }
-        index++;
+        ++index;
     }
+
+    LOGD("std::list not found after checking %d VMAs\n", index);
     return 0;
 }
 
-//   --------------------------------------------------------
-//   |    priority    |          tag         |   log         |
-//   --------------------------------------------------------
-void Logcat::parser_system_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, uint16_t msg_len){
-    if (!logbuf) {
+/**
+ * Parse system log entry (MAIN, SYSTEM, RADIO, CRASH, KERNEL)
+ * Log format: [priority][tag\0][message]
+ *
+ * @param log_ptr: Shared pointer to LogEntry to populate
+ * @param logbuf: Buffer containing log data
+ * @param msg_len: Length of log data
+ *
+ * Format:
+ *   --------------------------------------------------------
+ *   |    priority    |          tag         |   log         |
+ *   --------------------------------------------------------
+ */
+void Logcat::parser_system_log(std::shared_ptr<LogEntry> log_ptr, char* logbuf, uint16_t msg_len) {
+    // Validate input parameters
+    if (!logbuf || msg_len == 0) {
+        LOGE("Invalid log buffer or length\n");
         return;
     }
+
+    // Parse priority level (first byte)
     if (logbuf[0] >= LOG_DEFAULT && logbuf[0] <= LOG_SILENT) {
         log_ptr->priority = priorityMap[logbuf[0]];
     } else {
+        LOGE("Invalid priority %d, using default\n", logbuf[0]);
         log_ptr->priority = LOG_DEFAULT;
     }
+
+    // Parse tag (null-terminated string after priority)
     const char* tag_start = logbuf + 1;
     const char* tag_end = static_cast<const char*>(memchr(tag_start, '\0', msg_len - 1));
     if (!tag_end) {
+        LOGE("Tag not null-terminated\n");
         return;
     }
     log_ptr->tag.assign(tag_start, tag_end - tag_start);
+
+    // Parse message (remaining data after tag)
     const char* msg_start = tag_end + 1;
     size_t msg_length = msg_len - (msg_start - logbuf);
     log_ptr->msg = std::string(msg_start, msg_length);
+    LOGD("Parsed system log: tag='%s', priority=%d, msg_len=%zu\n",
+                log_ptr->tag.c_str(), log_ptr->priority, msg_length);
 }
 
-//  ==============================================================================================================================
-//  |   tagindex   |          EVENT_TYPE_LIST        |   EVENT_TYPE_INT  |   value    | EVENT_TYPE_STRING |    len    |   value  |
-//  ==============================================================================================================================
-//                 |sizeof(uint8_t) + sizeof(uint8_t)| sizeof(uint8_t) + sizeof(value)| sizeof(uint8_t) + sizeof(uint32_t) + len  |
+/**
+ * Parse event log entry (EVENTS, STATS, SECURITY)
+ * Event logs have a binary format with typed data
+ *
+ * @param log_ptr: Shared pointer to LogEntry to populate
+ * @param logbuf: Buffer containing event log data
+ * @param msg_len: Length of event log data
+ *
+ * Format:
+ *  ==============================================================================================================================
+ *  |   tagindex   |          EVENT_TYPE_LIST        |   EVENT_TYPE_INT  |   value    | EVENT_TYPE_STRING |    len    |   value  |
+ *  ==============================================================================================================================
+ *                 |sizeof(uint8_t) + sizeof(uint8_t)| sizeof(uint8_t) + sizeof(value)| sizeof(uint8_t) + sizeof(uint32_t) + len  |
+ */
 void Logcat::parser_event_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, uint16_t msg_len){
+    // Validate input
     if (!logbuf) {
+        LOGE("Null log buffer in parser_event_log\n");
         return;
     }
+
+    LOGD("Parsing event log, length: %u\n", msg_len);
+
+    // Event logs are always INFO level
     log_ptr->priority = LogLevel::LOG_INFO;
+
     const size_t header_size = sizeof(android_event_header_t);
     size_t pos = 0;
     char* msg_ptr = logbuf;
     std::ostringstream oss;
+
+    // Parse event log entries
     while (pos < msg_len){
+        // Check if enough space for header
         if (pos + header_size > msg_len){
+            LOGE("Insufficient data for event header\n");
             break;
         }
+
+        // Read event header (contains tag index)
         android_event_header_t head = *reinterpret_cast<android_event_header_t*>(msg_ptr);
         msg_ptr += header_size;
         pos += header_size;
-        // read the tag
+
+        // Store tag as string representation of index
         log_ptr->tag = std::to_string(head.tag);
         oss << std::left << ":[";
+
+        // Parse first event data
         LogEvent event = get_event(pos, msg_ptr, msg_len);
         if (event.type == -1) {
+            LOGE("Failed to parse event data\n");
             break;
         }
         msg_ptr += event.len;
         pos += event.len;
+
+        // Handle list type events (contains multiple elements)
         if (event.type == TYPE_LIST) {
             std::string list_msg;
             int cnt = std::stoi(event.val);
+            LOGD("Parsing event list with %d elements\n", cnt);
+
+            // Parse each list element
             for (int i = 0; i < cnt && pos < msg_len; ++i) {
                 event = get_event(pos, msg_ptr, msg_len);
                 if (!list_msg.empty()) {
@@ -846,12 +1048,15 @@ void Logcat::parser_event_log(std::shared_ptr<LogEntry> log_ptr,char* logbuf, ui
             }
             oss << list_msg;
         } else {
+            // Single value event
             oss << event.val;
         }
         oss << "]" << "\n";
         log_ptr->msg = oss.str();
         oss.str("");
     }
+    LOGD("Event log parsed: tag=%s, msg='%s'\n",
+                log_ptr->tag.c_str(), log_ptr->msg.c_str());
 }
 
 #pragma GCC diagnostic pop
