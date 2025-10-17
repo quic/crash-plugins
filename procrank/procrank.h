@@ -20,13 +20,13 @@
 #include "../utils/utask.h"
 
 struct procrank{
-    ulong vss;
-    ulong rss;
-    ulong pss;
-    ulong uss;
-    ulong swap;
-    ulong pid;
-    // char comm[TASK_COMM_LEN+1];
+    uint64_t vss;
+    uint64_t rss;
+    uint64_t pss;
+    uint64_t uss;
+    uint64_t swap;
+    int pid;
+    std::string comm;
     std::string cmdline;
 };
 
@@ -42,10 +42,16 @@ public:
 private:
     std::shared_ptr<Swapinfo> swap_ptr;
     std::vector<std::shared_ptr<procrank>> procrank_list;
-    std::shared_ptr<UTask> task_ptr;
 
-    std::shared_ptr<procrank> parser_vma(std::shared_ptr<vma_struct> vma_ptr);
     void parser_process_memory();
+    void parser_all_process_memory(uint64_t &total_vss, uint64_t &total_rss, uint64_t &total_pss, uint64_t &total_uss, uint64_t &total_swap);
+    std::shared_ptr<procrank> parser_single_process_memory(ulong task_addr, task_context *tc);
+    void print_process_memory_table(uint64_t total_vss, uint64_t total_rss, uint64_t total_pss, uint64_t total_uss, uint64_t total_swap);
+    std::shared_ptr<procrank> parser_vma(std::shared_ptr<UTask> task_ptr, std::shared_ptr<vma_struct> vma_ptr);
     void parser_process_name();
+    std::string parser_single_process_cmdline(ulong task_addr, task_context *tc);
+    void parser_process_name_only(std::ostringstream &oss);
+    void print_process_name_header(std::ostringstream &oss);
+    void print_process_name_row(std::ostringstream &oss, int pid, const char *comm, const std::string &cmdline);
 };
 #endif // PROCRANK_DEFS_H_
