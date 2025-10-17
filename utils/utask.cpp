@@ -18,37 +18,72 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 
-void UTask::cmd_main(void) {}
+/**
+ * Main command execution (not used for UTask)
+ */
+void UTask::cmd_main(void) {
 
-void UTask::init_command(void) {}
+}
 
+/**
+ * Initialize command metadata (not used for UTask)
+ */
+void UTask::init_command(void) {
+
+}
+
+/**
+ * Constructor with PID
+ * @param swap Shared pointer to Swapinfo instance
+ * @param pid Process ID to analyze
+ */
 UTask::UTask(std::shared_ptr<Swapinfo> swap, int pid): swap_ptr(swap){
+    // Get task context from PID
     tc = pid_to_context(pid);
     if (!tc) {
+        LOGE("Failed to get task context for PID: %d\n", pid);
         return;
     }
+    LOGD("Task context obtained, task address: %#lx\n", tc->task);
+    // Delegate to task address constructor
     UTask(swap, tc->task);
 }
 
+/**
+ * Constructor with task address
+ * @param swap Shared pointer to Swapinfo instance
+ * @param addr Task structure address in kernel memory
+ */
 UTask::UTask(std::shared_ptr<Swapinfo> swap, ulong addr): swap_ptr(swap){
+    // Get task context from task address
     tc = task_to_context(addr);
     if (!tc) {
-        fprintf(fp, "tc is null \n");
+        LOGE("Failed to get task context for address: %#lx\n", addr);
         return;
     }
+    LOGD("Task context obtained, PID: %d, comm: %s\n", tc->pid, tc->comm);
+    // Initialize structure field offsets
     init_offset();
+
+    // Initialize memory management structure
     init_mm_struct();
+
+    // Initialize auxiliary vector
     init_auxv();
+
+    // Initialize virtual memory areas
     init_vma();
+
+    // Get task file descriptors
     task_files = for_each_task_files(tc);
+    LOGD("Found %zu file descriptors\n", task_files.size());
+
+    // Calculate min/max read-write VMA addresses for validation
     for (const auto& vma_ptr : for_each_anon_vma()) {
         min_rw_vma_addr = std::min(min_rw_vma_addr,vma_ptr->vm_start);
         max_rw_vma_addr = std::max(max_rw_vma_addr,vma_ptr->vm_end);
     }
-    if (debug){
-        fprintf(fp, "min_rw_vma_addr:%#lx \n", min_rw_vma_addr);
-        fprintf(fp, "max_rw_vma_addr:%#lx \n", max_rw_vma_addr);
-    }
+    LOGD("VMA address range: [%#lx - %#lx]\n", min_rw_vma_addr, max_rw_vma_addr);
 }
 
 void UTask::init_offset(void) {
@@ -499,12 +534,12 @@ std::vector<size_t> UTask::for_each_stdlist(ulong stdlist_addr){
     size_t list_size = uread_ulong(stdlist_addr + 2 * pointer_size) & vaddr_mask;
     size_t prev_node = 0;
     size_t current = next_node;
-    // fprintf(fp, "addr:0x%lx tail_node:0x%zx next_node:0x%zx list_size:%zu\n",stdlist_addr,tail_node,next_node,list_size);
+    LOGD("addr:0x%lx tail_node:0x%zx next_node:0x%zx list_size:%zu\n",stdlist_addr,tail_node,next_node,list_size);
     for (size_t i = 1; i <= list_size && is_uvaddr(current, tc); ++i) {
         prev_node = uread_ulong(current + 0 * pointer_size) & vaddr_mask;
         next_node = uread_ulong(current + 1 * pointer_size) & vaddr_mask;
         ulong data_node = current + 2 * pointer_size;
-        // fprintf(fp, "[%zu]addr:0x%zx prev_node:0x%zx next_node:0x%zx data_node:0x%lx\n",i,current,prev_node,next_node,data_node);
+        LOGD("[%zu]addr:0x%zx prev_node:0x%zx next_node:0x%zx data_node:0x%lx\n",i,current,prev_node,next_node,data_node);
         if (next_node == 0 || prev_node == tail_node) {
             break;
         }
@@ -518,7 +553,7 @@ std::vector<size_t> UTask::for_each_stdvector(ulong std_vec_addr, size_t key_siz
     std::vector<size_t> vec;
     size_t begin = uread_pointer(std_vec_addr + 0 * pointer_size);
     size_t end = uread_pointer(std_vec_addr + 1 * pointer_size);
-    // fprintf(fp, "addr:%#lx begin:0x%zx end:0x%zx\n", std_vec_addr, begin, end);
+    LOGD("addr:%#lx begin:0x%zx end:0x%zx\n", std_vec_addr, begin, end);
     for (size_t addr = begin; addr < end && is_uvaddr(addr, tc) && addr != 0; addr += key_size) {
         vec.push_back(addr);
     }
@@ -536,7 +571,7 @@ std::string UTask::for_each_stdstring(ulong std_string_addr){
         len = data >> 1;
         std_string_addr = std_string_addr + 1;
     }
-    // fprintf(fp, "is_long:%d len:%zu std_string_addr:%#lx \n", is_long, len, std_string_addr);
+    LOGD("is_long:%d len:%zu std_string_addr:%#lx \n", is_long, len, std_string_addr);
     std::vector<char> str= read_data(std_string_addr, len);
     if (!str.empty()) {
         return std::string(str.begin(), str.end());
@@ -564,7 +599,7 @@ std::map<size_t, size_t> UTask::for_each_stdmap(ulong std_map_addr, size_t key_s
     std::map<size_t, size_t> map;
     size_t root = uread_pointer(std_map_addr + pointer_size);
     size_t map_size = uread_uint(std_map_addr + 2 * pointer_size);
-    // fprintf(fp, "addr:%#lx map_size:%zu root:0x%zx \n", std_map_addr, map_size, root);
+    LOGD("addr:%#lx map_size:%zu root:0x%zx \n", std_map_addr, map_size, root);
     if(map_size == 0 || !root || !is_uvaddr(root, tc)){
         return map;
     }
@@ -585,7 +620,7 @@ std::map<size_t, size_t> UTask::for_each_stdmap(ulong std_map_addr, size_t key_s
         if(is_uvaddr(key_addr, tc) && is_uvaddr(value_addr, tc)){
             map.emplace(std::make_pair(key_addr, value_addr));
         }
-        // fprintf(fp, "child root:0x%zx left_addr:0x%zx right_addr:0x%zx \n", root_addr, left_addr, right_addr);
+        LOGD("child root:0x%zx left_addr:0x%zx right_addr:0x%zx \n", root_addr, left_addr, right_addr);
         if(right_addr && is_uvaddr(right_addr, tc)){
             node_stack.push_back(right_addr);
         }
@@ -594,7 +629,7 @@ std::map<size_t, size_t> UTask::for_each_stdmap(ulong std_map_addr, size_t key_s
         }
     }
     if(map_size != map.size()){
-        fprintf(fp, "map size is mismatch, memory size:%zu, real size:%zu \n", map_size, map.size());
+        LOGD("map size is mismatch, memory size:%zu, real size:%zu \n", map_size, map.size());
     }
     return map;
 }
@@ -602,29 +637,29 @@ std::map<size_t, size_t> UTask::for_each_stdmap(ulong std_map_addr, size_t key_s
 uint64_t UTask::read_sections(std::string& section_name,std::string& libname, int *align) {
     int fd = open(libname.c_str(), O_RDONLY);
     if (fd == -1) {
-        fprintf(fp, "Failed to open %s\n", libname.c_str());
+        LOGD("Failed to open %s\n", libname.c_str());
         return 0;
     }
     if (elf_version(EV_CURRENT) == EV_NONE) {
-        fprintf(fp, "ELF library initialization failed: %s\n", elf_errmsg(-1));
+        LOGD("ELF library initialization failed: %s\n", elf_errmsg(-1));
         close(fd);
         return 0;
     }
     Elf* e = elf_begin(fd, ELF_C_READ, nullptr);
     if (!e) {
-        fprintf(fp, "elf_begin() failed: %s\n", elf_errmsg(-1));
+        LOGD("elf_begin() failed: %s\n", elf_errmsg(-1));
         close(fd);
         return 0;
     }
     if (elf_kind(e) != ELF_K_ELF) {
-        fprintf(fp, "%s is not an ELF file.\n", libname.c_str());
+        LOGD("%s is not an ELF file.\n", libname.c_str());
         elf_end(e);
         close(fd);
         return 0;
     }
     size_t shstrndx;
     if (elf_getshdrstrndx(e, &shstrndx) != 0) {
-        fprintf(fp, "elf_getshdrstrndx() failed: %s\n", elf_errmsg(-1));
+        LOGD("elf_getshdrstrndx() failed: %s\n", elf_errmsg(-1));
         elf_end(e);
         close(fd);
         return 0;
@@ -633,7 +668,7 @@ uint64_t UTask::read_sections(std::string& section_name,std::string& libname, in
     while ((scn = elf_nextscn(e, scn)) != nullptr) {
         GElf_Shdr shdr;
         if (gelf_getshdr(scn, &shdr) != &shdr) {
-            fprintf(fp, "gelf_getshdr() failed: %s\n", elf_errmsg(-1));
+            LOGD("gelf_getshdr() failed: %s\n", elf_errmsg(-1));
             elf_end(e);
             close(fd);
             return 0;
@@ -654,29 +689,29 @@ uint64_t UTask::read_sections(std::string& section_name,std::string& libname, in
 uint64_t UTask::read_symbol(std::string& symbol_name,std::string& libname) {
     int fd = open(libname.c_str(), O_RDONLY);
     if (fd == -1) {
-        fprintf(fp, "Failed to open %s\n", libname.c_str());
+        LOGD("Failed to open %s\n", libname.c_str());
         return 0;
     }
     if (elf_version(EV_CURRENT) == EV_NONE) {
-        fprintf(fp, "ELF library initialization failed: %s\n", elf_errmsg(-1));
+        LOGD("ELF library initialization failed: %s\n", elf_errmsg(-1));
         close(fd);
         return 0;
     }
     Elf* e = elf_begin(fd, ELF_C_READ, nullptr);
     if (!e) {
-        fprintf(fp, "elf_begin() failed: %s\n", elf_errmsg(-1));
+        LOGD("elf_begin() failed: %s\n", elf_errmsg(-1));
         close(fd);
         return 0;
     }
     if (elf_kind(e) != ELF_K_ELF) {
-        fprintf(fp, "%s is not an ELF file.\n", libname.c_str());
+        LOGD("%s is not an ELF file.\n", libname.c_str());
         elf_end(e);
         close(fd);
         return 0;
     }
     size_t shstrndx;
     if (elf_getshdrstrndx(e, &shstrndx) != 0) {
-        fprintf(fp, "elf_getshdrstrndx() failed: %s\n", elf_errmsg(-1));
+        LOGD("elf_getshdrstrndx() failed: %s\n", elf_errmsg(-1));
         elf_end(e);
         close(fd);
         return 0;
@@ -685,7 +720,7 @@ uint64_t UTask::read_symbol(std::string& symbol_name,std::string& libname) {
     while ((scn = elf_nextscn(e, scn)) != nullptr) {
         GElf_Shdr shdr;
         if (gelf_getshdr(scn, &shdr) != &shdr) {
-            fprintf(fp, "gelf_getshdr() failed: %s\n", elf_errmsg(-1));
+            LOGD("gelf_getshdr() failed: %s\n", elf_errmsg(-1));
             elf_end(e);
             close(fd);
             return 0;
@@ -746,39 +781,29 @@ ulong UTask::get_var_addr_by_bss(std::string libname, std::string var_name){
     if(filename.empty()){
         return 0;
     }
-    // fprintf(fp, "filename: %s \n",filename.c_str());
+    LOGD("filename: %s \n",filename.c_str());
     // get the min vaddr of the lib
     ulong vraddr = get_min_vma_start(filename);
-    if (debug){
-        fprintf(fp, "Min vaddr:0x%lx \n",vraddr);
-    }
+    LOGD("Min vaddr:0x%lx \n",vraddr);
     // get the static addr of bss.
     int bss_align = 0;
     std::string section_name = ".bss";
     size_t bss_saddr = read_sections(section_name,libname,&bss_align);
-    if (debug){
-        fprintf(fp, "bss_saddr:%#zx \n",bss_saddr);
-        fprintf(fp, "bss_align:%d \n",bss_align);
-    }
+    LOGD("bss_saddr:%#zx \n",bss_saddr);
+    LOGD("bss_align:%d \n",bss_align);
     // calc the runtime addr of bss for lib
     size_t bss_vaddr = vraddr + bss_saddr;
     bss_vaddr = roundup(bss_vaddr,bss_align);
-    if (debug){
-        fprintf(fp, "bss_vaddr:%#zx \n",bss_vaddr);
-    }
+    LOGD("bss_vaddr:%#zx \n",bss_vaddr);
     // get the static addr of var_name
     size_t var_saddr = read_symbol(var_name,libname);
     if (var_saddr == 0){
         return 0;
     }
-    if (debug){
-        fprintf(fp, "var_saddr:%#zx \n",var_saddr);
-    }
+    LOGD("var_saddr:%#zx \n",var_saddr);
     // calc the runtime addr of var_name
     size_t var_vaddr = bss_vaddr + (var_saddr - bss_saddr);
-    if (debug){
-        fprintf(fp, "var_vaddr:%#zx \n",var_vaddr);
-    }
+    LOGD("var_vaddr:%#zx \n",var_vaddr);
     if (!is_uvaddr(var_vaddr,tc)){
         return 0;
     }

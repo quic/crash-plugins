@@ -22,16 +22,33 @@
 DEFINE_PLUGIN_COMMAND(Zram)
 #endif
 
+/**
+ * @brief Main command handler for ZRAM plugin
+ *
+ * Processes command-line arguments and dispatches to appropriate
+ * print functions based on user options.
+ */
 void Zram::cmd_main(void) {
     int c;
     std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    if (!is_zram_enable()){
+
+    // Validate minimum argument count
+    if (argcnt < 2) {
+        cmd_usage(pc->curcmd, SYNOPSIS);
         return;
     }
+
+    // Check if ZRAM is enabled in the kernel
+    if (!is_zram_enable()){
+        LOGD("ZRAM is not enabled or not properly configured\n");
+        return;
+    }
+    // Parse ZRAM devices if not already done
     if(zram_list.size() == 0){
         parser_zrams();
+        LOGD("Found %zu ZRAM device(s)\n", zram_list.size());
     }
+    // Process command-line options
     while ((c = getopt(argcnt, args, "am:f:p:z:o:d")) != EOF) {
         switch(c) {
             case 'a':
@@ -62,12 +79,27 @@ void Zram::cmd_main(void) {
                 break;
         }
     }
-    if (argerrs)
+
+    if (argerrs) {
         cmd_usage(pc->curcmd, SYNOPSIS);
+    }
 }
 
-void Zram::init_offset(void) {}
+/**
+ * @brief Initialize structure offsets (not used in this class)
+ *
+ * Offset initialization is handled by the parent Zraminfo class.
+ */
+void Zram::init_offset(void) {
+    // No additional offsets needed for command interface
+}
 
+/**
+ * @brief Initialize command metadata and help information
+ *
+ * Sets up command name, description, and detailed usage examples
+ * for the ZRAM debugging command.
+ */
 void Zram::init_command(void) {
     cmd_name = "zram";
     help_str_list={
@@ -150,14 +182,31 @@ void Zram::init_command(void) {
     };
 }
 
-Zram::Zram(){}
+/**
+ * @brief Constructor for Zram command interface
+ *
+ * Initializes the ZRAM command plugin by calling parent constructor.
+ */
+Zram::Zram(){
+    // Parent class Zraminfo handles initialization
+}
 
+/**
+ * @brief Print memory pool information for a ZRAM device
+ *
+ * Displays zs_pool details including size classes, allocation statistics,
+ * and object usage for the specified ZRAM device.
+ *
+ * @param zram_addr ZRAM device address as hex string
+ */
 void Zram::print_mem_pool(std::string zram_addr){
     ulong addr = std::stoul(zram_addr, nullptr, 16);
+    // Validate kernel virtual address
     if (!is_kvaddr(addr)){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGE("Invalid address %lx\n", addr);
         return;
     }
+    // Find ZRAM device in parsed list
     std::shared_ptr<zram> zram_ptr;
     bool is_found = false;
     for (const auto &zram : zram_list){
@@ -167,8 +216,9 @@ void Zram::print_mem_pool(std::string zram_addr){
             break;
         }
     }
+
     if (is_found == false){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGD("ZRAM device not found at address %lx\n", addr);
         return;
     }
     std::shared_ptr<zs_pool> pool_ptr = zram_ptr->mem_pool;
@@ -227,15 +277,26 @@ void Zram::print_mem_pool(std::string zram_addr){
             << std::left << std::dec << std::setw(13) << class_ptr->stats[OBJ_ALLOCATED] << " "
             << std::left << std::dec << class_ptr->stats[OBJ_USED] << "\n";
     }
-    fprintf(fp, "%s", oss.str().c_str());
+    PRINT("%s", oss.str().c_str());
 }
 
+/**
+ * @brief Print all zspages for a ZRAM device
+ *
+ * Displays information about all zspages (zsmalloc pages) including
+ * class ID, fullness ratio, and object counts.
+ *
+ * @param zram_addr ZRAM device address as hex string
+ */
 void Zram::print_zspages(std::string zram_addr){
     ulong addr = std::stoul(zram_addr, nullptr, 16);
+
+    // Validate kernel virtual address
     if (!is_kvaddr(addr)){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGE("Invalid address %lx\n", addr);
         return;
     }
+    // Find ZRAM device in parsed list
     std::shared_ptr<zram> zram_ptr;
     bool is_found = false;
     for (const auto &zram : zram_list){
@@ -246,7 +307,7 @@ void Zram::print_zspages(std::string zram_addr){
         }
     }
     if (is_found == false){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGD("ZRAM device not found at address %lx\n", addr);
         return;
     }
     size_t index = 1;
@@ -282,15 +343,25 @@ void Zram::print_zspages(std::string zram_addr){
             }
         }
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * @brief Print all pages for a ZRAM device
+ *
+ * Displays detailed page information including PFN (Page Frame Number),
+ * physical address range, and offset for all pages in the ZRAM device.
+ *
+ * @param zram_addr ZRAM device address as hex string
+ */
 void Zram::print_pages(std::string zram_addr){
     ulong addr = std::stoul(zram_addr, nullptr, 16);
+    // Validate kernel virtual address
     if (!is_kvaddr(addr)){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGE("Invalid address %lx\n", addr);
         return;
     }
+    // Find ZRAM device in parsed list
     std::shared_ptr<zram> zram_ptr;
     bool is_found = false;
     for (const auto &zram : zram_list){
@@ -301,7 +372,7 @@ void Zram::print_pages(std::string zram_addr){
         }
     }
     if (is_found == false){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGD("ZRAM device not found at address %lx\n", addr);
         return;
     }
     size_t index = 1;
@@ -331,41 +402,65 @@ void Zram::print_pages(std::string zram_addr){
             }
         }
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
+/**
+ * @brief Print objects by address (size_class/zspage/page)
+ *
+ * Searches for the given address in size classes, zspages, or pages,
+ * and prints all objects associated with the found structure.
+ *
+ * @param addr Address to search for (hex string)
+ */
 void Zram::print_objs(std::string addr){
     ulong vaddr = std::stoul(addr, nullptr, 16);
+    // Validate kernel virtual address
     if (!is_kvaddr(vaddr)){
-        fprintf(fp, "invaild addr %s, please input the size_class/zspage/page address\n",addr.c_str());
+        LOGE("Invalid address %s, please input size_class/zspage/page address\n", addr.c_str());
         return;
     }
+    // Flags to determine what type of structure was found
     int flags = 0;
     std::shared_ptr<size_class> mclass_ptr;
     std::shared_ptr<zpage> mzspage_ptr;
     std::shared_ptr<pageinfo> mpage_ptr;
+
+    // Search through all ZRAM devices and their structures
     for (const auto &zram_ptr : zram_list){
         for (const auto& class_ptr : zram_ptr->mem_pool->class_list) {
+            // Parse zspage if not already done
             if(class_ptr->zspage_parser == false){
                 parser_zpage(class_ptr);
             }
+
+            // Check if address matches size_class
             if(class_ptr->addr == vaddr){
+                LOGD("Found size_class at %lx\n", vaddr);
                 flags = PRINT_SIZE_CLASS;
                 mclass_ptr = class_ptr;
                 goto print_obj;
             }
+
+            // Search through zspages and pages
             for (int i = 0; i < group_cnt; i++){
                 std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
                 for (size_t z = 0; z < zspage_list.size(); z++){
                     std::shared_ptr<zpage> zspage_ptr = zspage_list[z];
+
+                    // Check if address matches zspage
                     if(zspage_ptr->addr == vaddr){
+                        LOGD("Found zspage at %lx\n", vaddr);
                         flags = PRINT_ZSPAGE;
                         mzspage_ptr = zspage_ptr;
                         goto print_obj;
                     }
+
+                    // Check if address matches page
                     for (size_t p = 0; p < zspage_ptr->page_list.size(); p++){
                         std::shared_ptr<pageinfo> pageinfo = zspage_ptr->page_list[p];
                         if(pageinfo->addr == vaddr){
+                            LOGD("Found page at %lx\n", vaddr);
                             flags = PRINT_PAGE;
                             mpage_ptr = pageinfo;
                             goto print_obj;
@@ -375,16 +470,28 @@ void Zram::print_objs(std::string addr){
             }
         }
     }
+
 print_obj:
+    // Print objects based on found structure type
     if (flags & PRINT_SIZE_CLASS){
         print_size_class_obj(mclass_ptr);
     }else if(flags & PRINT_ZSPAGE){
         print_zspage_obj(mzspage_ptr);
     }else if(flags & PRINT_PAGE){
         print_page_obj(mpage_ptr);
+    }else{
+        LOGD("Address %s not found in any ZRAM structures\n", addr.c_str());
     }
 }
 
+/**
+ * @brief Print all objects in a size class
+ *
+ * Iterates through all zspages and pages in the size class
+ * and prints their objects.
+ *
+ * @param class_ptr Pointer to size_class structure
+ */
 void Zram::print_size_class_obj(std::shared_ptr<size_class> class_ptr){
     for (int i = 0; i < group_cnt; i++){
         std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
@@ -398,6 +505,13 @@ void Zram::print_size_class_obj(std::shared_ptr<size_class> class_ptr){
     }
 }
 
+/**
+ * @brief Print all objects in a zspage
+ *
+ * Iterates through all pages in the zspage and prints their objects.
+ *
+ * @param zspage_ptr Pointer to zpage structure
+ */
 void Zram::print_zspage_obj(std::shared_ptr<zpage> zspage_ptr){
     for (size_t p = 0; p < zspage_ptr->page_list.size(); p++){
         std::shared_ptr<pageinfo> pageinfo = zspage_ptr->page_list[p];
@@ -405,8 +519,18 @@ void Zram::print_zspage_obj(std::shared_ptr<zpage> zspage_ptr){
     }
 }
 
+/**
+ * @brief Print all objects in a page
+ *
+ * Displays detailed object information including handle address,
+ * physical address range, index, and allocation status.
+ *
+ * @param page_ptr Pointer to pageinfo structure
+ */
 void Zram::print_page_obj(std::shared_ptr<pageinfo> page_ptr){
     std::ostringstream oss;
+
+    // Iterate through all objects in the page
     for (const auto &obj_ptr : page_ptr->obj_list){
             oss << "           obj[" << std::setw(6) << std::right << std::setfill('0') << obj_ptr->id << "]"
                 << std::hex << obj_ptr->start << "~" << std::hex << obj_ptr->end << " "
@@ -415,15 +539,26 @@ void Zram::print_page_obj(std::shared_ptr<pageinfo> page_ptr){
                 << (obj_ptr->is_free ? "freed" : "alloc")
                 << "\n";
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT("%s \n", oss.str().c_str());
 }
 
+/**
+ * @brief Print complete detailed information for a ZRAM device
+ *
+ * Displays comprehensive information including all size classes, zspages,
+ * pages, and objects with their detailed properties.
+ *
+ * @param zram_addr ZRAM device address as hex string
+ */
 void Zram::print_zram_full_info(std::string zram_addr){
     ulong addr = std::stoul(zram_addr, nullptr, 16);
+    // Validate kernel virtual address
     if (!is_kvaddr(addr)){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGE("Invalid address %lx\n", addr);
         return;
     }
+
+    // Find ZRAM device in parsed list
     std::shared_ptr<zram> zram_ptr;
     bool is_found = false;
     for (const auto &zram : zram_list){
@@ -433,29 +568,30 @@ void Zram::print_zram_full_info(std::string zram_addr){
             break;
         }
     }
+
     if (is_found == false){
-        fprintf(fp, "invaild addr %lx\n",addr);
+        LOGD("ZRAM device not found at address %lx\n", addr);
         return;
     }
     for (const auto& class_ptr : zram_ptr->mem_pool->class_list) {
         if(class_ptr->zspage_parser == false){
             parser_zpage(class_ptr);
         }
-        fprintf(fp, "\nsize_class(%lx) objs_per_zspage:%d pages_per_zspage:%d size:%d\n", class_ptr->addr,
+        PRINT("\nsize_class(%lx) objs_per_zspage:%d pages_per_zspage:%d size:%d\n", class_ptr->addr,
             class_ptr->objs_per_zspage, class_ptr->pages_per_zspage, class_ptr->size);
         for (int i = 0; i < group_cnt; i++){
             std::vector<std::shared_ptr<zpage>> zspage_list = class_ptr->fullness_list[i];
             for (size_t z = 0; z < zspage_list.size(); z++){
                 std::shared_ptr<zpage> zspage_ptr = zspage_list[z];
                 if (THIS_KERNEL_VERSION < LINUX(5, 17, 0)){
-                    fprintf(fp, "   zspage[%zu]:%lx freeobj:%d inuse:%d class:%d fullness:%d\n", z,
+                    PRINT("   zspage[%zu]:%lx freeobj:%d inuse:%d class:%d fullness:%d\n", z,
                             zspage_ptr->addr,
                             zspage_ptr->zspage.freeobj,
                             zspage_ptr->zspage.inuse,
                             zspage_ptr->zspage.v0.class_id,
                             zspage_ptr->zspage.v0.fullness);
                 }else{
-                    fprintf(fp, "   zspage[%zu]:%lx freeobj:%d inuse:%d class:%d fullness:%d\n",z,
+                    PRINT("   zspage[%zu]:%lx freeobj:%d inuse:%d class:%d fullness:%d\n",z,
                             zspage_ptr->addr,
                             zspage_ptr->zspage.freeobj,
                             zspage_ptr->zspage.inuse,
@@ -468,7 +604,7 @@ void Zram::print_zram_full_info(std::string zram_addr){
                     ulong pfn = page_to_pfn(pageinfo->addr);
                     physaddr_t page_end = page_start + page_size;
                     int offset = read_int(pageinfo->addr + field_offset(page,units),"page units");
-                    fprintf(fp, "       page[%zu]:%lx PFN:%lx range:%llx-%llx offset:%d\n", p, pageinfo->addr,
+                    PRINT("       page[%zu]:%lx PFN:%lx range:%llx-%llx offset:%d\n", p, pageinfo->addr,
                         pfn,(ulonglong)page_start,(ulonglong)page_end,offset);
                     print_page_obj(pageinfo);
                 }
@@ -477,14 +613,22 @@ void Zram::print_zram_full_info(std::string zram_addr){
     }
 }
 
+/**
+ * @brief Print summary information for all ZRAM devices
+ *
+ * Displays a comprehensive summary of all ZRAM devices including
+ * compression statistics, memory usage, and device configuration.
+ */
 void Zram::print_zrams(){
+    // Check if any ZRAM devices exist
     if (zram_list.size() == 0){
-        fprintf(fp, "Maybe not enable zram \n");
+        LOGD("No ZRAM devices found - ZRAM may not be enabled\n");
         return;
     }
-    fprintf(fp, "========================================================================\n");
+    PRINT("========================================================================\n");
     std::ostringstream oss;
     for (const auto& zram_ptr : zram_list) {
+        // Calculate compression ratio
         double ratio = (double)zram_ptr->stats.compr_data_size / (double)(zram_ptr->stats.pages_stored * page_size);
         oss << std::left << std::setw(20) << "zram"             << ": " << std::hex << zram_ptr->addr << "\n"
             << std::left << std::setw(20) << "name"             << ": " << zram_ptr->disk_name << "\n"
@@ -501,8 +645,8 @@ void Zram::print_zrams(){
             << std::left << std::setw(20) << "huge_pages"       << ": " << csize(zram_ptr->stats.huge_pages * page_size) << "\n"
             << std::left << std::setw(20) << "compacted_pages"  << ": " << csize(zram_ptr->mem_pool->stats.pages_compacted.counter * page_size) << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
-    fprintf(fp, "========================================================================\n");
+    PRINT("%s \n",oss.str().c_str());
+    PRINT("========================================================================\n");
 }
 
 #pragma GCC diagnostic pop

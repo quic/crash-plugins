@@ -19,58 +19,77 @@
 #include "plugin.h"
 #include "memory/swapinfo.h"
 
+/**
+ * Virtual Memory Area structure
+ * Represents a contiguous range of virtual memory in a process
+ */
 struct vma_struct {
-    std::string name;
-    ulong addr;
-    ulong vm_start;
-    ulong vm_end;
-    ulong vm_size;
-    ulong vm_flags;
-    ulong vm_file;
-    ulong vm_pgoff;
-    ulong anon_name;
-    ulong anon_vma;
-    std::vector<char> vm_data;
+    std::string name;           // Name of the VMA (e.g., [heap], [stack], library name)
+    ulong addr;                 // Address of the vm_area_struct in kernel memory
+    ulong vm_start;             // Start address of the VMA
+    ulong vm_end;               // End address of the VMA
+    ulong vm_size;              // Size of the VMA (vm_end - vm_start)
+    ulong vm_flags;             // VMA flags (read/write/execute permissions)
+    ulong vm_file;              // Pointer to associated file structure (if file-backed)
+    ulong vm_pgoff;             // Page offset in the file
+    ulong anon_name;            // Anonymous VMA name pointer
+    ulong anon_vma;             // Anonymous VMA structure pointer
+    std::vector<char> vm_data;  // Cached data from this VMA
 };
 
+/**
+ * Memory management structure
+ * Contains information about a process's memory layout
+ */
 struct mm_struct {
-    int mm_count;
-    ulong pgd;
-    ulong start_code;
-    ulong end_code;
-    ulong start_data;
-    ulong end_data;
-    ulong start_brk;
-    ulong brk;
-    ulong start_stack;
-    ulong arg_start;
-    ulong arg_end;
-    ulong env_start;
-    ulong env_end;
-    ulong flags;
+    int mm_count;               // Reference count
+    ulong pgd;                  // Page Global Directory address
+    ulong start_code;           // Start address of code segment
+    ulong end_code;             // End address of code segment
+    ulong start_data;           // Start address of data segment
+    ulong end_data;             // End address of data segment
+    ulong start_brk;            // Start address of heap
+    ulong brk;                  // Current end of heap
+    ulong start_stack;          // Start address of stack
+    ulong arg_start;            // Start of command line arguments
+    ulong arg_end;              // End of command line arguments
+    ulong env_start;            // Start of environment variables
+    ulong env_end;              // End of environment variables
+    ulong flags;                // Memory management flags
 };
 
+/**
+ * 32-bit linked list node structure
+ * Used for parsing std::list in 32-bit processes
+ */
 typedef struct{
-    uint32_t prev;
-    uint32_t next;
-    uint32_t data;
+    uint32_t prev;              // Pointer to previous node
+    uint32_t next;              // Pointer to next node
+    uint32_t data;              // Data or list size
 } list_node32_t;
 
+/**
+ * 64-bit linked list node structure
+ * Used for parsing std::list in 64-bit processes
+ */
 typedef struct{
-    uint64_t prev;
-    uint64_t next;
-    uint64_t data;
+    uint64_t prev;              // Pointer to previous node
+    uint64_t next;              // Pointer to next node
+    uint64_t data;              // Data or list size
 } list_node64_t;
 
+/**
+ * File-backed VMA structure
+ * Groups related VMAs for a single file (text, data, bss segments)
+ */
 struct file_vma {
-    std::shared_ptr<vma_struct> text;
-    std::vector<std::shared_ptr<vma_struct>> data;
-    std::shared_ptr<vma_struct> bss;
+    std::shared_ptr<vma_struct> text;                       // Text (code) segment
+    std::vector<std::shared_ptr<vma_struct>> data;          // Data segments
+    std::shared_ptr<vma_struct> bss;                        // BSS (uninitialized data) segment
 };
 
 class UTask : public ParserPlugin {
 private:
-    bool debug = false;
     bool compat = false;
     int pointer_size = 8;
     struct task_context *tc;
@@ -90,7 +109,7 @@ private:
     void init_auxv();
     template<typename T, typename P>
     size_t check_object(std::string libname, std::shared_ptr<vma_struct> vma_ptr, std::function<bool (T*)> obj_callback,int vtb_cnt) {
-        if(debug) fprintf(fp, "[%#lx-%#lx]: %s \n", vma_ptr->vm_start, vma_ptr->vm_end, vma_ptr->name.c_str());
+        LOGD("[%#lx-%#lx]:%s \n", vma_ptr->vm_start, vma_ptr->vm_end, vma_ptr->name.c_str());
         // read the whole vma data;
         if(vma_ptr->vm_data.size() == 0){
             vma_ptr->vm_data = read_vma_data(vma_ptr);
@@ -107,8 +126,8 @@ private:
             P* vtable = nullptr;
             for (const auto& data_vma_ptr : for_each_data_vma(libname)) {
                 if (is_contains(data_vma_ptr, vtable_ptr) && is_contains(data_vma_ptr, (vtable_ptr + sizeof(vtb_cnt * sizeof(P))))) {
-                    // if(debug) fprintf(fp, "vtpr:%#lx \n", vtable_ptr);
-                    // fprintf(fp, "%s", hexdump(0x1000, data_vma_ptr->vm_data, data_vma_ptr->vm_size).c_str());
+                    LOGD("vtpr:%#lx \n", vtable_ptr);
+                    // LOGD("%s", hexdump(0x1000, data_vma_ptr->vm_data, data_vma_ptr->vm_size).c_str());
                     if(data_vma_ptr->vm_data.size() == 0){
                         data_vma_ptr->vm_data = read_vma_data(data_vma_ptr);
                     }
@@ -133,10 +152,10 @@ private:
                 match &= obj_callback(obj);
             }
             if (match){
-                if(debug)fprintf(fp, "Found the match vtable, addr:%#" PRIxPTR " vtpr:%#" PRIxPTR "\n", (uintptr_t)addr, (uintptr_t)(vtable_ptr));
+                LOGD("Found the match vtable, addr:%#" PRIxPTR " vtpr:%#" PRIxPTR "\n", (uintptr_t)addr, (uintptr_t)(vtable_ptr));
                 for (int i = 0; i < vtb_cnt; ++i){
                     ulong vfun_ptr = vtable[i] & vaddr_mask;
-                    if(debug)fprintf(fp, "  vfunc[%d] addr:%#" PRIxPTR  "\n", i, (uintptr_t)vfun_ptr);
+                    LOGD("  vfunc[%d] addr:%#" PRIxPTR  "\n", i, (uintptr_t)vfun_ptr);
                 }
                 return addr;
             }
@@ -219,13 +238,11 @@ public:
         U tmp_next = head_node->next & vaddr_mask;
         U tmp_prev = head_node->prev & vaddr_mask;
         U tmp_data = head_node->data & vaddr_mask;
-        if (debug) {
-            fprintf(fp, "  addr:%#" PRIxPTR " tail_node:%#" PRIxPTR " next_node:%#" PRIxPTR " list_size:%#" PRIxPTR "\n",
-                (uintptr_t)addr,
-                (uintptr_t)(tmp_prev),
-                (uintptr_t)(tmp_next),
-                (uintptr_t)(tmp_data));
-        }
+        LOGD("  addr:%#" PRIxPTR " tail_node:%#" PRIxPTR " next_node:%#" PRIxPTR " list_size:%#" PRIxPTR "\n",
+            (uintptr_t)addr,
+            (uintptr_t)(tmp_prev),
+            (uintptr_t)(tmp_next),
+            (uintptr_t)(tmp_data));
         if (!(tmp_prev >= min_rw_vma_addr && tmp_prev <= max_rw_vma_addr)
             || !(tmp_next >= min_rw_vma_addr && tmp_next <= max_rw_vma_addr)) {
                 return 0;
@@ -252,13 +269,11 @@ public:
             tmp_next = next_node->next & vaddr_mask;
             tmp_prev = next_node->prev & vaddr_mask;
             tmp_data = next_node->data & vaddr_mask;
-            if (debug) {
-                fprintf(fp, "    addr:%#" PRIxPTR " prev_node:%#" PRIxPTR " next_node:%#" PRIxPTR " data:%#" PRIxPTR "\n",
-                    (uintptr_t)next_node_addr,
-                    (uintptr_t)tmp_prev,
-                    (uintptr_t)tmp_next,
-                    (uintptr_t)tmp_data);
-            }
+            LOGD("    addr:%#" PRIxPTR " prev_node:%#" PRIxPTR " next_node:%#" PRIxPTR " data:%#" PRIxPTR "\n",
+                (uintptr_t)next_node_addr,
+                (uintptr_t)tmp_prev,
+                (uintptr_t)tmp_next,
+                (uintptr_t)tmp_data);
             if (!(tmp_prev >= min_rw_vma_addr && tmp_prev <= max_rw_vma_addr)
                 || !(tmp_next >= min_rw_vma_addr && tmp_next <= max_rw_vma_addr)) {
                 break;
@@ -286,18 +301,16 @@ public:
     }
     template<typename T, typename P>
     size_t search_obj(std::string libname, bool is_static, std::function<bool (std::shared_ptr<vma_struct>)> vma_callback, std::function<bool (T*)> obj_callback,int vtb_cnt) {
-        if(debug) {
-            for (const auto& data_ptr : for_each_data_vma(libname)) {
-                fprintf(fp, "%s data:[%#lx-%#lx] \n", libname.c_str(), data_ptr->vm_start, data_ptr->vm_end);
-            }
-            std::shared_ptr<vma_struct> text_ptr = get_text_vma(libname);
-            if (text_ptr != nullptr){
-                fprintf(fp, "%s text:[%#lx-%#lx] \n", libname.c_str(), text_ptr->vm_start, text_ptr->vm_end);
-            }
-            std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
-            if (bss_ptr != nullptr){
-                fprintf(fp, "%s bss:[%#lx-%#lx] \n", libname.c_str(), bss_ptr->vm_start, bss_ptr->vm_end);
-            }
+        for (const auto& data_ptr : for_each_data_vma(libname)) {
+            LOGD("%s data:[%#lx-%#lx] \n", libname.c_str(), data_ptr->vm_start, data_ptr->vm_end);
+        }
+        std::shared_ptr<vma_struct> text_ptr = get_text_vma(libname);
+        if (text_ptr != nullptr){
+            LOGD("%s text:[%#lx-%#lx] \n", libname.c_str(), text_ptr->vm_start, text_ptr->vm_end);
+        }
+        std::shared_ptr<vma_struct> bss_ptr = get_bss_vma(libname);
+        if (bss_ptr != nullptr){
+            LOGD("%s bss:[%#lx-%#lx] \n", libname.c_str(), bss_ptr->vm_start, bss_ptr->vm_end);
         }
         std::vector<std::shared_ptr<vma_struct>> vm_list;
         vm_list.clear();
@@ -326,4 +339,3 @@ public:
 };
 
 #endif // TASK_DEFS_H_
-
