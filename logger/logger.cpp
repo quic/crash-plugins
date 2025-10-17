@@ -29,7 +29,7 @@ LoggerLevel Logger::parseLoggerLevel(const std::string& level_str) {
     if (upper_level == "INFO" || upper_level == "I")  return LoggerLevel::LEVEL_INFO;
     if (upper_level == "WARN" || upper_level == "W")  return LoggerLevel::LEVEL_WARN;
     if (upper_level == "ERROR" || upper_level == "E") return LoggerLevel::LEVEL_ERROR;
-    return LoggerLevel::LEVEL_WARN;
+    return LoggerLevel::LEVEL_ERROR;
 }
 
 void Logger::init_command() {
@@ -47,8 +47,8 @@ void Logger::init_command() {
         "LOG LEVELS:",
         "  DEBUG (D)   - Debugging information (lowest level)",
         "  INFO  (I)   - General information",
-        "  WARN  (W)   - Warning messages (default for unconfigured plugins)",
-        "  ERROR (E)   - Error messages",
+        "  WARN  (W)   - Warning messages",
+        "  ERROR (E)   - Error messages (default for unconfigured plugins)",
         "",
         "EXAMPLES:",
         "  logger                              - Display status report",
@@ -62,7 +62,7 @@ void Logger::init_command() {
         "  Example: [coredump:E] PID 0 is a kernel thread (no VM)",
         "",
         "DEFAULT BEHAVIOR:",
-        "  - Unconfigured plugins automatically show WARN/ERROR logs",
+        "  - Unconfigured plugins automatically show ERROR logs",
         "  - To see DEBUG/INFO logs, explicitly set the level",
         "  - To disable all logs from a plugin, use 'logger <plugin> off'",
         "",

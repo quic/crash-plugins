@@ -43,7 +43,7 @@ class SimpleLogger {
 public:
     struct PluginState {
         bool enabled = false;
-        LoggerLevel level = LoggerLevel::LEVEL_WARN;
+        LoggerLevel level = LoggerLevel::LEVEL_ERROR;
         time_t last_update = 0;
     };
 

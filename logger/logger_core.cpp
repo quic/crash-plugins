@@ -70,7 +70,7 @@ void SimpleLogger::setPluginLevel(const std::string& plugin_name, LoggerLevel le
 
 LoggerLevel SimpleLogger::getPluginLevel(const std::string& plugin_name) {
     auto it = plugin_states_.find(plugin_name);
-    return (it != plugin_states_.end()) ? it->second.level : LoggerLevel::LEVEL_WARN;
+    return (it != plugin_states_.end()) ? it->second.level : LoggerLevel::LEVEL_ERROR;
 }
 
 bool SimpleLogger::shouldLog(const std::string& plugin_name, LoggerLevel level) {
@@ -81,7 +81,7 @@ bool SimpleLogger::shouldLog(const std::string& plugin_name, LoggerLevel level) 
         }
         return level >= it->second.level;
     }
-    return level >= LoggerLevel::LEVEL_WARN;
+    return level >= LoggerLevel::LEVEL_ERROR;
 }
 
 void SimpleLogger::log(const std::string& plugin_name, LoggerLevel level, const char* format, ...) {
