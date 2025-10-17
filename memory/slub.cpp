@@ -365,14 +365,6 @@ std::vector<std::shared_ptr<kmem_cache_cpu>> Slub::parser_kmem_cache_cpu(std::sh
 
 void Slub::parser_slab_caches(){
     cache_list.clear();
-    if (!depot_index){
-        fprintf(fp, "cannot get depot_index\n");
-        return;
-    }
-    if (!stack_slabs){
-        fprintf(fp, "cannot get stack_{pools|slabs}\n");
-        return;
-    }
     if (!csymbol_exists("slab_caches")){
         fprintf(fp, "slab_caches doesn't exist in this kernel!\n");
         return;
@@ -418,8 +410,13 @@ void Slub::parser_slab_caches(){
         FREEBUF(cache_buf);
         cache_list.push_back(cache_ptr);
     }
+    bool has_store_user = false;
     for (const auto& cache_ptr : cache_list) {
         max_name_len = std::max(max_name_len, cache_ptr->name.length());
+        // Check if this cache has SLAB_STORE_USER enabled
+        if (cache_ptr->flags & SLAB_STORE_USER) {
+            has_store_user = true;
+        }
         for (const auto& node_ptr : cache_ptr->node_list) {
             // count by kernel
             cache_ptr->total_nr_slabs += node_ptr->nr_slabs;
@@ -439,6 +436,11 @@ void Slub::parser_slab_caches(){
     }
     max_name_len += 5;
     fprintf(fp, "SLUB info collection completed. Total kmem_cache found: %zd.\n", cache_list.size());
+    if (!has_store_user) {
+        fprintf(fp, "WARNING: No SLUB cache has SLAB_STORE_USER flag enabled!\n");
+        fprintf(fp, "         Stack trace features (-t, -l, -L, -T, -v) may not work properly.\n");
+        fprintf(fp, "         To enable: Add 'slub_debug=U' to kernel boot parameters.\n");
+    }
 }
 
 /* Poison */
@@ -779,9 +781,9 @@ void Slub::parser_track(ulong track_addr, std::shared_ptr<track>& track_ptr){
     track_ptr->pid = std::max(0U, UINT(track_buf + field_offset(track, pid)));
     track_ptr->when = ULONG(track_buf + field_offset(track, when));
     FREEBUF(track_buf);
-    if (field_offset(track, handle) != -1 /*&&
+    if (field_offset(track, handle) != -1 &&
     (get_config_val("CONFIG_STACKDEPOT") == "y") &&
-    read_pointer(csymbol_value("stack_depot_disabled"), "stack_depot_disabled") == 0*/){
+    !read_bool(csymbol_value("stack_depot_disabled"), "stack_depot_disabled")){
         ulong handle_parts_addr = track_addr + field_offset(track, handle);
         uint handle = read_uint(handle_parts_addr, "track handle");
         std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
