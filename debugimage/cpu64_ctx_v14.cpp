@@ -26,8 +26,10 @@ Cpu64_Context_V14::Cpu64_Context_V14(){
 void Cpu64_Context_V14::compute_pc(sysdbg_cpu64_ctx_1_4_t reg,sysdbg_neon128_registers_t neon_reg){
     // PC is invalid
     if (reg.cpu_state0 == 1){
+        LOGD("PC is invalid (cpu_state0=1), attempting to compute from other registers");
         uint64_t orig_pc = reg.pc;
         if ((reg.cpu_state1 & (1ULL << 4)) != 0) { // AArch32 Mode
+            LOGD("CPU in AArch32 mode");
             uint64_t val = reg.cpu_state1 & 0xF;
             if (val == 0x0 && (reg.cpu_state3 & (1ULL << 14)) != 0){
                 reg.pc = reg.x[14];
@@ -48,9 +50,10 @@ void Cpu64_Context_V14::compute_pc(sysdbg_cpu64_ctx_1_4_t reg,sysdbg_neon128_reg
             }else if (val == 0xF && (reg.cpu_state3 & (1ULL << 14)) != 0){
                 reg.pc = reg.x[14];
             }else{
-                fprintf(fp, "AArch32 PC Approximation Logic Failed! \n");
+                LOGW("AArch32 PC Approximation Logic Failed! val=%#lx", val);
             }
         }else{// AArch64 Mode
+            LOGD("CPU in AArch64 mode");
             if ((reg.cpu_state3 & (1ULL << 30)) != 0){
                 reg.pc = reg.x[30];
             }
@@ -64,22 +67,28 @@ void Cpu64_Context_V14::compute_pc(sysdbg_cpu64_ctx_1_4_t reg,sysdbg_neon128_reg
             }else if (val == 0x3){
                 reg.pc = reg.elr_el3;
             }else{
-                fprintf(fp, "AArch64 PC Approximation Logic Failed! \n");
+                LOGW("AArch64 PC Approximation Logic Failed! val=%#lx", val);
             }
         }
         if (orig_pc && orig_pc != reg.pc){
-            fprintf(fp, "PC computed by SDI and Parser are different \n");
+            LOGW("PC computed by SDI and Parser are different (SDI=%#lx, Parser=%#lx)", orig_pc, reg.pc);
         }
     }
 }
 
 void Cpu64_Context_V14::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
+    LOGD("Cpu64_Context_V14::print_stack() for core %d", core);
     void* buf = read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_64_1_4_t),"tzbsp_dump_64_1_4_t",false);
+    if (!buf) {
+        LOGE("Failed to read memory for tzbsp_dump_64_1_4_t at %#lx", entry_ptr->data_addr);
+        return;
+    }
     tzbsp_dump_64_1_4_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_4_t*>(buf);
 
     uint64_t lr = reg_dump.sc_regs.x[30];
     uint64_t pc = pac_ignore(reg_dump.sc_regs.pc);
+    LOGD("Core %d: PC=%#lx, LR=%#lx", core, pc, lr);
     struct syment *sym;
     ulong offset;
     sym = value_search(pc, &offset);
@@ -98,37 +107,49 @@ void Cpu64_Context_V14::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     } else {
         oss << "LR: " << "<" << std::hex << lr << ">: " << "UNKNOWN"  << "+" << std::hex << 0 << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s\n", oss.str().c_str());
 #if defined(ARM64)
     struct task_context *tc;
     tc = task_to_context(tt->active_set[core]);
     if(tc){
+        LOGD("Found active task for core %d: PID=%d", core, tc->pid);
         ulong stackbase = GET_STACKBASE(tc->task);
         ulong stacktop = GET_STACKTOP(tc->task);
         ulong x30 = reg_dump.sc_regs.x[29] + 8;
+        LOGD("Stack range: %#lx ~ %#lx, x30=%#lx", stackbase, stacktop, x30);
         if ((x30 > stackbase && x30 < stacktop)){
+            LOGI("Unwinding task stack for PID %d", tc->pid);
             uwind_task_back_trace(tc->pid, x30);
         }
 
         ulong cpu_irq_stack = machdep->machspec->irq_stacks[core];
         if ((x30 > cpu_irq_stack && x30 < (cpu_irq_stack + machdep->machspec->irq_stack_size))){
+            LOGI("Unwinding IRQ stack for core %d", core);
             uwind_irq_back_trace(core,x30);
         }
-        fprintf(fp, "\n");
+        PRINT("\n");
+    } else {
+        LOGW("No active task found for core %d", core);
     }
 #endif
     FREEBUF(buf);
 }
 
 void Cpu64_Context_V14::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
-    void* buf = (tzbsp_dump_64_1_4_t*)read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_64_1_4_t),"tzbsp_dump_64_1_4_t",false);
-    tzbsp_dump_64_1_4_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_4_t*>(buf);
     int core = entry_ptr->id - DATA_CPU_CTX;
+    LOGI("Cpu64_Context_V14::generate_cmm() for core %d", core);
+    void* buf = (tzbsp_dump_64_1_4_t*)read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_64_1_4_t),"tzbsp_dump_64_1_4_t",false);
+    if (!buf) {
+        LOGE("Failed to read memory for tzbsp_dump_64_1_4_t at %#lx", entry_ptr->data_addr);
+        return;
+    }
+    tzbsp_dump_64_1_4_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_4_t*>(buf);
     compute_pc(reg_dump.sc_regs,reg_dump.neon_reg);
     std::string regs_file = get_cmm_path("core" + std::to_string(core), false);
+    LOGD("Creating normal CMM file: %s", regs_file.c_str());
     FILE* cmmfile = fopen(regs_file.c_str(), "wb");
     if (!cmmfile) {
-        fprintf(fp, "Can't open %s\n", regs_file.c_str());
+        LOGE("Failed to create CMM file: %s", regs_file.c_str());
         FREEBUF(buf);
         return;
     }
@@ -152,9 +173,10 @@ void Cpu64_Context_V14::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
 
     compute_pc(reg_dump.sc_secure,reg_dump.neon_reg);
     std::string secure_file = get_cmm_path("core" + std::to_string(core), true);
+    LOGD("Creating secure CMM file: %s", secure_file.c_str());
     cmmfile = fopen(secure_file.c_str(), "wb");
     if (!cmmfile) {
-        fprintf(fp, "Can't open %s\n", secure_file.c_str());
+        LOGE("Failed to create secure CMM file: %s", secure_file.c_str());
         FREEBUF(buf);
         return;
     }
@@ -175,7 +197,7 @@ void Cpu64_Context_V14::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     oss_secure << "r.s sp_el0 0x"      << std::hex << reg_dump.sc_secure.sp_el0     << std::endl;
     fwrite(oss_secure.str().c_str(), sizeof(char), oss_secure.str().size(), cmmfile);
     fclose(cmmfile);
-    fprintf(fp, "save to %s\n", regs_file.c_str());
+    PRINT("Saved CMM files: %s and %s\n", regs_file.c_str(), secure_file.c_str());
     FREEBUF(buf);
 }
 

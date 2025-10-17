@@ -29,25 +29,32 @@ void DebugImage::cmd_main(void) {
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
     if (image_list.size() == 0){
+        LOGI("Image list empty, parsing memdump");
         parser_memdump();
+    } else {
+        LOGD("Image list already populated with %zu entries", image_list.size());
     }
     while ((c = getopt(argcnt, args, "acsp:C:")) != EOF) {
         switch(c) {
             case 'a':
+                LOGI("Printing all memdump info");
                 print_memdump();
                 break;
             case 'c':
+                LOGI("Parsing CPU context and generating CMM files");
                 parse_cpu_ctx();
                 break;
             case 's':
+                LOGI("Printing CPU stack traces");
                 print_cpu_stack();
                 break;
             case 'p':
                 cppString.assign(optarg);
                 try {
                     pid = std::stoi(cppString);
+                    LOGI("Printing task stack for PID: %d", pid);
                 } catch (...) {
-                    fprintf(fp, "invaild pid arg %s\n",cppString.c_str());
+                    LOGE("Invalid pid argument: %s", cppString.c_str());
                     break;
                 }
                 print_task_stack(pid);
@@ -56,8 +63,9 @@ void DebugImage::cmd_main(void) {
                 cppString.assign(optarg);
                 try {
                     cpu = std::stoi(cppString);
+                    LOGI("Printing IRQ stack for CPU: %d", cpu);
                 } catch (...) {
-                    fprintf(fp, "invaild cpu arg %s\n",cppString.c_str());
+                    LOGE("Invalid cpu argument: %s", cppString.c_str());
                     break;
                 }
                 print_irq_stack(cpu);
@@ -218,7 +226,10 @@ void DebugImage::init_command(void) {
     field_init(msm_dump_cpu_ctx, affinity);
     cpu_index_offset = field_offset(msm_dump_cpu_ctx, affinity);
     if (cpu_index_offset == -1){
+        LOGW("msm_dump_cpu_ctx.affinity offset not found, using default 0x10");
         cpu_index_offset = 0x10;
+    } else {
+        LOGD("msm_dump_cpu_ctx.affinity offset: 0x%x", cpu_index_offset);
     }
 }
 
@@ -227,6 +238,7 @@ DebugImage::DebugImage(){
 }
 
 void DebugImage::print_memdump(){
+    LOGD("Printing memdump table with %zu entries", image_list.size());
     std::ostringstream oss;
     oss  << std::left << std::setw(4)            << "Id" << " "
             << std::left << std::setw(16)           << "Dump_entry" << " "
@@ -245,63 +257,81 @@ void DebugImage::print_memdump(){
             << std::left << std::setw(10)           << std::dec << entry_ptr->data_len << " "
             << std::left  << entry_ptr->data_name << "\n";;
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s\n", oss.str().c_str());
 }
 
 void DebugImage::parser_memdump(){
+    LOGI("Starting memdump parsing");
     struct_init(msm_memory_dump);
     if (struct_size(msm_memory_dump) == -1){
-        fprintf(fp, "memdump doesn't exist in this kernel! load memory_dump_v2.ko\n");
+        LOGE("memdump doesn't exist in this kernel! load memory_dump_v2.ko");
         return;
     }
     if (!csymbol_exists("memdump")){
+        LOGE("memdump symbol not found");
         return;
     }
     ulong dump_addr = csymbol_value("memdump");
+    LOGD("memdump symbol address: %#lx", dump_addr);
     if (!is_kvaddr(dump_addr)) {
-        fprintf(fp, "memdump address is invalid!\n");
+        LOGE("memdump address is invalid: %#lx", dump_addr);
         return;
     }
     init_offset();
     uint64_t table_phys = read_ulonglong(dump_addr + field_offset(msm_memory_dump,table_phys),"table_phys");
-    // fprintf(fp, "DumpTable base:%" PRIx64 "\n", table_phys);
+    LOGI("msm_memory_dump: DumpTable base=%#llx", table_phys);
     parser_dump_table(table_phys);
+    LOGI("Memdump parsing completed, found %zu entries", image_list.size());
 }
 
 void DebugImage::print_cpu_stack(){
+    LOGD("Printing CPU stack for all cores");
+    int cpu_count = 0;
     for (const auto& entry_ptr : image_list) {
         if (entry_ptr->id >= DATA_CPU_CTX && entry_ptr->id < DATA_L1_INST_TLB){
+            cpu_count++;
             parse_cpu_stack(entry_ptr);
         }
     }
+    LOGI("Processed %d CPU contexts", cpu_count);
 }
 
 void DebugImage::parse_cpu_ctx(){
+    LOGD("Parsing CPU context for all cores");
+    int cpu_count = 0;
     for (const auto& entry_ptr : image_list) {
         if (entry_ptr->id >= DATA_CPU_CTX && entry_ptr->id < DATA_L1_INST_TLB){
+            cpu_count++;
             parse_cpu_ctx(entry_ptr);
         }
     }
+    LOGI("Generated CMM files for %d CPU contexts", cpu_count);
 }
 
 void DebugImage::parse_cpu_stack(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
     int major = entry_ptr->version >> 4;
     int minor = entry_ptr->version & 0xF;
+    LOGD("Parsing CPU stack for core %d, version %d.%d", core, major, minor);
     if (major == 2 && minor == 0){ //v2.0
         uint32_t affinity = read_uint(entry_ptr->data_addr + cpu_index_offset, "affinity", false);
         parser_ptr = std::make_shared<Cpu64_Context_V20>();
         core = parser_ptr->get_vcpu_index(affinity);
-        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major, minor);
+        LOGI("%s  core:%d  version:%d.%d (v2.0)", entry_ptr->data_name.c_str(), core, major, minor);
     }else{
-        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major, minor);
+        LOGI("%s  core:%d  version:%d.%d", entry_ptr->data_name.c_str(), core, major, minor);
         if (BITS64()){
             if (major == 1 && minor == 3){ //v1.3
+                LOGD("Using Cpu64_Context_V13 parser");
                 parser_ptr = std::make_shared<Cpu64_Context_V13>();
             }else if (major == 1 && minor == 4){ //v1.4
+                LOGD("Using Cpu64_Context_V14 parser");
                 parser_ptr = std::make_shared<Cpu64_Context_V14>();
+            } else {
+                LOGW("Unknown 64-bit version %d.%d, using default parser", major, minor);
             }
         }else{
+            LOGD("Using Cpu32_Context parser");
             parser_ptr = std::make_shared<Cpu32_Context>();
         }
     }
@@ -310,49 +340,69 @@ void DebugImage::parse_cpu_stack(std::shared_ptr<Dump_entry> entry_ptr){
 
 void DebugImage::parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
-    // init_regs_v2
     int major = entry_ptr->version >> 4;
     int minor = entry_ptr->version & 0xF;
+    LOGD("Generating CMM for core %d, version %d.%d", core, major, minor);
     if (major == 2 && minor == 0){ //v2.0
         uint32_t affinity = read_uint(entry_ptr->data_addr + cpu_index_offset, "affinity", false);
         parser_ptr = std::make_shared<Cpu64_Context_V20>();
         core = parser_ptr->get_vcpu_index(affinity);
-        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major, minor);
+        LOGI("%s  core:%d  version:%d.%d (v2.0)", entry_ptr->data_name.c_str(), core, major, minor);
     }else{
-        fprintf(fp, "%s  core:%d  version:%d.%d\n", entry_ptr->data_name.c_str(), core, major,minor);
+        LOGI("%s  core:%d  version:%d.%d", entry_ptr->data_name.c_str(), core, major, minor);
         if (BITS64()){
             if (major == 1 && minor == 3){ //v1.3
+                LOGD("Using Cpu64_Context_V13 parser");
                 parser_ptr = std::make_shared<Cpu64_Context_V13>();
             }else if (major == 1 && minor == 4){ //v1.4
+                LOGD("Using Cpu64_Context_V14 parser");
                 parser_ptr = std::make_shared<Cpu64_Context_V14>();
+            } else {
+                LOGW("Unknown 64-bit version %d.%d, using default parser", major, minor);
             }
         }else{
+            LOGD("Using Cpu32_Context parser");
             parser_ptr = std::make_shared<Cpu32_Context>();
         }
     }
     parser_ptr->generate_cmm(entry_ptr);
 }
 
-void DebugImage::parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr){
+void DebugImage::parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr, int depth){
+    std::string indent(depth * 2, ' ');
+
     entry_ptr->version = read_uint(entry_ptr->addr + field_offset(msm_dump_data,version),"version",false);
     entry_ptr->magic = read_uint(entry_ptr->addr + field_offset(msm_dump_data,magic),"magic",false);
     if ((entry_ptr->magic != MAGIC_NUMBER) && (entry_ptr->magic != HYP_MAGIC_NUMBER)){
+        LOGW("%smsm_dump_data: invalid magic=%#x at addr=%#lx (expected %#x or %#x)",
+             indent.c_str(), entry_ptr->magic, (ulong)entry_ptr->addr, MAGIC_NUMBER, HYP_MAGIC_NUMBER);
         return;
     }
     if (entry_ptr->id > DATA_MAX){
+        LOGD("%smsm_dump_data: skipping ID=%#x (exceeds DATA_MAX %#x)", indent.c_str(), entry_ptr->id, DATA_MAX);
         return;
     }
     entry_ptr->data_name= read_cstring(entry_ptr->addr + field_offset(msm_dump_data,name),32, "name",false);
     entry_ptr->data_addr = read_ulonglong(entry_ptr->addr + field_offset(msm_dump_data,addr),"addr",false);
     entry_ptr->data_len = read_ulonglong(entry_ptr->addr + field_offset(msm_dump_data,len),"len",false);
+    LOGD("%smsm_dump_data: ID=%#x, name=%s, addr=%#lx, len=%lu",
+         indent.c_str(), entry_ptr->id, entry_ptr->data_name.c_str(), (ulong)entry_ptr->data_addr, (ulong)entry_ptr->data_len);
     image_list.push_back(entry_ptr);
 }
 
 void DebugImage::parser_dump_table(uint64_t paddr){
+    static int depth = 0;
+    depth++;
+    std::string indent(depth * 2, ' ');
+
+    LOGD("%smsm_dump_table: parsing at address %#lx", indent.c_str(), (ulong)paddr);
     uint32_t num_entries = read_uint(paddr + field_offset(msm_dump_table,num_entries),"num_entries",false);
     if (num_entries == 0 || num_entries > 100){
+        LOGE("%smsm_dump_table: invalid num_entries=%u at address %#lx (expected 1-100)", indent.c_str(), num_entries, (ulong)paddr);
+        depth--;
         return;
     }
+    LOGI("%smsm_dump_table: found %u entries", indent.c_str(), num_entries);
     uint64_t entries = paddr + field_offset(msm_dump_table,entries);
     for (size_t i = 0; i < num_entries; i++){
         uint64_t entry_addr = entries + struct_size(msm_dump_entry) * i;
@@ -360,97 +410,123 @@ void DebugImage::parser_dump_table(uint64_t paddr){
         entry_ptr->id = read_uint(entry_addr + field_offset(msm_dump_entry,id),"id",false);
         int type = read_uint(entry_addr + field_offset(msm_dump_entry,type),"type",false);
         entry_ptr->addr = read_ulonglong(entry_addr + field_offset(msm_dump_entry,addr),"addr",false);
-        // entry_ptr->name = read_cstring(entry_addr + field_offset(msm_dump_entry,name),32, "name",false);
+        LOGD("%s  msm_dump_entry[%zu/%u]: ID=%#x, type=%d, addr=%#lx",
+             indent.c_str(), i+1, num_entries, entry_ptr->id, type, (ulong)entry_ptr->addr);
         if (type == Entry_type::ENTRY_TYPE_DATA){
-            parser_dump_data(entry_ptr);
+            parser_dump_data(entry_ptr, depth + 1);
         }else if (type == Entry_type::ENTRY_TYPE_TABLE){
+            LOGD("%s  msm_dump_entry: found nested msm_dump_table at %#lx", indent.c_str(), (ulong)entry_ptr->addr);
             parser_dump_table(entry_ptr->addr);
+        } else {
+            LOGW("%s  msm_dump_entry: unknown type=%d", indent.c_str(), type);
         }
     }
+    depth--;
 }
 
 void DebugImage::print_task_stack(int pid){
 #if defined(ARM64)
+    LOGI("Printing task stack for PID: %d", pid);
     struct task_context *tc = pid_to_context(pid);
     if(!tc){
-        fprintf(fp, "No such task_context \n");
+        LOGE("No such task_context for pid: %d", pid);
         return;
     }
+    LOGD("Found task_context for PID %d, task: %#lx", pid, tc->task);
     field_init(task_struct, thread);
     field_init(thread_struct, cpu_context);
 
     struct cpu_context cc;
     BZERO(&cc, sizeof(struct cpu_context));
-    if(!read_struct(tc->task + field_offset(task_struct, thread) + field_offset(thread_struct, cpu_context), &cc , sizeof(struct cpu_context) ,"cpu_context in dbi")){
+    ulong cpu_ctx_addr = tc->task + field_offset(task_struct, thread) + field_offset(thread_struct, cpu_context);
+    LOGD("Reading cpu_context from address: %#lx", cpu_ctx_addr);
+
+    if(!read_struct(cpu_ctx_addr, &cc , sizeof(struct cpu_context) ,"cpu_context in dbi")){
+        LOGE("Failed to read cpu_context for PID %d", pid);
         return;
     }
 
-    fprintf(fp, "cpu_context:\n");
-    fprintf(fp, "   X19: %#lx\n", cc.x19);
-    fprintf(fp, "   X20: %#lx\n", cc.x20);
-    fprintf(fp, "   X21: %#lx\n", cc.x21);
-    fprintf(fp, "   X22: %#lx\n", cc.x22);
-    fprintf(fp, "   X23: %#lx\n", cc.x23);
-    fprintf(fp, "   X24: %#lx\n", cc.x24);
-    fprintf(fp, "   X25: %#lx\n", cc.x25);
-    fprintf(fp, "   X26: %#lx\n", cc.x26);
-    fprintf(fp, "   X27: %#lx\n", cc.x27);
-    fprintf(fp, "   X28: %#lx\n", cc.x28);
-    fprintf(fp, "   fp:  %#lx\n", cc.fp);
-    fprintf(fp, "   sp:  %#lx\n", cc.sp);
-    fprintf(fp, "   pc:  %#lx\n\n", cc.pc);
+    PRINT("cpu_context:\n");
+    PRINT("   X19: %#lx\n", cc.x19);
+    PRINT("   X20: %#lx\n", cc.x20);
+    PRINT("   X21: %#lx\n", cc.x21);
+    PRINT("   X22: %#lx\n", cc.x22);
+    PRINT("   X23: %#lx\n", cc.x23);
+    PRINT("   X24: %#lx\n", cc.x24);
+    PRINT("   X25: %#lx\n", cc.x25);
+    PRINT("   X26: %#lx\n", cc.x26);
+    PRINT("   X27: %#lx\n", cc.x27);
+    PRINT("   X28: %#lx\n", cc.x28);
+    PRINT("   fp:  %#lx\n", cc.fp);
+    PRINT("   sp:  %#lx\n", cc.sp);
+    PRINT("   pc:  %#lx\n\n", cc.pc);
 
     std::map<ulong, ulong> mem_maps;
     ulong stackbase = GET_STACKBASE(tc->task);
     ulong stacktop = GET_STACKTOP(tc->task);
-    fprintf(fp, "Stack:%#lx~%#lx \n",stackbase, stacktop);
+    LOGD("Stack range: %#lx ~ %#lx (size: %lu bytes)", stackbase, stacktop, stacktop - stackbase);
+    PRINT("Stack:%#lx~%#lx\n", stackbase, stacktop);
+    LOGD("Scanning stack memory for frame pointers");
     for(ulong addr = stackbase; addr < stacktop; addr += 0x10){
         ulong fp = read_pointer(addr, "frame pointer x29");
         mem_maps[addr] = fp;
     }
+    LOGD("Analyzing %zu potential frame pointers", mem_maps.size());
     int cnt = 0;
     for(ulong x29: find_x29(mem_maps)){
         ulong x30 = x29 + 8;
         if(x30 < stackbase && x30 > stacktop){ // out of range
+            LOGD("Skipping x29=%#lx (x30=%#lx out of stack range)", x29, x30);
             continue;
         }
-        fprintf(fp, "[%d]Potential backtrace -> FP:%#lx, LR:%#lx\n",cnt, x29, x30);
+        LOGD("Found valid backtrace starting point: FP=%#lx, LR=%#lx", x29, x30);
+        PRINT("[%d]Potential backtrace -> FP:%#lx, LR:%#lx\n", cnt, x29, x30);
         uwind_task_back_trace(pid, x30);
         cnt++;
     }
+    LOGI("Found %d potential backtraces for PID %d", cnt, pid);
 #endif
 }
 
 void DebugImage::print_irq_stack(int cpu){
 #if defined(ARM64)
+    LOGI("Printing IRQ stack for CPU %d", cpu);
     if (cpu > kt->cpus){
-        fprintf(fp, "invaild cpu ! \n");
+        LOGE("Invalid cpu: %d (max: %d)", cpu, kt->cpus);
         return;
     }
-    // for (int i = 0; i < kt->cpus; i++){
-        std::map<ulong, ulong> mem_maps;
-        ulong irq_stack = machdep->machspec->irq_stacks[cpu];
-        fprintf(fp, "CPU[%d] irq stack:%#lx~%#lx \n",cpu, irq_stack, irq_stack + machdep->machspec->irq_stack_size);
-        for(ulong addr = irq_stack; addr < irq_stack + machdep->machspec->irq_stack_size; addr += 0x10){
-            ulong fp = read_pointer(addr, "frame pointer x29");
-            mem_maps[addr] = fp;
+
+    std::map<ulong, ulong> mem_maps;
+    ulong irq_stack = machdep->machspec->irq_stacks[cpu];
+    ulong irq_stack_size = machdep->machspec->irq_stack_size;
+    LOGD("IRQ stack range: %#lx ~ %#lx (size: %lu bytes)", irq_stack, irq_stack + irq_stack_size, irq_stack_size);
+    PRINT("CPU[%d] irq stack:%#lx~%#lx\n", cpu, irq_stack, irq_stack + irq_stack_size);
+    LOGD("Scanning IRQ stack memory for frame pointers");
+    for(ulong addr = irq_stack; addr < irq_stack + irq_stack_size; addr += 0x10){
+        ulong fp = read_pointer(addr, "frame pointer x29");
+        mem_maps[addr] = fp;
+    }
+
+    LOGD("Analyzing %zu potential frame pointers in IRQ stack", mem_maps.size());
+    int cnt = 0;
+    for(ulong x29: find_x29(mem_maps)){
+        ulong x30 = x29 + 8;
+        if(x30 < irq_stack && x30 > irq_stack + irq_stack_size){ // out of range
+            LOGD("Skipping x29=%#lx (x30=%#lx out of IRQ stack range)", x29, x30);
+            continue;
         }
-        int cnt = 0;
-        for(ulong x29: find_x29(mem_maps)){
-            ulong x30 = x29 + 8;
-            if(x30 < irq_stack && x30 > irq_stack+ machdep->machspec->irq_stack_size){ // out of range
-                continue;
-            }
-            fprintf(fp, "[%d]Potential backtrace -> FP:%#lx, LR:%#lx\n",cnt, x29, x30);
-            uwind_irq_back_trace(cpu,x30);
-            cnt++;
-        }
-        fprintf(fp, "\n");
-    // }
+        LOGD("Found valid IRQ backtrace starting point: FP=%#lx, LR=%#lx", x29, x30);
+        PRINT("[%d]Potential backtrace -> FP:%#lx, LR:%#lx\n", cnt, x29, x30);
+        uwind_irq_back_trace(cpu,x30);
+        cnt++;
+    }
+    LOGI("Found %d potential backtraces for CPU %d IRQ stack", cnt, cpu);
+    PRINT("\n");
 #endif
 }
 
 std::set<ulong> DebugImage::find_x29(const std::map<ulong /* addr */, ulong /* x29 */>& addr_x29) {
+    LOGD("Finding x29 frame pointers from %zu address mappings", addr_x29.size());
     // Step 1: Build a set of x29 for fast lookup
     std::set<ulong> x29_sets;
     for (const auto& kv : addr_x29) {
@@ -462,22 +538,16 @@ std::set<ulong> DebugImage::find_x29(const std::map<ulong /* addr */, ulong /* x
     // Reverse iterate through the map (from largest key to smallest)
     for (auto it = addr_x29.rbegin(); it != addr_x29.rend(); ++it) {
         bool exists_in_x29 = (x29_sets.find(it->first) != x29_sets.end());
-        if(debug){
-            fprintf(fp, "Checking: %#lx - exists in x29? %s\n", it->first, (exists_in_x29 ? "YES" : "NO"));
-        }
+        LOGD("Checking: %#lx - exists in x29? %s", it->first, (exists_in_x29 ? "YES" : "NO"));
         if (exists_in_x29) {
             start_addr = it->first;
             found_start = true;
-            if(debug){
-                fprintf(fp, "!!! FOUND START ADDRESS: %#lx\n", start_addr);
-            }
+            LOGD("!!! FOUND START ADDRESS: %#lx", start_addr);
             break;
         }
     }
     if (!found_start) {
-        if(debug){
-            fprintf(fp, "No valid addr in x29\n");
-        }
+        LOGD("No valid addr in x29");
         return {};
     }
     // Step 3: save all addrs that x29 == start_addr
@@ -485,54 +555,38 @@ std::set<ulong> DebugImage::find_x29(const std::map<ulong /* addr */, ulong /* x
     for (const auto& kv : addr_x29) {
         if (kv.second == start_addr) {
             current_addrs.insert(kv.first);
-            if(debug){
-                fprintf(fp, "  Found mapping addr -> x29: %#lx -> %#lx\n", kv.first, kv.second);
-            }
+            LOGD("  Found mapping addr -> x29: %#lx -> %#lx", kv.first, kv.second);
         }
     }
-    if(debug){
-        fprintf(fp, "  Total mappings found: %zu\n\n", current_addrs.size());
-    }
+    LOGD("  Total mappings found: %zu", current_addrs.size());
     // Step 4: Iteratively find final addrs, strictly following decreasing order
     std::set<ulong> result_addrs;
     int iteration = 0;
     while (!current_addrs.empty()) {
         iteration++;
-        if(debug){
-            fprintf(fp, "     loop: %d, processing %zu addrs\n", iteration, current_addrs.size());
-        }
+        LOGD("     loop: %d, processing %zu addrs", iteration, current_addrs.size());
         std::set<ulong> next_addrs;
         for (ulong addr : current_addrs) {
-            if(debug){
-                fprintf(fp, "  Processing address: %#lx\n", addr);
-            }
+            LOGD("  Processing address: %#lx", addr);
             bool found = false;
             // Look for addrs whose value equals the current addr and are smaller than the current addr
             for (const auto& kv : addr_x29) {
                 if (kv.second == addr && kv.first < addr) {
-                    if(debug){
-                        fprintf(fp, "    Found valid child addr -> x29: %#lx -> %#lx\n", kv.first, kv.second);
-                    }
+                    LOGD("    Found valid child addr -> x29: %#lx -> %#lx", kv.first, kv.second);
                     next_addrs.insert(kv.first);
                     found = true;
                 }
             }
             // If not found, current addr is a final addr
             if (!found) {
-                if(debug){
-                    fprintf(fp, "    No valid child found - marking as final address\n");
-                }
+                LOGD("    No valid child found - marking as final address");
                 result_addrs.insert(addr);
             }
         }
-        if(debug){
-            fprintf(fp, "  Found %zu addresses for next loop\n\n", next_addrs.size());
-        }
+        LOGD("  Found %zu addresses for next loop", next_addrs.size());
         current_addrs = next_addrs;
     }
-    if(debug){
-        fprintf(fp, "Final addresses found: %zu\n\n", result_addrs.size());
-    }
+    LOGD("Final addresses found: %zu", result_addrs.size());
     return result_addrs;
 }
 

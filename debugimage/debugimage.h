@@ -96,7 +96,6 @@ private:
     const uint HYP_MAGIC_NUMBER = 0x42444832;
     std::vector<std::shared_ptr<Dump_entry>> image_list;
     std::shared_ptr<ImageParser> parser_ptr;
-    bool debug = false;
     int32_t cpu_index_offset = 0;
 
     void print_memdump();
@@ -106,7 +105,7 @@ private:
     void parse_cpu_ctx();
     void parse_cpu_stack(std::shared_ptr<Dump_entry> entry_ptr);
     void parse_cpu_ctx(std::shared_ptr<Dump_entry> entry_ptr);
-    void parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr);
+    void parser_dump_data(std::shared_ptr<Dump_entry> entry_ptr, int depth);
     void parser_dump_table(uint64_t paddr);
     std::set<ulong> find_x29(const std::map<ulong, ulong>& addr_x29);
     void print_task_stack(int pid);
