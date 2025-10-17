@@ -21,11 +21,6 @@
 /* Page extension invalid flag from mm/page_ext.c */
 #define PAGE_EXT_INVALID    (0x1)
 
-// Debug logging control - set to 1 to enable verbose debug output
-#ifndef DEBUG_PAGEOWNER
-#define DEBUG_PAGEOWNER 0
-#endif
-
 /**
  * struct page_owner - Represents page ownership information
  *

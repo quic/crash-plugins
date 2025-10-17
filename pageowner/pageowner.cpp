@@ -307,10 +307,10 @@ void Pageowner::print_page_owner_entry(std::shared_ptr<page_owner> owner_ptr, bo
     std::string time_str = formatTimestamp(timestamp);
     std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
     if (record_ptr != nullptr) {
-        PRINT("[%zu/%zu] %s: PFN:0x%lx~0x%lx (%lu page%s, %s) Page:0x%lx PID:%zu [%s] %s\n",
+        PRINT("[%zu/%zu] %s: PFN:0x%lx~0x%lx (%lu page%s, %s) Page:0x%lx PID:%zu[%s] timestamp:(%ld) %s\n",
             entry_num, total_entries, action, owner_ptr->pfn, end_pfn, page_count,
             (page_count > 1) ? "s" : "", csize(total_size).c_str(),
-            page, owner_ptr->pid, comm.c_str(), time_str.c_str());
+            page, owner_ptr->pid, comm.c_str(), timestamp, time_str.c_str());
 
         std::string stack = get_call_stack(record_ptr);
         PRINT("%s \n", stack.c_str());
@@ -945,7 +945,7 @@ void Pageowner::parser_all_pageowners(){
         processed++;
         // Log progress periodically for large memory systems
         if (progress_interval > 0 && processed % progress_interval == 0) {
-            LOGD("Parsing progress: %zu/%zu PFNs (%.1f%%)",
+            PRINT("Parsing progress: %zu/%zu PFNs (%.1f%%) \n",
                      processed, total_pfns, (processed * 100.0) / total_pfns);
         }
 
@@ -966,11 +966,11 @@ void Pageowner::parser_all_pageowners(){
         // Check if page owner tracking is enabled for this page
         ulong flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
         if (!((flags & (1UL << PAGE_EXT_OWNER)) != 0)) {
-            LOGE("PFN 0x%zx: PAGE_EXT_OWNER not set", pfn);
+            LOGD("PFN 0x%zx: PAGE_EXT_OWNER not set", pfn);
             continue;
         }
         if (!((flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0)) {
-            LOGE("PFN 0x%zx: PAGE_EXT_OWNER_ALLOCATED not set", pfn);
+            LOGD("PFN 0x%zx: PAGE_EXT_OWNER_ALLOCATED not set", pfn);
             continue;
         }
 
@@ -990,7 +990,7 @@ void Pageowner::parser_all_pageowners(){
         // Verify PFN alignment with allocation order
         // Pages are allocated in power-of-2 blocks, so PFN must be aligned
         if (!IS_ALIGNED(pfn, 1 << owner_ptr->order)) {
-            LOGE("PFN 0x%zx: not aligned to order %d", pfn, owner_ptr->order);
+            LOGD("PFN 0x%zx: not aligned to order %d", pfn, owner_ptr->order);
             continue;
         }
         owner_ptr->pfn = pfn;
