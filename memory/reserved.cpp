@@ -127,14 +127,14 @@ Reserved::Reserved(){
 void Reserved::parser_reserved_mem(){
     // Check if reserved_mem symbol exists in kernel
     if (!csymbol_exists("reserved_mem")){
-        fprintf(fp, "reserved_mem doesn't exist in this kernel!\n");
+        LOGE("reserved_mem doesn't exist in this kernel!\n");
         return;
     }
 
     // Get reserved memory array address
     ulong reserved_mem_addr = csymbol_value("reserved_mem");
     if (!is_kvaddr(reserved_mem_addr)) {
-        fprintf(fp, "reserved_mem address is invalid!\n");
+        LOGE("reserved_mem address is invalid!\n");
         return;
     }
 
@@ -217,7 +217,7 @@ void Reserved::parser_reserved_mem(){
 void Reserved::print_reserved_mem() {
     // Check if we have any reserved memory regions to display
     if (mem_list.empty()) {
-        printf("No reserved memory regions found.\n");
+        LOGE("No reserved memory regions found.\n");
         return;
     }
 
@@ -267,23 +267,23 @@ void Reserved::print_reserved_mem() {
                       col_range_width + col_size_width + col_status_width + 7;
 
     // Print table header with Unicode box drawing characters
-    printf("Reserved Memory Regions Overview\n");
-    printf("┌");
-    for (int i = 0; i < col_num_width; ++i) printf("─");
-    printf("┬");
-    for (int i = 0; i < col_name_width; ++i) printf("─");
-    printf("┬");
-    for (int i = 0; i < col_base_width; ++i) printf("─");
-    printf("┬");
-    for (int i = 0; i < col_range_width; ++i) printf("─");
-    printf("┬");
-    for (int i = 0; i < col_size_width; ++i) printf("─");
-    printf("┬");
-    for (int i = 0; i < col_status_width; ++i) printf("─");
-    printf("┐\n");
+    PRINT("Reserved Memory Regions Overview\n");
+    PRINT("┌");
+    for (int i = 0; i < col_num_width; ++i) PRINT("─");
+    PRINT("┬");
+    for (int i = 0; i < col_name_width; ++i) PRINT("─");
+    PRINT("┬");
+    for (int i = 0; i < col_base_width; ++i) PRINT("─");
+    PRINT("┬");
+    for (int i = 0; i < col_range_width; ++i) PRINT("─");
+    PRINT("┬");
+    for (int i = 0; i < col_size_width; ++i) PRINT("─");
+    PRINT("┬");
+    for (int i = 0; i < col_status_width; ++i) PRINT("─");
+    PRINT("┐\n");
 
     // Print column headers
-    printf("│%*s│%-*s│%-*s│%-*s│%-*s│%-*s│\n",
+    PRINT("│%*s│%-*s│%-*s│%-*s│%-*s│%-*s│\n",
            col_num_width, "  #",
            col_name_width, "Region Name",
            col_base_width, "Base Address",
@@ -292,19 +292,19 @@ void Reserved::print_reserved_mem() {
            col_status_width, "Status");
 
     // Print header separator
-    printf("├");
-    for (int i = 0; i < col_num_width; ++i) printf("─");
-    printf("┼");
-    for (int i = 0; i < col_name_width; ++i) printf("─");
-    printf("┼");
-    for (int i = 0; i < col_base_width; ++i) printf("─");
-    printf("┼");
-    for (int i = 0; i < col_range_width; ++i) printf("─");
-    printf("┼");
-    for (int i = 0; i < col_size_width; ++i) printf("─");
-    printf("┼");
-    for (int i = 0; i < col_status_width; ++i) printf("─");
-    printf("┤\n");
+    PRINT("├");
+    for (int i = 0; i < col_num_width; ++i) PRINT("─");
+    PRINT("┼");
+    for (int i = 0; i < col_name_width; ++i) PRINT("─");
+    PRINT("┼");
+    for (int i = 0; i < col_base_width; ++i) PRINT("─");
+    PRINT("┼");
+    for (int i = 0; i < col_range_width; ++i) PRINT("─");
+    PRINT("┼");
+    for (int i = 0; i < col_size_width; ++i) PRINT("─");
+    PRINT("┼");
+    for (int i = 0; i < col_status_width; ++i) PRINT("─");
+    PRINT("┤\n");
 
     // Print each reserved memory region
     for (size_t i = 0; i < mem_list.size(); ++i) {
@@ -323,7 +323,7 @@ void Reserved::print_reserved_mem() {
                  base_addr, end_addr);
 
         // Print region information row
-        printf("│%*zu │%-*s│0x%016" PRIx64 "│%-*s│%*s│%-*s│\n",
+        PRINT("│%*zu │%-*s│0x%016" PRIx64 "│%-*s│%*s│%-*s│\n",
                col_num_width - 1, i + 1,
                col_name_width, region->name.c_str(),
                base_addr,
@@ -333,19 +333,19 @@ void Reserved::print_reserved_mem() {
     }
 
     // Print statistics separator
-    printf("├");
-    for (int i = 0; i < col_num_width; ++i) printf("─");
-    printf("┴");
-    for (int i = 0; i < col_name_width; ++i) printf("─");
-    printf("┴");
-    for (int i = 0; i < col_base_width; ++i) printf("─");
-    printf("┴");
-    for (int i = 0; i < col_range_width; ++i) printf("─");
-    printf("┴");
-    for (int i = 0; i < col_size_width; ++i) printf("─");
-    printf("┴");
-    for (int i = 0; i < col_status_width; ++i) printf("─");
-    printf("┤\n");
+    PRINT("├");
+    for (int i = 0; i < col_num_width; ++i) PRINT("─");
+    PRINT("┴");
+    for (int i = 0; i < col_name_width; ++i) PRINT("─");
+    PRINT("┴");
+    for (int i = 0; i < col_base_width; ++i) PRINT("─");
+    PRINT("┴");
+    for (int i = 0; i < col_range_width; ++i) PRINT("─");
+    PRINT("┴");
+    for (int i = 0; i < col_size_width; ++i) PRINT("─");
+    PRINT("┴");
+    for (int i = 0; i < col_status_width; ++i) PRINT("─");
+    PRINT("┤\n");
 
     // Print summary statistics
     std::string stats = "Regions: " + std::to_string(mem_list.size()) +
@@ -353,12 +353,12 @@ void Reserved::print_reserved_mem() {
                        " | Nomap: " + csize(nomap_size) +
                        " | Reuse: " + csize(reusable_size) +
                        " | Unknow: " + csize(other_size);
-    printf("│ %-*s│\n", total_width - 3, stats.c_str());
+    PRINT("│ %-*s│\n", total_width - 3, stats.c_str());
 
     // Print table footer
-    printf("└");
-    for (int i = 0; i < total_width - 2; ++i) printf("─");
-    printf("┘\n");
+    PRINT("└");
+    for (int i = 0; i < total_width - 2; ++i) PRINT("─");
+    PRINT("┘\n");
 }
 
 /**

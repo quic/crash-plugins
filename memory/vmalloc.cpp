@@ -14,6 +14,7 @@
  */
 
 #include "vmalloc.h"
+#include "logger/logger_core.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -22,13 +23,28 @@
 DEFINE_PLUGIN_COMMAND(Vmalloc)
 #endif
 
+/**
+ * @brief Main command handler for vmalloc plugin
+ *
+ * Processes command-line arguments and dispatches to appropriate display functions.
+ * Supports multiple options for viewing vmalloc information in different formats.
+ */
 void Vmalloc::cmd_main(void) {
     int c;
     std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    if(area_list.size() == 0){
+
+    // Validate minimum argument count
+    if (argcnt < 2) {
+        cmd_usage(pc->curcmd, SYNOPSIS);
+        return;
+    }
+
+    // Parse vmap area list if not already cached
+    if (area_list.size() == 0) {
         parser_vmap_area_list();
     }
+
+    // Process command-line options
     while ((c = getopt(argcnt, args, "arvsf:t:")) != EOF) {
         switch(c) {
             case 'a':
@@ -56,37 +72,57 @@ void Vmalloc::cmd_main(void) {
                 break;
         }
     }
-    if (argerrs)
+
+    if (argerrs) {
         cmd_usage(pc->curcmd, SYNOPSIS);
+    }
 }
 
+/**
+ * @brief Initialize kernel structure field offsets
+ *
+ * Initializes all structure field offsets and sizes needed for parsing
+ * vmalloc-related kernel structures.
+ */
 void Vmalloc::init_offset(void) {
-    field_init(vmap_area,va_start);
-    field_init(vmap_area,va_end);
-    field_init(vmap_area,vm);
-    field_init(vmap_area,list);
-    field_init(vm_struct,next);
-    field_init(vm_struct,addr);
-    field_init(vm_struct,size);
-    field_init(vm_struct,flags);
-    field_init(vm_struct,pages);
-    field_init(vm_struct,nr_pages);
-    field_init(vm_struct,phys_addr);
-    field_init(vm_struct,caller);
+    // Initialize vmap_area structure fields
+    field_init(vmap_area, va_start);
+    field_init(vmap_area, va_end);
+    field_init(vmap_area, vm);
+    field_init(vmap_area, list);
+
+    // Initialize vm_struct structure fields
+    field_init(vm_struct, next);
+    field_init(vm_struct, addr);
+    field_init(vm_struct, size);
+    field_init(vm_struct, flags);
+    field_init(vm_struct, pages);
+    field_init(vm_struct, nr_pages);
+    field_init(vm_struct, phys_addr);
+    field_init(vm_struct, caller);
+
+    // Initialize structure sizes
     struct_init(vmap_area);
     struct_init(vm_struct);
-    field_init(vmap_node,pool);
-    field_init(vmap_pool,head);
-    field_init(vmap_pool,len);
+
+    // Initialize vmap_node and vmap_pool structures (for newer kernels)
+    field_init(vmap_node, pool);
+    field_init(vmap_pool, head);
+    field_init(vmap_pool, len);
     struct_init(vmap_node);
     struct_init(vmap_pool);
 }
 
+/**
+ * @brief Initialize command metadata and help information
+ *
+ * Sets up the command name, description, and comprehensive usage examples.
+ */
 void Vmalloc::init_command(void) {
     cmd_name = "vmalloc";
-    help_str_list={
+    help_str_list = {
         "vmalloc",                            /* command name */
-        "dump vmalloc memory information",        /* short description */
+        "dump vmalloc memory information",    /* short description */
         "-a \n"
             "  vmalloc -r\n"
             "  vmalloc -v\n"
@@ -155,137 +191,233 @@ void Vmalloc::init_command(void) {
     };
 }
 
-Vmalloc::Vmalloc(){}
+/**
+ * @brief Constructor
+ */
+Vmalloc::Vmalloc() {
 
-void Vmalloc::parser_vmap_nodes(){
-    if (!csymbol_exists("vmap_nodes")){
-        fprintf(fp, "vmap_nodes doesn't exist in this kernel!\n");
+}
+
+/**
+ * @brief Parse vmap_nodes structure (newer kernel versions)
+ *
+ * Parses the vmap_nodes structure used in newer kernels (typically 5.10+)
+ * for managing vmalloc address space. This structure uses per-node pools
+ * for better NUMA performance.
+ */
+void Vmalloc::parser_vmap_nodes() {
+    // Check if vmap_nodes symbol exists
+    if (!csymbol_exists("vmap_nodes")) {
+        LOGE("vmap_nodes doesn't exist in this kernel!");
         return;
     }
-    ulong nodes_addr = read_pointer(csymbol_value("vmap_nodes"),"vmap_nodes pages");
-    if (!is_kvaddr(nodes_addr)) return;
-    size_t nr_node = read_int( csymbol_value("nr_vmap_nodes"),"nr_vmap_nodes");
-    size_t pool_cnt = field_size(vmap_node,pool)/struct_size(vmap_pool);
-    size_t offset = field_offset(vmap_area,list);
-    for (size_t i = 0; i < nr_node; i++){
-        ulong pools_addr = nodes_addr + i * struct_size(vmap_node) + field_offset(vmap_node,pool);
-        for (size_t p = 0; p < pool_cnt; p++){
+
+    // Read vmap_nodes address
+    ulong nodes_addr = read_pointer(csymbol_value("vmap_nodes"), "vmap_nodes pages");
+    if (!is_kvaddr(nodes_addr)) {
+        LOGE("Invalid vmap_nodes address: 0x%lx", nodes_addr);
+        return;
+    }
+
+    // Get number of NUMA nodes
+    size_t nr_node = read_int(csymbol_value("nr_vmap_nodes"), "nr_vmap_nodes");
+    size_t pool_cnt = field_size(vmap_node, pool) / struct_size(vmap_pool);
+    size_t offset = field_offset(vmap_area, list);
+    // Iterate through all nodes and pools
+    for (size_t i = 0; i < nr_node; i++) {
+        ulong pools_addr = nodes_addr + i * struct_size(vmap_node) + field_offset(vmap_node, pool);
+        for (size_t p = 0; p < pool_cnt; p++) {
             ulong pool_addr = pools_addr + p * struct_size(vmap_pool);
-            if (!is_kvaddr(pool_addr)) continue;
-            ulong len = read_ulong(pool_addr + field_offset(vmap_pool,len),"vmap_pool len");
-            if (len == 0){
+            if (!is_kvaddr(pool_addr)) {
                 continue;
             }
-            for (const auto& area_addr : for_each_list(pool_addr,offset)) {
+            ulong len = read_ulong(pool_addr + field_offset(vmap_pool, len), "vmap_pool len");
+            if (len == 0) {
+                continue;
+            }
+            // Parse each vmap_area in this pool
+            for (const auto& area_addr : for_each_list(pool_addr, offset)) {
                 parser_vmap_area(area_addr);
             }
         }
     }
 }
 
-void Vmalloc::parser_vmap_area(ulong addr){
-    void *vmap_buf = read_struct(addr,"vmap_area");
+/**
+ * @brief Parse a single vmap_area structure
+ * @param addr Kernel address of the vmap_area structure
+ *
+ * Reads and parses a vmap_area structure and all associated vm_struct entries.
+ * This function handles the linked list of vm_struct allocations within the area.
+ */
+void Vmalloc::parser_vmap_area(ulong addr) {
+    LOGD("Parsing vmap_area at 0x%lx", addr);
+    // Read vmap_area structure
+    void *vmap_buf = read_struct(addr, "vmap_area");
     if (!vmap_buf) {
+        LOGE("Failed to read vmap_area at 0x%lx", addr);
         return;
     }
+
+    // Create and populate vmap_area object
     std::shared_ptr<vmap_area> area_ptr = std::make_shared<vmap_area>();
     area_ptr->addr = addr;
-    area_ptr->va_start = ULONG(vmap_buf + field_offset(vmap_area,va_start));
-    area_ptr->va_end = ULONG(vmap_buf + field_offset(vmap_area,va_end));
+    area_ptr->va_start = ULONG(vmap_buf + field_offset(vmap_area, va_start));
+    area_ptr->va_end = ULONG(vmap_buf + field_offset(vmap_area, va_end));
     area_list.push_back(area_ptr);
-    ulong vm_addr = ULONG(vmap_buf + field_offset(vmap_area,vm));
+
+    ulong vm_addr = ULONG(vmap_buf + field_offset(vmap_area, vm));
     FREEBUF(vmap_buf);
-    while (is_kvaddr(vm_addr)){
-        void *vm_buf = read_struct(vm_addr,"vm_struct");
+
+    LOGD("vmap_area range: [0x%lx~0x%lx], size: %lu bytes",
+         area_ptr->va_start, area_ptr->va_end,
+         area_ptr->va_end - area_ptr->va_start);
+
+    // Parse linked list of vm_struct entries
+    int vm_count = 0;
+    std::set<ulong> vm_map;
+    while (is_kvaddr(vm_addr)) {
+        void *vm_buf = read_struct(vm_addr, "vm_struct");
         if (!vm_buf) {
-            fprintf(fp, "Failed to read vm_struct structure at address %lx\n", vm_addr);
-            continue;
-        }
-        size_t vm_size = ULONG(vm_buf + field_offset(vm_struct,size));
-        size_t nr_pages = UINT(vm_buf + field_offset(vm_struct,nr_pages));
-        if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
-            FREEBUF(vm_buf);
+            LOGE("Failed to read vm_struct structure at address %lx", vm_addr);
             break;
         }
+
+        // Read vm_struct fields
+        size_t vm_size = ULONG(vm_buf + field_offset(vm_struct, size));
+        size_t nr_pages = UINT(vm_buf + field_offset(vm_struct, nr_pages));
+
+        // Check for loops
+        if (vm_map.find(vm_addr) != vm_map.end()) {
+            LOGE("Detected loop in vm_struct at 0x%lx", vm_addr);
+            break;
+        }
+        vm_map.insert(vm_addr);
+
+        // Validate vm_struct data
+        // if (vm_size % page_size != 0 || (vm_size / page_size) != (nr_pages + 1)) {
+        //     LOGE("  Invalid vm_struct at 0x%lx: size=%zu, nr_pages=%zu",
+        //          vm_addr, vm_size, nr_pages);
+        //     FREEBUF(vm_buf);
+        //     break;
+        // }
+
+        // Create and populate vm_struct object
         std::shared_ptr<vm_struct> vm_ptr = std::make_shared<vm_struct>();
         vm_ptr->addr = vm_addr;
-        vm_ptr->kaddr = ULONG(vm_buf + field_offset(vm_struct,addr));
+        vm_ptr->kaddr = ULONG(vm_buf + field_offset(vm_struct, addr));
         vm_ptr->size = vm_size;
         vm_ptr->nr_pages = nr_pages;
-        vm_ptr->phys_addr = ULONG(vm_buf + field_offset(vm_struct,phys_addr));
-        ulong caller = ULONG(vm_buf + field_offset(vm_struct,caller));
-        ulong next = ULONG(vm_buf + field_offset(vm_struct,next));
-        ulong pages = ULONG(vm_buf + field_offset(vm_struct,pages));
-        ulong flags = ULONG(vm_buf + field_offset(vm_struct,flags));
+        vm_ptr->phys_addr = ULONG(vm_buf + field_offset(vm_struct, phys_addr));
+
+        ulong caller = ULONG(vm_buf + field_offset(vm_struct, caller));
+        ulong next = ULONG(vm_buf + field_offset(vm_struct, next));
+        ulong pages = ULONG(vm_buf + field_offset(vm_struct, pages));
+        ulong flags = ULONG(vm_buf + field_offset(vm_struct, flags));
         FREEBUF(vm_buf);
-        if (flags & Vmalloc::VM_IOREMAP){
+
+        // Decode allocation flags
+        if (flags & Vmalloc::VM_IOREMAP) {
             vm_ptr->flags.assign("ioremap");
-        }else if (flags & Vmalloc::VM_ALLOC){
+        } else if (flags & Vmalloc::VM_ALLOC) {
             vm_ptr->flags.assign("vmalloc");
-        }else if (flags & Vmalloc::VM_MAP){
+        } else if (flags & Vmalloc::VM_MAP) {
             vm_ptr->flags.assign("vmap");
-        }else if (flags & Vmalloc::VM_USERMAP){
+        } else if (flags & Vmalloc::VM_USERMAP) {
             vm_ptr->flags.assign("user");
-        }else if (flags & Vmalloc::VM_VPAGES){
+        } else if (flags & Vmalloc::VM_VPAGES) {
             vm_ptr->flags.assign("vpages");
-        }else if (flags & Vmalloc::VM_UNLIST){
+        } else if (flags & Vmalloc::VM_UNLIST) {
             vm_ptr->flags.assign("unlist");
-        }else{
+        } else {
             vm_ptr->flags.assign("unknow");
         }
+
+        // Resolve caller symbol
         ulong offset;
         struct syment *sp = value_search(caller, &offset);
         if (sp) {
             vm_ptr->caller = sp->name;
-            size_t pos = vm_ptr->caller.find('.'); //remove the rest char
+            // Remove suffix after '.' (e.g., ".isra.0")
+            size_t pos = vm_ptr->caller.find('.');
             if (pos != std::string::npos) {
                 vm_ptr->caller = vm_ptr->caller.substr(0, pos);
             }
-            if (offset)
+            if (offset) {
                 vm_ptr->caller.append("+").append(std::to_string(offset));
+            }
         }
+
+        // Parse page list
         if (is_kvaddr(pages)) {
             for (int j = 0; j < vm_ptr->nr_pages; ++j) {
                 ulong addr = pages + j * sizeof(void *);
                 if (!is_kvaddr(addr)) break;
-                ulong page_addr = read_pointer(addr,"vm_struct pages");
+
+                ulong page_addr = read_pointer(addr, "vm_struct pages");
                 if (!is_kvaddr(page_addr)) continue;
+
                 physaddr_t paddr = page_to_phy(page_addr);
                 if (paddr <= 0) continue;
+
                 vm_ptr->page_list.push_back(page_addr);
             }
         }
         area_ptr->vm_list.push_back(vm_ptr);
+        LOGD("  Parsed vm_struct#%d: type=%s, size=%zu, pages=%d, caller=%s",
+             vm_count, vm_ptr->flags.c_str(), vm_ptr->size,
+             vm_ptr->nr_pages, vm_ptr->caller.c_str());
+        vm_count++;
         vm_addr = next;
     }
+    vm_map.clear();
 }
 
-void Vmalloc::parser_vmap_area_list(){
-    if (!csymbol_exists("vmap_area_list")){
+/**
+ * @brief Parse all vmap areas in the system
+ *
+ * Entry point for parsing vmalloc information. Automatically detects
+ * whether to use vmap_nodes (newer kernels) or vmap_area_list (older kernels).
+ */
+void Vmalloc::parser_vmap_area_list() {
+    // Try newer vmap_nodes structure first
+    if (!csymbol_exists("vmap_area_list")) {
+        LOGD("Using vmap_nodes structure (newer kernel)");
         parser_vmap_nodes();
-    }else{
+    } else {
+        // Use older vmap_area_list structure
+        LOGD("Using vmap_area_list structure (older kernel)");
+
         ulong area_list_addr = csymbol_value("vmap_area_list");
         if (!is_kvaddr(area_list_addr)) {
-            fprintf(fp, "vmap_area_list address is invalid!\n");
+            LOGE("vmap_area_list address is invalid!");
             return;
         }
-        int offset = field_offset(vmap_area,list);
-        for (const auto& area_addr : for_each_list(area_list_addr,offset)) {
+        int offset = field_offset(vmap_area, list);
+        for (const auto& area_addr : for_each_list(area_list_addr, offset)) {
             parser_vmap_area(area_addr);
         }
     }
 }
 
-void Vmalloc::print_vmap_area_list(){
+/**
+ * @brief Print detailed information for all vmap areas
+ *
+ * Displays comprehensive information including vmap_area addresses, ranges,
+ * vm_struct details, and individual page information.
+ */
+void Vmalloc::print_vmap_area_list() {
     size_t index = 0;
     std::ostringstream oss;
-    for(auto area: area_list){
+    for (auto area : area_list) {
+        // Print vmap_area header
         oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
             << "vmap_area:" << std::hex << area->addr << " "
             << "range:[" << std::hex << area->va_start << "~" << std::hex << area->va_end << "]" << " "
             << "size:" << csize((area->va_end - area->va_start)) << "\n";
 
-        for (auto vm : area->vm_list){
+        // Print each vm_struct in this area
+        for (auto vm : area->vm_list) {
             oss << "   vm_struct:" << std::hex << vm->addr << " "
                 << "size:" << csize(vm->size) << " "
                 << "flags:" << std::dec << vm->flags.c_str() << " "
@@ -294,8 +426,9 @@ void Vmalloc::print_vmap_area_list(){
                 << "phys_addr:" << std::hex << vm->phys_addr << " "
                 << vm->caller << "\n";
 
+            // Print each page in this vm_struct
             size_t cnt = 1;
-            for (auto page_addr : vm->page_list){
+            for (auto page_addr : vm->page_list) {
                 physaddr_t paddr = page_to_phy(page_addr);
                 oss << "       [" << std::setw(4) << std::setfill('0') << std::dec << std::right << cnt << "]"
                     << "Page:" << std::hex << page_addr << " "
@@ -306,43 +439,57 @@ void Vmalloc::print_vmap_area_list(){
         index++;
         oss << "\n";
     }
-    fprintf(fp, "%s", oss.str().c_str());
+    PRINT( "%s", oss.str().c_str());
 }
 
-void Vmalloc::print_vmap_area(){
+/**
+ * @brief Print summary of all vmap areas
+ *
+ * Displays a concise list of all vmap areas with their address ranges and sizes.
+ */
+void Vmalloc::print_vmap_area() {
+    // Calculate total virtual memory size
     ulong total_size = 0;
-    for(auto area: area_list){
+    for (auto area : area_list) {
         total_size += (area->va_end - area->va_start);
     }
-    fprintf(fp, "Total vm size:%s\n",csize(total_size).c_str());
-    fprintf(fp, "==============================================================================================================\n");
+    PRINT( "Total vm size:%s\n", csize(total_size).c_str());
+    PRINT( "==============================================================================================================\n");
     std::ostringstream oss;
-    for(size_t i=0; i < area_list.size(); i++){
+    for (size_t i = 0; i < area_list.size(); i++) {
         oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << i << "]"
             << "vmap_area:" << std::hex << area_list[i]->addr << " "
             << "range:[" << std::hex << area_list[i]->va_start << "~" << std::hex << area_list[i]->va_end << "]" << " "
             << "size:" << csize((area_list[i]->va_end - area_list[i]->va_start))
             << "\n";
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 }
 
-void Vmalloc::print_vm_struct(){
+/**
+ * @brief Print all vm_struct information
+ *
+ * Displays detailed information about all vm_struct allocations,
+ * including total virtual and physical memory usage.
+ */
+void Vmalloc::print_vm_struct() {
+    // Calculate totals
     ulong total_size = 0;
     ulong total_pages = 0;
-    for(auto area: area_list){
-        for (auto vm : area->vm_list){
+    for (auto area : area_list) {
+        for (auto vm : area->vm_list) {
             total_size += vm->size;
             total_pages += vm->nr_pages;
         }
     }
-    fprintf(fp, "Total vm size:%s, ",csize(total_size).c_str());
-    fprintf(fp, "physical size:%s\n",csize(total_pages*page_size).c_str());
-    fprintf(fp, "==============================================================================================================\n");
+
+    PRINT( "Total vm size:%s, ", csize(total_size).c_str());
+    PRINT( "physical size:%s\n", csize(total_pages * page_size).c_str());
+    PRINT( "==============================================================================================================\n");
     int index = 0;
     std::ostringstream oss;
-    for(auto area: area_list){
-        for (auto vm : area->vm_list){
+    for (auto area : area_list) {
+        for (auto vm : area->vm_list) {
             oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
                 << "vm_struct:" << std::hex << vm->addr << " "
                 << "size:" << std::left << std::setw(8) << std::setfill(' ') << csize(vm->size) << " "
@@ -354,134 +501,185 @@ void Vmalloc::print_vm_struct(){
             index += 1;
         }
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 }
 
-void Vmalloc::print_summary_caller(){
+/**
+ * @brief Print summary statistics grouped by caller function
+ *
+ * Aggregates and displays vmalloc statistics organized by the function
+ * that allocated the memory, sorted by virtual memory size.
+ */
+void Vmalloc::print_summary_caller() {
+    // Group vm_struct by caller function
     std::unordered_map<std::string, std::vector<std::shared_ptr<vm_struct>>> caller_map;
-    for(auto area: area_list){
-        for (auto vm : area->vm_list){
+    for (auto area : area_list) {
+        for (auto vm : area->vm_list) {
             auto it = caller_map.find(vm->caller);
             if (it != caller_map.end()) {
                 it->second.push_back(vm);
-            }else{
+            } else {
                 caller_map[vm->caller] = std::vector<std::shared_ptr<vm_struct>>{vm};
             }
         }
     }
+
+    // Calculate statistics for each caller
     std::vector<vmalloc_info> callers;
-    for(const auto& pair: caller_map){
+    for (const auto& pair : caller_map) {
         vmalloc_info info;
         info.func = pair.first;
         ulong total_size = 0;
         ulong total_cnt = 0;
-        for(auto vm: pair.second){
+
+        for (auto vm : pair.second) {
             total_size += vm->size;
             total_cnt += vm->nr_pages;
         }
+
         info.virt_size = total_size;
         info.page_cnt = total_cnt;
         callers.push_back(info);
     }
-    std::sort(callers.begin(), callers.end(),[&](vmalloc_info a, vmalloc_info b){
+
+    // Sort by virtual size (descending)
+    std::sort(callers.begin(), callers.end(), [&](vmalloc_info a, vmalloc_info b) {
         return a.virt_size > b.virt_size;
     });
+
+    // Find maximum function name length for formatting
     size_t max_len = 0;
     for (const auto& info : callers) {
-        max_len = std::max(max_len,info.func.size());
+        max_len = std::max(max_len, info.func.size());
     }
+
+    // Print table
     std::ostringstream oss;
     oss << std::left << std::setw(max_len + 2) << "Func Name" << " "
-            << std::left << std::setw(15) << "virt" << " "
-            << std::left << std::setw(15) << "phys"
-            << "\n";
-    for(const auto& info: callers){
+        << std::left << std::setw(15) << "virt" << " "
+        << std::left << std::setw(15) << "phys"
+        << "\n";
+
+    for (const auto& info : callers) {
         oss << std::left << std::setw(max_len + 2) << info.func << " "
             << std::left << std::setw(15) << csize(info.virt_size) << " "
-            << std::left << std::setw(15) << csize(info.page_cnt*page_size)
+            << std::left << std::setw(15) << csize(info.page_cnt * page_size)
             << "\n";
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
-
+    PRINT( "%s \n", oss.str().c_str());
 }
 
-void Vmalloc::print_summary_type(){
+/**
+ * @brief Print summary statistics grouped by allocation type
+ *
+ * Aggregates and displays vmalloc statistics organized by allocation type
+ * (ioremap, vmalloc, vmap, etc.), sorted by virtual memory size.
+ */
+void Vmalloc::print_summary_type() {
+    // Group vm_struct by allocation type
     std::unordered_map<std::string, std::vector<std::shared_ptr<vm_struct>>> type_maps;
-    for(auto area: area_list){
-        for (auto vm : area->vm_list){
+    for (auto area : area_list) {
+        for (auto vm : area->vm_list) {
             auto it = type_maps.find(vm->flags);
             if (it != type_maps.end()) {
                 it->second.push_back(vm);
-            }else{
+            } else {
                 type_maps[vm->flags] = std::vector<std::shared_ptr<vm_struct>>{vm};
             }
         }
     }
+
+    // Calculate statistics for each type
     std::vector<vmalloc_info> types;
-    for(const auto& pair: type_maps){
+    for (const auto& pair : type_maps) {
         vmalloc_info info;
         info.func = pair.first;
         ulong total_size = 0;
         ulong total_cnt = 0;
-        for(auto vm: pair.second){
+
+        for (auto vm : pair.second) {
             total_size += vm->size;
             total_cnt += vm->nr_pages;
         }
+
         info.virt_size = total_size;
         info.page_cnt = total_cnt;
         types.push_back(info);
     }
-    std::sort(types.begin(), types.end(),[&](vmalloc_info a, vmalloc_info b){
+
+    // Sort by virtual size (descending)
+    std::sort(types.begin(), types.end(), [&](vmalloc_info a, vmalloc_info b) {
         return a.virt_size > b.virt_size;
     });
+
+    // Find maximum type name length for formatting
     size_t max_len = 0;
     for (const auto& info : types) {
-        max_len = std::max(max_len,info.func.size());
+        max_len = std::max(max_len, info.func.size());
     }
+
+    // Print table
     std::ostringstream oss;
     oss << std::left << std::setw(max_len + 2) << "Type" << " "
-            << std::left << std::setw(15) << "virt" << " "
-            << std::left << std::setw(15) << "phys"
-            << "\n";
-    for(const auto& info: types){
+        << std::left << std::setw(15) << "virt" << " "
+        << std::left << std::setw(15) << "phys"
+        << "\n";
+
+    for (const auto& info : types) {
         oss << std::left << std::setw(max_len + 2) << info.func << " "
             << std::left << std::setw(15) << csize(info.virt_size) << " "
-            << std::left << std::setw(15) << csize(info.page_cnt*page_size)
+            << std::left << std::setw(15) << csize(info.page_cnt * page_size)
             << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 }
 
-void Vmalloc::print_summary_info(){
-    fprintf(fp, "Summary by caller:\n");
-    fprintf(fp, "========================================================\n");
+/**
+ * @brief Print summary statistics
+ *
+ * Displays comprehensive statistics including summaries by both
+ * caller function and allocation type.
+ */
+void Vmalloc::print_summary_info() {
+    PRINT( "Summary by caller:\n");
+    PRINT( "========================================================\n");
     print_summary_caller();
-    fprintf(fp, "\n\nSummary by type:\n");
-    fprintf(fp, "========================================================\n");
+
+    PRINT( "\n\nSummary by type:\n");
+    PRINT( "========================================================\n");
     print_summary_type();
 }
 
-void Vmalloc::print_vm_info_caller(std::string func){
+/**
+ * @brief Print page information for a specific caller function
+ * @param func Function name to filter by (partial match supported)
+ *
+ * Displays all physical pages allocated by functions matching the given name.
+ */
+void Vmalloc::print_vm_info_caller(std::string func) {
+    // Group vm_struct by caller
     std::unordered_map<std::string, std::vector<std::shared_ptr<vm_struct>>> caller_map;
-    for(auto area: area_list){
-        for (auto vm : area->vm_list){
+    for (auto area : area_list) {
+        for (auto vm : area->vm_list) {
             auto it = caller_map.find(vm->caller);
             if (it != caller_map.end()) {
                 it->second.push_back(vm);
-            }else{
+            } else {
                 caller_map[vm->caller] = std::vector<std::shared_ptr<vm_struct>>{vm};
             }
         }
     }
+
     std::ostringstream oss;
+    // Find matching callers and print their pages
     for (const auto& item : caller_map) {
         std::string func_name = item.first;
         std::vector<std::shared_ptr<vm_struct>> vm_list = item.second;
+
         if (func_name.find(func) != std::string::npos) {
-            // fprintf(fp, "%s:\n",func_name.c_str());
             int index = 1;
-            for(auto vm: vm_list){
-                for (auto page_addr : vm->page_list){
+            for (auto vm : vm_list) {
+                for (auto page_addr : vm->page_list) {
                     physaddr_t paddr = page_to_phy(page_addr);
                     oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
                         << "Page:" << std::left << std::hex << page_addr << " "
@@ -492,30 +690,38 @@ void Vmalloc::print_vm_info_caller(std::string func){
             }
         }
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 }
 
-void Vmalloc::print_vm_info_type(std::string type){
+/**
+ * @brief Print page information for a specific allocation type
+ * @param type Allocation type to filter by (partial match supported)
+ *
+ * Displays all physical pages allocated with the specified type
+ * (e.g., vmalloc, ioremap, vmap).
+ */
+void Vmalloc::print_vm_info_type(std::string type) {
+    // Group vm_struct by type
     std::unordered_map<std::string, std::vector<std::shared_ptr<vm_struct>>> type_maps;
-    for(auto area: area_list){
-        for (auto vm : area->vm_list){
+    for (auto area : area_list) {
+        for (auto vm : area->vm_list) {
             auto it = type_maps.find(vm->flags);
             if (it != type_maps.end()) {
                 it->second.push_back(vm);
-            }else{
+            } else {
                 type_maps[vm->flags] = std::vector<std::shared_ptr<vm_struct>>{vm};
             }
         }
     }
     std::ostringstream oss;
+    // Find matching types and print their pages
     for (const auto& item : type_maps) {
         std::string type_name = item.first;
         std::vector<std::shared_ptr<vm_struct>> vm_list = item.second;
         if (type_name.find(type) != std::string::npos) {
-            // fprintf(fp, "%s:\n",type_name.c_str());
             int index = 1;
-            for(auto vm: vm_list){
-                for (auto page_addr : vm->page_list){
+            for (auto vm : vm_list) {
+                for (auto page_addr : vm->page_list) {
                     physaddr_t paddr = page_to_phy(page_addr);
                     oss << "[" << std::setw(4) << std::setfill('0') << std::dec << std::right << index << "]"
                         << "Page:" << std::left << std::hex << page_addr << " "
@@ -526,7 +732,7 @@ void Vmalloc::print_vm_info_type(std::string type){
             }
         }
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT( "%s \n", oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

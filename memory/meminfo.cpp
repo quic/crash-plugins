@@ -380,18 +380,7 @@ size_t Meminfo::get_cma_size(){
 }
 
 size_t Meminfo::get_struct_page_size(){
-    ulong max_pfn = 0;
-    ulong min_pfn = 0;
-    /* max_pfn */
-    if (csymbol_exists("max_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("max_pfn"), sizeof(ulong), &max_pfn);
-    }
-    /* min_low_pfn */
-    if (csymbol_exists("min_low_pfn")){
-        try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_pfn);
-    }
-    ulong page_cnt = max_pfn - min_pfn;
-    return page_cnt * struct_size(page);
+    return (max_pfn - min_low_pfn) * struct_size(page);
 }
 
 size_t Meminfo::get_memory_size(){
