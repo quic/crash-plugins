@@ -1,371 +1,339 @@
-# Overall
-We've developed plugins based on crash-utility that can collect more information, covering both kernel space and user space. This improves our debugging efficiency.
+# Crash Utility Plugins
 
-![alt text](doc/image.png)
+A comprehensive collection of crash-utility plugins for analyzing Linux kernel crash dumps, covering both kernel space and user space debugging. These plugins significantly improve debugging efficiency for Qualcomm platforms.
 
-# How to start
+![Plugin Architecture](doc/image.png)
 
-```
-sudo apt-get install cmake  // cmake >= 3.21.1
-```
-```
+## Table of Contents
+
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Building](#building)
+- [Installation](#installation)
+- [Supported Modules](#supported-modules)
+- [Usage](#usage)
+- [Development Guide](#development-guide)
+- [Tested Kernels](#tested-kernels)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Features
+
+- **Comprehensive Coverage**: 40+ plugins covering memory, process, device, and system analysis
+- **Dual Architecture Support**: ARM64 and ARM32 platforms
+- **Flexible Build System**: Single-module or multi-module compilation
+- **Android Integration**: Special support for Android 11+ (API level 30+)
+- **Kernel Version Support**: Tested on kernels 5.4 to 6.6
+
+## Prerequisites
+
+### System Requirements
+
+- CMake >= 3.21.1
+- GCC with multilib support
+- Linux development environment
+
+### Install Dependencies
+
+```bash
+# Install CMake
+sudo apt-get install cmake
+
+# Enable 32-bit architecture support
 sudo dpkg --add-architecture i386
-```
-```
 sudo apt-get update
-```
-```
-sudo apt install gcc-multilib g++-multilib libzstd-dev libzstd-dev:i386 libelf-dev libelf-dev:i386 libsystemd-dev libsystemd-dev:i386 pkg-config
+
+# Install required libraries
+sudo apt-get install gcc-multilib g++-multilib \
+    libzstd-dev libzstd-dev:i386 \
+    libelf-dev libelf-dev:i386 \
+    libsystemd-dev libsystemd-dev:i386 \
+    pkg-config
 ```
 
-# How to build
+## Building
 
-We can compile each plugin as a separate library or compile all plugins together. Use the BUILD_TARGET_TOGETHER macro in build.sh to configure it.
+### Build Configuration
 
-## single-module (by defalut)
-```
-cmake -DCMAKE_C_COMPILER="/usr/bin/gcc"   \
+The build system supports two modes:
+
+1. **Single-module mode** (default): All plugins compiled into one `plugins.so`
+2. **Multi-module mode**: Each plugin compiled as a separate `.so` file
+
+### Single-Module Build (Recommended)
+
+```bash
+cmake -DCMAKE_C_COMPILER="/usr/bin/gcc" \
       -DCMAKE_CXX_COMPILER="/usr/bin/g++" \
-      -DCMAKE_BUILD_TYPE="Debug"          \
-      -DCMAKE_BUILD_TARGET_ARCH="arm64"   \
-      -DBUILD_TARGET_TOGETHER="1"         \
-      CMakeLists.txt                      \
+      -DCMAKE_BUILD_TYPE="Debug" \
+      -DCMAKE_BUILD_TARGET_ARCH="arm64" \
+      -DBUILD_TARGET_TOGETHER="1" \
       -B output/arm64
+
+cmake --build output/arm64
 ```
 
-## multi-module
-```
-cmake -DCMAKE_C_COMPILER="/usr/bin/gcc"   \
+### Multi-Module Build
+
+```bash
+cmake -DCMAKE_C_COMPILER="/usr/bin/gcc" \
       -DCMAKE_CXX_COMPILER="/usr/bin/g++" \
-      -DCMAKE_BUILD_TYPE="Debug"          \
-      -DCMAKE_BUILD_TARGET_ARCH="arm64"   \
-      CMakeLists.txt                      \
+      -DCMAKE_BUILD_TYPE="Debug" \
+      -DCMAKE_BUILD_TARGET_ARCH="arm64" \
       -B output/arm64
+
+cmake --build output/arm64
 ```
 
-## Build
-```
-$ ./build.sh
-```
+### Quick Build Script
 
-# How to use
-
-To load the module's commands to a running crash-8.0.6+ session, enter:
-
-```
-crash> extend <path-to>/output/arm64/plugins.so or extend <path-to>/output/arm64/${module}.so
+```bash
+./build.sh
 ```
 
-Support module:
+## Installation
 
-|  module       |    arm64  |    arm    |    comment                                           |
-|  --------     | --------  | --------  |    --------                                          |
-| binder        | √         | √         | parser binder log/node/ref/thread/proc/buffer info   |
-| slub info     | √         | √         | parser slub detail memory info                       |
-| slub poison   | √         | √         | check slub object memory poison                      |
-| slub trace    | √         | √         | parser slub object trace                             |
-| procrank      | √         | √         | parser vss/rss/pss/uss of process                    |
-| cma           | √         | √         | parser cma info                                      |
-| device tree   | √         | √         | parser device tree                                   |
-| memblock      | √         | √         | parser memblock info                                 |
-| device driver | √         | √         | parser device driver/char/block device               |
-| dmabuf        | √         | √         | parser dma-buf info                                  |
-| workqueue     | √         | √         | parser workqueue info                                |
-| reserved mem  | √         | √         | parser reserved memory info                          |
-| vmalloc       | √         | √         | parser vmalloc info                                  |
-| partition     | √         | √         | parser partition info                                |
-| pageowner     | √         | √         | parser pageowner info                                |
-| buddy         | √         | √         | parser memory node/zone/buddy info                   |
-| zram          | √         | √         | parser zram detail info                              |
-| swap          | √         | √         | parser swap info and provider API to userspace parser|
-| rtb           | √         | √         | parser rtb log                                       |
-| cpu           | √         | √         | parser cpu freq and policy info                      |
-| coredump      | √         | √         | dump the coredump info                               |
-| thermal       | √         | √         | parser all thermal zone temperature info             |
-| meminfo       | √         | √         | parser meminfo                                       |
-| watchdog      | √         | √         | parser watchdog info                                 |
-| pagecache     | √         | √         | parser pagecache for every file                      |
-| debugimage    | √         | √         | parser debug image info                              |
-| ipc log       | √         | √         | parser ipc log                                       |
-| regulator     | √         | √         | parser regulator info                                |
-| icc           | √         | √         | parser icc info                                      |
-| clock         | √         | √         | parser clock info                                    |
-| pstore        | √         | √         | parser pstore log                                    |
-| qlog          | √         | √         | parser pmic and boot log                             |
-| socinfo       | √         | √         | parser socinfo and commandline                       |
-| sched         | √         | √         | parser task sched info                               |
-| systemd       | √         | √         | parser journal log                                   |
-| t32           | √         | √         | generate the launch_t32.bat script                   |
-| ftrace        | √         | ×         | parser trace event info                              |
+Load plugins into a running crash-8.0.6+ session:
 
+```bash
+# Single-module mode
+crash> extend <path-to>/output/arm64/plugins.so
 
-|  module       |   Android-11.0(30)  |  >Android-12.0(31)  |      comment               |
-|  --------     | ------------------- | ------------------- | -------------------        |
-| property      | √                   | √                   |   parser property info     |
-| logcat        | √                   | √                   |   parser logcat log        |
-| surfaceflinger| √                   | √                   |   parser the layer info    |
-
-## usage
-See [USAGE.md](USAGE.md)
-```
-crash> help binder
-
-NAME
-  binder - dump binder log information
-
-SYNOPSIS
-  binder -a
-  binder -p [pid]
-  binder -l
-  binder -f
-  binder -n
-  binder -b
-  binder -t
-  binder -r
-
-
-DESCRIPTION
-  This command dumps the binder log information of a specified process.
-       -p  pid argument.
-
-
-EXAMPLES
-  Display all binder proc states:
-    crash> binder -a
-       proc 7312
-       context hwbinder
-           thread 7335: l 00 need_return 0 tr 0
-
-
-  Display specific process binder states:
-    crash> binder -p 7312
-       proc 7312
-       context hwbinder
-           thread 7335: l 00 need_return 0 tr 0
-```
-```
-crash> binder -r
-binder_proc:0xffffff801a432c00 ndroid.contacts [4346] binder dead:0 frozen:0 sr:0 ar:0 max:15 total:6 requested:0 started:2 ready:3
-  binder_ref:0xffffff806c9b0c00 id:117829 desc:7 s:1 w:1 death:0x0 -> node_id:6183 binder_proc:0xffffff80195ed000 system_server[1047]
-  binder_ref:0xffffff806883a180 id:117825 desc:3 s:1 w:1 death:0x0 -> node_id:4022 binder_proc:0xffffff80195ed000 system_server[1047]
-  binder_ref:0xffffff8067788000 id:117799 desc:1 s:1 w:1 death:0x0 -> node_id:5525 binder_proc:0xffffff80195ed000 system_server[1047]
-  binder_ref:0xffffff805a317000 id:117762 desc:0 s:1 w:1 death:0x0 -> node_id:1 binder_proc:0xffffff801de62800 servicemanager[446]
-  binder_ref:0xffffff806883ad00 id:117824 desc:2 s:1 w:1 death:0x0 -> node_id:4413 binder_proc:0xffffff80195ed000 system_server[1047]
-  binder_ref:0xffffff8046048400 id:117827 desc:5 s:1 w:1 death:0x0 -> node_id:8305 binder_proc:0xffffff80195ed000 system_server[1047]
-  binder_ref:0xffffff8066a2b700 id:117826 desc:4 s:1 w:1 death:0x0 -> node_id:5906 binder_proc:0xffffff80195ed000 system_server[1047]
+# Multi-module mode
+crash> extend <path-to>/output/arm64/binder.so
+crash> extend <path-to>/output/arm64/slub.so
 ```
 
-# How to develop
-1. If you want to build it into plugins.so, please follow the steps.
-     - Add your header file.
-       ```
-       /**
-       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-       *
-       * This program is free software; you can redistribute it and/or modify
-       * it under the terms of the GNU General Public License version 2 and
-       * only version 2 as published by the Free Software Foundation.
-       *
-       * This program is distributed in the hope that it will be useful,
-       * but WITHOUT ANY WARRANTY; without even the implied warranty of
-       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-       * GNU General Public License for more details.
-       *
-       * SPDX-License-Identifier: GPL-2.0-only
-       */
+## Supported Modules
 
-       #ifndef DEMO_DEFS_H_
-       #define DEMO_DEFS_H_
+### Kernel Space Modules
 
-       #include "plugin.h"
+| Module | ARM64 | ARM32 | Description |
+|--------|-------|-------|-------------|
+| **Memory Management** |||
+| slub | ✓ | ✓ | SLUB allocator analysis (info/poison/trace) |
+| buddy | ✓ | ✓ | Buddy system memory analysis |
+| cma | ✓ | ✓ | CMA memory regions |
+| memblock | ✓ | ✓ | Early boot memory allocator |
+| vmalloc | ✓ | ✓ | Vmalloc memory regions |
+| reserved | ✓ | ✓ | Reserved memory regions |
+| zram | ✓ | ✓ | ZRAM compression analysis |
+| swap | ✓ | ✓ | Swap space analysis |
+| dmabuf | ✓ | ✓ | DMA-BUF memory tracking |
+| pageowner | ✓ | ✓ | Page allocation tracking |
+| pagecache | ✓ | ✓ | Page cache analysis |
+| meminfo | ✓ | ✓ | Memory statistics |
+| **Process & Scheduling** |||
+| procrank | ✓ | ✓ | Process memory ranking (VSS/RSS/PSS/USS) |
+| sched | ✓ | ✓ | Task scheduling information |
+| binder | ✓ | ✓ | Binder IPC analysis |
+| lmkd | ✓ | ✓ | Low Memory Killer Daemon |
+| **Device & Drivers** |||
+| dd | ✓ | ✓ | Device driver enumeration |
+| dts | ✓ | ✓ | Device tree parsing |
+| regulator | ✓ | ✓ | Voltage regulator info |
+| icc | ✓ | ✓ | Interconnect analysis |
+| ccf | ✓ | ✓ | Common Clock Framework |
+| thermal | ✓ | ✓ | Thermal zone monitoring |
+| cpu | ✓ | ✓ | CPU frequency and policy |
+| watchdog | ✓ | ✓ | Watchdog timer status |
+| **Debugging & Logging** |||
+| rtb | ✓ | ✓ | Register trace buffer |
+| pstore | ✓ | ✓ | Persistent storage logs |
+| qlog | ✓ | ✓ | PMIC and boot logs |
+| ipc | ✓ | ✓ | IPC logging framework |
+| debugimage | ✓ | ✓ | Debug image parser |
+| ftrace | ✓ | ✗ | Ftrace event analysis |
+| systemd | ✓ | ✓ | Systemd journal logs |
+| **Utilities** |||
+| workqueue | ✓ | ✓ | Workqueue analysis |
+| partition | ✓ | ✓ | Filesystem partitions |
+| coredump | ✓ | ✓ | Process coredump generation |
+| sysinfo | ✓ | ✓ | System information |
+| t32 | ✓ | ✓ | T32 debugger script generation |
 
-       class Demo: public ParserPlugin {
-       public:
-           Demo();
+### Android Userspace Modules
 
-           void cmd_main(void) override;
-           void init_offset(void) override;
-           void init_command(void) override;
-           DEFINE_PLUGIN_INSTANCE(Demo)
-       };
+| Module | Android 11 | Android 12+ | Description |
+|--------|------------|-------------|-------------|
+| property | ✓ | ✓ | System properties |
+| logcat | ✓ | ✓ | Logcat buffer analysis |
+| surfaceflinger | ✓ | ✓ | Graphics layer info |
 
-       #endif // DEMO_DEFS_H_
-       ```
-     - Implement your parser in cpp file.
-       ```
-       /**
-       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-       *
-       * This program is free software; you can redistribute it and/or modify
-       * it under the terms of the GNU General Public License version 2 and
-       * only version 2 as published by the Free Software Foundation.
-       *
-       * This program is distributed in the hope that it will be useful,
-       * but WITHOUT ANY WARRANTY; without even the implied warranty of
-       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-       * GNU General Public License for more details.
-       *
-       * SPDX-License-Identifier: GPL-2.0-only
-       */
+## Usage
 
-       #include "demo.h"
+Detailed usage examples are available in [USAGE.md](USAGE.md).
 
-       #pragma GCC diagnostic push
-       #pragma GCC diagnostic ignored "-Wpointer-arith"
+### Quick Examples
 
-       void Demo::cmd_main(void) {
-           int c;
-           if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-           while ((c = getopt(argcnt, args, "a")) != EOF) {
-               switch(c) {
-                   case 'a':
-                       do_somethings();
-                       break;
-                   default:
-                       argerrs++;
-                       break;
-           }
-         }
-           if (argerrs)
-           cmd_usage(pc->curcmd, SYNOPSIS);
-       }
+```bash
+# Display all binder processes
+crash> binder -a
 
-       /* It will be called automatically. */
-       void Demo::init_command(void) {
-           cmd_name = "demo";
-           help_str_list={
-           "demo",                    /* command name */
-           "your description",        /* short description */
-           };
-       }
+# Show memory statistics
+crash> meminfo -a
 
-       void Demo::init_offset(void) {
-         /* If your parser needs to initialize offsets, please do so here. */
-         /* If the offset belongs to a driver module, set do_init_offset = false in the constructor. Then, initialize the offset in here and call it from cmd_main(). */
-       }
-       ```
-     - Include your header file to plugins.cpp
-       ```
-       #include "demo.h"
-       ```
-     - Add the shared_ptr to plugins.cpp
-       ```
-       std::shared_ptr<Demo>   Demo::instance = nullptr;
-       ```
-     - Register your module to plugins.cpp in function plugin_init
-       ```
-       plugins.push_back(make_and_init<Demo>());
-       ```
-     - Add the build rule in CMakeLists.txt
-       ```
-       list(APPEND PLUGIN_SOURCES
-           ...
-           demo.cpp)
-       ```
-2. If you want to add the module to the single-module. please follow the steps in plugins.cpp
-   - Add your header file.
-       ```
-       /**
-       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-       *
-       * This program is free software; you can redistribute it and/or modify
-       * it under the terms of the GNU General Public License version 2 and
-       * only version 2 as published by the Free Software Foundation.
-       *
-       * This program is distributed in the hope that it will be useful,
-       * but WITHOUT ANY WARRANTY; without even the implied warranty of
-       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-       * GNU General Public License for more details.
-       *
-       * SPDX-License-Identifier: GPL-2.0-only
-       */
+# Analyze SLUB cache
+crash> slub -a
 
-       #ifndef DEMO_DEFS_H_
-       #define DEMO_DEFS_H_
+# Generate process coredump
+crash> coredump -p 1234
 
-       #include "plugin.h"
+# Parse device tree
+crash> dts -a
 
-       class Demo: public ParserPlugin {
-       public:
-           Demo();
+# View thermal zones
+crash> tm -d
+```
 
-           void cmd_main(void) override;
-           void init_offset(void) override;
-           void init_command(void) override;
-           DEFINE_PLUGIN_INSTANCE(Demo)
-       };
+For comprehensive command documentation, see:
+```bash
+crash> help <command>
+```
 
-       #endif // DEMO_DEFS_H_
-       ```
-    - Register your parser using DEFINE_PLUGIN_COMMAND(Demo) in your cpp file.
-       ```
-       /**
-       * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-       *
-       * This program is free software; you can redistribute it and/or modify
-       * it under the terms of the GNU General Public License version 2 and
-       * only version 2 as published by the Free Software Foundation.
-       *
-       * This program is distributed in the hope that it will be useful,
-       * but WITHOUT ANY WARRANTY; without even the implied warranty of
-       * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-       * GNU General Public License for more details.
-       *
-       * SPDX-License-Identifier: GPL-2.0-only
-       */
-       #include "demo.h"
-       #pragma GCC diagnostic push
-       #pragma GCC diagnostic ignored "-Wpointer-arith"
+## Development Guide
 
-       DEFINE_PLUGIN_COMMAND(Demo)
+### Adding a New Plugin (Single-Module Mode)
 
-       void Demo::cmd_main(void) {
-           int c;
-           if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-           while ((c = getopt(argcnt, args, "a")) != EOF) {
-               switch(c) {
-                   case 'a':
-                       do_somethings();
-                       break;
-                   default:
-                       argerrs++;
-                       break;
-           }
-         }
-           if (argerrs)
-           cmd_usage(pc->curcmd, SYNOPSIS);
-       }
-       /* It will be called automatically. */
-       void Demo::init_command(void) {
-           cmd_name = "demo";
-           help_str_list={
-           "demo",                    /* command name */
-           "your description",        /* short description */
-           };
-       }
-       void Demo::init_offset(void) {
-         /* If your parser needs to initialize offsets, please do so here. */
-         /* If the offset belongs to a driver module, set do_init_offset = false in the constructor. Then, initialize the offset in here and call it from cmd_main(). */
-       }
-       ```
-   - Add the build rule in CMakeLists.txt
-       ```
-       add_library(demo SHARED
-               ${PLUGIN_SOURCES}
-               demo.cpp)
-       set_target_properties(demo PROPERTIES PREFIX "")
-       target_link_libraries(demo)
-       ```
+1. **Create header file** (`demo/demo.h`):
 
-# Tested Kernels
-- 5.4 to 6.6
+```cpp
+/**
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
 
-# Related Links
-- https://github.com/quic/crash-plugins.git
-- https://crash-utility.github.io/
+#ifndef DEMO_H_
+#define DEMO_H_
 
-# Author
- - quic_wya@quicinc.com
+#include "plugin.h"
 
-# License
- - This project is licensed under the [GPL v2 License](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html). See [LICENSE.txt](LICENSE.txt) for the full license text.
+class Demo: public ParserPlugin {
+public:
+    Demo();
+    void cmd_main(void) override;
+    void init_offset(void) override;
+    void init_command(void) override;
+    DEFINE_PLUGIN_INSTANCE(Demo)
+};
+
+#endif // DEMO_H_
+```
+
+2. **Implement plugin** (`demo/demo.cpp`):
+
+```cpp
+#include "demo.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-arith"
+
+void Demo::cmd_main(void) {
+    int c;
+    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+
+    while ((c = getopt(argcnt, args, "a")) != EOF) {
+        switch(c) {
+            case 'a':
+                // Your implementation
+                break;
+            default:
+                argerrs++;
+                break;
+        }
+    }
+
+    if (argerrs)
+        cmd_usage(pc->curcmd, SYNOPSIS);
+}
+
+void Demo::init_command(void) {
+    cmd_name = "demo";
+    help_str_list = {
+        "demo",
+        "your description",
+        "demo -a",
+        "  -a  show all information",
+        NULL
+    };
+}
+
+void Demo::init_offset(void) {
+    // Initialize structure offsets if needed
+}
+
+#pragma GCC diagnostic pop
+```
+
+3. **Register plugin** in `plugins.cpp`:
+
+```cpp
+#include "demo/demo.h"
+
+// Add instance declaration
+std::shared_ptr<Demo> Demo::instance = nullptr;
+
+// Register in plugin_init()
+void plugin_init(void) {
+    plugins.push_back(make_and_init<Demo>());
+    // ... other plugins
+}
+```
+
+4. **Update CMakeLists.txt**:
+
+```cmake
+list(APPEND PLUGIN_SOURCES
+    demo/demo.cpp)
+```
+
+### Adding a New Plugin (Multi-Module Mode)
+
+Follow steps 1-2 above, then:
+
+3. **Use macro in cpp file**:
+
+```cpp
+DEFINE_PLUGIN_COMMAND(Demo)
+```
+
+4. **Add build rule in CMakeLists.txt**:
+
+```cmake
+add_plugin(demo
+    demo/demo.cpp)
+```
+
+### Best Practices
+
+- Use `MEMBER_OFFSET_INIT()` for structure field offsets
+- Handle both ARM64 and ARM32 architectures when applicable
+- Add comprehensive help text in `init_command()`
+- Use `cmd_usage()` for error handling
+- Follow existing code style and patterns
+
+## Tested Kernels
+
+- Linux kernel versions: 5.4 to 6.6
+- Android versions: 11 (API 30) to 14 (API 34)
+- Architectures: ARM64, ARM32
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE-OF-CONDUCT.md](CODE-OF-CONDUCT.md).
+
+## Related Links
+
+- [Crash Utility Official Site](https://crash-utility.github.io/)
+
+## Author
+
+- quic_wya@quicinc.com
+
+## License
+
+This project is licensed under the [GPL v2 License](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html). See [LICENSE.txt](LICENSE.txt) for the full license text.
+
+---
+
+**Note**: This plugin collection is designed for debugging and analysis purposes. Always ensure you have proper authorization before analyzing system crash dumps.

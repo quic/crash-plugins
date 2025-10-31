@@ -26,6 +26,9 @@ DEFINE_PLUGIN_COMMAND(Cma)
  * @brief Main command entry point for CMA analysis
  *
  * Parses command line arguments and dispatches to appropriate handler functions:
+ * -a: Display all CMA areas with allocation statistics
+ * -u <name>: Show allocated pages for specific CMA area
+ * -f <name>: Show free pages for specific CMA area
  */
 void Cma::cmd_main(void) {
     // Check minimum argument count
