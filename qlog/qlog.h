@@ -19,13 +19,27 @@
 #include "plugin.h"
 #include "devicetree/devicetree.h"
 
+/**
+ * @struct pmic_event_t
+ * @brief PMIC power-on event structure
+ *
+ * Represents a single PMIC power-on log event with state, event type,
+ * and associated data fields.
+ */
 struct pmic_event_t {
-    uint8_t state;
-    uint8_t event;
-    uint8_t data1;
-    uint8_t data0;
+    uint8_t state;      // Event state
+    uint8_t event;      // Event type (see pmic_pon_event enum)
+    uint8_t data1;      // High byte of event data
+    uint8_t data0;      // Low byte of event data
 };
 
+/**
+ * @enum pmic_pon_event
+ * @brief PMIC power-on event types
+ *
+ * Defines all possible PMIC power-on event types that can be logged
+ * during the boot sequence.
+ */
 enum pmic_pon_event {
     PMIC_PON_EVENT_PON_TRIGGER_RECEIVED    = 0x01,
     PMIC_PON_EVENT_OTP_COPY_COMPLETE       = 0x02,
@@ -58,37 +72,120 @@ enum pmic_pon_event {
     PMIC_PON_EVENT_PMIC_VREG_READY_CHECK   = 0x20,
 };
 
+/**
+ * @enum pmic_pon_reset_type
+ * @brief PMIC reset types
+ *
+ * Defines the different types of resets that can occur.
+ */
 enum pmic_pon_reset_type {
     PMIC_PON_RESET_TYPE_WARM_RESET        = 0x1,
     PMIC_PON_RESET_TYPE_SHUTDOWN          = 0x4,
     PMIC_PON_RESET_TYPE_HARD_RESET        = 0x7,
 };
 
+/**
+ * @class QLog
+ * @brief Plugin for analyzing Qualcomm boot and PMIC logs
+ *
+ * Provides commands to display PMIC power-on logs, kernel boot logs,
+ * and XBL/SBL logs from device tree reserved memory regions.
+ */
 class QLog : public ParserPlugin {
 private:
-    std::unordered_map<uint32_t, std::string> pmic_pon_trigger_map;
-    std::unordered_map<uint32_t, std::string> pmic_pon_reset_trigger_map;
-    std::vector<std::string> pmic_pon_fault_reason1;
-    std::vector<std::string> pmic_pon_fault_reason2;
-    std::vector<std::string> pmic_pon_fault_reason3;
-    std::vector<std::string> pmic_pon_s3_reset_reason;
-    std::vector<std::string> pmic_pon_pon_pbl_status;
-    std::vector<std::string> pmic_pon_reset_type_label;
-    std::shared_ptr<Devicetree> dts;
+    std::unordered_map<uint32_t, std::string> pmic_pon_trigger_map;        // PON trigger code to name mapping
+    std::unordered_map<uint32_t, std::string> pmic_pon_reset_trigger_map;  // Reset trigger code to name mapping
+    std::vector<std::string> pmic_pon_fault_reason1;                        // Fault reason 1 descriptions
+    std::vector<std::string> pmic_pon_fault_reason2;                        // Fault reason 2 descriptions
+    std::vector<std::string> pmic_pon_fault_reason3;                        // Fault reason 3 descriptions
+    std::vector<std::string> pmic_pon_s3_reset_reason;                      // S3 reset reason descriptions
+    std::vector<std::string> pmic_pon_pon_pbl_status;                       // PBL status descriptions
+    std::vector<std::string> pmic_pon_reset_type_label;                     // Reset type labels
+    std::shared_ptr<Devicetree> dts;                                        // Device tree parser instance
 
+    /**
+     * @brief Read PMIC PON trigger mapping tables from kernel
+     *
+     * Loads all PMIC power-on trigger and fault reason mappings from
+     * kernel symbols into internal data structures.
+     */
     void read_pmic_pon_trigger_maps();
+
+    /**
+     * @brief Print PMIC fault reasons from bitmask
+     * @param data Bitmask of fault reasons
+     * @param reasons Vector of reason descriptions
+     *
+     * Decodes a fault reason bitmask and prints all active reasons.
+     */
     void pmic_pon_log_print_reason(uint8_t data, std::vector<std::string> reasons);
+
+    /**
+     * @brief Parse and display PMIC PON log device
+     * @param addr Kernel address of pmic_pon_log_dev structure
+     *
+     * Reads and interprets all PMIC power-on log events.
+     */
     void parser_pmic_pon_log_dev(ulong addr);
+
+    /**
+     * @brief Print XBL/SBL log from device tree reserved memory
+     *
+     * Extracts and displays the bootloader log from the UEFI log region
+     * defined in the device tree.
+     */
     void print_sbl_log();
+
+    /**
+     * @brief Print PMIC power-on information
+     *
+     * Finds the PMIC PON log device and displays all power-on events.
+     */
     void print_pmic_info();
+
+    /**
+     * @brief Print kernel boot log
+     *
+     * Displays the early kernel boot log buffer if available.
+     */
     void print_boot_log();
+
+    /**
+     * @brief Remove invalid characters from log string
+     * @param msg Input log message
+     * @return Cleaned log message with only printable characters
+     *
+     * Filters out non-printable characters while preserving newlines.
+     */
     std::string remove_invalid_chars(const std::string& msg);
 
 public:
+    /**
+     * @brief Constructor - initializes device tree parser
+     */
     QLog();
+
+    /**
+     * @brief Main command handler
+     *
+     * Processes command-line arguments and dispatches to appropriate functions.
+     */
     void cmd_main(void) override;
+
+    /**
+     * @brief Initialize structure field offsets
+     *
+     * Initializes kernel structure offsets needed for parsing device information.
+     */
     void init_offset(void) override;
+
+    /**
+     * @brief Initialize command metadata
+     *
+     * Sets up command name, help text, and usage examples.
+     */
     void init_command(void) override;
+
     DEFINE_PLUGIN_INSTANCE(QLog)
 };
 

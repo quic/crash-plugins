@@ -218,23 +218,23 @@ void Dts::print_node(std::shared_ptr<device_node> node_ptr,int flag){
 
 void Dts::read_dtb(std::string& path){
     if (!csymbol_exists("initial_boot_params")){
-       LOGD("initial_boot_params doesn't exist in this kernel!\n");
+       LOGE("initial_boot_params doesn't exist in this kernel!\n");
        return;
     }
     ulong initial_boot_params_addr = csymbol_value("initial_boot_params");
     if (!is_kvaddr(initial_boot_params_addr)) {
-       fprintf(fp,"initial_boot_params address is invalid !\n");
+       LOGE("initial_boot_params address is invalid !\n");
        return;
     }
     ulong initial_boot_params = read_pointer(initial_boot_params_addr,"initial_boot_params");
     void* header = read_memory(initial_boot_params,20,"dtb header");
     if (!header) {
-       fprintf(fp,"Failed to read dtb header at address %lx\n", initial_boot_params);
+       LOGE("Failed to read dtb header at address %lx\n", initial_boot_params);
        return;
     }
     ulong magic = UINT(header);
     if (magic != 0xEDFE0DD0){
-        LOGD("magic:%lx is not correct !\n",magic);
+        LOGE("magic:%lx is not correct !\n",magic);
         FREEBUF(header);
         return;
     }
