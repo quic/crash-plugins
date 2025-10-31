@@ -19,7 +19,6 @@
 #include "devicetree/dts.h"
 #include "memory/memblock.h"
 #include "memory/reserved.h"
-#include "memory/iomem.h"
 #include "memory/vmalloc.h"
 #include "memory/dmabuf/cmd_buf.h"
 #include "memory/slub.h"
@@ -100,7 +99,6 @@ std::shared_ptr<DDriver>       DDriver::instance       = nullptr;
 std::shared_ptr<DmaIon>        DmaIon::instance        = nullptr;
 std::shared_ptr<Workqueue>     Workqueue::instance     = nullptr;
 std::shared_ptr<Reserved>      Reserved::instance      = nullptr;
-std::shared_ptr<IoMem>         IoMem::instance         = nullptr;
 std::shared_ptr<Vmalloc>       Vmalloc::instance       = nullptr;
 std::shared_ptr<FileSystem>    FileSystem::instance    = nullptr;
 std::shared_ptr<Pageowner>     Pageowner::instance     = nullptr;
@@ -143,7 +141,6 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<DmaIon>());
     plugins.push_back(make_and_init<Workqueue>());
     plugins.push_back(make_and_init<Reserved>());
-    plugins.push_back(make_and_init<IoMem>());
     plugins.push_back(make_and_init<Vmalloc>());
     plugins.push_back(make_and_init<FileSystem>());
     plugins.push_back(make_and_init<Pageowner>());

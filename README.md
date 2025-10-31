@@ -72,7 +72,6 @@ Support module:
 | dmabuf        | √         | √         | parser dma-buf info                                  |
 | workqueue     | √         | √         | parser workqueue info                                |
 | reserved mem  | √         | √         | parser reserved memory info                          |
-| iomem         | √         | √         | parser memory layout info                            |
 | vmalloc       | √         | √         | parser vmalloc info                                  |
 | partition     | √         | √         | parser partition info                                |
 | pageowner     | √         | √         | parser pageowner info                                |

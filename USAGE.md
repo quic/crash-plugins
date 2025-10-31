@@ -10,7 +10,6 @@ Support command:
 | [vmalloc](#vmalloc)      | √           | √            | √            | √            |  show vmalloc memory     |
 | [memblock](#memblock)    | √           | √            | √            | √            |  show memblock memory    |
 | [dmabuf](#dmabuf)        | √           | √            | √            | √            |  show dmabuf memory      |
-| [iomem](#iomem)          | √           | √            | √            | √            |  show iomem memory       |
 | [buddy](#buddy)          | √           | √            | √            | √            |  show buddy info         |
 | [zram](#zram)            | √           | √            | √            | √            |  show zram memory        |
 | [meminfo](#meminfo)      | √           | √            | √            | √            |  show process memory     |
@@ -467,23 +466,7 @@ Save a dmabuf data to file.
 crash> dmabuf -S ffffff881ced9400
 Save dmabuf to file ./dma_buf@ffffff881ced9400.data !
 ```
-## iomem
-This command dumps the memory layout information.
 
-### iomem -a
-```
-crash> iomem -a
-17179869184GB [0~ffffffffffffffff] PCI mem
-        3.00MB    [500000~7fffff] 500000.pinctrl pinctrl@500000
-        1.87MB    [1400000~15dffff] 1400000.clock-controller cc_base
-        8.00KB    [1610000~1611fff] 1610000.msm-eud eud_base
-        3B        [1612000~1612003] 1613000.hsphy eud_enable_reg
-        287B      [1613000~161311f] 1613000.hsphy hsusb_phy_base
-        376.50KB  [1880000~18de1ff] 1880000.interconnect interconnect@1880000
-        4.00KB    [1900000~1900fff] 1900000.interconnect interconnect@1900000
-        28.00KB   [1b40000~1b46fff] 1b40000.qfprom qfprom@1b40000
-        152.00KB  [1c0a000~1c2ffff] spmi-0 cnfg
-```
 ## meminfo
 This command dumps the memory information.
 

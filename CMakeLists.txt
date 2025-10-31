@@ -73,7 +73,6 @@ list(APPEND PLUGIN_SOURCES
     memory/cma.cpp
     memory/reserved.cpp
     memory/memblock.cpp
-    memory/iomem.cpp
     memory/vmalloc.cpp
     memory/dmabuf/cmd_buf.cpp
     memory/dmabuf/dmabuf.cpp
@@ -211,10 +210,6 @@ add_plugin(wq
 add_plugin(reserved
     memory/reserved.cpp
     devicetree/devicetree.cpp)
-
-# =================== build iomem ===================
-add_plugin(iomem
-    memory/iomem.cpp)
 
 # =================== build vmalloc ===================
 add_plugin(vmalloc
