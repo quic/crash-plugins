@@ -770,7 +770,7 @@ void Pageowner::print_sorted_allocation_summary(){
     std::vector<std::pair<unsigned int, std::shared_ptr<stack_info>>> handle_vec;
     handle_vec.reserve(handle_map.size());
     for (auto& pair : handle_map) {
-        handle_vec.emplace_back(pair.first, std::move(pair.second));
+        handle_vec.emplace_back(pair.first, pair.second);
     }
 
     std::sort(handle_vec.begin(), handle_vec.end(),
@@ -952,14 +952,14 @@ void Pageowner::parser_all_pageowners(){
         // Convert PFN to page structure address
         ulong page = pfn_to_page(pfn);
         if (!is_kvaddr(page)) {
-            LOGE("PFN 0x%zx: invalid page address 0x%lx", pfn, page);
+            LOGD("PFN 0x%zx: invalid page address 0x%lx", pfn, page);
             continue;
         }
 
         // Lookup the page_ext structure for this page
         ulong page_ext = lookup_page_ext(page);
         if (!is_kvaddr(page_ext)) {
-            LOGE("PFN 0x%zx: invalid page_ext address", pfn);
+            LOGD("PFN 0x%zx: invalid page_ext address", pfn);
             continue;
         }
 

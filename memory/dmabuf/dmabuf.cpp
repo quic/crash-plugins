@@ -133,6 +133,9 @@ void Dmabuf::parser_dma_bufs() {
     } else if (csymbol_exists("debugfs_list")) {
         db_list_addr = csymbol_value("debugfs_list");
         LOGD("Found debugfs_list at address: 0x%lx", db_list_addr);
+    } else if(csymbol_exists("dmabuf_list")){
+        db_list_addr = csymbol_value("dmabuf_list");
+        LOGD("Found dmabuf_list at address: 0x%lx", db_list_addr);
     }
 
     // Validate the list address

@@ -202,6 +202,14 @@ void Watchdog::parser_msm_wdt(){
     ulong watchdog_task = ULONG(wdt_buf + field_offset(msm_watchdog_data,watchdog_task));
     FREEBUF(wdt_buf);
     struct task_context* tc = task_to_context(watchdog_task);
+    ulong pid = 0;
+    int processor = -1;
+    if(!tc){
+        LOGE("No such watchdog task \n");
+    } else {
+        pid = tc->pid;
+        processor = tc->processor;
+    }
     uint64_t jiffies = 0;
     if (csymbol_exists("jiffies")){
         jiffies = read_ulonglong(csymbol_value("jiffies"),"jiffies");
@@ -236,8 +244,8 @@ void Watchdog::parser_msm_wdt(){
         << std::left << std::setw(20) << "  tick_do_timer_cpu   : " << std::dec << tick_do_timer_cpu << "\n\n"
         << std::left << "watchdog_thread: " << "\n"
         << std::left << std::setw(20) << "  watchdog_task       : " << std::hex << watchdog_task << "\n"
-        << std::left << std::setw(20) << "  pid                 : " << std::dec << tc->pid << "\n"
-        << std::left << std::setw(20) << "  cpu                 : " << std::dec << tc->processor << "\n"
+        << std::left << std::setw(20) << "  pid                 : " << std::dec << pid << "\n"
+        << std::left << std::setw(20) << "  cpu                 : " << std::dec << processor << "\n"
         << std::left << std::setw(20) << "  task_state          : " << task_state_string(watchdog_task, buf, 0) << "\n"
         << std::left << std::setw(20) << "  last_run            : " << task_last_run(watchdog_task) << "\n"
         << std::left << std::setw(20) << "  thread_start        : " << std::dec << thread_start << "\n"
