@@ -74,6 +74,7 @@ void SysInfo::init_command(void) {
 SysInfo::SysInfo(){}
 
 void SysInfo::print_socinfo(){
+    LOGI("Starting socinfo parsing\n");
     field_init(socinfo,id);
     field_init(socinfo,raw_id);
     field_init(socinfo,hw_plat);
@@ -89,13 +90,19 @@ void SysInfo::print_socinfo(){
     field_init(socinfo,nsubset_parts_array_offset);
     ulong soc_addr = read_pointer(csymbol_value("socinfo"),"socinfo");
     if (!is_kvaddr(soc_addr)) {
-        fprintf(fp, "socinfo address is invalid!\n");
+        LOGE("socinfo address is invalid: %lx\n", soc_addr);
         return;
     }
+    LOGD("socinfo structure found at address: %lx\n", soc_addr);
     void *buf = read_struct(soc_addr,"socinfo");
+    if (!buf) {
+        LOGE("Failed to read socinfo structure at address %lx\n", soc_addr);
+        return;
+    }
     uint soc_id = UINT(buf + field_offset(socinfo,id));
     std::string chip_id = read_cstring(soc_addr + field_offset(socinfo,chip_id),32,"chip_id");
     uint32_t hw_id = UINT(buf + field_offset(socinfo,hw_plat));
+    LOGD("Parsed basic info: soc_id=%u, chip_id=%s, hw_id=%u\n", soc_id, chip_id.c_str(), hw_id);
     std::string hw_name = "";
     if (hw_id < hw_platforms.size()){
         hw_name = hw_platforms[hw_id];
@@ -103,6 +110,7 @@ void SysInfo::print_socinfo(){
     uint32_t num_parts = UINT(buf + field_offset(socinfo,num_subset_parts));
     uint32_t offset = UINT(buf + field_offset(socinfo,nsubset_parts_array_offset));
     ulong part_addr = soc_addr + offset;
+    LOGD("Subset parts: num_parts=%u, offset=%u, part_addr=%lx\n", num_parts, offset, part_addr);
     std::vector<std::string> subset_parts = get_enumerator_list("subset_part_type");
     std::unordered_map<uint32_t, std::string> parts_map;
     for (const auto& part : subset_parts){
@@ -129,23 +137,22 @@ void SysInfo::print_socinfo(){
             }
         }
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
     FREEBUF(buf);
 }
 
 void SysInfo::print_qsocinfo(){
+    LOGI("Starting qcom-socinfo device parsing\n");
     field_init(device,kobj);
     field_init(kobject,name);
     field_init(device,driver_data);
     field_init(qcom_socinfo,attr);
     field_init(qcom_socinfo,info);
-
     field_init(soc_device_attribute,machine);
     field_init(soc_device_attribute,family);
     field_init(soc_device_attribute,revision);
     field_init(soc_device_attribute,serial_number);
     field_init(soc_device_attribute,soc_id);
-
     field_init(socinfo_params,raw_device_family);
     field_init(socinfo_params,hw_plat_subtype);
     field_init(socinfo_params,raw_ver);
@@ -154,6 +161,7 @@ void SysInfo::print_qsocinfo(){
     field_init(socinfo_params,nproduct_id);
     struct_init(socinfo_params);
     std::ostringstream oss;
+    LOGD("Searching for qcom-socinfo device on platform bus\n");
     for (const auto& dev_addr : for_each_device_for_bus("platform")) {
         std::string device_name;
         size_t name_addr = read_pointer(dev_addr + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
@@ -163,11 +171,13 @@ void SysInfo::print_qsocinfo(){
         if (device_name.empty() || device_name != "qcom-socinfo"){
             continue;
         }
+        LOGD("Found qcom-socinfo device at address %lx\n", dev_addr);
         ulong socinfo_addr = read_pointer(dev_addr + field_offset(device,driver_data) ,"driver_data");
         if (!is_kvaddr(socinfo_addr)){
+            LOGW("Invalid driver_data address for qcom-socinfo device\n");
             continue;
         }
-        fprintf(fp, "addr: %#lx \n",socinfo_addr);
+        LOGD("qcom_socinfo structure at address: %lx\n", socinfo_addr);
         ulong attr_addr = socinfo_addr + field_offset(qcom_socinfo,attr);
         std::string machine;
         name_addr = read_pointer(attr_addr + field_offset(soc_device_attribute,machine),"machine addr");
@@ -189,8 +199,13 @@ void SysInfo::print_qsocinfo(){
         if (is_kvaddr(name_addr)){
             soc_id = read_cstring(name_addr,100, "soc_id");
         }
+        LOGD("Parsed device attributes: machine=%s, family=%s, soc_id=%s\n", machine.c_str(), family.c_str(), soc_id.c_str());
         ulong param_addr = socinfo_addr + field_offset(qcom_socinfo,info);
         void *param_buf = read_struct(param_addr,"socinfo_params");
+        if (!param_buf) {
+            LOGE("Failed to read socinfo_params structure at address %lx\n", param_addr);
+            continue;
+        }
         uint32_t hw_id = UINT(param_buf + field_offset(socinfo_params,hw_plat));
         std::string hw_name = "";
         if (hw_id < hw_platforms.size()){
@@ -204,21 +219,24 @@ void SysInfo::print_qsocinfo(){
             << std::left << std::setw(12) << "Product ID        : " << UINT(param_buf + field_offset(socinfo_params,nproduct_id))  << "\n";
         FREEBUF(param_buf);
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
 void SysInfo::print_soc_info(){
+    LOGI("Starting SOC information collection\n");
     struct_init(socinfo);
     if (struct_size(socinfo) == -1){
-        fprintf(fp,  "pls load the socinfo.ko at first\n");
+        LOGE("pls load the socinfo.ko at first\n");
         return;
     }
     // read_pmic_models();
     read_hw_platforms();
     read_soc_ids();
     if (!csymbol_exists("socinfo")){
+        LOGD("Using qcom-socinfo device method\n");
         print_qsocinfo();
     }else{
+        LOGD("Using legacy socinfo symbol method\n");
         print_socinfo();
     }
 }
@@ -236,51 +254,63 @@ void SysInfo::read_pmic_models(){
 }
 
 void SysInfo::read_hw_platforms(){
+    LOGI("Reading hardware platforms\n");
     size_t len = get_array_length(TO_CONST_STRING("hw_platform"), NULL, 0);
+    LOGD("Found %zu hardware platform entries\n", len);
     for (size_t i = 0; i < len; i++){
         ulong name_addr = read_pointer(csymbol_value("hw_platform") + i * sizeof(void*),"addr");
         if (!is_kvaddr(name_addr)) {
+            LOGW("Invalid hw_platform name address at index %zu\n", i);
             hw_platforms.push_back("");
             continue;
         }
         std::string name = read_cstring(name_addr,64,"name");
         hw_platforms.push_back(name);
+        LOGD("hw_platform[%zu] = %s\n", i, name.c_str());
     }
+    LOGI("Hardware platforms reading completed: %zu entries\n", hw_platforms.size());
 }
 
 void SysInfo::read_soc_ids(){
+    LOGI("Reading SOC IDs\n");
     field_init(soc_id,id);
     field_init(soc_id,name);
     struct_init(soc_id);
     size_t len = get_array_length(TO_CONST_STRING("soc_id"), NULL, 0);
+    LOGD("Found %zu SOC ID entries\n", len);
     for (size_t i = 0; i < len; i++){
         ulong addr = csymbol_value("soc_id") + i * struct_size(soc_id);
         uint id = read_uint(addr + field_offset(soc_id,id),"id");
         ulong name_addr = read_pointer(addr + field_offset(soc_id,name),"name addr");
         if (!is_kvaddr(name_addr)) {
+            LOGW("Invalid soc_id name address at index %zu\n", i);
             continue;
         }
         std::string name = read_cstring(name_addr,64,"name");
         soc_ids[id] = name;
+        LOGD("soc_id[%u] = %s\n", id, name.c_str());
     }
+    LOGI("SOC IDs reading completed: %zu entries\n", soc_ids.size());
 }
 
 void SysInfo::print_command_line(){
+    LOGI("Starting kernel command line parsing\n");
     if (!csymbol_exists("saved_command_line")){
-        fprintf(fp,  "saved_command_line doesn't exist in this kernel!\n");
+        LOGE( "saved_command_line doesn't exist in this kernel!\n");
         return;
     }
     ulong cmd_addr = read_pointer(csymbol_value("saved_command_line"),"saved_command_line");
     if (!is_kvaddr(cmd_addr)) {
-        fprintf(fp, "saved_command_line address is invalid!\n");
+        LOGE("saved_command_line address is invalid: %lx\n", cmd_addr);
         return;
     }
+    LOGD("Reading command line from address: %lx\n", cmd_addr);
     std::string cmd_line = read_cstring(cmd_addr,2048,"saved_command_line");
     size_t pos = 0;
     while ((pos = cmd_line.find('\0')) != std::string::npos) {
         cmd_line.replace(pos, 1, " ");
     }
-    // fprintf(fp, "%s \n\n",cmd_line.c_str());
+    LOGD("Raw command line: %s\n", cmd_line.c_str());
     std::unordered_map<std::string, std::string> kconfigs;
     std::istringstream cmdarg(cmd_line);
     std::string config;
@@ -298,12 +328,14 @@ void SysInfo::print_command_line(){
             kconfigs[mapKey] = "";
         }
     }
+    LOGD("Parsed %zu command line parameters\n", kconfigs.size());
     std::ostringstream oss;
     for (const auto& pair : kconfigs) {
         oss << std::left << std::setw(max_len + 1) << pair.first
             << ": " << pair.second << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
+    LOGI("Command line parsing completed\n");
 }
 
 #pragma GCC diagnostic pop

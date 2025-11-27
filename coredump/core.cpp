@@ -450,7 +450,7 @@ void Core::write_core_file(void) {
     //  ===========================================
     //  Writing PT LOAD
     //  ===========================================
-    // auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     LOGI("Writing %zu PT_LOAD segments", task_ptr->for_each_vma_list().size());
     size_t vma_count = task_ptr->for_each_vma_list().size();
     for (const auto& vma_ptr : task_ptr->for_each_vma_list()) {
@@ -464,9 +464,9 @@ void Core::write_core_file(void) {
         --vma_count;
         PRINT("Written page to core file. Remaining VMA count: %zu\n", vma_count);
     }
-    // auto end = std::chrono::high_resolution_clock::now();
-    // std::chrono::duration<double> elapsed = end - start;
-    // fprintf(fp, "time: %.6f s\n",elapsed.count());
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    LOGD("time: %.6f s\n",elapsed.count());
     fclose(corefile);
     std::free(hdr_ptr);
     LOGI("Core file generation completed successfully");

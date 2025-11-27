@@ -60,7 +60,7 @@ void Coredump::cmd_main(void) {
                 try {
                     pid = std::stoi(cppString);
                 } catch (...) {
-                    fprintf(fp, "invaild pid arg %s\n",cppString.c_str());
+                    LOGE("invaild pid arg %s\n",cppString.c_str());
                 }
                 flags |= PRINT_LINKMAP;
                 break;
@@ -159,7 +159,7 @@ void Coredump::generate_coredump(int pid){
     if(get_core_parser(pid) && core_parser != nullptr){
         core_parser->set_core_pid(pid);
         core_parser->parser_core_dump();
-        fprintf(fp, "Coredump is Done \n");
+        PRINT("Coredump is Done \n");
     }
 }
 

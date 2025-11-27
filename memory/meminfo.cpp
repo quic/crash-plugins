@@ -543,12 +543,12 @@ void Meminfo::print_vmstat(void){
         if (nr_zone_base == 0x0) break;
         ulong zone_addr = nr_zone_base + field_offset(pglist_data, node_zones) + i * struct_size(zone);
         if (zone_addr == 0x0)   continue;
-        //fprintf(fp, "zone[%d]: zone_addr: 0x%lx\n", i, zone_addr);
+        LOGD("zone[%d]: zone_addr: 0x%lx\n", i, zone_addr);
         ulong present_pg = read_ulong(zone_addr + field_offset(zone, present_pages), "read from present_pages");
-        //fprintf(fp, "zone[%d]: present_pg: %ld\n", i, present_pg);
+        LOGD("zone[%d]: present_pg: %ld\n", i, present_pg);
         if (present_pg > 0) {
             char* zone_name = (char *)read_memory(read_ulong(zone_addr + field_offset(zone, name), ""), 12, "");
-            //fprintf(fp, "zone[%d]: zone_name : %s, len:%d\n", i, zone_name, strlen(zone_name));
+            LOGD("zone[%d]: zone_name : %s, len:%d\n", i, zone_name, strlen(zone_name));
             ulong spanned_pg = read_ulong(zone_addr + field_offset(zone, spanned_pages), "read from spanned_pages");
             ulong managed_pg = read_ulong(zone_addr + field_offset(zone, managed_pages), "read from managed_pages");
             ulong cma_pg = read_ulong(zone_addr + field_offset(zone, cma_pages), "read from cma_pages");
@@ -610,7 +610,7 @@ void Meminfo::print_vmstat(void){
             << std::setw(12) << std::right << csize((uint64_t)vm_event_item_pg*page_size, MB, 1) << "\n";
     }
     oss << "\n";
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
 void Meminfo::print_mem_breakdown(void){
@@ -668,7 +668,7 @@ void Meminfo::print_mem_breakdown(void){
         << std::left << "   Dentry Cache    :" << std::setw(12) << std::right << csize((uint64_t)dentry_cache)                << "\n"
         << std::left << "   Inode  Cache    :" << std::setw(12) << std::right << csize((uint64_t)inode_cache)                 << "\n\n"
         << std::left << "   NON_HLOS        :" << std::setw(12) << std::right << csize((uint64_t)no_hlos)                     << "\n";
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
 void Meminfo::print_meminfo(void){
@@ -777,7 +777,7 @@ void Meminfo::print_meminfo(void){
         oss << std::left << "CmaTotal:       " << std::setw(12) << std::right << csize((uint64_t)cma_total_pg * page_size, KB, 0)  << " | " << std::right << std::setw(12) << csize((uint64_t)cma_total_pg * page_size) << "\n"
             << std::left << "CmaFree:        " << std::setw(12) << std::right << csize((uint64_t)cma_free_pg * page_size, KB, 0)   << " | " << std::right << std::setw(12) << csize((uint64_t)cma_free_pg * page_size) << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

@@ -130,29 +130,39 @@ void CpuInfo::print_cpu_policy(){
             << "\n";
         index++;
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
 void CpuInfo::parser_cpu_policy(){
+    LOGI("Starting CPU policy parsing\n");
     if (!csymbol_exists("cpufreq_cpu_data")){
-        fprintf(fp, "cpufreq_cpu_data doesn't exist in this kernel!\n");
+        LOGE("cpufreq_cpu_data doesn't exist in this kernel!\n");
         return;
     }
     ulong cpufreq_cpu_addr = csymbol_value("cpufreq_cpu_data");
     if (!is_kvaddr(cpufreq_cpu_addr)) {
-        fprintf(fp, "cpufreq_cpu_data address is invalid!\n");
+        LOGE("cpufreq_cpu_data address is invalid: %lx\n", cpufreq_cpu_addr);
         return;
     }
+    LOGD("cpufreq_cpu_data symbol found at address: %lx\n", cpufreq_cpu_addr);
+
     for (size_t i = 0; i < NR_CPUS; i++) {
         if (!kt->__per_cpu_offset[i])
             continue;
+        LOGD("Processing CPU %zu\n", i);
         ulong addr = cpufreq_cpu_addr + kt->__per_cpu_offset[i];
-        if (!is_kvaddr(addr)) continue;
+        if (!is_kvaddr(addr)) {
+            LOGW("Invalid per-cpu address for CPU %zu: %lx\n", i, addr);
+            continue;
+        }
         ulong cpufreq_addr = read_pointer(addr,"per cpu cpufreq_cpu_data");
-        if (!is_kvaddr(cpufreq_addr)) continue;
+        if (!is_kvaddr(cpufreq_addr)) {
+            LOGW("Invalid cpufreq_policy address for CPU %zu: %lx\n", i, cpufreq_addr);
+            continue;
+        }
         void *cpufreq_buf = read_struct(cpufreq_addr,"cpufreq_policy");
         if (!cpufreq_buf) {
-            fprintf(fp, "Failed to read cpufreq_policy structure at address %lx\n", cpufreq_addr);
+            LOGE("Failed to read cpufreq_policy structure for CPU %zu at address %lx\n", i, cpufreq_addr);
             continue;
         }
         std::shared_ptr<cpu_policy> cpu_ptr = std::make_shared<cpu_policy>();
@@ -164,7 +174,11 @@ void CpuInfo::parser_cpu_policy(){
         ulong gov_addr = ULONG(cpufreq_buf + field_offset(cpufreq_policy,governor));
         cpu_ptr->gov_name = read_cstring(gov_addr,16, "governor name");
         ulong freq_table = ULONG(cpufreq_buf + field_offset(cpufreq_policy,freq_table));
+        LOGD("CPU %zu policy parsed: cluster=%u, cur=%u, min=%u, max=%u, governor=%s\n",
+             i, cpu_ptr->cluster, cpu_ptr->cur, cpu_ptr->min, cpu_ptr->max, cpu_ptr->gov_name.c_str());
         FREEBUF(cpufreq_buf);
+
+        LOGD("Parsing frequency table for CPU %zu at address %lx\n", i, freq_table);
         int index = 0;
         while (1){
             ulong freq_addr = freq_table + index * struct_size(cpufreq_frequency_table) + field_offset(cpufreq_frequency_table,frequency);
@@ -175,18 +189,21 @@ void CpuInfo::parser_cpu_policy(){
             if ((frequency & 0xffff) == 0xffff){
                 continue;
             }
-            // fprintf(fp, "addr:%#lx frequency:%d \n",freq_addr,frequency);
+            LOGD("addr:%#lx frequency:%d \n",freq_addr,frequency);
             cpu_ptr->freq_table.push_back(frequency);
             index++;
         }
+        LOGD("CPU %zu frequency table parsed: %zu frequencies found\n", i, cpu_ptr->freq_table.size());
         cpu_infos.push_back(cpu_ptr);
     }
+    LOGI("CPU policy parsing completed: %zu CPUs processed\n", cpu_infos.size());
 }
 
 
 void CpuInfo::print_cpu_state(){
+    LOGI("Starting CPU state printing\n");
     if (!csymbol_exists("cluster_state")){
-        fprintf(fp, "cluster_state doesn't exist in this kernel!\n");
+        LOGE("cluster_state doesn't exist in this kernel!\n");
         return;
     }
     field_init(cluster_data,lru);
@@ -197,11 +214,17 @@ void CpuInfo::print_cpu_state(){
     struct_init(cluster_data);
     ulong state_addr = csymbol_value("cluster_state");
     size_t num_clusters = read_uint(csymbol_value("num_clusters"),"num_clusters");
+    LOGD("Found %zu clusters at address %lx\n", num_clusters, state_addr);
+
     for (size_t i = 0; i < num_clusters; i++){
+        LOGD("Processing cluster %zu/%zu\n", i + 1, num_clusters);
         ulong cluster_addr = state_addr + i * struct_size(cluster_data);
         void *buf = read_struct(cluster_addr,"cluster_data");
-        if (!buf) continue;
-        fprintf(fp, "cluster_data:%#lx Enable:%s num_cpus:%d first_cpu:%d active_cpus:%d \n",cluster_addr,
+        if (!buf) {
+            LOGE("Failed to read cluster_data structure for cluster %zu at address %lx\n", i, cluster_addr);
+            continue;
+        }
+        PRINT("cluster_data:%#lx Enable:%s num_cpus:%d first_cpu:%d active_cpus:%d \n",cluster_addr,
             UINT(buf + field_offset(cluster_data,enable)) ? "true":"false",
             UINT(buf + field_offset(cluster_data,num_cpus)),
             UINT(buf + field_offset(cluster_data,first_cpu)),
@@ -209,13 +232,18 @@ void CpuInfo::print_cpu_state(){
         );
         ulong list_head = cluster_addr + field_offset(cluster_data,lru);
         int offset = offsetof(struct cpu_data, sib);
+        LOGD("Traversing CPU data list for cluster %zu, list_head=%lx\n", i, list_head);
         for (const auto& data_addr : for_each_list(list_head, offset)) {
-            if (!is_kvaddr(data_addr)) continue;
-            struct cpu_data data;
-            if(!read_struct(data_addr,&data,sizeof(data),"cpu_data")){
+            if (!is_kvaddr(data_addr)) {
+                LOGW("Invalid cpu_data address in cluster %zu: %lx\n", i, data_addr);
                 continue;
             }
-            fprintf(fp, "   cpu_data:%#lx cpu:%d disabled:%s is_busy:%s busy_pct:%d \n",data_addr,
+            struct cpu_data data;
+            if(!read_struct(data_addr,&data,sizeof(data),"cpu_data")){
+                LOGE("Failed to read cpu_data structure at address %lx in cluster %zu\n", data_addr, i);
+                continue;
+            }
+            PRINT("   cpu_data:%#lx cpu:%d disabled:%s is_busy:%s busy_pct:%d \n",data_addr,
                 data.cpu,
                 data.disabled ? "true":"false",
                 data.is_busy ? "true":"false",
@@ -223,21 +251,27 @@ void CpuInfo::print_cpu_state(){
             );
         }
         FREEBUF(buf);
-        fprintf(fp, "\n\n");
+        PRINT("\n\n");
     }
 }
 
 void CpuInfo::print_freq_table(){
+    LOGI("Starting frequency table printing\n");
     size_t freq_cnt = 0;
     for (const auto& cpu_ptr : cpu_infos) {
         freq_cnt = std::max(freq_cnt, cpu_ptr->freq_table.size());
+        if (cpu_ptr->freq_table.empty()) {
+            LOGW("CPU with empty frequency table found at address %lx\n", cpu_ptr->addr);
+        }
     }
+    LOGD("Maximum frequency count across all CPUs: %zu\n", freq_cnt);
+
     std::ostringstream oss;
     for (size_t i = 0; i < cpu_infos.size(); i++) {
         std::string name = "CPU" + std::to_string(i);
         oss << std::left << std::setw(15) << name << " ";
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT("%s \n", oss.str().c_str());
     for (size_t i = 0; i < freq_cnt; i++) {
         oss.str("");
         oss.clear();
@@ -248,8 +282,9 @@ void CpuInfo::print_freq_table(){
                 oss << std::left << std::setw(15) << "N/A" << " ";
             }
         }
-        fprintf(fp, "%s \n", oss.str().c_str());
+        PRINT("%s \n", oss.str().c_str());
     }
+    LOGI("Frequency table printing completed\n");
 }
 
 #pragma GCC diagnostic pop

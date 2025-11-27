@@ -176,11 +176,12 @@ void Watchdog::parser_msm_wdt(){
     init_offset();
     ulong wdt_addr = read_pointer(csymbol_value("wdog_data"),"wdog_data");
     if (!is_kvaddr(wdt_addr)) {
-        fprintf(fp, "wdog_data address is invalid!\n");
+        LOGE("wdog_data address is invalid! %#lx\n", wdt_addr);
         return;
     }
     void *wdt_buf = read_struct(wdt_addr,"msm_watchdog_data");
     if (!wdt_buf) {
+        LOGE("Failed to read msm_watchdog_data structure at address %#lx\n", wdt_addr);
         return;
     }
     ulong base = UINT(wdt_buf + field_offset(msm_watchdog_data,base));
@@ -265,18 +266,19 @@ void Watchdog::parser_msm_wdt(){
     if (timer_expired == false){
         oss << std::left << "pet_timer is not trigger !" << "\n";
     }
-    fprintf(fp, "%s \n",oss.str().c_str());
+    PRINT("%s \n",oss.str().c_str());
 }
 
 void Watchdog::parser_upstream_wdt(){
     init_offset();
     ulong wdt_addr = get_wdt_by_cdev();
     if (!is_kvaddr(wdt_addr)) {
-        fprintf(fp, "the upstream wdt do not exist \n");
+        LOGE("the upstream wdt do not exist \n");
         return;
     }
     void *wdt_buf = read_struct(wdt_addr, "watchdog_core_data");
     if (!wdt_buf) {
+        LOGE("Failed to read watchdog_core_data structure at address %#lx\n", wdt_addr);
         return;
     }
     ulong status = ULONG(wdt_buf + field_offset(watchdog_core_data, status));
@@ -349,7 +351,7 @@ void Watchdog::parser_upstream_wdt(){
             oss << std::left << "CPU:" << i << " tick_device next_event:" << nstoSec(next_event) << "s\n";
         }
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT("%s \n", oss.str().c_str());
 }
 
 std::string Watchdog::nstoSec(ulonglong ns) {
