@@ -109,31 +109,78 @@ struct track { // see __kmem_obj_info in slub.c
     ulong obj_addr;
 };
 
+struct SlubCheckResult {
+    std::string cache_name;
+    ulong cache_addr;
+    int total_objects = 0;
+    int checked_objects = 0;
+    int corrupted_objects = 0;
+    std::vector<std::string> errors;
+    bool overall_result = true;
+
+    int redzone_errors = 0;
+    int poison_errors = 0;
+    int freeptr_errors = 0;
+    int padding_errors = 0;
+};
+
+struct ObjectCheckResult {
+    int left_redzone_errors = 0;
+    int right_redzone_errors = 0;
+    int redzone_errors = 0;
+    int poison_errors = 0;
+    int freeptr_errors = 0;
+    int padding_errors = 0;
+    std::vector<std::string> details;
+};
+
 class Slub : public ParserPlugin {
 private:
+    bool trace_parsed = false;
     std::vector<std::shared_ptr<kmem_cache>> cache_list;
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> alloc_trace_map;
     std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> free_trace_map;
-    ulong max_pfn;
     size_t max_name_len = 0;
     uint SLAB_RED_ZONE;
     uint SLAB_POISON;
     uint SLAB_STORE_USER;
     uint OBJECT_POISON;
     uint SLAB_KMALLOC;
-    // std::unordered_set<size_t> unique_hash;
 
+    // basic func
+    void func_call(const std::string& input_str, const std::string& param_name, std::function<void(const std::string&)> func);
     void parser_slab_caches();
     std::vector<std::shared_ptr<kmem_cache_node>> parser_kmem_cache_node(std::shared_ptr<kmem_cache> cache_ptr, ulong node_addr);
     std::vector<std::shared_ptr<kmem_cache_cpu>> parser_kmem_cache_cpu(std::shared_ptr<kmem_cache> cache_ptr, ulong cpu_addr);
     std::vector<std::shared_ptr<slab>> parser_slab_from_list(std::shared_ptr<kmem_cache> cache_ptr, ulong head_addr);
     std::shared_ptr<slab> parser_slab(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr);
+
+    // print func
     void print_slab_caches();
     void print_slab_summary_info();
+
     void print_slab_info(std::shared_ptr<slab> slab_ptr);
     void print_slab_cache_info(std::string addr);
     void print_slab_cache(std::shared_ptr<kmem_cache> cache_ptr);
-    /* Poison */
+
+    void print_slub_trace(std::string is_free);
+    void print_all_slub_trace(size_t stack_id = 0);
+    void print_trace_results(const std::unordered_map<std::string, std::vector<std::shared_ptr<track>>>& trace_map,
+                             bool is_free,
+                             const std::string& filter_type = "");
+    void print_stack_details(size_t stack_id);
+    void print_cache_specific_trace(std::string cache_identifier);
+
+    void print_slub_poison(ulong kmem_cache_addr = 0);
+    void print_cache_check_result(const SlubCheckResult& result, bool show_all_errors = false);
+    void print_corruption_summary(const std::vector<SlubCheckResult>& results);
+    std::string print_object_layout(std::shared_ptr<kmem_cache> cache_ptr, std::shared_ptr<obj> obj_ptr,
+                            const ObjectCheckResult& obj_result);
+
+    void print_object_trace_by_addr(std::string addr_str);
+    void print_object_stack_trace(std::shared_ptr<kmem_cache> cache_ptr, std::shared_ptr<slab> slab_ptr, std::shared_ptr<obj> obj_ptr);
+
+    // Poison
     unsigned int get_info_end(std::shared_ptr<kmem_cache> cache_ptr);
     bool freeptr_outside_object(std::shared_ptr<kmem_cache> cache_ptr);
     ulong fixup_red_left(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr);
@@ -144,26 +191,44 @@ private:
     ulong restore_red_left(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start);
     bool check_valid_pointer(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, ulong object_start);
     unsigned int size_from_object(std::shared_ptr<kmem_cache> cache_ptr);
-    int check_pad_bytes(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, ulong obj_start);
-    int check_bytes_and_report(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, ulong obj_start, std::string what, ulong start, uint8_t value, size_t bytes);
-    void print_section(std::string text, ulong page_addr, size_t length);
-    void print_trailer(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr, ulong obj_start);
-    void print_page_info(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr);
-    int object_err(std::shared_ptr<kmem_cache> cache_ptr, ulong slab_page_addr, ulong object_start, std::string reason);
-    int check_object_poison(std::shared_ptr<kmem_cache> cache_ptr, std::shared_ptr<slab> slab_ptr);
-    void print_slub_poison(ulong kmem_cache_addr = 0);
-    int check_object(std::shared_ptr<kmem_cache> cache_ptr, ulong first_page, ulong start_addr, uint8_t val);
     ulong get_free_pointer(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr);
-    /*Trace*/
+    void check_cache_corruption(std::shared_ptr<kmem_cache> cache_ptr, SlubCheckResult& result);
+    void check_slab_list_corruption(std::shared_ptr<kmem_cache> cache_ptr,
+                                   const std::vector<std::shared_ptr<slab>>& slab_list,
+                                   SlubCheckResult& result);
+    void check_single_slab_corruption(std::shared_ptr<kmem_cache> cache_ptr,
+                                     std::shared_ptr<slab> slab_ptr,
+                                     SlubCheckResult& result);
+    bool check_object_detailed(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr,
+                              ulong object_start_addr, uint8_t val, ObjectCheckResult& obj_result);
+    bool check_bytes_and_report_detailed(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr,
+                                        ulong obj_start, std::string what, ulong start,
+                                        uint8_t value, size_t bytes, ObjectCheckResult& obj_result);
+    bool check_pad_bytes_detailed(std::shared_ptr<kmem_cache> cache_ptr, ulong page_addr,
+                                 ulong obj_start, ObjectCheckResult& obj_result);
+
+    // Trace
     std::string extract_callstack(ulong frames_addr);
-    void parser_track_map(std::unordered_map<std::string, std::vector<std::shared_ptr<track>>> map, bool is_free);
-    void print_all_slub_trace(size_t stack_id = 0);
+    std::shared_ptr<kmem_cache> find_cache_by_identifier(const std::string& identifier);
+
     void parser_slub_trace();
-    void print_slub_trace(std::string is_free);
     void parser_track(ulong track_addr, std::shared_ptr<track> &track_ptr);
     ulong get_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
-    void parser_obj_track(std::shared_ptr<kmem_cache> cache_ptr, ulong object_start_addr, uint8_t track_type);
-    void parser_slab_track(std::shared_ptr<kmem_cache> cache_ptr, std::shared_ptr<slab> slab_ptr);
+    void parse_cache_traces(std::shared_ptr<kmem_cache> cache_ptr,
+                           std::unordered_map<std::string, std::vector<std::shared_ptr<track>>>& alloc_map,
+                           std::unordered_map<std::string, std::vector<std::shared_ptr<track>>>& free_map);
+    void parse_slab_list_traces(std::shared_ptr<kmem_cache> cache_ptr,
+                               const std::vector<std::shared_ptr<slab>>& slab_list,
+                               std::unordered_map<std::string, std::vector<std::shared_ptr<track>>>& alloc_map,
+                               std::unordered_map<std::string, std::vector<std::shared_ptr<track>>>& free_map);
+    void parse_single_slab_traces(std::shared_ptr<kmem_cache> cache_ptr,
+                                 std::shared_ptr<slab> slab_ptr,
+                                 std::unordered_map<std::string, std::vector<std::shared_ptr<track>>>& alloc_map,
+                                 std::unordered_map<std::string, std::vector<std::shared_ptr<track>>>& free_map);
+
+    // find obj by va and print stack
+    std::shared_ptr<obj> find_object_by_addr(ulong target_addr, std::shared_ptr<kmem_cache> &found_cache, std::shared_ptr<slab> &found_slab);
+    std::shared_ptr<obj> find_object_in_slab(std::shared_ptr<slab> slab_ptr, ulong target_addr);
 
 public:
     Slub();

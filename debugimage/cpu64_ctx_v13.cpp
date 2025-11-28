@@ -25,11 +25,17 @@ Cpu64_Context_V13::Cpu64_Context_V13(){
 
 void Cpu64_Context_V13::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
+    LOGD("Cpu64_Context_V13::print_stack() for core %d", core);
     void* buf = read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_64_1_3_t),"tzbsp_dump_64_1_3_t",false);
+    if (!buf) {
+        LOGE("Failed to read memory for tzbsp_dump_64_1_3_t at %#lx", entry_ptr->data_addr);
+        return;
+    }
     tzbsp_dump_64_1_3_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_3_t*>(buf);
 
     uint64_t lr = reg_dump.sc_regs.x[30];
     uint64_t pc = pac_ignore(reg_dump.sc_regs.pc);
+    LOGD("Core %d: PC=%#lx, LR=%#lx", core, pc, lr);
     struct syment *sym;
     ulong offset;
     sym = value_search(pc, &offset);
@@ -48,36 +54,48 @@ void Cpu64_Context_V13::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     } else {
         oss << "LR: " << "<" << std::hex << lr << ">: " << "UNKNOWN"  << "+" << std::hex << 0 << "\n";
     }
-    fprintf(fp, "%s \n\n",oss.str().c_str());
+    PRINT("%s\n\n", oss.str().c_str());
 #if defined(ARM64)
     struct task_context *tc;
     tc = task_to_context(tt->active_set[core]);
     if(tc){
+        LOGD("Found active task for core %d: PID=%d", core, tc->pid);
         ulong stackbase = GET_STACKBASE(tc->task);
         ulong stacktop = GET_STACKTOP(tc->task);
         ulong x30 = reg_dump.sc_regs.x[29] + 8;
+        LOGD("Stack range: %#lx ~ %#lx, x30=%#lx", stackbase, stacktop, x30);
         if ((x30 > stackbase && x30 < stacktop)){
+            LOGI("Unwinding task stack for PID %d", tc->pid);
             uwind_task_back_trace(tc->pid, x30);
         }
 
         ulong cpu_irq_stack = machdep->machspec->irq_stacks[core];
         if ((x30 > cpu_irq_stack && x30 < (cpu_irq_stack + machdep->machspec->irq_stack_size))){
+            LOGI("Unwinding IRQ stack for core %d", core);
             uwind_irq_back_trace(core,x30);
         }
-        fprintf(fp, "\n");
+        PRINT("\n");
+    } else {
+        LOGW("No active task found for core %d", core);
     }
 #endif
     FREEBUF(buf);
 }
 
 void Cpu64_Context_V13::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
-    void* buf = read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_64_1_3_t),"tzbsp_dump_64_1_3_t",false);
-    tzbsp_dump_64_1_3_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_3_t*>(buf);
     int core = entry_ptr->id - DATA_CPU_CTX;
+    LOGI("Cpu64_Context_V13::generate_cmm() for core %d", core);
+    void* buf = read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_64_1_3_t),"tzbsp_dump_64_1_3_t",false);
+    if (!buf) {
+        LOGE("Failed to read memory for tzbsp_dump_64_1_3_t at %#lx", entry_ptr->data_addr);
+        return;
+    }
+    tzbsp_dump_64_1_3_t reg_dump = *reinterpret_cast<tzbsp_dump_64_1_3_t*>(buf);
     std::string regs_file = get_cmm_path("core" + std::to_string(core), false);
+    LOGD("Creating normal CMM file: %s", regs_file.c_str());
     FILE* cmmfile = fopen(regs_file.c_str(), "wb");
     if (!cmmfile) {
-        fprintf(fp, "Can't open %s\n", regs_file.c_str());
+        LOGE("Failed to create CMM file: %s", regs_file.c_str());
         FREEBUF(buf);
         return;
     }
@@ -103,9 +121,10 @@ void Cpu64_Context_V13::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     fclose(cmmfile);
 
     std::string secure_file = get_cmm_path("core" + std::to_string(core), true);
+    LOGD("Creating secure CMM file: %s", secure_file.c_str());
     cmmfile = fopen(secure_file.c_str(), "wb");
     if (!cmmfile) {
-        fprintf(fp, "Can't open %s\n", secure_file.c_str());
+        LOGE("Failed to create secure CMM file: %s", secure_file.c_str());
         FREEBUF(buf);
         return;
     }
@@ -129,7 +148,7 @@ void Cpu64_Context_V13::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     oss_secure << "r.s l2merrsr_el1 0x" << std::hex << reg_dump.sc_secure.l2merrsr_el1 << std::endl;
     fwrite(oss_secure.str().c_str(), sizeof(char), oss_secure.str().size(), cmmfile);
     fclose(cmmfile);
-    fprintf(fp, "save to %s\n", regs_file.c_str());
+    PRINT("Saved CMM files: %s and %s\n", regs_file.c_str(), secure_file.c_str());
     FREEBUF(buf);
 }
 

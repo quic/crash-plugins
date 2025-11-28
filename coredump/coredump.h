@@ -31,7 +31,6 @@ private:
     std::shared_ptr<Core> core_parser;
     std::shared_ptr<Swapinfo> swap_ptr;
     bool is_compat = false;
-    bool debug = false;
 
     void print_linkmap(int pid);
     void generate_coredump(int pid);

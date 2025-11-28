@@ -54,12 +54,14 @@ ptype android::SortedVector<android::key_value_pair_t<native_handle const*, andr
 ptype /o  android::VectorImpl
 */
 void SF::parser_gralloc4(){
+    LOGD("Parsing gralloc4 buffer information");
     ulong sAllocList_vaddr = get_sAllocList_from_vma();
     if (sAllocList_vaddr && !is_uvaddr(sAllocList_vaddr, tc_sf)){
-        fprintf(fp, "Invaild sAllocList vaddr:%#lx \n", sAllocList_vaddr);
+        LOGE("Invalid sAllocList address: %#lx", sAllocList_vaddr);
         task_ptr.reset();
         return;
     }
+    LOGD("Found sAllocList at %#lx", sAllocList_vaddr);
     dump_GraphicBufferAllocator(sAllocList_vaddr);
     /*
     64bit
@@ -73,24 +75,29 @@ void SF::parser_gralloc4(){
     */
     ulong sInstance_addr = sAllocList_vaddr - ((BITS64() && !task_ptr->is_compat()) ? 0x30 : 0x8);
     if (sInstance_addr && !is_uvaddr(sInstance_addr, tc_sf)){
-        fprintf(fp, "Invaild sInstance vaddr:%#lx \n", sInstance_addr);
+        LOGE("Invalid sInstance address: %#lx", sInstance_addr);
         task_ptr.reset();
         return;
     }
+    LOGD("Found sInstance at %#lx", sInstance_addr);
     // "Singleton TYPE* sInstance"
     sInstance_addr = task_ptr->uread_pointer(sInstance_addr);
     dumpDebugInfo(sInstance_addr);
+    LOGW("Successfully parsed gralloc4 buffer information");
     task_ptr.reset();
 }
 
 void SF::parser_gralloc5(){
+    LOGD("Parsing gralloc5 buffer information");
     ulong sAllocList_vaddr = get_sAllocList_from_vma();
     if (sAllocList_vaddr && !is_uvaddr(sAllocList_vaddr, tc_sf)){
-        fprintf(fp, "Invaild sAllocList vaddr:%#lx \n", sAllocList_vaddr);
+        LOGE("Invalid sAllocList address: %#lx", sAllocList_vaddr);
         task_ptr.reset();
         return;
     }
+    LOGD("Found sAllocList at %#lx", sAllocList_vaddr);
     dump_GraphicBufferAllocator(sAllocList_vaddr);
+    LOGD("Searching for snapalloc library");
     std::string libsnapalloc;
     for(const auto& vma_ptr : task_ptr->for_each_file_vma()){
         if(vma_ptr->name.find("vendor.qti.hardware.display.snapalloc-impl.so") != std::string::npos){
@@ -99,14 +106,18 @@ void SF::parser_gralloc5(){
         }
     }
     if(libsnapalloc.empty()){
+        LOGE("Snapalloc library not found, skipping gralloc5 imported buffers");
         task_ptr.reset();
         return;
     }
+    LOGD("Found snapalloc library: %s", libsnapalloc.c_str());
     ulong min_vma_start = task_ptr->get_min_vma_start(libsnapalloc);
+    LOGD("Library base address: %#lx", min_vma_start);
     // static class snapalloc::SnapAllocCore *instance_;
     // 0000000000050318 g     O .bss   0000000000000008              _ZN9snapalloc13SnapAllocCore9instance_E
     ulong SnapAllocCore_addr = min_vma_start + 0x50318;
     SnapAllocCore_addr = task_ptr->uread_pointer(SnapAllocCore_addr);
+    LOGD("SnapAllocCore instance at %#lx", SnapAllocCore_addr);
     // std::unordered_map<SnapHandle *, SnapHandleInternal *> handles_map_ = {};
     ulong core_handles_map = SnapAllocCore_addr + g_offset.SnapAllocCore_handles_map_;
     std::ostringstream oss;
@@ -116,12 +127,15 @@ void SF::parser_gralloc5(){
         << std::left << std::setw(22) << "Dmabuf"
         << std::left << std::setw(12) << "Format"
         << std::left << "Usage" << std::endl;
+    size_t buffer_count = 0;
     for (const auto& pair : task_ptr->for_each_stdunmap(core_handles_map, task_ptr->get_pointer_size())) {
         ulong shi_addr = task_ptr->uread_pointer(pair.second);
         std::vector<char> tempdata = task_ptr->read_data(shi_addr, sizeof(SnapHandleInternal));
         if (tempdata.size() == 0){
+            LOGD("Failed to read SnapHandleInternal at %#lx", shi_addr);
             continue;
         }
+        buffer_count++;
         SnapHandleInternal* shi = (SnapHandleInternal*)tempdata.data();
         ulong name_addr = shi->shp.base_metadata + g_offset.SnapMetadata_name;
         std::string name = task_ptr->uread_cstring(name_addr, 256);
@@ -141,11 +155,13 @@ void SF::parser_gralloc5(){
             << std::left << std::hex << std::showbase << shi->shp.usage
             << std::dec  << std::endl;
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT("%s\n", oss.str().c_str());
+    LOGD("Successfully parsed gralloc5 buffer information (%zu imported buffers)", buffer_count);
     task_ptr.reset();
 }
 
 void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
+    LOGD("Dumping GraphicBufferAllocator at %#lx", sAllocList_vaddr);
     // "KeyedVector"
     // void *mStorage; --> android::key_value_pair_t<native_handle const*, android::GraphicBufferAllocator::alloc_rec_t>
     ulong mStorage_addr = 0;
@@ -155,6 +171,7 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
     size_t data_size = (BITS64() && !task_ptr->is_compat()) ? sizeof(KeyedVector_64_t) : sizeof(KeyedVector_32_t);
     std::vector<char> tempList = task_ptr->read_data(sAllocList_vaddr, data_size);
     if (tempList.empty()) {
+        LOGE("Failed to read sAllocList data");
         return;
     }
     auto extract_alloc_list = [&](auto* keyedvector) {
@@ -168,9 +185,8 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
     } else {
         extract_alloc_list(reinterpret_cast<KeyedVector_32_t*>(tempList.data()));
     }
-    if(debug){
-        fprintf(fp, "sAllocList:%#lx mStorage_addr:%#lx mCount:%zu mFlags:%d mItemSize:%zu\n", sAllocList_vaddr, mStorage_addr, mCount, mFlags, mItemSize);
-    }
+    LOGD("KeyedVector: mStorage=%#lx mCount=%zu mItemSize=%zu mFlags=%d",
+         mStorage_addr, mCount, mItemSize, mFlags);
     std::ostringstream oss;
     oss  << "GraphicBufferAllocator buffers:\n";
     oss  << std::setw(12) << std::right << "Handle" << " | "
@@ -192,7 +208,7 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
         native_handle_addr = task_ptr->uread_pointer(native_handle_addr);
         std::vector<char> tmphandle = task_ptr->read_data(native_handle_addr, sizeof(private_handle_t));
         if(tmphandle.size() == 0){
-            fprintf(fp, "native_handle_addr:%#lx i:%zd \n", native_handle_addr, i);
+            LOGE("Failed to read native_handle at %#lx (index %zu)", native_handle_addr, i);
             continue;
         }
         private_handle_t* phandle = (private_handle_t*)tmphandle.data();
@@ -207,10 +223,9 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
         ulong requestorName_addr = alloc_rec_t_addr + sizeof(alloc_rec_t) + task_ptr->get_pointer_size() /* size_t */;
         std::string requestorName = task_ptr->for_each_stdstring(requestorName_addr);
         std::vector<char> tmprec = task_ptr->read_data(alloc_rec_t_addr, sizeof(alloc_rec_t));
-        if(debug){
-            fprintf(fp, "alloc_rec_t_addr:%#lx native_handle_addr:%#lx\n", alloc_rec_t_addr, native_handle_addr);
-        }
+        LOGD("Processing buffer %zu: handle=%#lx alloc_rec=%#lx", i, native_handle_addr, alloc_rec_t_addr);
         if (tmprec.size() == 0){
+            LOGE("Failed to read alloc_rec_t at %#lx", alloc_rec_t_addr);
             continue;
         }
         alloc_rec_t* rec = (alloc_rec_t*)tmprec.data();
@@ -237,11 +252,13 @@ void SF::dump_GraphicBufferAllocator(ulong sAllocList_vaddr){
     oss  << "Total allocated by GraphicBufferAllocator (estimate): "
             << std::fixed << std::setprecision(2)
             << static_cast<double>(total) / 1024.0 << " KB\n";
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT("%s\n", oss.str().c_str());
+    LOGD("Found %zu allocated buffers (%.2f KB total)", mCount, static_cast<double>(total) / 1024.0);
 }
 
 // GraphicBufferAllocator::sInstance
 void SF::dumpDebugInfo(ulong sInstance_addr){
+    LOGD("Dumping gralloc4 imported buffers from sInstance %#lx", sInstance_addr);
     ulong GrallocAllocator_mAllocator_addr = task_ptr->uread_pointer(sInstance_addr + g_offset.GraphicBufferAllocator_mAllocator);
     // Gralloc4Allocator : GrallocAllocator
     ulong Gralloc4Allocator_mMapper_addr = task_ptr->uread_pointer(GrallocAllocator_mAllocator_addr + g_offset.Gralloc4Allocator_mMapper);
@@ -249,6 +266,7 @@ void SF::dumpDebugInfo(ulong sInstance_addr){
     ulong BsQtiMapper_mImpl_addr = task_ptr->uread_pointer(Gralloc4Mapper_mMapper_addr + g_offset.BsQtiMapper_mImpl);
     ulong QtiMapper_buf_mgr_addr = task_ptr->uread_pointer(BsQtiMapper_mImpl_addr + g_offset.IQtiMapper_buf_mgr_);
     ulong BufferManager_handles_map_addr = QtiMapper_buf_mgr_addr + g_offset.BufferManager_handles_map_;
+    LOGD("BufferManager handles_map at %#lx", BufferManager_handles_map_addr);
     /*
     std::unordered_map<const private_handle_t *, std::shared_ptr<Buffer>> handles_map_
     // *   ------------------------------------------------------------- <--- BufferManager_handles_map_addr
@@ -264,16 +282,20 @@ void SF::dumpDebugInfo(ulong sInstance_addr){
         << std::left << std::setw(22) << "Dmabuf"
         << std::left << std::setw(12) << "Format"
         << std::left << "Usage" << std::endl;
+    size_t imported_count = 0;
     for (const auto& pair : task_ptr->for_each_stdunmap(BufferManager_handles_map_addr, task_ptr->get_pointer_size())) {
         ulong handle_addr = task_ptr->uread_pointer(pair.first);
         bufferDumpHelper(handle_addr, &stream);
+        imported_count++;
     }
-    fprintf(fp, "%s \n", stream.str().c_str());
+    PRINT("%s\n", stream.str().c_str());
+    LOGI("Found %zu imported gralloc4 buffers", imported_count);
 }
 
 void SF::bufferDumpHelper(ulong handle_addr, std::ostringstream* outDump){
     std::vector<char> handle = task_ptr->read_data(handle_addr, sizeof(private_handle_t));
     if (handle.size() == 0){
+        LOGE("Failed to read private_handle_t at %#lx", handle_addr);
         return;
     }
     private_handle_t* phandle = (private_handle_t*)handle.data();
@@ -299,17 +321,20 @@ KeyedVector hold the mVector(SortedVector)
 SortedVector : KeyedVector : VectorImpl
 */
 size_t SF::get_sAllocList_from_vma(){
+    LOGD("Searching for sAllocList in VMA");
     auto vma_callback = [&](std::shared_ptr<vma_struct> vma_ptr) -> bool {
         return true;
     };
     if (BITS64() && !task_ptr->is_compat()) {
         std::string libui = "/system/lib64/libui.so";
+        LOGD("Searching in %s (64-bit)", libui.c_str());
         auto obj_callback = [&](KeyedVector_64_t* obj) -> bool {
             return obj->mItemSize == g_offset.mItemSize;
         };
         return task_ptr->search_obj<KeyedVector_64_t, uint64_t>(libui, true, vma_callback, obj_callback, 21 /*vtbl count*/);
     } else {
         std::string libui = "/system/lib/libui.so";
+        LOGD("Searching in %s (32-bit)", libui.c_str());
         auto obj_callback = [&](KeyedVector_32_t* obj) -> bool {
             return obj->mItemSize == g_offset.mItemSize;
         };
@@ -357,15 +382,19 @@ std::string SF::PixelFormatToString(int format) {
 }
 
 bool SF::init_env(){
+    LOGD("Initializing SurfaceFlinger environment");
     tc_sf = find_proc("surfaceflinger");
     if(!tc_sf){
-        fprintf(fp, "Do not find the surfaceflinger \n");
+        LOGE("SurfaceFlinger process not found");
         return false;
     }
+    LOGD("Found surfaceflinger process (pid=%d)", tc_sf->pid);
     if(!task_ptr){
         task_ptr = std::make_shared<UTask>(swap_ptr, tc_sf->task);
     }
     field_init(file, private_data);
+    LOGD("Initializing structure offsets (arch=%s)",
+         (BITS64() && !task_ptr->is_compat()) ? "64-bit" : "32-bit");
     // ptype /o  android::GraphicBufferAllocator
     g_offset.GraphicBufferAllocator_mAllocator = (BITS64() && !task_ptr->is_compat()) ? 8 : 4;
     // ptype /o android::Gralloc4Allocator
@@ -386,7 +415,7 @@ bool SF::init_env(){
     g_offset.SnapMetadata_name = 24484;
     // ptype /o MetaData_t
     g_offset.MetaData_t_name = 24768;
-
+    LOGW("SurfaceFlinger environment initialized successfully");
     return true;
 }
 

@@ -266,16 +266,16 @@ std::string ParserPlugin::csize(uint64_t size){
     std::ostringstream oss;
     oss.imbue(std::locale::classic());
     if (size < KB) {
-        oss << size << "B";
+        oss << size << " B";
     } else if (size < MB) {
         double sizeInKB = static_cast<double>(size) / KB;
-        oss << std::fixed << std::setprecision(sizeInKB == static_cast<uint64_t>(sizeInKB) ? 0 : 2) << sizeInKB << "KB";
+        oss << std::fixed << std::setprecision(sizeInKB == static_cast<uint64_t>(sizeInKB) ? 0 : 2) << sizeInKB << " KB";
     } else if (size < GB) {
         double sizeInMB = static_cast<double>(size) / MB;
-        oss << std::fixed << std::setprecision(sizeInMB == static_cast<uint64_t>(sizeInMB) ? 0 : 2) << sizeInMB << "MB";
+        oss << std::fixed << std::setprecision(sizeInMB == static_cast<uint64_t>(sizeInMB) ? 0 : 2) << sizeInMB << " MB";
     } else {
         double sizeInGB = static_cast<double>(size) / GB;
-        oss << std::fixed << std::setprecision(sizeInGB == static_cast<uint64_t>(sizeInGB) ? 0 : 2) << sizeInGB << "GB";
+        oss << std::fixed << std::setprecision(sizeInGB == static_cast<uint64_t>(sizeInGB) ? 0 : 2) << sizeInGB << " GB";
     }
     return oss.str();
 }

@@ -53,6 +53,7 @@ uint64_t ImageParser::pac_ignore(uint64_t data) {
     // In the PAC field definitions, bottom_PAC_bit == 64-TCR_ELx.TnSZ,
     // TCR_ELx.TnSZ is set to 25. so 64-25=39
     uint64_t result = kernel_pac_mask | data;
+    LOGD("PAC stripped: original=%#lx, result=%#lx", data, result);
     return result;
 #endif
     return data;
@@ -61,13 +62,15 @@ uint64_t ImageParser::pac_ignore(uint64_t data) {
 std::string ImageParser::get_cmm_path(std::string name, bool secure){
     std::stringstream ss;
     ss << get_curpath().str() << "/cmm";
-    mkdir(ss.str().c_str(), 0777);
+    std::string cmm_dir = ss.str();
+    mkdir(cmm_dir.c_str(), 0777);
     if (secure){
         ss << "/secure_world_." << name << "_regs.cmm";
     }else{
         ss << "/" << name << "_regs.cmm";
     }
-    // fprintf(fp, "reg_file_path:%s\n", ss.str());
-    return ss.str();
+    std::string cmm_path = ss.str();
+    LOGD("CMM file path: %s (secure=%s)", cmm_path.c_str(), secure ? "true" : "false");
+    return cmm_path;
 }
 #pragma GCC diagnostic pop

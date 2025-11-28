@@ -35,7 +35,7 @@ void TaskSched::cmd_main(void) {
                 try {
                     cpu = std::stoi(cppString);
                 } catch (...) {
-                    fprintf(fp, "invaild cpu arg %s\n",cppString.c_str());
+                    LOGE("invaild cpu arg %s\n",cppString.c_str());
                     break;
                 }
                 print_task_timestamps(cpu);
@@ -169,7 +169,7 @@ void TaskSched::print_task_timestamps(int cpu){
             << std::left << std::setw(15)   << (double)sched_ptr->last_sleep/1000000000.0 << " "
             << std::left << std::setw(15)   << (double)sched_ptr->runtime/1000000.0 << "\n";
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT("%s \n", oss.str().c_str());
 }
 
 #pragma GCC diagnostic pop

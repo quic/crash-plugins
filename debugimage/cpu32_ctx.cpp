@@ -25,7 +25,12 @@ Cpu32_Context::Cpu32_Context(){
 
 void Cpu32_Context::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
+    LOGD("Cpu32_Context::print_stack() for core %d", core);
     void* buf = read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_32_t),"tzbsp_dump_32_t",false);
+    if (!buf) {
+        LOGE("Failed to read memory for tzbsp_dump_32_t at %#lx", entry_ptr->data_addr);
+        return;
+    }
     tzbsp_dump_32_t reg_dump = *reinterpret_cast<tzbsp_dump_32_t*>(buf);
 
     unsigned long long lr = reg_dump.sc_regs.r14_svc;
@@ -37,6 +42,7 @@ void Cpu32_Context::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     //     fp1 = reg_dump.sc_regs.r[11];
     // }
     unsigned long long pc = pac_ignore(reg_dump.sc_regs.pc);
+    LOGD("Core %d: PC=%#llx, LR=%#llx", core, pc, lr);
     struct syment *sym;
     ulong offset;
     sym = value_search(pc, &offset);
@@ -55,7 +61,7 @@ void Cpu32_Context::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     } else {
         oss << "LR: " << "<" << std::hex << lr << ">: " << "UNKNOWN"  << "+" << std::hex << 0 << "\n";
     }
-    fprintf(fp, "%s \n\n",oss.str().c_str());
+    PRINT("%s \n\n",oss.str().c_str());
     FREEBUF(buf);
 }
 
@@ -63,13 +69,19 @@ void Cpu32_Context::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     int core = entry_ptr->id - DATA_CPU_CTX;
     // int major = entry_ptr->version >> 4;
     // int minor = entry_ptr->version & 0xF;
-    // fprintf(fp, "%s  core:%d  version:%d.%d\n",entry_ptr->data_name.c_str(), core,major,minor);
+    // LOGI("%s  core:%d  version:%d.%d\n",entry_ptr->data_name.c_str(), core,major,minor);
+    LOGI("Cpu32_Context::generate_cmm() for core %d", core);
     void* buf = read_memory(entry_ptr->data_addr,sizeof(tzbsp_dump_32_t),"tzbsp_dump_32_t",false);
+    if (!buf) {
+        LOGE("Failed to read memory for tzbsp_dump_32_t at %#lx", entry_ptr->data_addr);
+        return;
+    }
     tzbsp_dump_32_t reg_dump = *reinterpret_cast<tzbsp_dump_32_t*>(buf);
     std::string regs_file = get_cmm_path("core" + std::to_string(core), false);
+    LOGD("Creating normal CMM file: %s", regs_file.c_str());
     FILE* cmmfile = fopen(regs_file.c_str(), "wb");
     if (!cmmfile) {
-        fprintf(fp, "Can't open %s\n", regs_file.c_str());
+        LOGE("Failed to create CMM file: %s", regs_file.c_str());
         FREEBUF(buf);
         return;
     }
@@ -102,11 +114,11 @@ void Cpu32_Context::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     oss_regs << "r.s r14_hyp 0x"     << std::hex << reg_dump.sc_regs.r14_hyp     << std::endl;
     fwrite(oss_regs.str().c_str(), sizeof(char), oss_regs.str().size(), cmmfile);
     fclose(cmmfile);
-
     std::string secure_file = get_cmm_path("core" + std::to_string(core), true);
+    LOGD("Creating secure CMM file: %s", secure_file.c_str());
     cmmfile = fopen(secure_file.c_str(), "wb");
     if (!cmmfile) {
-        fprintf(fp, "Can't open %s\n", secure_file.c_str());
+        LOGE("Failed to create secure CMM file: %s", secure_file.c_str());
         FREEBUF(buf);
         return;
     }
@@ -139,7 +151,7 @@ void Cpu32_Context::generate_cmm(std::shared_ptr<Dump_entry> entry_ptr){
     oss_secure << "r.s r14_hyp 0x"     << std::hex << reg_dump.sc_secure.r14_hyp     << std::endl;
     fwrite(oss_secure.str().c_str(), sizeof(char), oss_secure.str().size(), cmmfile);
     fclose(cmmfile);
-    fprintf(fp, "save to %s\n", regs_file.c_str());
+    PRINT("Saved CMM files: %s and %s\n", regs_file.c_str(), secure_file.c_str());
     FREEBUF(buf);
 }
 

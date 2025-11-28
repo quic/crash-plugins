@@ -23,24 +23,33 @@ DEFINE_PLUGIN_COMMAND(Procrank)
 #endif
 
 void Procrank::cmd_main(void) {
-    int c;
-    std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "ac")) != EOF) {
+    LOGI("Command started, argcnt=%d\n", argcnt);
+    if (argcnt < 2) return cmd_usage(pc->curcmd, SYNOPSIS);
+    bool need_memory = false;
+    bool need_name = false;
+    for (int c; (c = getopt(argcnt, args, "ac")) != EOF;) {
         switch(c) {
             case 'a':
-                parser_process_memory();
+                need_memory = true;
                 break;
             case 'c':
-                parser_process_name();
+                need_name = true;
                 break;
             default:
                 argerrs++;
                 break;
         }
     }
-    if (argerrs)
-        cmd_usage(pc->curcmd, SYNOPSIS);
+    if (argerrs) return cmd_usage(pc->curcmd, SYNOPSIS);
+    if (need_memory) {
+        LOGI("Parsing process memory\n");
+        parser_process_memory();
+    }
+    if (need_name) {
+        LOGI("Parsing process names\n");
+        parser_process_name();
+    }
+    LOGI("Command completed\n");
 }
 
 void Procrank::init_offset(void) {}
@@ -78,45 +87,78 @@ void Procrank::init_command(void){
 }
 
 void Procrank::parser_process_memory() {
-    if (!swap_ptr->is_zram_enable()){
+    LOGI("Start parsing process memory\n");
+    if (!swap_ptr->is_zram_enable()) {
+        LOGW("ZRAM not enabled, returning\n");
         return;
     }
-    uint64_t total_vss = 0;
-    uint64_t total_rss = 0;
-    uint64_t total_pss = 0;
-    uint64_t total_uss = 0;
-    uint64_t total_swap = 0;
-    if (procrank_list.size() == 0){
-        for(ulong task_addr: for_each_process()){
-            struct task_context *tc = task_to_context(task_addr);
-            if(!tc){
-                continue;
-            }
-            task_ptr = std::make_shared<UTask>(swap_ptr, task_addr);
-            auto proc_mem_ptr = std::make_shared<procrank>();
-            proc_mem_ptr->pid = tc->pid;
-            // memcpy(procrank_result->comm, tc->comm, TASK_COMM_LEN + 1);
-            proc_mem_ptr->cmdline = task_ptr->read_start_args();
-            for (const auto& vma_ptr : task_ptr->for_each_vma_list()) {
-                auto vma_mem_ptr = parser_vma(vma_ptr);
-                proc_mem_ptr->vss += vma_mem_ptr->vss;
-                proc_mem_ptr->rss += vma_mem_ptr->rss;
-                proc_mem_ptr->pss += vma_mem_ptr->pss;
-                proc_mem_ptr->uss += vma_mem_ptr->uss;
-                proc_mem_ptr->swap += vma_mem_ptr->swap;
-            }
-            total_vss += proc_mem_ptr->vss;
-            total_rss += proc_mem_ptr->rss;
-            total_pss += proc_mem_ptr->pss;
-            total_uss += proc_mem_ptr->uss;
-            total_swap += proc_mem_ptr->swap;
-            procrank_list.push_back(proc_mem_ptr);
-            task_ptr.reset();
-        }
-        std::sort(procrank_list.begin(), procrank_list.end(),[&](const std::shared_ptr<procrank>& a, const std::shared_ptr<procrank>& b){
-            return a->rss > b->rss;
-        });
+    uint64_t total_vss = 0, total_rss = 0, total_pss = 0, total_uss = 0, total_swap = 0;
+    if (procrank_list.empty()) {
+        LOGI("Procrank list empty, parsing all processes\n");
+        parser_all_process_memory(total_vss, total_rss, total_pss, total_uss, total_swap);
+        LOGI("Sorting %zu processes by RSS\n", procrank_list.size());
+        std::sort(procrank_list.begin(), procrank_list.end(),
+                 [](const auto& a, const auto& b) { return a->rss > b->rss; });
     }
+    total_vss = total_rss = total_pss = total_uss = total_swap = 0;
+    for (const auto& proc : procrank_list) {
+        total_vss += proc->vss;
+        total_rss += proc->rss;
+        total_pss += proc->pss;
+        total_uss += proc->uss;
+        total_swap += proc->swap;
+    }
+    print_process_memory_table(total_vss, total_rss, total_pss, total_uss, total_swap);
+    LOGI("Memory parsing completed\n");
+}
+
+void Procrank::parser_all_process_memory(uint64_t& total_vss, uint64_t& total_rss,
+                                        uint64_t& total_pss, uint64_t& total_uss, uint64_t& total_swap) {
+    LOGI("Start parsing all processes memory\n");
+    int process_count = 0;
+    for (ulong task_addr : for_each_process()) {
+        process_count++;
+        struct task_context *tc = task_to_context(task_addr);
+        if (!tc) {
+            LOGE("Failed to get task context for task_addr=0x%lx\n", task_addr);
+            continue;
+        }
+        auto proc_mem_ptr = parser_single_process_memory(task_addr, tc);
+        if (!proc_mem_ptr) {
+            LOGE("Failed to parse memory for PID=%d\n", tc->pid);
+            continue;
+        }
+        total_vss += proc_mem_ptr->vss;
+        total_rss += proc_mem_ptr->rss;
+        total_pss += proc_mem_ptr->pss;
+        total_uss += proc_mem_ptr->uss;
+        total_swap += proc_mem_ptr->swap;
+        procrank_list.push_back(proc_mem_ptr);
+    }
+    LOGI("Successfully parsed %zu/%d processes\n",
+         procrank_list.size(), process_count);
+}
+
+std::shared_ptr<procrank> Procrank::parser_single_process_memory(ulong task_addr, struct task_context *tc) {
+    auto task_ptr = std::make_shared<UTask>(swap_ptr, task_addr);
+    auto proc_mem_ptr = std::make_shared<procrank>();
+    proc_mem_ptr->pid = tc->pid;
+    proc_mem_ptr->comm = tc->comm;
+    proc_mem_ptr->cmdline = task_ptr->read_start_args();
+    for (const auto& vma_ptr : task_ptr->for_each_vma_list()) {
+        auto vma_mem_ptr = parser_vma(task_ptr, vma_ptr);
+        proc_mem_ptr->vss += vma_mem_ptr->vss;
+        proc_mem_ptr->rss += vma_mem_ptr->rss;
+        proc_mem_ptr->pss += vma_mem_ptr->pss;
+        proc_mem_ptr->uss += vma_mem_ptr->uss;
+        proc_mem_ptr->swap += vma_mem_ptr->swap;
+    }
+    task_ptr.reset();
+    return proc_mem_ptr;
+}
+
+void Procrank::print_process_memory_table(uint64_t total_vss, uint64_t total_rss,
+                                         uint64_t total_pss, uint64_t total_uss, uint64_t total_swap) {
     std::ostringstream oss;
     oss << std::left << std::setw(8) << "PID" << " "
         << std::left << std::setw(10) << "Vss" << " "
@@ -132,20 +174,18 @@ void Procrank::parser_process_memory() {
             << std::left << std::setw(10) << csize(p->pss) << " "
             << std::left << std::setw(10) << csize(p->uss) << " "
             << std::left << std::setw(10) << csize(p->swap) << " "
-            << p->cmdline
-            << "\n";
+            << p->cmdline << "\n";
     }
     oss << std::left << std::setw(8) << "Total" << " "
         << std::left << std::setw(10) << csize(total_vss) << " "
         << std::left << std::setw(10) << csize(total_rss) << " "
         << std::left << std::setw(10) << csize(total_pss) << " "
         << std::left << std::setw(10) << csize(total_uss) << " "
-        << std::left << std::setw(10) << csize(total_swap)
-        << "\n";
-    fprintf(fp, "%s\n", oss.str().c_str());
+        << std::left << std::setw(10) << csize(total_swap) << "\n";
+    PRINT("%s\n", oss.str().c_str());
 }
 
-std::shared_ptr<procrank> Procrank::parser_vma(std::shared_ptr<vma_struct> vma_ptr) {
+std::shared_ptr<procrank> Procrank::parser_vma(std::shared_ptr<UTask> task_ptr, std::shared_ptr<vma_struct> vma_ptr) {
     auto procrank_ptr = std::make_shared<procrank>();
     for(ulong vaddr = vma_ptr->vm_start; vaddr < vma_ptr->vm_end; vaddr+= page_size){
         ulong page_vaddr = vaddr & page_mask;
@@ -179,28 +219,55 @@ std::shared_ptr<procrank> Procrank::parser_vma(std::shared_ptr<vma_struct> vma_p
 }
 
 void Procrank::parser_process_name() {
+    LOGI("Start parsing process names\n");
     std::ostringstream oss;
-    oss << std::left << std::setw(8) << "PID" << " "
-           << std::left << std::setw(20) << "Comm" << " "
-           << std::left << std::setw(10) << "Cmdline" << "\n";
-    for(ulong task_addr: for_each_process()){
-        std::string cmdline;
-        struct task_context *tc = task_to_context(task_addr);
-        if (!tc){
-            continue;
+    print_process_name_header(oss);
+    if (!procrank_list.empty()) {
+        LOGI("Using existing procrank_list with %zu processes\n", procrank_list.size());
+        for (const auto& proc : procrank_list) {
+            print_process_name_row(oss, proc->pid, proc->comm.c_str(), proc->cmdline);
         }
-        task_ptr = std::make_shared<UTask>(swap_ptr, task_addr);
-        if (!swap_ptr->is_zram_enable()){
-            cmdline = tc->comm;
-        } else {
-            cmdline = task_ptr->read_start_args();
-        }
-        oss << std::left << std::setw(8) << tc->pid << " "
-               << std::left << std::setw(20) << tc->comm << " "
-               << std::left << std::setw(10) << cmdline << "\n";
-        task_ptr.reset();
+    } else {
+        LOGI("Procrank list empty, parsing names only\n");
+        parser_process_name_only(oss);
     }
-    fprintf(fp, "%s \n", oss.str().c_str());
+    PRINT("%s\n", oss.str().c_str());
+    LOGI("Name parsing completed\n");
+}
+
+std::string Procrank::parser_single_process_cmdline(ulong task_addr, struct task_context *tc) {
+    if (!swap_ptr->is_zram_enable()) {
+        return tc->comm;
+    }
+    auto task_ptr = std::make_shared<UTask>(swap_ptr, task_addr);
+    std::string cmdline = task_ptr->read_start_args();
+    task_ptr.reset();
+    return cmdline;
+}
+
+void Procrank::parser_process_name_only(std::ostringstream& oss) {
+    int process_count = 0;
+    for (ulong task_addr : for_each_process()) {
+        process_count++;
+        struct task_context *tc = task_to_context(task_addr);
+        if (!tc) continue;
+        std::string cmdline = parser_single_process_cmdline(task_addr, tc);
+        print_process_name_row(oss, tc->pid, tc->comm, cmdline);
+    }
+    LOGI("Parsed %d process names\n", process_count);
+}
+
+void Procrank::print_process_name_header(std::ostringstream& oss) {
+    oss << std::left << std::setw(8) << "PID" << " "
+        << std::left << std::setw(20) << "Comm" << " "
+        << std::left << std::setw(10) << "Cmdline" << "\n";
+}
+
+void Procrank::print_process_name_row(std::ostringstream& oss, int pid,
+                                     const char* comm, const std::string& cmdline) {
+    oss << std::left << std::setw(8) << pid << " "
+        << std::left << std::setw(20) << comm << " "
+        << std::left << std::setw(10) << cmdline << "\n";
 }
 
 #pragma GCC diagnostic pop
