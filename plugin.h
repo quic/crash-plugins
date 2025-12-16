@@ -74,11 +74,12 @@ struct class_type {
     std::string name;
     size_t subsys_private;
 };
-#define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
+
+#define field_init(type,field_name,...) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name), ##__VA_ARGS__)
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_offset(type,field_name) type_offset(TO_STD_STRING(type),TO_STD_STRING(field_name))
 
-#define struct_init(type) type_init(TO_STD_STRING(type))
+#define struct_init(type,...) type_init(TO_STD_STRING(type), ##__VA_ARGS__)
 #define struct_size(type) type_size(TO_STD_STRING(type))
 #define IS_ALIGNED(x, a)    (((x) & ((typeof(x))(a) - 1)) == 0)
 
@@ -206,8 +207,8 @@ public:
     bool page_buddy(ulong page_addr);
     int page_count(ulong page_addr);
     void print_table();
-    void type_init(const std::string& type);
-    void type_init(const std::string& type,const std::string& field);
+    void type_init(const std::string& type, bool is_anon = false);
+    void type_init(const std::string& type,const std::string& field, bool is_anon = false);
     int type_offset(const std::string& type,const std::string& field);
     int type_size(const std::string& type,const std::string& field);
     int type_size(const std::string& type);

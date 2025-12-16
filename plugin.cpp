@@ -474,9 +474,9 @@ void ParserPlugin::initialize(void){
  *
  * @param type The name of the structure type to initialize (e.g., "task_struct", "mm_struct")
  */
-void ParserPlugin::type_init(const std::string& type){
+void ParserPlugin::type_init(const std::string& type, bool is_anon){
     std::string name = type;
-    typetable[name] = std::make_unique<Typeinfo>(type);
+    typetable[name] = std::make_unique<Typeinfo>(type, is_anon);
 }
 
 /**
@@ -491,9 +491,9 @@ void ParserPlugin::type_init(const std::string& type){
  * @param field The name of the field within the structure (e.g., "pid", "comm", "mm")
  *
  */
-void ParserPlugin::type_init(const std::string& type,const std::string& field){
+void ParserPlugin::type_init(const std::string& type,const std::string& field, bool is_anon){
     std::string name = type + "@" + field;
-    typetable[name] = std::make_unique<Typeinfo>(type,field);
+    typetable[name] = std::make_unique<Typeinfo>(type,field, is_anon);
 }
 
 /**

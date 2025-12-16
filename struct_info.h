@@ -35,12 +35,12 @@ public:
     int m_size;
     int m_offset;
 
-    Typeinfo(const std::string& type, const std::string& field)
+    Typeinfo(const std::string& type, const std::string& field, bool is_anon = false)
         : m_name(type + "_" + field),
-          m_size(datatype_info(TO_CONST_STRING(type.c_str()), TO_CONST_STRING(field.c_str()), MEMBER_SIZE_REQUEST)),
-          m_offset(datatype_info(TO_CONST_STRING(type.c_str()), TO_CONST_STRING(field.c_str()), NULL)) {}
+          m_size(datatype_info(TO_CONST_STRING(type.c_str()), TO_CONST_STRING(field.c_str()), is_anon ? ANON_MEMBER_SIZE_REQUEST : MEMBER_SIZE_REQUEST)),
+          m_offset(datatype_info(TO_CONST_STRING(type.c_str()), TO_CONST_STRING(field.c_str()), is_anon ? ANON_MEMBER_OFFSET_REQUEST : NULL)) {}
 
-    Typeinfo(const std::string& type)
+    Typeinfo(const std::string& type, bool is_anon = false)
         : m_name(type),
           m_size(datatype_info(TO_CONST_STRING(type.c_str()), NULL, STRUCT_SIZE_REQUEST)),
           m_offset(0) {}
