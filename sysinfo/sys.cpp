@@ -162,17 +162,12 @@ void SysInfo::print_qsocinfo(){
     struct_init(socinfo_params);
     std::ostringstream oss;
     LOGD("Searching for qcom-socinfo device on platform bus\n");
-    for (const auto& dev_addr : for_each_device_for_bus("platform")) {
-        std::string device_name;
-        size_t name_addr = read_pointer(dev_addr + field_offset(device,kobj) + field_offset(kobject,name),"device name addr");
-        if (is_kvaddr(name_addr)){
-            device_name = read_cstring(name_addr,100, "device name");
-        }
-        if (device_name.empty() || device_name != "qcom-socinfo"){
+    for (const auto& dev : for_each_device_for_bus("platform")) {
+        if (dev->name.empty() || dev->name != "qcom-socinfo"){
             continue;
         }
-        LOGD("Found qcom-socinfo device at address %lx\n", dev_addr);
-        ulong socinfo_addr = read_pointer(dev_addr + field_offset(device,driver_data) ,"driver_data");
+        LOGD("Found qcom-socinfo device at address %lx\n", dev->addr);
+        ulong socinfo_addr = read_pointer(dev->addr + field_offset(device,driver_data) ,"driver_data");
         if (!is_kvaddr(socinfo_addr)){
             LOGW("Invalid driver_data address for qcom-socinfo device\n");
             continue;
@@ -180,7 +175,7 @@ void SysInfo::print_qsocinfo(){
         LOGD("qcom_socinfo structure at address: %lx\n", socinfo_addr);
         ulong attr_addr = socinfo_addr + field_offset(qcom_socinfo,attr);
         std::string machine;
-        name_addr = read_pointer(attr_addr + field_offset(soc_device_attribute,machine),"machine addr");
+        ulong name_addr = read_pointer(attr_addr + field_offset(soc_device_attribute,machine),"machine addr");
         if (is_kvaddr(name_addr)){
             machine = read_cstring(name_addr,100, "machine");
         }

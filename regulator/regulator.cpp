@@ -361,12 +361,12 @@ void Regulator::parser_regulator_dev(){
     size_t total_consumers = 0;
 
     // Iterate through all devices in the regulator class
-    for (auto& addr : for_each_device_for_class("regulator")) {
+    for (auto& dev : for_each_device_for_class("regulator")) {
         devices_found++;
 
         // Adjust address to point to regulator_dev structure
         // (device address points to embedded dev field, need to get container)
-        addr = addr - field_offset(regulator_dev,dev);
+        ulong addr = dev->addr - field_offset(regulator_dev,dev);
 
         LOGD("Processing regulator device %zu at address 0x%lx\n", devices_found, addr);
 

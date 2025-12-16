@@ -42,11 +42,44 @@
 #include <map>
 #include "logger/logger_core.h"
 
-#define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
+// Forward declarations
+struct driver;
+struct device;
+struct bus_type;
+struct class_type;
+
+struct driver {
+    size_t addr;
+    std::string name;
+    std::string probe;
+    std::string compatible;
+};
+
+struct device {
+    size_t addr;
+    std::string name;
+    ulong driver_data;
+    ulong driv;
+};
+
+struct bus_type {
+    size_t addr;
+    std::string name;
+    std::string probe;
+    size_t subsys_private;
+};
+
+struct class_type {
+    size_t addr;
+    std::string name;
+    size_t subsys_private;
+};
+
+#define field_init(type,field_name,...) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name), ##__VA_ARGS__)
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_offset(type,field_name) type_offset(TO_STD_STRING(type),TO_STD_STRING(field_name))
 
-#define struct_init(type) type_init(TO_STD_STRING(type))
+#define struct_init(type,...) type_init(TO_STD_STRING(type), ##__VA_ARGS__)
 #define struct_size(type) type_size(TO_STD_STRING(type))
 #define IS_ALIGNED(x, a)    (((x) & ((typeof(x))(a) - 1)) == 0)
 
@@ -174,8 +207,8 @@ public:
     bool page_buddy(ulong page_addr);
     int page_count(ulong page_addr);
     void print_table();
-    void type_init(const std::string& type);
-    void type_init(const std::string& type,const std::string& field);
+    void type_init(const std::string& type, bool is_anon = false);
+    void type_init(const std::string& type,const std::string& field, bool is_anon = false);
     int type_offset(const std::string& type,const std::string& field);
     int type_size(const std::string& type,const std::string& field);
     int type_size(const std::string& type);
@@ -200,14 +233,24 @@ public:
     std::vector<ulong> for_each_misc_dev();
     std::vector<ulong> for_each_bdev();
     std::vector<ulong> for_each_bus();
+
+    std::vector<std::shared_ptr<bus_type>> for_each_bus_type();
+    std::vector<std::shared_ptr<class_type>> for_each_class_type();
     std::vector<ulong> for_each_class();
     std::vector<ulong> for_each_address_space(ulong i_mapping);
     std::vector<ulong> for_each_subdirs(ulong dentry);
-    std::vector<ulong> for_each_device_for_bus(const std::string& bus_name);
-    std::vector<ulong> for_each_device_for_class(const std::string& class_name);
-    std::vector<ulong> for_each_device_for_driver(ulong driver_addr);
+    std::vector<std::shared_ptr<device>> for_each_device();
+    std::vector<std::shared_ptr<device>> for_each_device_for_bus(const std::string& bus_name);
+    std::vector<std::shared_ptr<device>> for_each_device_for_class(const std::string& class_name);
+    std::vector<std::shared_ptr<device>> for_each_device_for_driver(ulong driver_addr);
     std::vector<ulong> for_each_driver(const std::string& bus_name);
     std::vector<ulong> for_each_task_files(task_context *tc);
+
+    std::shared_ptr<class_type> parser_class_info(ulong addr);
+    std::shared_ptr<bus_type> parser_bus_info(ulong addr);
+    std::shared_ptr<device> parser_device(ulong addr);
+    std::shared_ptr<driver> parser_driver(ulong addr);
+
     ulong get_bus_subsys_private(const std::string& bus_name);
     ulong get_class_subsys_private(const std::string& class_name);
 

@@ -591,28 +591,16 @@ void QLog::print_pmic_info() {
     ulong device_addr = 0;
 
     // Search for pmic-pon-log device on platform bus
-    for (const auto& dev_addr : for_each_device_for_bus("platform")) {
-        std::string device_name;
-        size_t name_addr = read_pointer(dev_addr + field_offset(device, kobj) + field_offset(kobject, name),
-                                        "device name addr");
-
-        if (is_kvaddr(name_addr)) {
-            device_name = read_cstring(name_addr, 100, "device name");
-        }
-
-        if (device_name.empty() || device_name.find("pmic-pon-log") == std::string::npos) {
+    for (const auto& dev_ptr : for_each_device_for_bus("platform")) {
+        if (dev_ptr->name.empty() || dev_ptr->name.find("pmic-pon-log") == std::string::npos) {
             continue;
         }
-
-        LOGD("Found PMIC PON log device: %s at 0x%lx", device_name.c_str(), dev_addr);
-
-        ulong addr = read_pointer(dev_addr + field_offset(device, driver_data), "driver_data");
-        if (!is_kvaddr(addr)) {
-            LOGE("Invalid driver_data address for device %s", device_name.c_str());
+        LOGD("Found PMIC PON log device: %s at 0x%lx", dev_ptr->name.c_str(), dev_ptr->addr);
+        if (!is_kvaddr(dev_ptr->driver_data)) {
+            LOGE("Invalid driver_data address for device %s", dev_ptr->name.c_str());
             continue;
         }
-
-        device_addr = addr;
+        device_addr = dev_ptr->addr;
         break;
     }
 
