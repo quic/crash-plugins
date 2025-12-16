@@ -26,13 +26,10 @@ void Watchdog::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "au")) != EOF) {
+    while ((c = getopt(argcnt, args, "a")) != EOF) {
         switch(c) {
             case 'a':
                 parser_wdt_core();
-                break;
-            case 'u':
-                parser_upstream_wdt();
                 break;
             default:
                 argerrs++;
@@ -53,7 +50,6 @@ void Watchdog::init_command(void) {
         "wdt",                            /* command name */
         "dump watchdog information",        /* short description */
         "-a \n"
-            "  wdt -u \n"
             "  This command dumps the watchdog info.",
         "\n",
         "EXAMPLES",
@@ -182,10 +178,6 @@ void Watchdog::init_offset(void) {
     struct_init(qcom_wdt);
 
     // watchdog_device structure
-    field_init(watchdog_device, min_timeout);
-    field_init(watchdog_device, max_timeout);
-    field_init(watchdog_device, min_hw_heartbeat_ms);
-    field_init(watchdog_device, max_hw_heartbeat_ms);
     field_init(watchdog_device, wd_data);
     field_init(watchdog_device, status);
     struct_init(watchdog_device);
@@ -195,7 +187,40 @@ void Watchdog::init_offset(void) {
     struct_init(kthread_work);
 }
 
-ulong Watchdog::find_qcom_wdt(){
+/**
+ * Find QCOM watchdog device by class
+ *
+ * This function searches for the watchdog device through the device class system.
+ * It first checks if the "watchdog" class exists, then retrieves all devices
+ * registered under this class.
+ *
+ * @return Address of the first watchdog device's driver_data, or 0 if not found
+ */
+ulong Watchdog::find_watchdog_by_class(){
+    // Check if watchdog class exists in the system
+    bool wdt_class = false;
+    for (auto& class_ptr : for_each_class_type()) {
+        if (class_ptr->name == "watchdog"){
+            wdt_class = true;
+            break;
+        }
+    }
+
+    if (!wdt_class){
+        return 0;
+    }
+
+    // Get all devices registered under watchdog class
+    std::vector<std::shared_ptr<device>> device_list = for_each_device_for_class("watchdog");
+    if (device_list.empty()){
+        return 0;
+    }
+
+    // Return the driver_data of the first watchdog device
+    return device_list[0]->driver_data;
+}
+
+ulong Watchdog::find_watchdog(){
     // Get the address of qcom_watchdog_driver symbol (platform_driver structure)
     ulong wdt_driver_addr = csymbol_value("qcom_watchdog_driver");
     if (!is_kvaddr(wdt_driver_addr)) {
@@ -259,104 +284,174 @@ ulong Watchdog::find_qcom_wdt(){
  */
 void Watchdog::parser_wdt_core(){
     init_offset();
-
     // Check if MSM watchdog exists
     ulong wdt_addr = read_pointer(csymbol_value("wdog_data"),"wdog_data");
     if (!is_kvaddr(wdt_addr)) {
         // MSM watchdog not found, try QCOM watchdog
-        ulong qcom_wdt_addr = find_qcom_wdt();
-        if (!is_kvaddr(qcom_wdt_addr)) {
+        wdt_addr = find_watchdog_by_class();
+        if (!is_kvaddr(wdt_addr)){
+            wdt_addr = find_watchdog();
+        }
+        if (!is_kvaddr(wdt_addr)) {
             LOGE("No watchdog found\n");
             return;
         }
-
-        PRINT("qcom_wdt:%#lx\n", qcom_wdt_addr);
-
-        // Read qcom_wdt structure
-        void *qcom_wdt_buf = read_struct(qcom_wdt_addr, "qcom_wdt");
-        if (!qcom_wdt_buf) {
-            LOGE("Failed to read qcom_wdt structure at address %#lx\n", qcom_wdt_addr);
-            return;
-        }
-
-        // Parse qcom_wdt fields
-        ulong rate = ULONG(qcom_wdt_buf + field_offset(qcom_wdt, rate));
-        ulong base = ULONG(qcom_wdt_buf + field_offset(qcom_wdt, base));
-
-        // Get watchdog_device address (embedded structure)
-        ulong wdd_addr = qcom_wdt_addr + field_offset(qcom_wdt, wdd);
-
-        FREEBUF(qcom_wdt_buf);
-
-        // Read watchdog_device structure
-        void *wdd_buf = read_struct(wdd_addr, "watchdog_device");
-        if (!wdd_buf) {
-            LOGE("Failed to read watchdog_device structure at address %#lx\n", wdd_addr);
-            return;
-        }
-
-        // Parse watchdog_device fields
-        uint timeout = UINT(wdd_buf + field_offset(watchdog_device, timeout));
-        uint pretimeout = UINT(wdd_buf + field_offset(watchdog_device, pretimeout));
-        uint min_timeout = UINT(wdd_buf + field_offset(watchdog_device, min_timeout));
-        uint max_timeout = UINT(wdd_buf + field_offset(watchdog_device, max_timeout));
-        uint min_hw_heartbeat_ms = UINT(wdd_buf + field_offset(watchdog_device, min_hw_heartbeat_ms));
-        uint max_hw_heartbeat_ms = UINT(wdd_buf + field_offset(watchdog_device, max_hw_heartbeat_ms));
-        ulong wd_data_addr = ULONG(wdd_buf + field_offset(watchdog_device, wd_data));
-        ulong wdd_status = ULONG(wdd_buf + field_offset(watchdog_device, status));
-
-        FREEBUF(wdd_buf);
-
-        // Output qcom_wdt information
-        std::ostringstream oss;
-        oss << "=== QCOM Watchdog Information ===\n";
-        oss << std::left << std::setw(25) << "  rate" << ": " << std::dec << rate << " Hz\n";
-        oss << std::left << std::setw(25) << "  base" << ": " << std::hex << std::showbase << base << "\n";
-        oss << std::left << std::setw(25) << "  timeout" << ": " << std::dec << timeout << "s\n";
-        oss << std::left << std::setw(25) << "  pretimeout" << ": " << std::dec << pretimeout << "s\n";
-        oss << std::left << std::setw(25) << "  bark_time" << ": " << std::dec << (timeout - pretimeout) << "s\n";
-        oss << std::left << std::setw(25) << "  min_timeout" << ": " << std::dec << min_timeout << "s\n";
-        oss << std::left << std::setw(25) << "  max_timeout" << ": " << std::dec << max_timeout << "s\n";
-        oss << std::left << std::setw(25) << "  min_hw_heartbeat_ms" << ": " << std::dec << min_hw_heartbeat_ms << "ms\n";
-        oss << std::left << std::setw(25) << "  max_hw_heartbeat_ms" << ": " << std::dec << max_hw_heartbeat_ms << "ms\n";
-        oss << std::left << std::setw(25) << "  watchdog_core_data" << ": " << std::hex << std::showbase << wd_data_addr << "\n";
-        oss << std::left << std::setw(25) << "  status" << ": " << parse_wdd_status(wdd_status) << "\n";
-
-        // Parse watchdog_core_data if available
-        if (is_kvaddr(wd_data_addr)) {
-            void *wd_data_buf = read_struct(wd_data_addr, "watchdog_core_data");
-            if (wd_data_buf) {
-                ulonglong last_keepalive = ULONGLONG(wd_data_buf + field_offset(watchdog_core_data, last_keepalive));
-                ulonglong last_hw_keepalive = ULONGLONG(wd_data_buf + field_offset(watchdog_core_data, last_hw_keepalive));
-                ulonglong open_deadline = ULONGLONG(wd_data_buf + field_offset(watchdog_core_data, open_deadline));
-                ulong core_status = ULONG(wd_data_buf + field_offset(watchdog_core_data, status));
-
-                // Get hrtimer information
-                // hrtimer structure: node, _softexpires, function, base, state, ...
-                ulong timer_addr = wd_data_addr + field_offset(watchdog_core_data, timer);
-                ulonglong timer_node_expires = read_ulonglong(timer_addr + field_offset(hrtimer, node)
-                    + field_offset(timerqueue_node, expires), "timer node expires");
-                ulonglong timer_softexpires = read_ulonglong(timer_addr + field_offset(hrtimer, _softexpires),
-                    "timer _softexpires");
-                unsigned char timer_state = read_byte(timer_addr + field_offset(hrtimer, state), "timer state");
-
-                FREEBUF(wd_data_buf);
-                oss << std::left << std::setw(25) << "  last_keepalive" << ": " << nstoSec(last_keepalive) << "s\n";
-                oss << std::left << std::setw(25) << "  last_hw_keepalive" << ": " << nstoSec(last_hw_keepalive) << "s\n";
-                oss << std::left << std::setw(25) << "  open_deadline" << ": " << nstoSec(open_deadline) << "s\n";
-                oss << std::left << std::setw(25) << "  timer.node.expires" << ": " << nstoSec(timer_node_expires) << "s\n";
-                oss << std::left << std::setw(25) << "  timer._softexpires" << ": " << nstoSec(timer_softexpires) << "s\n";
-                oss << std::left << std::setw(25) << "  timer.state" << ": " << std::dec << static_cast<int>(timer_state) << "\n";
-                oss << std::left << std::setw(25) << "  core_status" << ": " << parse_core_status(core_status) << "\n";
-            }
-        }
-
-        oss << "=================================\n";
-        PRINT("%s", oss.str().c_str());
+        PRINT("qcom_wdt:%#lx\n", wdt_addr);
+        parser_upstream_wdt(wdt_addr);
     } else {
         // MSM watchdog found
         parser_msm_wdt();
     }
+}
+
+void Watchdog::parser_upstream_wdt(ulong addr){
+    // Read qcom_wdt structure
+    void *qcom_wdt_buf = read_struct(addr, "qcom_wdt");
+    if (!qcom_wdt_buf) {
+        LOGE("Failed to read qcom_wdt structure at address %#lx\n", addr);
+        return;
+    }
+
+    // Parse qcom_wdt fields
+    ulong rate = ULONG(qcom_wdt_buf + field_offset(qcom_wdt, rate));
+    ulong base = ULONG(qcom_wdt_buf + field_offset(qcom_wdt, base));
+
+    // Get watchdog_device address (embedded structure)
+    ulong wdd_addr = addr + field_offset(qcom_wdt, wdd);
+
+    FREEBUF(qcom_wdt_buf);
+
+    // Read watchdog_device structure
+    void *wdd_buf = read_struct(wdd_addr, "watchdog_device");
+    if (!wdd_buf) {
+        LOGE("Failed to read watchdog_device structure at address %#lx\n", wdd_addr);
+        return;
+    }
+
+    // Parse watchdog_device fields
+    uint bite_time = UINT(wdd_buf + field_offset(watchdog_device, timeout));
+    uint pretimeout = UINT(wdd_buf + field_offset(watchdog_device, pretimeout));
+    ulong wd_data_addr = ULONG(wdd_buf + field_offset(watchdog_device, wd_data));
+    ulong wdd_status = ULONG(wdd_buf + field_offset(watchdog_device, status));
+
+    FREEBUF(wdd_buf);
+
+    uint64_t jiffies = 0;
+    if (csymbol_exists("jiffies")){
+        jiffies = read_ulonglong(csymbol_value("jiffies"), "jiffies");
+    }else if (csymbol_exists("jiffies_64")){
+        jiffies = read_ulonglong(csymbol_value("jiffies_64"), "jiffies");
+    }
+    uint64_t last_jiffies_update = read_ulonglong(csymbol_value("last_jiffies_update"), "last_jiffies_update");
+    uint64_t tick_next_period = read_ulonglong(csymbol_value("tick_next_period"), "tick_next_period");
+    int tick_do_timer_cpu = read_int(csymbol_value("tick_do_timer_cpu"), "tick_do_timer_cpu");
+
+    // Output qcom_wdt information
+    std::ostringstream oss;
+    oss << "===== Watchdog Information =====\n";
+    oss << std::left << std::setw(25) << "  rate" << ": " << std::dec << rate << " Hz\n";
+    oss << std::left << std::setw(25) << "  base" << ": " << std::hex << std::showbase << base << "\n";
+    oss << std::left << std::setw(25) << "  bite_time" << ": " << std::dec << bite_time << "s\n";
+    oss << std::left << std::setw(25) << "  bark_time" << ": " << std::dec << (bite_time - pretimeout) << "s\n";
+    oss << std::left << std::setw(25) << "  jiffies" << ": " << std::dec << jiffies  << "\n";
+    oss << std::left << std::setw(25) << "  last_jiffies_update" << ": " << nstoSec(last_jiffies_update) << "s\n";
+    oss << std::left << std::setw(25) << "  tick_next_period" << ": " << nstoSec(tick_next_period) << "s\n";
+    oss << std::left << std::setw(25) << "  tick_do_timer_cpu" << ": " << std::dec << tick_do_timer_cpu << "\n\n";
+    oss << std::left << std::setw(25) << "  watchdog_core_data" << ": " << std::hex << std::showbase << wd_data_addr << "\n";
+    oss << std::left << std::setw(25) << "  status" << ": " << parse_wdd_status(wdd_status) << "\n";
+
+    ulonglong pet_timer_expires = 0;
+    unsigned char timer_state = 0;
+    // Parse watchdog_core_data if available
+    if (is_kvaddr(wd_data_addr)) {
+        void *wd_data_buf = read_struct(wd_data_addr, "watchdog_core_data");
+        if (wd_data_buf) {
+            ulonglong last_keepalive = ULONGLONG(wd_data_buf + field_offset(watchdog_core_data, last_keepalive));
+            ulonglong last_hw_keepalive = ULONGLONG(wd_data_buf + field_offset(watchdog_core_data, last_hw_keepalive));
+            ulonglong open_deadline = ULONGLONG(wd_data_buf + field_offset(watchdog_core_data, open_deadline));
+            ulong core_status = ULONG(wd_data_buf + field_offset(watchdog_core_data, status));
+
+            // Get hrtimer information
+            // hrtimer structure: node, _softexpires, function, base, state, ...
+            ulong timer_addr = wd_data_addr + field_offset(watchdog_core_data, timer);
+            pet_timer_expires = read_ulonglong(timer_addr + field_offset(hrtimer, node)
+                + field_offset(timerqueue_node, expires), "timer node expires");
+            timer_state = read_byte(timer_addr + field_offset(hrtimer, state), "timer state");
+            FREEBUF(wd_data_buf);
+            oss << std::left << std::setw(25) << "  last_keepalive" << ": " << nstoSec(last_keepalive) << "s\n";
+            oss << std::left << std::setw(25) << "  last_hw_keepalive" << ": " << nstoSec(last_hw_keepalive) << "s\n";
+            oss << std::left << std::setw(25) << "  open_deadline" << ": " << nstoSec(open_deadline) << "s\n";
+            oss << std::left << std::setw(25) << "  pet_timer.expires" << ": " << nstoSec(pet_timer_expires) << "s\n";
+            oss << std::left << std::setw(25) << "  pet_timer.state" << ": " << std::dec << static_cast<int>(timer_state) << "\n";
+            oss << std::left << std::setw(25) << "  core_status" << ": " << parse_core_status(core_status) << "\n";
+        }
+    }
+    // Parse kthread_work to get kthread_worker and task information
+    uint task_state = 0;
+    ulong pid = 0;
+    int cpu = -1;
+    ulonglong task_arrived = 0;
+    ulonglong task_queued = 0;
+    int task_oncpu = 0;
+    char buf[BUFSIZE];
+    ulong kthread_worker_addr = read_pointer(csymbol_value("watchdog_kworker"), "watchdog_kworker");
+    if (is_kvaddr(kthread_worker_addr)) {
+        ulong task_addr = read_pointer(kthread_worker_addr + field_offset(kthread_worker, task), "kthread_worker.task");
+        if (is_kvaddr(task_addr)) {
+            struct task_context* tc = task_to_context(task_addr);
+            if (tc) {
+                pid = tc->pid;
+                cpu = tc->processor;
+            }
+            if(field_offset(task_struct, __state) != -1){
+                task_state = read_int(task_addr + field_offset(task_struct, __state), "__state");
+            } else {
+                task_state = read_int(task_addr + field_offset(task_struct, state), "state");
+            }
+            task_arrived = read_ulonglong(task_addr + field_offset(task_struct, sched_info)
+                + field_offset(sched_info, last_arrival), "last_arrival");
+            task_queued = read_ulonglong(task_addr + field_offset(task_struct, sched_info)
+                + field_offset(sched_info, last_queued), "last_queued");
+            task_oncpu = read_int(task_addr + field_offset(task_struct, on_cpu), "on_cpu");
+            oss << "\n" << std::left << std::setw(25) << "watchdog_thread:" << "\n";
+            oss << std::left << std::setw(25) << "  watchdog_task" << ": " << std::hex << std::showbase << task_addr << "\n";
+            oss << std::left << std::setw(25) << "  pid" << ": " << std::dec << pid << "\n";
+            oss << std::left << std::setw(25) << "  cpu" << ": " << std::dec << cpu << "\n";
+            oss << std::left << std::setw(25) << "  task_state" << ": " << task_state_string(task_addr, buf, 0) << "\n";
+            oss << std::left << std::setw(25) << "  task_on_cpu" << ": " << (task_oncpu ? "True" : "False") << "\n";
+            oss << std::left << std::setw(25) << "  last_arrival" << ": " << task_arrived << "\n";
+            oss << std::left << std::setw(25) << "  last_queued" << ": " << task_queued << "\n";
+        }
+    }
+    // Per-CPU tick device information
+    for (size_t i = 0; i < NR_CPUS; i++) {
+        if (!kt->__per_cpu_offset[i])
+            continue;
+        ulong tick_cpu_device_addr = csymbol_value("tick_cpu_device") + kt->__per_cpu_offset[i];
+        if (!is_kvaddr(tick_cpu_device_addr)) continue;
+        ulong evt_dev_addr = read_structure_field(tick_cpu_device_addr, "tick_device", "evtdev");
+        if(is_kvaddr(evt_dev_addr)){
+            ulong next_event = read_structure_field(evt_dev_addr, "clock_event_device", "next_event");
+            oss << std::left << std::setw(25) << ("  tick_cpu[" + std::to_string(i) + "].next_event") << ": " << nstoSec(next_event) << "s\n";
+        }
+    }
+    // Analysis and warnings
+    bool pet_timer_expired = (static_cast<int>(timer_state) != 0);
+    if(task_state == 0 && task_oncpu == 1){
+        oss << "\n[Note] Watchdog task is running on CPU " << cpu << "\n";
+    }else if(task_state == 0){
+        oss << "\n[Note] Watchdog task is waiting on CPU " << cpu << "\n";
+    }else if(task_state == 1 && pet_timer_expired){
+        oss << "\n[Warning] Pet timer expired but watchdog task is not queued!\n";
+    }else if(pet_timer_expired){
+        oss << "\n[Warning] Pet timer has expired!\n";
+    }else{
+        if(jiffies > pet_timer_expires){
+            oss << "\n[Warning] Current jiffies crossed pet_timer expires!\n";
+        }
+    }
+    oss << "=================================\n";
+    PRINT("%s", oss.str().c_str());
 }
 
 void Watchdog::parser_msm_wdt(){
@@ -410,7 +505,7 @@ void Watchdog::parser_msm_wdt(){
     ulong expires = read_ulong(wdt_addr + field_offset(msm_watchdog_data,pet_timer) + field_offset(timer_list,expires),"expires");
     char buf[BUFSIZE];
     std::ostringstream oss;
-    oss << "\n=== MSM Watchdog Information ===\n";
+    oss << "\n===== Watchdog Information =====\n";
     oss << std::left << std::setw(25) << "  enabled" << ": " << (enabled ? "True":"False") << "\n";
     oss << std::left << std::setw(25) << "  base" << ": " << std::hex << std::showbase << base << "\n";
     oss << std::left << std::setw(25) << "  user_pet_enabled" << ": " << (user_pet_enabled ? "True":"False") << "\n";
@@ -422,15 +517,15 @@ void Watchdog::parser_msm_wdt(){
     oss << std::left << std::setw(25) << "  wakeup_irq_enable" << ": " << (wakeup_irq_enable ? "True":"False") << "\n";
     oss << std::left << std::setw(25) << "  in_panic" << ": " << (in_panic ? "True":"False") << "\n";
     oss << std::left << std::setw(25) << "  irq_ppi" << ": " << (irq_ppi ? "True":"False") << "\n";
-    oss << std::left << std::setw(25) << "  freeze_in_progress" << ": " << (freeze_in_progress ? "True":"False") << "\n\n";
-    oss << std::left << std::setw(25) << "pet_timer:"  << "\n";
+    oss << std::left << std::setw(25) << "  freeze_in_progress" << ": " << (freeze_in_progress ? "True":"False") << "\n";
     oss << std::left << std::setw(25) << "  jiffies" << ": " << std::dec << jiffies  << "\n";
-    oss << std::left << std::setw(25) << "  pet_timer.expires" << ": " << std::dec << expires << "\n";
-    oss << std::left << std::setw(25) << "  timer_expired" << ": " << (timer_expired ? "True":"False") << "\n";
-    oss << std::left << std::setw(25) << "  timer_fired" << ": " << nstoSec(timer_fired) << "s\n";
     oss << std::left << std::setw(25) << "  last_jiffies_update" << ": " << nstoSec(last_jiffies_update) << "s\n";
     oss << std::left << std::setw(25) << "  tick_next_period" << ": " << nstoSec(tick_next_period) << "s\n";
     oss << std::left << std::setw(25) << "  tick_do_timer_cpu" << ": " << std::dec << tick_do_timer_cpu << "\n\n";
+    oss << std::left << std::setw(25) << "pet_timer:"  << "\n";
+    oss << std::left << std::setw(25) << "  expires" << ": " << std::dec << expires << "\n";
+    oss << std::left << std::setw(25) << "  timer_expired" << ": " << (timer_expired ? "True":"False") << "\n";
+    oss << std::left << std::setw(25) << "  timer_fired" << ": " << nstoSec(timer_fired) << "s\n\n";
     oss << std::left << std::setw(25) << "watchdog_thread:"  << "\n";
     oss << std::left << std::setw(25) << "  watchdog_task" << ": " << std::hex << std::showbase << watchdog_task << "\n";
     oss << std::left << std::setw(25) << "  pid" << ": " << std::dec << pid << "\n";
@@ -456,105 +551,6 @@ void Watchdog::parser_msm_wdt(){
     }
     oss << "=================================\n";
     PRINT("%s",oss.str().c_str());
-}
-
-void Watchdog::parser_upstream_wdt(){
-    init_offset();
-    ulong wdt_addr = get_wdt_by_cdev();
-    if (!is_kvaddr(wdt_addr)) {
-        LOGE("the upstream wdt do not exist \n");
-        return;
-    }
-    void *wdt_buf = read_struct(wdt_addr, "watchdog_core_data");
-    if (!wdt_buf) {
-        LOGE("Failed to read watchdog_core_data structure at address %#lx\n", wdt_addr);
-        return;
-    }
-    ulong status = ULONG(wdt_buf + field_offset(watchdog_core_data, status));
-    // ulonglong last_keepalive = ULONGLONG(wdt_buf + field_offset(watchdog_core_data, last_keepalive));
-    // ulonglong open_deadline = ULONGLONG(wdt_buf + field_offset(watchdog_core_data, open_deadline));
-    ulonglong last_hw_keepalive = ULONGLONG(wdt_buf + field_offset(watchdog_core_data, last_hw_keepalive));
-    ulong watchdog_device = ULONG(wdt_buf + field_offset(watchdog_core_data, wdd));
-    FREEBUF(wdt_buf);
-    uint64_t jiffies = 0;
-    if (csymbol_exists("jiffies")){
-        jiffies = read_ulonglong(csymbol_value("jiffies"), "jiffies");
-    }else if (csymbol_exists("jiffies_64")){
-        jiffies = read_ulonglong(csymbol_value("jiffies_64"), "jiffies");
-    }
-    uint64_t last_jiffies_update = read_ulonglong(csymbol_value("last_jiffies_update"), "last_jiffies_update from wdt");
-    // uint64_t tick_next_period = read_ulonglong(csymbol_value("tick_next_period"), "tick_next_period from wdt");
-    int tick_do_timer_cpu = read_int(csymbol_value("tick_do_timer_cpu"), "tick_do_timer_cpu from wdt");
-    uint64_t pet_timer_expires = read_ulonglong(wdt_addr + field_offset(watchdog_core_data, timer)
-    + field_offset(hrtimer, node) + field_offset(timerqueue_node, expires), "expires from wdt");
-    ulong watchdog_kworker_addr = read_pointer(csymbol_value("watchdog_kworker"), "watchdog_kworker from wdt");
-    ulong wdt_task_addr = read_pointer(watchdog_kworker_addr + field_offset(kthread_worker, task), "kthread_worker from wdt");
-    uint wdog_task_state = 0;
-    if(field_offset(task_struct, __state) != -1){
-        wdog_task_state = read_int(wdt_task_addr + field_offset(task_struct, __state), "__state from wdt");
-    } else {
-        wdog_task_state = read_int(wdt_task_addr + field_offset(task_struct, state), "state from wdt");
-    }
-    ulonglong wdog_task_arrived = read_ulonglong(wdt_task_addr + field_offset(task_struct, sched_info) + field_offset(sched_info, last_arrival), "last_arrival from wdt");
-    ulonglong wdog_task_queued = read_ulonglong(wdt_task_addr + field_offset(task_struct, sched_info) + field_offset(sched_info, last_queued), "last_queued from wdt");
-    int wdog_task_oncpu = read_int(wdt_task_addr + field_offset(task_struct, on_cpu), "on_cpu from wdt");
-    int wdog_task_cpu = get_task_cpu(wdt_task_addr, task_to_thread_info(wdt_task_addr));
-    unsigned char pet_timer_state = read_byte(wdt_addr  + field_offset(watchdog_core_data, timer) + field_offset(hrtimer, state), "watchdog_kworker from wdt");
-    int bite_time = read_int(watchdog_device + field_offset(watchdog_device, timeout), "timeout from wdt");
-    int pretimeout = read_int(watchdog_device + field_offset(watchdog_device, pretimeout), "pretimeout from wdt");
-    int bark_time = bite_time - pretimeout;
-
-    std::ostringstream oss;
-    oss << "\n=== Upstream Watchdog Information ===\n";
-    oss << std::left << std::setw(25) << "  bark_time" << ": " << std::dec << bark_time << "s\n";
-    oss << std::left << std::setw(25) << "  bite_time" << ": " << std::dec << bite_time << "s\n";
-    oss << std::left << std::setw(25) << "  last_hw_keepalive" << ": " << nstoSec(last_hw_keepalive) << "s\n";
-    oss << std::left << std::setw(25) << "  next_keepalive" << ": " << nstoSec(last_hw_keepalive + (ulonglong)bark_time * 1000000000ULL) << "s\n";
-    oss << std::left << std::setw(25) << "  status" << ": " << parse_core_status(status) << "\n";
-    oss << std::left << std::setw(25) << "  pet_timer.expires" << ": " << nstoSec(pet_timer_expires) << "s\n";
-    oss << std::left << std::setw(25) << "  pet_timer.state" << ": " << std::dec << static_cast<int>(pet_timer_state) << "\n";
-    oss << std::left << std::setw(25) << "  jiffies" << ": " << std::dec << jiffies << "\n";
-    oss << std::left << std::setw(25) << "  last_jiffies_update" << ": " << nstoSec(last_jiffies_update) << "s\n";
-    oss << std::left << std::setw(25) << "  tick_do_timer_cpu" << ": " << std::dec << tick_do_timer_cpu << "\n";
-    oss << std::left << std::setw(25) << "  watchdog_task" << ": " << std::hex << std::showbase << wdt_task_addr << "\n";
-    oss << std::left << std::setw(25) << "  task_state" << ": " << std::dec << wdog_task_state << "\n";
-    oss << std::left << std::setw(25) << "  task_cpu" << ": " << std::dec << wdog_task_cpu << "\n";
-    oss << std::left << std::setw(25) << "  task_on_cpu" << ": " << (wdog_task_oncpu ? "True" : "False") << "\n";
-    oss << std::left << std::setw(25) << "  task_last_arrival" << ": " << nstoSec(wdog_task_arrived) << "s\n";
-    oss << std::left << std::setw(25) << "  task_last_queued" << ": " << nstoSec(wdog_task_queued) << "s\n";
-
-    // Per-CPU tick device information
-    for (size_t i = 0; i < NR_CPUS; i++) {
-        if (!kt->__per_cpu_offset[i])
-            continue;
-        ulong tick_cpu_device_addr = csymbol_value("tick_cpu_device") + kt->__per_cpu_offset[i];
-        if (!is_kvaddr(tick_cpu_device_addr)) continue;
-        ulong evt_dev_addr = read_structure_field(tick_cpu_device_addr, "tick_device", "evtdev");
-        if(is_kvaddr(evt_dev_addr)){
-            ulong next_event = read_structure_field(evt_dev_addr, "clock_event_device", "next_event");
-            oss << std::left << std::setw(25) << ("  tick_cpu[" + std::to_string(i) + "].next_event")
-                << ": " << nstoSec(next_event) << "s\n";
-        }
-    }
-
-    // Analysis and warnings
-    bool pet_timer_expired = (pet_timer_state != 0);
-    if(wdog_task_state == 0 && wdog_task_oncpu == 1){
-        oss << "\n[Note] Watchdog task is running on CPU " << wdog_task_cpu << "\n";
-    }else if(wdog_task_state == 0){
-        oss << "\n[Note] Watchdog task is waiting on CPU " << wdog_task_cpu << "\n";
-    }else if(wdog_task_state == 1 && pet_timer_expired){
-        oss << "\n[Warning] Pet timer expired but watchdog task is not queued!\n";
-    }else if(pet_timer_expired){
-        oss << "\n[Warning] Pet timer has expired!\n";
-    }else{
-        if(jiffies > pet_timer_expires){
-            oss << "\n[Warning] Current jiffies crossed pet_timer expires!\n";
-        }
-    }
-
-    oss << "=================================\n";
-    PRINT("%s", oss.str().c_str());
 }
 
 std::string Watchdog::nstoSec(ulonglong ns) {
@@ -623,25 +619,6 @@ std::string Watchdog::parse_core_status(ulong status) {
     oss << ")";
 
     return oss.str();
-}
-
-ulong Watchdog::get_wdt_by_cdev(){
-    uint watchdog_devt = read_uint(csymbol_value("watchdog_devt"),"dev_t");
-    for (const auto& cdev_addr : for_each_cdev()) {
-        uint dev = read_uint(cdev_addr + field_offset(cdev, dev),"dev_t");
-        if (dev == watchdog_devt){
-            return cdev_addr;
-        }
-    }
-    return 0;
-}
-
-int Watchdog::get_task_cpu(ulong task_addr, ulong thread_info_addr){
-    if((get_config_val("CONFIG_THREAD_INFO_IN_TASK") == "y") && THIS_KERNEL_VERSION < LINUX(5, 19, 0)){
-        return read_int(task_addr + field_offset(task_struct, cpu), "cpu from wdt");
-    } else {
-        return read_int(thread_info_addr + field_offset(thread_info, cpu), "cpu from wdt");
-    }
 }
 
 

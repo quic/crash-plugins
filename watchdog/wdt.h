@@ -20,21 +20,19 @@
 
 class Watchdog : public ParserPlugin {
 private:
-    bool init_flag = false;
     void parser_msm_wdt();
-    void parser_upstream_wdt();
     std::string nstoSec(ulonglong ns);
     std::string parse_wdd_status(ulong status);
     std::string parse_core_status(ulong status);
-    ulong get_wdt_by_cdev();
-    int get_task_cpu(ulong task_addr, ulong thread_info_addr);
+    ulong find_watchdog_by_class();
+    ulong find_watchdog();
+    void parser_wdt_core();
+    void parser_upstream_wdt(ulong addr);
 
 public:
     Watchdog();
     void cmd_main(void) override;
     void init_offset(void) override;
-    ulong find_qcom_wdt();
-    void parser_wdt_core();
     void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Watchdog)
 };
