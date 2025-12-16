@@ -126,6 +126,7 @@ list(APPEND PLUGIN_SOURCES
     task/task_sched.cpp
     surfaceflinger/sf.cpp
     systemd/journal.cpp
+    iommu/iommu.cpp
     t32/t32.cpp
     lockdep/lockdep.cpp)
 
