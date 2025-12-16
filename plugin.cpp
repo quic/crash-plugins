@@ -132,13 +132,23 @@ ParserPlugin::ParserPlugin(){
     field_init(klist_node, n_node);
     field_init(klist, k_list);
     field_init(device_driver, p);
+    field_init(device_driver, name);            // Driver name
+    field_init(device_driver, mod_name);        // Module name
+    field_init(device_driver, probe);           // Probe function pointer
+    field_init(device_driver, of_match_table);  // Device tree match table
+    field_init(device, driver_data);
+    field_init(device, kobj);           // Embedded kobject for sysfs
+    field_init(device, driver);         // Pointer to bound driver
     field_init(bus_type, p);
     field_init(bus_type, name);
+    field_init(bus_type, probe);
     field_init(class, p);
     field_init(class, name);
     field_init(kset, kobj);
     field_init(kset, list);
     field_init(kobject, entry);
+    field_init(kobject, name);          // Device name
+    field_init(of_device_id,compatible);
 
     // Character device structures
     field_init(char_device_struct, next);
@@ -1447,6 +1457,44 @@ std::vector<ulong> ParserPlugin::for_each_class(){
 }
 
 /**
+ * Retrieve all device class type information from the kernel
+ *
+ * This function iterates through all device classes in the system and parses
+ * their information into structured class_type objects. It provides a high-level
+ * view of all device classes registered in the kernel.
+ *
+ * Optimizations:
+ * - Pre-allocates vector capacity based on class count to avoid reallocations
+ * - Uses move semantics to avoid unnecessary copies of shared_ptr objects
+ * - Filters out null entries during iteration for robustness
+ *
+ * @return Vector of shared pointers to class_type structures containing parsed class information
+ *         Returns empty vector if no classes found or parsing fails
+ */
+std::vector<std::shared_ptr<class_type>> ParserPlugin::for_each_class_type(){
+    std::vector<std::shared_ptr<class_type>> class_list;
+
+    // Get all class addresses first to enable capacity pre-allocation
+    std::vector<ulong> class_addrs = for_each_class();
+    if (class_addrs.empty()) {
+        return class_list;
+    }
+
+    // Pre-allocate vector capacity to avoid multiple reallocations during push_back
+    class_list.reserve(class_addrs.size());
+
+    // Parse each class and add to result list using move semantics
+    for (const auto& class_addr : class_addrs) {
+        auto class_info = parser_class_info(class_addr);
+        if (class_info != nullptr){
+            class_list.push_back(std::move(class_info));
+        }
+    }
+
+    return class_list;
+}
+
+/**
  * Retrieve all bus type addresses from the kernel's bus subsystem
  *
  * This function traverses the kernel's device bus system to collect all
@@ -1497,6 +1545,113 @@ std::vector<ulong> ParserPlugin::for_each_bus(){
 }
 
 /**
+ * Retrieve all bus type information from the kernel
+ *
+ * This function iterates through all device buses in the system and parses
+ * their information into structured bus_type objects. It provides a high-level
+ * view of all device buses registered in the kernel, including bus names,
+ * probe functions, and subsystem private data.
+ *
+ * @return Vector of shared pointers to bus_type structures containing parsed bus information
+ *         Returns empty vector if no buses found or parsing fails
+ */
+std::vector<std::shared_ptr<bus_type>> ParserPlugin::for_each_bus_type(){
+    std::vector<std::shared_ptr<bus_type>> bus_list;
+
+    // Get all bus addresses first to enable capacity pre-allocation
+    std::vector<ulong> bus_addrs = for_each_bus();
+    if (bus_addrs.empty()) {
+        return bus_list;
+    }
+
+    // Pre-allocate vector capacity to avoid multiple reallocations during push_back
+    bus_list.reserve(bus_addrs.size());
+
+    // Parse each bus and add to result list using move semantics
+    for (const auto& bus_addr : bus_addrs) {
+        auto bus_info = parser_bus_info(bus_addr);
+        if (bus_info != nullptr){
+            bus_list.push_back(std::move(bus_info));
+        }
+    }
+
+    return bus_list;
+}
+
+/**
+ * Retrieve all device information from all buses in the kernel
+ *
+ * This function iterates through all device buses in the system and collects
+ * all devices registered on each bus. It provides a comprehensive view of all
+ * hardware devices managed by the kernel's device model, regardless of which
+ * bus they're attached to (PCI, USB, platform, etc.).
+ *
+ * The function performs the following operations:
+ * 1. Gets all bus types registered in the system
+ * 2. For each bus, retrieves all devices attached to that bus
+ * 3. Aggregates all devices from all buses into a single collection
+ * 4. Returns the complete device list
+ *
+ * @return Vector of shared pointers to device structures containing all devices in the system
+ *         Returns empty vector if no buses or devices are found
+ *
+ * Example usage:
+ *   auto all_devices = for_each_device();
+ *   for (const auto& dev : all_devices) {
+ *       PRINT("Device: %s at 0x%lx\n", dev->name.c_str(), dev->addr);
+ *   }
+ */
+std::vector<std::shared_ptr<device>> ParserPlugin::for_each_device(){
+    std::vector<std::shared_ptr<device>> device_list;
+
+    // Get all bus types first to enable capacity estimation
+    std::vector<std::shared_ptr<bus_type>> bus_types = for_each_bus_type();
+    if (bus_types.empty()) {
+        return device_list;
+    }
+
+    // Pre-allocate capacity based on estimated average devices per bus
+    // Typical systems have 10-50 devices per bus, so reserve conservatively
+    constexpr size_t ESTIMATED_DEVICES_PER_BUS = 20;
+    device_list.reserve(bus_types.size() * ESTIMATED_DEVICES_PER_BUS);
+
+    // Iterate through each bus type and collect all its devices
+    for (const auto& bus_ptr : bus_types) {
+        // Skip invalid bus entries
+        if (!bus_ptr || bus_ptr->name.empty()) {
+            continue;
+        }
+
+        // Get all devices for this specific bus
+        std::vector<std::shared_ptr<device>> bus_devices = for_each_device_for_bus(bus_ptr->name);
+
+        // Skip empty device lists
+        if (bus_devices.empty()) {
+            continue;
+        }
+
+        // Reserve additional capacity if needed to avoid reallocation
+        if (device_list.capacity() < device_list.size() + bus_devices.size()) {
+            device_list.reserve(device_list.size() + bus_devices.size());
+        }
+
+        // Move devices from bus_devices to device_list using move iterator
+        // This avoids copying shared_ptr objects and is more efficient
+        device_list.insert(
+            device_list.end(),
+            std::make_move_iterator(bus_devices.begin()),
+            std::make_move_iterator(bus_devices.end())
+        );
+    }
+
+    // Shrink to fit to release unused capacity (optional, trade-off between memory and performance)
+    // Uncomment if memory efficiency is more important than potential future insertions
+    // device_list.shrink_to_fit();
+
+    return device_list;
+}
+
+/**
  * Retrieve all device addresses for a given device class
  *
  * This function traverses the kernel's device class system to collect all
@@ -1517,8 +1672,8 @@ std::vector<ulong> ParserPlugin::for_each_bus(){
  *         Returns empty vector if class doesn't exist or no devices found
  *
  */
-std::vector<ulong> ParserPlugin::for_each_device_for_class(const std::string& class_name){
-    std::vector<ulong> device_list;
+std::vector<std::shared_ptr<device>> ParserPlugin::for_each_device_for_class(const std::string& class_name){
+    std::vector<std::shared_ptr<device>> device_list;
     ulong private_addr = get_class_subsys_private(class_name);
     if (!is_kvaddr(private_addr)){
         return device_list;
@@ -1541,7 +1696,10 @@ std::vector<ulong> ParserPlugin::for_each_device_for_class(const std::string& cl
         if (!is_kvaddr(device_private_addr)) continue;
         ulong device_addr = read_pointer(device_private_addr + device_offset, "device_private");
         if (is_kvaddr(device_addr)) {
-            device_list.push_back(device_addr);
+            std::shared_ptr<device> dev_ptr = parser_device(device_addr);
+            if (dev_ptr != nullptr) {
+                device_list.push_back(dev_ptr);
+            }
         }
     }
     return device_list;
@@ -1568,8 +1726,8 @@ std::vector<ulong> ParserPlugin::for_each_device_for_class(const std::string& cl
  *         Returns empty vector if bus doesn't exist or no devices found
  *
  */
-std::vector<ulong> ParserPlugin::for_each_device_for_bus(const std::string& bus_name){
-    std::vector<ulong> device_list;
+std::vector<std::shared_ptr<device>> ParserPlugin::for_each_device_for_bus(const std::string& bus_name){
+    std::vector<std::shared_ptr<device>> device_list;
     ulong private_addr = get_bus_subsys_private(bus_name);
     if (!is_kvaddr(private_addr)){
         return device_list;
@@ -1592,7 +1750,10 @@ std::vector<ulong> ParserPlugin::for_each_device_for_bus(const std::string& bus_
         if (!is_kvaddr(device_private_addr)) continue;
         ulong device_addr = read_pointer(device_private_addr + device_offset, "device_private");
         if (is_kvaddr(device_addr)) {
-            device_list.push_back(device_addr);
+            std::shared_ptr<device> dev_ptr = parser_device(device_addr);
+            if (dev_ptr != nullptr) {
+                device_list.push_back(dev_ptr);
+            }
         }
     }
     return device_list;
@@ -1620,8 +1781,8 @@ std::vector<ulong> ParserPlugin::for_each_device_for_bus(const std::string& bus_
  *         Returns empty vector if driver doesn't exist or no devices found
  *
  */
-std::vector<ulong> ParserPlugin::for_each_device_for_driver(ulong driver_addr){
-    std::vector<ulong> device_list;
+std::vector<std::shared_ptr<device>> ParserPlugin::for_each_device_for_driver(ulong driver_addr){
+    std::vector<std::shared_ptr<device>> device_list;
     if (!is_kvaddr(driver_addr)){
         return device_list;
     }
@@ -1646,7 +1807,10 @@ std::vector<ulong> ParserPlugin::for_each_device_for_driver(ulong driver_addr){
         if (!is_kvaddr(device_private_addr)) continue;
         ulong device_addr = read_pointer(device_private_addr + device_offset, "device_private");
         if (is_kvaddr(device_addr)) {
-            device_list.push_back(device_addr);
+            std::shared_ptr<device> dev_ptr = parser_device(device_addr);
+            if (dev_ptr != nullptr) {
+                device_list.push_back(dev_ptr);
+            }
         }
     }
     return device_list;
@@ -1790,6 +1954,340 @@ std::vector<ulong> ParserPlugin::for_each_subdirs(ulong dentry){
         dentry_list.push_back(sub_dentry);
     }
     return dentry_list;
+}
+
+/**
+ * Parse device class information from kernel memory
+ *
+ * This function extracts and structures information about a device class from
+ * the kernel's device model. Device classes group devices with similar functionality
+ * (e.g., "block", "net", "input") and provide a unified interface for device management.
+ *
+ * The function performs the following operations:
+ * 1. Validates the class structure address as a kernel virtual address
+ * 2. Reads the class name string from kernel memory via pointer indirection
+ * 3. Cleans up the name string by removing trailing newlines
+ * 4. Retrieves the associated subsys_private structure for internal management data
+ *
+ * Optimizations applied:
+ * - Early validation to fail fast on invalid addresses
+ * - Efficient string handling with move semantics
+ * - Single memory read for name pointer
+ * - Conditional newline removal only when needed
+ *
+ * @param addr The kernel virtual address of the class structure to parse
+ * @return Shared pointer to class_type structure containing parsed information,
+ *         or nullptr if address is invalid or parsing fails
+ *
+ * Example usage:
+ *   auto class_info = parser_class_info(class_addr);
+ *   if (class_info) {
+ *       PRINT("Class: %s at 0x%lx\n", class_info->name.c_str(), class_info->addr);
+ *   }
+ */
+std::shared_ptr<class_type> ParserPlugin::parser_class_info(ulong addr){
+    LOGD("Processing class at address: 0x%lx\n", addr);
+
+    // Early validation: ensure address is valid kernel virtual address
+    if (!is_kvaddr(addr)) {
+        LOGE("Invalid class address 0x%lx, skipping\n", addr);
+        return nullptr;
+    }
+
+    // Create class_type object to store parsed information
+    std::shared_ptr<class_type> class_ptr = std::make_shared<class_type>();
+    class_ptr->addr = addr;
+
+    // Read the class name from kernel memory via pointer indirection
+    // Path: class->name (pointer to string)
+    size_t name_addr = read_pointer(addr + field_offset(class, name), "class name addr");
+    if (is_kvaddr(name_addr)) {
+        // Read the actual name string (max 64 bytes)
+        class_ptr->name = read_cstring(name_addr, 64, "class name");
+
+        // Clean up: remove trailing newline if present
+        if (!class_ptr->name.empty() && class_ptr->name.back() == '\n') {
+            class_ptr->name.pop_back();
+        }
+    } else {
+        // Invalid name pointer, use empty string
+        class_ptr->name = "";
+    }
+
+    // Retrieve the subsys_private structure for this class
+    // This contains internal management data like device/driver lists
+    class_ptr->subsys_private = get_class_subsys_private(class_ptr->name);
+
+    return class_ptr;
+}
+
+/**
+ * Parse device bus information from kernel memory
+ *
+ * This function extracts and structures information about a device bus from
+ * the kernel's device model. Device buses represent different hardware bus types
+ * (e.g., "pci", "usb", "platform") and manage device/driver binding and probing.
+ *
+ * The function performs the following operations:
+ * 1. Validates the bus_type structure address as a kernel virtual address
+ * 2. Reads the bus name string from kernel memory via pointer indirection
+ * 3. Reads and resolves the probe function address to a symbolic name
+ * 4. Retrieves the associated subsys_private structure for internal management data
+ *
+ * Optimizations applied:
+ * - Early validation to fail fast on invalid addresses
+ * - Efficient string handling with move semantics
+ * - Symbol resolution with fallback to raw address
+ * - Single memory read for each pointer field
+ *
+ * @param addr The kernel virtual address of the bus_type structure to parse
+ * @return Shared pointer to bus_type structure containing parsed information,
+ *         or nullptr if address is invalid or parsing fails
+ *
+ * Example usage:
+ *   auto bus_info = parser_bus_info(bus_addr);
+ *   if (bus_info) {
+ *       PRINT("Bus: %s, probe: %s\n", bus_info->name.c_str(), bus_info->probe.c_str());
+ *   }
+ */
+std::shared_ptr<bus_type> ParserPlugin::parser_bus_info(ulong addr){
+    LOGD("Processing bus at address: 0x%lx\n", addr);
+
+    // Early validation: ensure address is valid kernel virtual address
+    if (!is_kvaddr(addr)) {
+        LOGE("Invalid bus address 0x%lx, skipping\n", addr);
+        return nullptr;
+    }
+
+    // Create bus_type object to store parsed information
+    std::shared_ptr<bus_type> bus_ptr = std::make_shared<bus_type>();
+    bus_ptr->addr = addr;
+
+    // Read the bus name from kernel memory via pointer indirection
+    // Path: bus_type->name (pointer to string)
+    size_t name_addr = read_pointer(addr + field_offset(bus_type, name), "bus name addr");
+    if (is_kvaddr(name_addr)) {
+        // Read the actual name string (max 128 bytes)
+        bus_ptr->name = read_cstring(name_addr, 128, "bus name");
+    } else {
+        // Invalid name pointer, use empty string
+        bus_ptr->name = "";
+    }
+
+    // Read and resolve the probe function address
+    // Path: bus_type->probe (function pointer)
+    size_t probe_addr = read_pointer(addr + field_offset(bus_type, probe), "probe addr");
+    if (is_kvaddr(probe_addr)) {
+        // Try to resolve the function address to a symbolic name
+        ulong offset;
+        struct syment *sp = value_search(probe_addr, &offset);
+
+        if (sp) {
+            // Found symbol: format as "symbol_name+offset"
+            std::ostringstream oss;
+            oss << sp->name << "+" << offset;
+            bus_ptr->probe = oss.str();
+        } else {
+            // Symbol not found: use raw hexadecimal address
+            std::ostringstream oss;
+            oss << "0x" << std::hex << probe_addr;
+            bus_ptr->probe = oss.str();
+        }
+    } else {
+        // Invalid probe pointer, use empty string
+        bus_ptr->probe = "";
+    }
+
+    // Retrieve the subsys_private structure for this bus
+    // This contains internal management data like device/driver lists
+    bus_ptr->subsys_private = get_bus_subsys_private(bus_ptr->name);
+
+    LOGD("Bus name:%s subsys_private:0x%lx\n", bus_ptr->name.c_str(), bus_ptr->subsys_private);
+    return bus_ptr;
+}
+
+/**
+ * Parse device information from kernel memory
+ *
+ * This function extracts and structures information about a device from the
+ * kernel's device model. It reads device metadata including name, bound driver,
+ * and driver-specific data from the device structure in kernel memory.
+ *
+ * The function performs the following operations:
+ * 1. Validates the device structure address as a kernel virtual address
+ * 2. Reads the device name through the embedded kobject structure
+ * 3. Checks if the device is bound to a driver and retrieves driver address
+ * 4. Reads driver-specific private data pointer
+ *
+ * Optimizations applied:
+ * - Early validation to fail fast on invalid addresses
+ * - Cached field offsets to avoid repeated lookups
+ * - Efficient string handling with move semantics
+ * - Single memory read for each pointer field
+ * - Clear logging for debugging device binding status
+ *
+ * @param addr The kernel virtual address of the device structure to parse
+ * @return Shared pointer to device structure containing parsed information,
+ *         or nullptr if address is invalid or parsing fails
+ *
+ * Example usage:
+ *   auto dev_info = parser_device(device_addr);
+ *   if (dev_info) {
+ *       PRINT("Device: %s, driver: 0x%lx\n", dev_info->name.c_str(), dev_info->driv);
+ *   }
+ */
+std::shared_ptr<device> ParserPlugin::parser_device(ulong addr){
+    // Early validation: ensure address is valid kernel virtual address
+    if (!is_kvaddr(addr)) {
+        LOGE("Invalid device address 0x%lx\n", addr);
+        return nullptr;
+    }
+
+    LOGD("Parsing device at address 0x%lx\n", addr);
+
+    // Create device object to store parsed information
+    std::shared_ptr<device> dev_ptr = std::make_shared<device>();
+    dev_ptr->addr = addr;
+
+    // Cache field offsets to avoid repeated lookups
+    const size_t kobj_offset = field_offset(device, kobj);
+    const size_t name_offset = field_offset(kobject, name);
+    const size_t driver_offset = field_offset(device, driver);
+    const size_t driver_data_offset = field_offset(device, driver_data);
+
+    // Read device name through kobject->name pointer chain
+    // Path: device->kobj.name (embedded kobject structure)
+    const size_t name_addr = read_pointer(addr + kobj_offset + name_offset, "device name addr");
+    if (is_kvaddr(name_addr)) {
+        // Read the device name string from kernel memory (max 100 bytes)
+        dev_ptr->name = read_cstring(name_addr, 100, "device name");
+    } else {
+        // Invalid name address, use empty string
+        dev_ptr->name = "";
+        LOGE("Invalid device name address 0x%lx, using empty string\n", name_addr);
+    }
+
+    // Read associated driver address if device is bound to one
+    // Path: device->driver (pointer to device_driver structure)
+    const size_t driver_addr = read_pointer(addr + driver_offset, "driver addr");
+    if (is_kvaddr(driver_addr)) {
+        // Device is bound to a driver, store the driver address
+        LOGD("Device '%s' bound to driver at 0x%lx\n", dev_ptr->name.c_str(), driver_addr);
+        dev_ptr->driv = driver_addr;
+    } else {
+        // Device is not bound to any driver (common for unprobed devices)
+        LOGD("Device '%s' is not bound to any driver\n", dev_ptr->name.c_str());
+        dev_ptr->driv = 0;
+    }
+
+    // Read driver-specific private data pointer
+    // Path: device->driver_data (void pointer to driver's private data)
+    dev_ptr->driver_data = read_pointer(addr + driver_data_offset, "driver_data");
+
+    return dev_ptr;
+}
+
+/**
+ * Parse device driver information from kernel memory
+ *
+ * This function extracts and structures information about a device driver from
+ * the kernel's device model. It reads driver metadata including name, probe function,
+ * and device tree compatibility information from the device_driver structure.
+ *
+ * The function performs the following operations:
+ * 1. Validates the device_driver structure address as a kernel virtual address
+ * 2. Reads the driver name string from kernel memory via pointer indirection
+ * 3. Reads and resolves the probe function address to a symbolic name
+ * 4. Reads device tree compatible string for device matching (if present)
+ *
+ * Optimizations applied:
+ * - Early validation to fail fast on invalid addresses
+ * - Cached field offsets to avoid repeated lookups
+ * - Efficient string handling with move semantics
+ * - Symbol resolution with fallback to raw address
+ * - Single memory read for each pointer field
+ *
+ * @param addr The kernel virtual address of the device_driver structure to parse
+ * @return Shared pointer to driver structure containing parsed information,
+ *         or nullptr if address is invalid or parsing fails
+ *
+ * Example usage:
+ *   auto driv_info = parser_driver(driver_addr);
+ *   if (driv_info) {
+ *       PRINT("Driver: %s, probe: %s\n", driv_info->name.c_str(), driv_info->probe.c_str());
+ *   }
+ */
+std::shared_ptr<driver> ParserPlugin::parser_driver(ulong addr){
+    // Early validation: ensure address is valid kernel virtual address
+    if (!is_kvaddr(addr)) {
+        LOGE("Invalid driver address 0x%lx\n", addr);
+        return nullptr;
+    }
+
+    LOGD("Parsing driver at address 0x%lx\n", addr);
+
+    // Create driver object to store parsed information
+    std::shared_ptr<driver> driv_ptr = std::make_shared<driver>();
+    driv_ptr->addr = addr;
+
+    // Cache field offsets to avoid repeated lookups
+    const size_t name_offset = field_offset(device_driver, name);
+    const size_t probe_offset = field_offset(device_driver, probe);
+    const size_t match_table_offset = field_offset(device_driver, of_match_table);
+
+    // Read driver name from kernel memory via pointer indirection
+    // Path: device_driver->name (pointer to string)
+    const size_t name_addr = read_pointer(addr + name_offset, "driver name addr");
+    if (is_kvaddr(name_addr)) {
+        // Read the driver name string (max 100 bytes)
+        driv_ptr->name = read_cstring(name_addr, 100, "driver name");
+    } else {
+        // Invalid name pointer, use empty string
+        driv_ptr->name = "";
+        LOGE("Invalid driver name address 0x%lx\n", name_addr);
+    }
+
+    // Read and resolve the probe function address
+    // Path: device_driver->probe (function pointer)
+    const size_t probe_addr = read_pointer(addr + probe_offset, "probe addr");
+    if (is_kvaddr(probe_addr)) {
+        // Try to resolve the function address to a symbolic name
+        ulong offset;
+        struct syment *sp = value_search(probe_addr, &offset);
+
+        if (sp) {
+            // Found symbol: format as "symbol_name+offset"
+            std::ostringstream oss;
+            oss << sp->name << "+" << offset;
+            driv_ptr->probe = oss.str();
+        } else {
+            // Symbol not found: use raw hexadecimal address
+            std::ostringstream oss;
+            oss << "0x" << std::hex << probe_addr;
+            driv_ptr->probe = oss.str();
+        }
+    } else {
+        // Invalid probe pointer, use empty string
+        driv_ptr->probe = "";
+    }
+
+    // Read device tree compatible string if present
+    // Path: device_driver->of_match_table->compatible
+    // This is used for device tree based device matching
+    const size_t match_table = read_pointer(addr + match_table_offset, "match_table addr");
+    if (is_kvaddr(match_table)) {
+        // Read the compatible string from the first match table entry (max 128 bytes)
+        driv_ptr->compatible = read_cstring(
+            match_table + field_offset(of_device_id, compatible),
+            128,
+            "compatible"
+        );
+    } else {
+        // No device tree match table, use empty string
+        driv_ptr->compatible = "";
+    }
+
+    return driv_ptr;
 }
 
 /**
@@ -1985,10 +2483,10 @@ std::vector<ulong> ParserPlugin::get_block_device_by_class(){
     if (field_offset(block_device, bd_device) == -1){
         return dev_list;
     }
-    std::vector<ulong> device_addrs = for_each_device_for_class("block");
-    dev_list.reserve(device_addrs.size());
-    for (const auto& addr : device_addrs) {
-        ulong bd_addr = addr - field_offset(block_device, bd_device);
+    std::vector<std::shared_ptr<device>> devices = for_each_device_for_class("block");
+    dev_list.reserve(devices.size());
+    for (const auto& dev_ptr : devices) {
+        ulong bd_addr = dev_ptr->addr - field_offset(block_device, bd_device);
         if (is_kvaddr(bd_addr)) {
             dev_list.push_back(bd_addr);
         }

@@ -42,6 +42,38 @@
 #include <map>
 #include "logger/logger_core.h"
 
+// Forward declarations
+struct driver;
+struct device;
+struct bus_type;
+struct class_type;
+
+struct driver {
+    size_t addr;
+    std::string name;
+    std::string probe;
+    std::string compatible;
+};
+
+struct device {
+    size_t addr;
+    std::string name;
+    ulong driver_data;
+    ulong driv;
+};
+
+struct bus_type {
+    size_t addr;
+    std::string name;
+    std::string probe;
+    size_t subsys_private;
+};
+
+struct class_type {
+    size_t addr;
+    std::string name;
+    size_t subsys_private;
+};
 #define field_init(type,field_name) type_init(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_size(type,field_name) type_size(TO_STD_STRING(type),TO_STD_STRING(field_name))
 #define field_offset(type,field_name) type_offset(TO_STD_STRING(type),TO_STD_STRING(field_name))
@@ -200,14 +232,24 @@ public:
     std::vector<ulong> for_each_misc_dev();
     std::vector<ulong> for_each_bdev();
     std::vector<ulong> for_each_bus();
+
+    std::vector<std::shared_ptr<bus_type>> for_each_bus_type();
+    std::vector<std::shared_ptr<class_type>> for_each_class_type();
     std::vector<ulong> for_each_class();
     std::vector<ulong> for_each_address_space(ulong i_mapping);
     std::vector<ulong> for_each_subdirs(ulong dentry);
-    std::vector<ulong> for_each_device_for_bus(const std::string& bus_name);
-    std::vector<ulong> for_each_device_for_class(const std::string& class_name);
-    std::vector<ulong> for_each_device_for_driver(ulong driver_addr);
+    std::vector<std::shared_ptr<device>> for_each_device();
+    std::vector<std::shared_ptr<device>> for_each_device_for_bus(const std::string& bus_name);
+    std::vector<std::shared_ptr<device>> for_each_device_for_class(const std::string& class_name);
+    std::vector<std::shared_ptr<device>> for_each_device_for_driver(ulong driver_addr);
     std::vector<ulong> for_each_driver(const std::string& bus_name);
     std::vector<ulong> for_each_task_files(task_context *tc);
+
+    std::shared_ptr<class_type> parser_class_info(ulong addr);
+    std::shared_ptr<bus_type> parser_bus_info(ulong addr);
+    std::shared_ptr<device> parser_device(ulong addr);
+    std::shared_ptr<driver> parser_driver(ulong addr);
+
     ulong get_bus_subsys_private(const std::string& bus_name);
     ulong get_class_subsys_private(const std::string& class_name);
 
