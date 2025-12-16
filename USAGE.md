@@ -40,6 +40,7 @@ Support command:
 | [t32](#t32)              | √           | √            | √            | √            |  get t32.bat script      |
 | [ftrace](#ftrace)        | ×           | √            | ×            | ×            |  parser trace event info |
 | [lockdep](#lockdep)      | ×           | √            | ×            | ×            |  Lockdep detection       |
+| [iommu](#iommu)          | √           | √            | √            | √            |  print iommu information |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -1097,48 +1098,52 @@ crash> rtb -a
 ```
 
 ## wdt
-This command is used to view watchdog info.
+This command is used to view watchdog information for watchdog implementations.
 
 ### wdt -a
-Display watchdog info.
+Display watchdog info (automatically detects watchdog).
+
+**Watchdog Example:**
 ```
 crash> wdt -a
-enabled               : True
-wdt_base              : c5a66000
-user_pet_enabled      : False
-pet_time              : 9.36s
-bark_time             : 15s
-bite_time             : 18s
-bark_irq              : 25
-user_pet_complete     : True
-wakeup_irq_enable     : True
-in_panic              : True
-irq_ppi               : False
-freeze_in_progress    : False
+==== Watchdog Information ====
+  enabled                  : True
+  base                     : 0xc5a66000
+  user_pet_enabled         : False
+  pet_time                 : 9.36s
+  bark_time                : 15s
+  bite_time                : 18s
+  bark_irq                 : 25
+  user_pet_complete        : True
+  wakeup_irq_enable        : True
+  in_panic                 : True
+  irq_ppi                  : False
+  freeze_in_progress       : False
+  jiffies                  : 4299314482
+  last_jiffies_update      : 14790.61852094s
+  tick_next_period         : 14790.62185427s
+  tick_do_timer_cpu        : 3
 
 pet_timer:
-  jiffies             : 4299314482
-  expires             : 4348153
-  timer_expired       : False
-  timer_fired         : 14784480161054
-  last_jiffies_update : 14790618520938
-  tick_next_period    : 14790621854271
-  tick_do_timer_cpu   : 3
+  expires                  : 4348153
+  timer_expired            : False
+  timer_fired              : 14784.48016105s
 
 watchdog_thread:
-  watchdog_task       : eb1d5c80
-  pid                 : 40
-  cpu                 : 0
-  task_state          : IN
-  last_run            : 14784480389231
-  thread_start        : 14784480630012
-  last_pet            : 14784480640950
-  do_ipi_ping         : True
-  ping cpu[0]         : 1203198795~1203203274(4479ns)
-  ping cpu[1]         : 0~0(0ns)
-  ping cpu[2]         : 0~0(0ns)
-  ping cpu[3]         : 0~0(0ns)
+  watchdog_task            : 0xeb1d5c80
+  pid                      : 40
+  cpu                      : 0
+  task_state               : IN
+  last_run                 : 14784.48038923s
+  thread_start             : 14784.48063001s
+  last_pet                 : 14784.48064095s
+  do_ipi_ping              : True
+  ping_cpu[0]              : 1203.19879500s ~ 1203.20327400s (4479ns)
+  ping_cpu[1]              : 0.00000000s ~ 0.00000000s (0ns)
+  ping_cpu[2]              : 0.00000000s ~ 0.00000000s (0ns)
+  ping_cpu[3]              : 0.00000000s ~ 0.00000000s (0ns)
 
+[Note] Pet timer has not triggered!
 ```
 
 ### rtb -c 'cpu'
@@ -2307,6 +2312,56 @@ generate the launch_t32.bat script
 ```
 crash> t32 -s <path> -c <cpu_type>
 Saved launch_t32.bat to path/t32/launch_t32.bat
+```
+
+## iommu
+This command displays IOMMU (Input-Output Memory Management Unit) information.
+
+### iommu -l
+List all ARM SMMU devices with detailed hardware configuration.
+```
+crash> iommu -l
+arm_smmu_device:0xffffff880a234000 [15000000.iommu]
+    base                 : 0x15000000
+    ioaddr               : 0x15000000
+    numpage              : 256
+    pgshift              : 12
+    features             : 0x1234
+    options              : 0x5678
+    version              : ARM_SMMU_V2
+    model                : QCOM_SMMUV2
+    num_context_banks    : 64
+    num_s2_context_banks : 32
+    va_size              : 48
+    ipa_size             : 40
+    pa_size              : 48
+    Context Banks:
+       CB[05]:ttbr[0]=0x... ttbr[1]=0x... tcr[0]=0x... tcr[1]=0x... mair[0]=0x... mair[1]=0x... sctlr=0x...
+             arm_smmu_cfg         : 0xffffff8808a5c100
+               cbndx              : 5
+               vmid               : 200
+               procid             : 0
+               cbar               : CBAR_TYPE_S2_TRANS
+               fmt                : ARM_SMMU_CTX_FMT_AARCH64
+```
+
+### iommu -g
+Display IOMMU groups with their associated devices and domains.
+```
+crash> iommu -g
+arm_smmu_device:0xffffff880a234000[15000000.iommu]
+    [003]iommu_group:0xffffff8808a5b000
+         iommu_domain:0xffffff8808a5c000(10) IOMMU_DOMAIN_DMA [0x0000000000000000 ~ 0xffffffffffffffff]
+         arm_smmu_domain      : 0xffffff8808a5bf00
+           cbndx              : 5
+           vmid               : 200
+           procid             : 0
+           cbar               : CBAR_TYPE_S2_TRANS
+           fmt                : ARM_SMMU_CTX_FMT_AARCH64
+           stage              : ARM_SMMU_DOMAIN_S2
+           secure_vmid        : 0
+           skip_tlb           : false
+         SID:0x100    device:0xffffff8808a5d000[device_name]
 ```
 
 ## ftrace

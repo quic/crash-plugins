@@ -152,6 +152,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | sysinfo | ✓ | ✓ | System information |
 | t32 | ✓ | ✓ | T32 debugger script generation |
 | lockdep | ✓ | ✗ | Lockdep detection |
+| iommu | ✓ | ✓ | print iommu information |
 
 ### Android Userspace Modules
 
