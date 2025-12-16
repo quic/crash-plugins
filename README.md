@@ -151,6 +151,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | coredump | ✓ | ✓ | Process coredump generation |
 | sysinfo | ✓ | ✓ | System information |
 | t32 | ✓ | ✓ | T32 debugger script generation |
+| lockdep | ✓ | ✗ | Lockdep detection |
 
 ### Android Userspace Modules
 

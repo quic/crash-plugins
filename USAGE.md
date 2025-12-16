@@ -39,6 +39,7 @@ Support command:
 | [systemd](#systemd)      | √           | √            | √            | √            |  show journal log        |
 | [t32](#t32)              | √           | √            | √            | √            |  get t32.bat script      |
 | [ftrace](#ftrace)        | ×           | √            | ×            | ×            |  parser trace event info |
+| [lockdep](#lockdep)      | ×           | √            | ×            | ×            |  Lockdep detection       |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -2370,4 +2371,39 @@ Display all trace via trace-cmd
 crash> ftrace -S
 memory:            <...>-67    [001]    43.835156: tlbi_end:             group=5800000.qcom,ipa:ipa_smmu_ap
 memory:            <...>-67    [001]    43.835160: tlbi_start:           group=5800000.qcom,ipa:ipa_smmu_ap
+```
+
+## lockdep
+Analyze Linux kernel lock dependency (lockdep) information
+
+### lockdep -c
+Display summary table of all tasks holding locks
+```
+crash> lockdep -c
+PID    COMM            LOCKS TASK_STRUCT
+------ -------------- ------ ----------------
+1      systemd             1 0xffffff802726ca40
+96     kworker/u33:0       7 0xffffff8027b94a40
+492    kworker/u32:9       2 0xffffff8054ab2540
+887    crtc_commit:19     48 0xffffff802579a540
+1513   Binder_2            3 0xffffff88234e8040
+1553   to transport        1 0xffffff803f37ca40
+------ -------------- ------ ----------------
+Total: 6 tasks holding locks out of 580 processed
+```
+
+### lockdep -d <task_addr>
+Display detailed lock information for specific task
+```
+crash> lockdep -d 0xffffff802726ca40
+1 locks held by systemd (pid=1, task_struct=0xffffff802726ca40):
+#0: 0xffffffe25436dd30 (tty_mutex) at: tty_open
+    ├─ Lock Mode        : EXCLUSIVE (write lock, mutual exclusion)
+    ├─ Acquire Method   : BLOCKING (will wait until lock is available)
+    ├─ IRQ State        : hardirqs_enabled, irq_context=0 (process context)
+    ├─ Lock Validation  : check=disabled
+    ├─ Reference Count  : references=0 (lockdep usage tracking), pin_count=0 (active holders)
+    ├─ Timing           : holdtime=17.049303s, no race (fast path)
+    ├─ Lock Status      : OK ACQUIRED
+    └─ Debug            : class_idx=0x1b6, acquire_ip=0xffffffe2523b03f4, chain_key=0xffffffffffffffff (lockdep hash for deadlock detection)
 ```
