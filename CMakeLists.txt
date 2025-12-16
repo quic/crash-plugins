@@ -126,7 +126,8 @@ list(APPEND PLUGIN_SOURCES
     task/task_sched.cpp
     surfaceflinger/sf.cpp
     systemd/journal.cpp
-    t32/t32.cpp)
+    t32/t32.cpp
+    lockdep/lockdep.cpp)
 
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
@@ -381,4 +382,8 @@ target_link_libraries(sd ${SYSTEMD_LIBRARIES})
 # =================== build t32 ===================
 add_plugin(t32
     t32/t32.cpp)
+
+# =================== build lockdep ===================
+add_plugin(lockdep
+    lockdep/lockdep.cpp)
 endif()

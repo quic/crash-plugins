@@ -52,6 +52,7 @@
 #include "systemd/journal.h"
 #include "t32/t32.h"
 #include "logger/logger.h"
+#include "lockdep/lockdep.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -128,6 +129,7 @@ std::shared_ptr<SF>            SF::instance            = nullptr;
 std::shared_ptr<Journal>       Journal::instance       = nullptr;
 std::shared_ptr<T32>           T32::instance           = nullptr;
 std::shared_ptr<Logger>        Logger::instance        = nullptr;
+std::shared_ptr<Lockdep>       Lockdep::instance       = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -170,6 +172,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<Journal>(Swap::instance));
     plugins.push_back(make_and_init<T32>());
     plugins.push_back(make_and_init<Logger>());
+    plugins.push_back(make_and_init<Lockdep>());
     std::cout << "\033[32m"
             << std::fixed << std::setprecision(6)
             << "[Load] Constructor: " << total_construct_time.count() << " s, "
