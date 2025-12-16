@@ -15,6 +15,7 @@
 
 #include "cpu64_ctx_v20.h"
 #include "debugimage.h"
+#include <set>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -105,18 +106,57 @@ void Cpu64_Context_V20::compute_pc(sysdbg_cpu64_ctx_2_0_gprs_t& reg, sysdbg_cpu6
 }
 
 uint32_t Cpu64_Context_V20::get_vcpu_index(uint32_t affinity) {
+    static std::map<uint32_t, uint32_t> affinity_map;
+    static std::set<uint32_t> used_indices;
+
+    if (affinity_map.find(affinity) != affinity_map.end()) {
+        return affinity_map[affinity];
+    }
+
     uint32_t vcpu_index = 0;
     if (affinity != 0) {
-        std::vector<int> aff_shift = {0, 0, 0, 0};
+        std::vector<int> aff_shift = {0, 8, 16, 24};
         uint32_t tmp_vcpu_index = affinity;
         for (size_t i = 0; i < aff_shift.size(); ++i) {
             vcpu_index |= ((tmp_vcpu_index >> (i * 8)) & 0xff) << aff_shift[i];
         }
-        LOGD("Computed vcpu_index=%u from affinity=%#x", vcpu_index, affinity);
     } else {
         vcpu_index = affinity;
-        LOGD("Using affinity directly as vcpu_index: %u", vcpu_index);
     }
+
+    int max_cpus = kt->cpus;
+    bool collision = used_indices.find(vcpu_index) != used_indices.end();
+    bool out_of_bounds = (int)vcpu_index >= max_cpus;
+
+    if (collision || out_of_bounds) {
+        uint32_t old_index = vcpu_index;
+        bool remapped = false;
+        for (int i = 0; i < max_cpus; i++) {
+            if (used_indices.find(i) == used_indices.end()) {
+                vcpu_index = i;
+                remapped = true;
+                break;
+            }
+        }
+        if (remapped) {
+            LOGW("Affinity 0x%x mapped to %s index %u, remapping to %u",
+                 affinity, collision ? "duplicate" : "invalid", old_index, vcpu_index);
+        } else {
+             if (!used_indices.empty()) {
+                 vcpu_index = *used_indices.rbegin() + 1;
+             } else {
+                 vcpu_index = 0;
+             }
+             LOGE("Could not find free CPU index within kt->cpus (%d) for affinity 0x%x. Assigning %u",
+                  max_cpus, affinity, vcpu_index);
+        }
+    } else {
+        LOGD("Computed vcpu_index=%u from affinity=%#x", vcpu_index, affinity);
+    }
+
+    affinity_map[affinity] = vcpu_index;
+    used_indices.insert(vcpu_index);
+
     return vcpu_index;
 }
 
