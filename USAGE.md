@@ -2317,7 +2317,7 @@ Saved launch_t32.bat to path/t32/launch_t32.bat
 ## iommu
 This command displays IOMMU (Input-Output Memory Management Unit) information.
 
-### iommu -l
+### iommu -d
 List all ARM SMMU devices with detailed hardware configuration.
 ```
 crash> iommu -l
@@ -2362,6 +2362,32 @@ arm_smmu_device:0xffffff880a234000[15000000.iommu]
            secure_vmid        : 0
            skip_tlb           : false
          SID:0x100    device:0xffffff8808a5d000[device_name]
+```
+### iommu -c
+Display IOMMU client information.
+```
+crash> iommu -c
+Total SMMU clients found: 16
+1a80000.ethernet
+    domain       : 0xffffff8af70a3608
+    levels       : 3
+    ttbr0        : 0xffffff8aff290000
+    ttbr1        : 0
+```
+### iommu -p <client_name>
+Display IOMMU client information.
+```
+crash> iommu -p 1a80000.ethernet
+Client: 1a80000.ethernet
+TTBR0: 0xffffff8b01d92000
+Levels: 3
+[VA Start -- VA End  ] [Size      ] [PA Start   -- PA End  ] [Attributes][Page Table Entry Size] [Memory Type] [Shareability] [Non-Executable]
+0x0000000000000000--0x0000007f7fffffff [0x7f80000000] [UNMAPPED]
+0x0000007f80000000--0x0000007fa55fffff [0x25600000] [UNMAPPED]
+0x0000007fa5600000--0x0000007fa56fffff [0x100000] [UNMAPPED]
+0x0000007fa5700000--0x0000007fa5700fff [0x1000] A:0x0000000d48c00000--0x0000000d48c00fff [0x1000] [R/W][4K] [Cached] [Inner-Shareable] [False]
+0x0000007fa5701000--0x0000007fa5701fff [0x1000] A:0x0000000d48c01000--0x0000000d48c01fff [0x1000] [R/W][4K] [Cached] [Inner-Shareable] [False]
+0x0000007fa5702000--0x0000007fa5702fff [0x1000] A:0x0000000d48c02000--0x0000000d48c02fff [0x1000] [R/W][4K] [Cached] [Inner-Shareable] [False]
 ```
 
 ## ftrace

@@ -1279,26 +1279,11 @@ void DDriver::print_misc_device(){
  * @param driver_name Name of the driver to query (e.g., "ahci", "e1000e", "usbhid")
  */
 void DDriver::print_device_list_for_driver(std::string driver_name){
-    bool found = false;
-    ulong driv_addr = 0;
-    for (const auto& bus_ptr : for_each_bus_type()) {
-        for (const auto& driver_addr : for_each_driver(bus_ptr->name)) {
-            std::shared_ptr<driver> driv_ptr = parser_driver(driver_addr);
-            if (driv_ptr->name == driver_name){
-                found = true;
-                driv_addr = driv_ptr->addr;
-                break;
-            }
-        }
-        if (found){
-            break;
-        }
-    }
-    if (!is_kvaddr(driv_addr)){
+    std::shared_ptr<driver> driv_ptr = find_device_driver(driver_name);
+    if (driv_ptr == nullptr || !is_kvaddr(driv_ptr->addr)){
         return;
     }
-
-    std::vector<std::shared_ptr<device>> device_list = for_each_device_for_driver(driv_addr);
+    std::vector<std::shared_ptr<device>> device_list = for_each_device_for_driver(driv_ptr->addr);
 
     // Calculate column widths
     size_t name_max_len = 10;

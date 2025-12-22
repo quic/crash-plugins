@@ -67,6 +67,7 @@ list(APPEND PLUGIN_SOURCES
     plugins.cpp
     logger/logger.cpp
     utils/utask.cpp
+    utils/aarch64_pagetable.cpp
     lib/lzo/lzo1x_decompress_safe.c
     lib/lz4/lz4_decompress.c
     binder/binder.cpp

@@ -23,6 +23,64 @@ DEFINE_PLUGIN_COMMAND(IOMMU)
 #endif
 
 /**
+ * @brief Main command entry point for IOMMU analysis
+ *
+ */
+void IOMMU::cmd_main(void) {
+    // Validate minimum argument count
+    if (argcnt < 2) {
+        LOGD("Insufficient arguments provided, showing usage\n");
+        cmd_usage(pc->curcmd, SYNOPSIS);
+        return;
+    }
+
+    int argerrs = 0;
+    int c;
+
+    // Lazy initialization: parse IOMMU clients only when needed
+    if (smmu_client_list.empty()) {
+        parser_iommu_client();
+    }
+
+    // Process command-line options
+    while ((c = getopt(argcnt, args, "dcgp:")) != EOF) {
+        switch(c) {
+            case 'd':
+                // List all IOMMU devices in the system
+                print_iommu_devices();
+                break;
+            case 'g':
+                // Display IOMMU groups with device associations
+                print_iommu_groups();
+                break;
+            case 'c':
+                // Display parsed IOMMU client information
+                print_iommu_client();
+                break;
+            case 'p':
+                // Dump page tables for specified domain
+                if (optarg) {
+                    dump_aarch64_page_tables(std::string(optarg));
+                } else {
+                    LOGE("Error: -p option requires a domain name argument\n");
+                    argerrs++;
+                }
+                break;
+            default:
+                LOGD("Unknown option: -%c\n", c);
+                argerrs++;
+                break;
+        }
+    }
+
+    // Display usage if any errors occurred
+    if (argerrs) {
+        LOGE("Command line argument errors detected: %d\n", argerrs);
+        cmd_usage(pc->curcmd, SYNOPSIS);
+    }
+}
+
+/**
  * Helper function: Get device name from device address
  */
 std::string IOMMU::get_device_name(ulong dev_addr) {
@@ -49,6 +107,68 @@ std::string IOMMU::get_enum_name(const std::map<std::string, ulong>& enum_list, 
     return std::to_string(value);
 }
 
+/**
+ * Helper function: Decode ARM SMMU v3 features bitmask to string
+ */
+std::string IOMMU::decode_smmu_v3_features(uint features) {
+    std::vector<std::string> feature_list;
+
+    if (features & ARM_SMMU_FEAT_2_LVL_STRTAB)  feature_list.push_back("2_LVL_STRTAB");
+    if (features & ARM_SMMU_FEAT_2_LVL_CDTAB)   feature_list.push_back("2_LVL_CDTAB");
+    if (features & ARM_SMMU_FEAT_TT_LE)         feature_list.push_back("TT_LE");
+    if (features & ARM_SMMU_FEAT_TT_BE)         feature_list.push_back("TT_BE");
+    if (features & ARM_SMMU_FEAT_PRI)           feature_list.push_back("PRI");
+    if (features & ARM_SMMU_FEAT_ATS)           feature_list.push_back("ATS");
+    if (features & ARM_SMMU_FEAT_SEV)           feature_list.push_back("SEV");
+    if (features & ARM_SMMU_FEAT_MSI)           feature_list.push_back("MSI");
+    if (features & ARM_SMMU_FEAT_COHERENCY)     feature_list.push_back("COHERENCY");
+    if (features & ARM_SMMU_FEAT_TRANS_S1)      feature_list.push_back("TRANS_S1");
+    if (features & ARM_SMMU_FEAT_TRANS_S2)      feature_list.push_back("TRANS_S2");
+    if (features & ARM_SMMU_FEAT_STALLS)        feature_list.push_back("STALLS");
+    if (features & ARM_SMMU_FEAT_HYP)           feature_list.push_back("HYP");
+    if (features & ARM_SMMU_FEAT_STALL_FORCE)   feature_list.push_back("STALL_FORCE");
+    if (features & ARM_SMMU_FEAT_VAX)           feature_list.push_back("VAX");
+    if (features & ARM_SMMU_FEAT_RANGE_INV)     feature_list.push_back("RANGE_INV");
+    if (features & ARM_SMMU_FEAT_BTM)           feature_list.push_back("BTM");
+    if (features & ARM_SMMU_FEAT_SVA)           feature_list.push_back("SVA");
+    if (features & ARM_SMMU_FEAT_E2H)           feature_list.push_back("E2H");
+    if (features & ARM_SMMU_FEAT_NESTING)       feature_list.push_back("NESTING");
+
+    if (feature_list.empty()) {
+        return "NONE";
+    }
+
+    std::string result;
+    for (size_t i = 0; i < feature_list.size(); ++i) {
+        if (i > 0) result += " | ";
+        result += feature_list[i];
+    }
+    return result;
+}
+
+/**
+ * Helper function: Decode ARM SMMU options bitmask to string
+ */
+std::string IOMMU::decode_smmu_options(uint options) {
+    std::vector<std::string> option_list;
+
+    if (options & ARM_SMMU_OPT_SKIP_PREFETCH)   option_list.push_back("SKIP_PREFETCH");
+    if (options & ARM_SMMU_OPT_PAGE0_REGS_ONLY) option_list.push_back("PAGE0_REGS_ONLY");
+    if (options & ARM_SMMU_OPT_MSIPOLL)         option_list.push_back("MSIPOLL");
+    if (options & ARM_SMMU_OPT_CMDQ_FORCE_SYNC) option_list.push_back("CMDQ_FORCE_SYNC");
+    if (options & ARM_SMMU_OPT_VIRTIO)          option_list.push_back("VIRTIO");
+
+    if (option_list.empty()) {
+        return "NONE";
+    }
+
+    std::string result;
+    for (size_t i = 0; i < option_list.size(); ++i) {
+        if (i > 0) result += " | ";
+        result += option_list[i];
+    }
+    return result;
+}
 /**
  * Helper function: Print ARM SMMU configuration
  */
@@ -108,48 +228,8 @@ void IOMMU::print_context_bank(ulong cb_addr, uint index, const std::map<std::st
     print_arm_smmu_cfg(cfg_addr, cbar_enum_list, fmt_enum_list);
 }
 
-/**
- * Main command entry point for IOMMU analysis
- */
-void IOMMU::cmd_main(void) {
-    if (argcnt < 2) {
-        LOGD("Insufficient arguments provided, showing usage\n");
-        cmd_usage(pc->curcmd, SYNOPSIS);
-        return;
-    }
-
-    int argerrs = 0;
-    int c;
-
-    if (group_list.empty()) {
-        parser_iommu_domains();
-    }
-
-    while ((c = getopt(argcnt, args, "lg")) != EOF) {
-        switch(c) {
-            case 'l':
-                print_iommu_devices();
-                break;
-            case 'g':
-                print_iommu_groups();
-                break;
-            default:
-                LOGD("Unknown option: -%c\n", c);
-                argerrs++;
-                break;
-        }
-    }
-
-    if (argerrs) {
-        LOGE("Command line argument errors detected: %d\n", argerrs);
-        cmd_usage(pc->curcmd, SYNOPSIS);
-    }
-}
-
-/**
- * Print detailed information about an ARM SMMU device
- */
-void IOMMU::print_arm_smmu_device(ulong arm_smmu_device_addr) {
+void IOMMU::print_arm_smmu_v2_device(std::shared_ptr<device> dev_ptr) {
+    ulong arm_smmu_device_addr = dev_ptr->driver_data;
     if (!is_kvaddr(arm_smmu_device_addr)) {
         return;
     }
@@ -265,71 +345,421 @@ void IOMMU::print_arm_smmu_device(ulong arm_smmu_device_addr) {
     }
 }
 
+void IOMMU::print_arm_smmu_v3_device(std::shared_ptr<device> dev_ptr) {
+    ulong arm_smmu_device_addr = dev_ptr->driver_data;
+    if (!is_kvaddr(arm_smmu_device_addr)) {
+        return;
+    }
+
+    // Read device pointer and get device name
+    ulong dev_addr = read_pointer(arm_smmu_device_addr + field_offset(arm_smmu_device, dev), "dev");
+    std::string device_name = get_device_name(dev_addr);
+
+    // Read key fields from arm_smmu_device structure (SMMU v3)
+    ulong base = read_pointer(arm_smmu_device_addr + field_offset(arm_smmu_device, base), "base");
+    ulong page1 = read_pointer(arm_smmu_device_addr + field_offset(arm_smmu_device, page1), "page1");
+    uint features = read_uint(arm_smmu_device_addr + field_offset(arm_smmu_device, features), "features");
+    uint options = read_uint(arm_smmu_device_addr + field_offset(arm_smmu_device, options), "options");
+
+    // Read strtab_cfg structure (embedded in arm_smmu_device)
+    ulong strtab_cfg_addr = arm_smmu_device_addr + field_offset(arm_smmu_device, strtab_cfg);
+    ulong strtab = 0;
+    ulong strtab_dma = 0;
+    ulong l1_desc = 0;
+    uint num_l1_ents = 0;
+    ulonglong strtab_base = 0;
+    uint strtab_base_cfg = 0;
+
+    if (field_offset(arm_smmu_device, strtab_cfg) != -1) {
+        strtab = read_pointer(strtab_cfg_addr + field_offset(arm_smmu_strtab_cfg, strtab), "strtab");
+        strtab_dma = read_ulong(strtab_cfg_addr + field_offset(arm_smmu_strtab_cfg, strtab_dma), "strtab_dma");
+        l1_desc = read_pointer(strtab_cfg_addr + field_offset(arm_smmu_strtab_cfg, l1_desc), "l1_desc");
+        num_l1_ents = read_uint(strtab_cfg_addr + field_offset(arm_smmu_strtab_cfg, num_l1_ents), "num_l1_ents");
+        strtab_base = read_ulonglong(strtab_cfg_addr + field_offset(arm_smmu_strtab_cfg, strtab_base), "strtab_base");
+        strtab_base_cfg = read_uint(strtab_cfg_addr + field_offset(arm_smmu_strtab_cfg, strtab_base_cfg), "strtab_base_cfg");
+    }
+
+    // Read iommu_device structure (embedded in arm_smmu_device)
+    ulong iommu_device_addr = arm_smmu_device_addr + field_offset(arm_smmu_device, iommu);
+
+    // Read streams rb_root
+    std::vector<ulong> stream_list;
+    if (field_offset(arm_smmu_device, streams) != -1) {
+        ulong streams_addr = arm_smmu_device_addr + field_offset(arm_smmu_device, streams);
+        ulong rb_node = read_pointer(streams_addr, "rb_node");
+        if (is_kvaddr(rb_node)) {
+            stream_list = for_each_rbtree(streams_addr, field_offset(arm_smmu_stream, node));
+        }
+    }
+    // Format and print the information
+    std::ostringstream oss;
+    oss << "arm_smmu_device:" << std::hex << std::showbase << arm_smmu_device_addr
+        << " [" << device_name << "] (SMMU v3)\n";
+    oss << "    base                       : " << std::hex << std::showbase << base << "\n";
+    oss << "    page1                      : " << std::hex << std::showbase << page1 << "\n";
+    oss << "    features                   : " << std::hex << std::showbase << features << " (" << decode_smmu_v3_features(features) << ")\n";
+    oss << "    options                    : " << std::hex << std::showbase << options << " (" << decode_smmu_options(options) << ")\n";
+
+    // Print strtab_cfg information
+    oss << "    strtab_cfg:\n";
+    oss << "        strtab                 : " << std::hex << std::showbase << strtab << "\n";
+    oss << "        strtab_dma             : " << std::hex << std::showbase << strtab_dma << "\n";
+    oss << "        l1_desc                : " << std::hex << std::showbase << l1_desc << "\n";
+    oss << "        num_l1_ents            : " << std::dec << num_l1_ents << "\n";
+    oss << "        strtab_base            : " << std::hex << strtab_base << "\n";
+    oss << "        strtab_base_cfg        : " << std::hex << strtab_base_cfg << "\n";
+
+    // Print iommu_device information
+    oss << "    iommu_device               : " << std::hex << std::showbase << iommu_device_addr << "\n";
+
+    // Print streams information
+    oss << "    arm_smmu_stream (rb_root)  : " << std::dec << stream_list.size() << " streams\n";
+
+    PRINT("%s", oss.str().c_str());
+
+    // Print detailed stream information if available
+    if (!stream_list.empty()) {
+        for (size_t i = 0; i < stream_list.size(); ++i) {
+            ulong stream_addr = stream_list[i];
+            if (!is_kvaddr(stream_addr)) {
+                continue;
+            }
+            // Read arm_smmu_stream fields
+            uint stream_id = read_uint(stream_addr + field_offset(arm_smmu_stream, id), "id");
+            ulong master_addr = read_pointer(stream_addr + field_offset(arm_smmu_stream, master), "master");
+            oss << "        stream_id : " << std::dec << stream_id << ", arm_smmu_master:"<< std::hex << master_addr << "\n";
+        }
+    }
+
+    PRINT("\n");
+}
+
 void IOMMU::print_iommu_devices(void) {
-    for (const auto& smmu_dev : arm_smmu_device_list) {
-        print_arm_smmu_device(smmu_dev);
+    std::vector<std::shared_ptr<device>> device_list;
+    std::shared_ptr<driver> driv_ptr = find_device_driver("arm-smmu");
+    if (driv_ptr != nullptr && is_kvaddr(driv_ptr->addr)){
+        device_list = for_each_device_for_driver(driv_ptr->addr);
+        if(device_list.size() > 0){
+            for (const auto& dev_ptr : device_list) {
+                print_arm_smmu_v2_device(dev_ptr);
+            }
+        }
+    }
+    driv_ptr = find_device_driver("arm-smmu-v3");
+    if (driv_ptr != nullptr && is_kvaddr(driv_ptr->addr)){
+        device_list = for_each_device_for_driver(driv_ptr->addr);
+        if(device_list.size() > 0){
+            for (const auto& dev_ptr : device_list) {
+                print_arm_smmu_v3_device(dev_ptr);
+            }
+        }
     }
 }
 
-void IOMMU::parser_iommu_domains(void) {
-    std::set<ulong> processed_groups;
+/**
+ * @brief Parse IOMMU debug attachments from kernel debug tracking
+ *
+ * This function extracts IOMMU client information from the kernel's debug
+ * attachment tracking system (CONFIG_IOMMU_DEBUG_TRACKING). It populates
+ * the smmu_client_list with detailed information about each IOMMU client,
+ * including domain addresses, page table configuration, and device names.
+ *
+ */
+void IOMMU::parser_iommu_debug_attachments(void) {
+    // Locate the global iommu_debug_attachments list head
+    ulong list_head_addr = csymbol_value("iommu_debug_attachments");
+    if (!is_kvaddr(list_head_addr)) {
+        // Symbol not found or invalid address - debug tracking may not be enabled
+        return;
+    }
 
+    // Clear existing client list to ensure fresh data
+    smmu_client_list.clear();
+
+    // Load page table format enum mappings for human-readable output
+    // This maps numeric format values to their string representations
+    std::map<std::string, ulong> fmt_enum_list = read_enum_list("iommu_logger_pgtable_fmt");
+
+    // Iterate through each iommu_debug_attachment in the linked list
+    for (auto& ida_addr : for_each_list(list_head_addr, field_offset(iommu_debug_attachment, list))) {
+        // Validate the attachment address before processing
+        if (!is_kvaddr(ida_addr)) {
+            continue;
+        }
+
+        // Create a new SMMU client structure to hold parsed data
+        std::shared_ptr<smmu_client> client_ptr = std::make_shared<smmu_client>();
+
+        // Extract core IOMMU domain and group information
+        client_ptr->domain = read_pointer(ida_addr + field_offset(iommu_debug_attachment, domain), "domain");
+        client_ptr->group = read_pointer(ida_addr + field_offset(iommu_debug_attachment, group), "group");
+
+        // Read page table configuration parameters
+        uint fmt = read_uint(ida_addr + field_offset(iommu_debug_attachment, fmt), "fmt");
+        client_ptr->levels = read_uint(ida_addr + field_offset(iommu_debug_attachment, levels), "levels");
+        client_ptr->ttbr0 = read_pointer(ida_addr + field_offset(iommu_debug_attachment, ttbr0), "ttbr0");
+        client_ptr->ttbr1 = read_pointer(ida_addr + field_offset(iommu_debug_attachment, ttbr1), "ttbr1");
+
+        // Resolve client name with fallback mechanism
+        ulong client_name_addr = read_pointer(ida_addr + field_offset(iommu_debug_attachment, client_name), "client_name");
+        if (is_kvaddr(client_name_addr)) {
+            // Primary: Use explicit client name if available
+            client_ptr->client_name = read_cstring(client_name_addr, 100, "client_name");
+        }
+
+        // Fallback: If no explicit name, try to get device name
+        if (client_ptr->client_name.empty()) {
+            ulong dev_addr = read_pointer(ida_addr + field_offset(iommu_debug_attachment, dev), "dev");
+            if (is_kvaddr(dev_addr)) {
+                client_ptr->client_name = get_device_name(dev_addr);
+            }
+        }
+
+        // Convert page table format enum to human-readable string
+        client_ptr->fmt_str = get_enum_name(fmt_enum_list, fmt);
+
+        // Add the parsed client to the global list
+        smmu_client_list.push_back(client_ptr);
+    }
+}
+
+void IOMMU::print_iommu_client(void) {
+    std::ostringstream oss;
+    oss << "Total SMMU clients found: " << smmu_client_list.size() << "\n";
+    PRINT("%s", oss.str().c_str());
+
+    for (const auto& client_ptr : smmu_client_list) {
+        std::ostringstream client_oss;
+        client_oss << client_ptr->client_name << "\n";
+        client_oss << "    domain       : " << std::hex << std::showbase << client_ptr->domain << "\n";
+        client_oss << "    levels       : " << std::dec << client_ptr->levels << "\n";
+        client_oss << "    ttbr0        : " << std::hex << std::showbase << client_ptr->ttbr0 << "\n";
+        client_oss << "    ttbr1        : " << std::hex << std::showbase << client_ptr->ttbr1 << "\n";
+        PRINT("%s", client_oss.str().c_str());
+    }
+}
+
+/**
+ * @brief Parse IOMMU devices from the kernel device tree
+ *
+ * This function walks through all devices in the system and extracts IOMMU
+ * configuration for devices that use ARM SMMU. It's used as a fallback when
+ * CONFIG_IOMMU_DEBUG_TRACKING is not available. The function performs deep
+ * inspection of kernel data structures to reconstruct page table information.
+ *
+ */
+void IOMMU::parser_iommu_devices(void) {
+    // Clear existing client list to ensure fresh data
+    smmu_client_list.clear();
+
+    // Iterate through all devices in the system
+    int device_count = 0;
+    int iommu_device_count = 0;
     for (auto& dev_ptr : for_each_device()) {
+        device_count++;
+
+        // Validate device address
         if (!is_kvaddr(dev_ptr->addr)) {
             continue;
         }
+
+        // Check if device has an IOMMU group
         ulong iommu_group_addr = read_pointer(dev_ptr->addr + field_offset(device, iommu_group), "iommu_group");
         if (!is_kvaddr(iommu_group_addr)) {
-            continue;
+            continue;  // Device doesn't use IOMMU
         }
+
+        iommu_device_count++;
+        LOGD("Found IOMMU device [%d/%d]: %s, group: %#lx\n",
+             iommu_device_count, device_count, dev_ptr->name.c_str(), iommu_group_addr);
+
+        // Get the IOMMU domain for this group
         ulong iommu_domain_addr = read_pointer(iommu_group_addr + field_offset(iommu_group, domain), "iommu_domain");
         if (!is_kvaddr(iommu_domain_addr)) {
-            continue;
+            LOGD("  No domain assigned to group %#lx\n", iommu_group_addr);
+            continue;  // No domain assigned to this group
         }
-        domain_list.insert(iommu_domain_addr);
-        if (processed_groups.find(iommu_group_addr) != processed_groups.end()) {
-            continue;
+
+        LOGD("  Domain: %#lx\n", iommu_domain_addr);
+
+        // Create client structure with basic info
+        std::shared_ptr<smmu_client> client_ptr = std::make_shared<smmu_client>();
+        client_ptr->domain = iommu_domain_addr;
+        client_ptr->group = iommu_group_addr;
+        client_ptr->client_name = dev_ptr->name;
+
+        // Determine IOMMU operations type
+        // We need to verify this device uses ARM SMMU (not other IOMMU types)
+        // Get device-level IOMMU operations
+        ulong dev_iommu = read_pointer(dev_ptr->addr + field_offset(device, iommu), "iommu");
+        ulong iommu_device = 0;
+        ulong iommu_ops = 0;
+        if (is_kvaddr(dev_iommu)) {
+            iommu_device = read_pointer(dev_iommu + field_offset(dev_iommu, iommu_dev), "iommu_dev");
+            if (is_kvaddr(iommu_device)) {
+                iommu_ops = read_pointer(iommu_device + field_offset(iommu_device, ops), "ops");
+            }
         }
-        processed_groups.insert(iommu_group_addr);
 
-        GroupInfo info;
-        info.iommu_domain_addr = iommu_domain_addr;
-        info.iommu_group_addr = iommu_group_addr;
-        info.group_id = read_int(iommu_group_addr + field_offset(iommu_group, id), "id");
+        // Get domain-level IOMMU operations
+        ulong iommu_domain_ops = 0;
+        if (is_kvaddr(iommu_domain_addr)) {
+            iommu_domain_ops = read_pointer(iommu_domain_addr + field_offset(iommu_domain, ops), "ops");
+        }
 
-        ulong arm_smmu_domain_addr = info.iommu_domain_addr - field_offset(arm_smmu_domain, domain);
-        ulong arm_smmu_device_addr = read_pointer(arm_smmu_domain_addr + field_offset(arm_smmu_domain, smmu), "smmu");
-        arm_smmu_device_list.insert(arm_smmu_device_addr);
-        info.arm_smmu_device_addr = arm_smmu_device_addr;
+        // Locate ARM SMMU operations structure
+        ulong arm_iommu_ops = 0;
+        ulong arm_iommu_domain_ops = 0;
 
-        ulong devices_head = iommu_group_addr + field_offset(iommu_group, devices);
-        info.devices = for_each_list(devices_head, field_offset(group_device, list));
-        group_list.push_back(info);
+        // Check for Qualcomm-specific IOMMU ops wrapper
+        if (struct_size(qcom_iommu_ops) != -1) {
+            // Qualcomm wraps ARM SMMU ops in their own structure
+            if (field_offset(qcom_iommu_ops, iommu_ops) != -1) {
+                arm_iommu_ops = csymbol_value("arm_smmu_ops") + field_offset(qcom_iommu_ops, iommu_ops);
+            }
+            if (field_offset(qcom_iommu_ops, domain_ops) != -1) {
+                arm_iommu_domain_ops = csymbol_value("arm_smmu_ops") + field_offset(qcom_iommu_ops, domain_ops);
+            }
+        } else {
+            // Standard ARM SMMU ops (no vendor wrapper)
+            arm_iommu_ops = csymbol_value("arm_smmu_ops");
+        }
+        // Debug logging for operation addresses
+        LOGD("  iommu_ops: %#lx\n", iommu_ops);
+        LOGD("  arm_iommu_ops: %#lx\n", arm_iommu_ops);
+        LOGD("  iommu_domain_ops: %#lx\n", iommu_domain_ops);
+        LOGD("  arm_iommu_domain_ops: %#lx\n", arm_iommu_domain_ops);
+
+        // Verify this is an ARM SMMU domain
+        if (iommu_ops != arm_iommu_ops && iommu_domain_ops != arm_iommu_domain_ops) {
+            LOGD("  Not an ARM SMMU device, skipping\n");
+            continue;  // Not an ARM SMMU device, skip it
+        }
+        LOGD("  Verified as ARM SMMU device\n");
+        // Locate ARM SMMU domain structure
+        ulong iommu_domain_priv = 0;
+        if (field_offset(iommu_domain, priv) != -1) {
+            iommu_domain_priv = read_pointer(iommu_domain_addr + field_offset(iommu_domain, priv), "priv");
+        }
+        ulong arm_smmu_domain_ptr = 0;
+        if (is_kvaddr(iommu_domain_priv)) {
+            // Some kernels store arm_smmu_domain in priv field
+            arm_smmu_domain_ptr = iommu_domain_priv;
+        } else {
+            // Calculate by subtracting embedded domain offset
+            arm_smmu_domain_ptr = iommu_domain_addr - field_offset(arm_smmu_domain, domain);
+        }
+
+        if (!is_kvaddr(arm_smmu_domain_ptr)) {
+            LOGD("  Invalid ARM SMMU domain pointer\n");
+            continue;  // Invalid ARM SMMU domain pointer
+        }
+        LOGD("  arm_smmu_domain: %#lx\n", arm_smmu_domain_ptr);
+
+        // Get page table operations pointer
+        ulong io_pgtable_ops = read_pointer(arm_smmu_domain_ptr + field_offset(arm_smmu_domain, pgtbl_ops), "pgtbl_ops");
+        if (!is_kvaddr(io_pgtable_ops)) {
+            LOGD("  No page table operations available\n");
+            continue;  // No page table operations available
+        }
+        LOGD("  io_pgtable_ops: %#lx\n", io_pgtable_ops);
+
+        // Extract page table configuration
+        uint level = 0;      // Number of page table levels
+        ulong ttbr0 = 0;     // Translation Table Base Register 0
+        ulong pgd = 0;       // Page Global Directory (top-level page table)
+
+        // Try to get TTBR from page table configuration
+        // ulong qcom_io_pgtable_info = arm_smmu_domain_ptr + field_offset(arm_smmu_domain, pgtbl_info);
+        // LOGD("qcom_io_pgtable_info: %#lx\n", qcom_io_pgtable_info);
+
+        // ulong io_pgtable_cfg = qcom_io_pgtable_info + field_offset(qcom_io_pgtable_info, cfg);
+        // ulong arm_lpae_s1_cfg = io_pgtable_cfg + field_offset(io_pgtable_cfg, arm_lpae_s1_cfg);
+        // LOGD("arm_lpae_s1_cfg: %#llx\n", arm_lpae_s1_cfg);
+
+        // ttbr0 = read_ulonglong(arm_lpae_s1_cfg + field_offset(arm_lpae_s1_cfg, ttbr), "ttbr");
+        // LOGD("ttbr0: %#llx\n", ttbr0);
+
+        // Get TTBR from context bank
+        ulong arm_smmu_device = read_pointer(arm_smmu_domain_ptr + field_offset(arm_smmu_domain, smmu), "arm_smmu_device");
+        LOGD("  arm_smmu_device: %#lx\n", arm_smmu_device);
+
+        ulong cbs_base = read_pointer(arm_smmu_device + field_offset(arm_smmu_device, cbs), "cbs");
+        if (is_kvaddr(cbs_base)) {
+            LOGD("  cbs_base: %#lx\n", cbs_base);
+
+            // Get context bank index for this domain
+            ulong arm_smmu_cfg = arm_smmu_domain_ptr + field_offset(arm_smmu_domain, cfg);
+            uint8_t cbndx = read_uint(arm_smmu_cfg + field_offset(arm_smmu_cfg, cbndx), "cbndx") & 0xFF;
+            LOGD("  cbndx: %d\n", cbndx);
+
+            // Calculate context bank address
+            ulong arm_smmu_cb = cbs_base + cbndx * struct_size("arm_smmu_cb");
+            LOGD("  arm_smmu_cb: %#lx\n", arm_smmu_cb);
+
+            // Read TTBR0 from context bank
+            ttbr0 = read_ulong(arm_smmu_cb + field_offset(arm_smmu_cb, ttbr), "ttbr[0]");
+            LOGD("  ttbr0 (raw): %#lx\n", ttbr0);
+
+            // Apply mask to extract physical address (48-bit address space)
+            ttbr0 = ttbr0 & 0xffffffffffffULL;
+            LOGD("  ttbr0 (masked): %#lx\n", ttbr0);
+
+            // Calculate page table levels
+            // Navigate back to io_pgtable structure to get level information
+            ulong io_pgtable = io_pgtable_ops - field_offset(io_pgtable, ops);
+            ulong arm_lpae_io_pgtable = io_pgtable - field_offset(arm_lpae_io_pgtable, iop);
+
+            if (is_kvaddr(arm_lpae_io_pgtable)) {
+                LOGD("  arm_lpae_io_pgtable: %#lx\n", arm_lpae_io_pgtable);
+
+                // Read start_level (0-3 for ARM LPAE)
+                uint start_level = read_uint(arm_lpae_io_pgtable + field_offset(arm_lpae_io_pgtable, start_level), "start_level");
+                LOGD("  start_level: %u\n", start_level);
+
+                // Calculate total levels: ARM_LPAE_MAX_LEVELS (4) - start_level
+                // For example: start_level=1 means 3 levels (L1, L2, L3)
+                level = 4 - start_level;
+                LOGD("  calculated levels: %u\n", level);
+
+                // Get page global directory (top-level page table)
+                pgd = read_pointer(arm_lpae_io_pgtable + field_offset(arm_lpae_io_pgtable, pgd), "pgd");
+                LOGD("  pgd: %#lx\n", pgd);
+            } else {
+                LOGD("  Invalid arm_lpae_io_pgtable address\n");
+            }
+        } else {
+            LOGD("  Invalid cbs_base address\n");
+        }
+
+        // Store extracted information
+        client_ptr->levels = level;
+        client_ptr->ttbr0 = pgd;
+        client_ptr->ttbr1 = 0;  // TTBR1 not used in most configurations
+
+        // Add to global client list
+        smmu_client_list.push_back(client_ptr);
+
+        LOGD("  Final - Client: %s, levels: %u, ttbr0: %#lx\n",
+             client_ptr->client_name.c_str(), level, pgd);
     }
 
-    std::sort(group_list.begin(), group_list.end(),
-              [](const GroupInfo& a, const GroupInfo& b) {
-                  return a.group_id < b.group_id;
-              });
+    LOGD("Total devices: %d, IOMMU devices: %d, Clients added: %zu\n",
+         device_count, iommu_device_count, smmu_client_list.size());
+}
+
+void IOMMU::parser_iommu_client(void) {
+    if (get_config_val("CONFIG_IOMMU_DEBUG_TRACKING") == "y" && csymbol_exists("iommu_debug_attachments")){
+        parser_iommu_debug_attachments();
+    }else{
+        parser_iommu_devices();
+    }
 }
 
 /**
  * Convert IOMMU domain type to string representation
  */
 const char* IOMMU::domain_type_to_string(uint type) {
-    #define __IOMMU_DOMAIN_PAGING   (1U << 0)
-    #define __IOMMU_DOMAIN_DMA_API  (1U << 1)
-    #define __IOMMU_DOMAIN_PT       (1U << 2)
-    #define __IOMMU_DOMAIN_DMA_FQ   (1U << 3)
-    #define __IOMMU_DOMAIN_SVA      (1U << 4)
-
-    #define IOMMU_DOMAIN_BLOCKED    (0U)
-    #define IOMMU_DOMAIN_IDENTITY   (__IOMMU_DOMAIN_PT)
-    #define IOMMU_DOMAIN_UNMANAGED  (__IOMMU_DOMAIN_PAGING)
-    #define IOMMU_DOMAIN_DMA        (__IOMMU_DOMAIN_PAGING | __IOMMU_DOMAIN_DMA_API)
-    #define IOMMU_DOMAIN_DMA_FQ     (__IOMMU_DOMAIN_PAGING | __IOMMU_DOMAIN_DMA_API | __IOMMU_DOMAIN_DMA_FQ)
-    #define IOMMU_DOMAIN_SVA        (__IOMMU_DOMAIN_SVA)
-
     switch (type) {
         case IOMMU_DOMAIN_BLOCKED:   return "IOMMU_DOMAIN_BLOCKED";
         case IOMMU_DOMAIN_IDENTITY:  return "IOMMU_DOMAIN_IDENTITY";
@@ -362,79 +792,141 @@ void IOMMU::print_iommu_domain_info(ulong domain_addr) {
           domain_addr, page_count, type_str, aperture_start, aperture_end);
 }
 
+/**
+ * Print IOMMU groups with detailed information
+ *
+ * This function displays all IOMMU groups in the system, organized by their
+ * associated ARM SMMU devices. For each group, it shows:
+ * - Group ID and address
+ * - ARM SMMU domain configuration (context bank index, ASID, VMID, etc.)
+ * - IOMMU domain information (type, address range)
+ * - Associated devices with their Stream IDs (SIDs)
+ *
+ * The output is sorted by group ID within each SMMU device for better readability.
+ */
 void IOMMU::print_iommu_groups(void) {
-    std::map<ulong, std::vector<GroupInfo>> smmu_to_groups;
-    for (const auto& group : group_list) {
-        smmu_to_groups[group.arm_smmu_device_addr].push_back(group);
+    // Load enum mappings for translating numeric values to readable strings
+    std::map<std::string, ulong> cbar_enum_list = read_enum_list("arm_smmu_cbar_type");
+    std::map<std::string, ulong> fmt_enum_list = read_enum_list("arm_smmu_context_fmt");
+    std::map<std::string, ulong> stage_enum_list = read_enum_list("arm_smmu_domain_stage");
+
+    // Collect unique group addresses from SMMU client list
+    std::set<ulong> group_set;
+    for (const auto& client_ptr : smmu_client_list) {
+        group_set.insert(client_ptr->group);
     }
 
+    // Parse group information into structured data
+    // This separates data collection from presentation for better code organization
+    std::vector<GroupInfo> group_list;
+    group_list.reserve(group_set.size()); // Pre-allocate memory for efficiency
+
+    for (const auto& group_addr : group_set) {
+        GroupInfo info;
+        info.addr = group_addr;
+
+        // Read group ID
+        info.id = read_uint(group_addr + field_offset(iommu_group, id), "id");
+
+        // Read IOMMU domain address (try domain first, then default_domain)
+        info.iommu_domain = read_pointer(group_addr + field_offset(iommu_group, domain), "domain");
+        if (!is_kvaddr(info.iommu_domain)) {
+            info.iommu_domain = read_pointer(group_addr + field_offset(iommu_group, default_domain), "default_domain");
+        }
+
+        // Calculate ARM SMMU domain address from IOMMU domain
+        info.arm_smmu_domain = info.iommu_domain - field_offset(arm_smmu_domain, domain);
+
+        // Read ARM SMMU device address
+        info.arm_smmu_device = read_pointer(info.arm_smmu_domain + field_offset(arm_smmu_domain, smmu), "smmu");
+
+        group_list.push_back(info);
+    }
+
+    // Sort groups by ID for consistent output ordering
+    std::sort(group_list.begin(), group_list.end(),
+              [](const GroupInfo& a, const GroupInfo& b) {
+                  return a.id < b.id;
+              });
+
+    // Group by ARM SMMU device for hierarchical display
+    // This organizes groups under their parent SMMU device
+    std::map<ulong, std::vector<GroupInfo>> smmu_to_groups;
+    for (const auto& group : group_list) {
+        smmu_to_groups[group.arm_smmu_device].push_back(group);
+    }
+
+    // Print information organized by SMMU device
     for (const auto& smmu_pair : smmu_to_groups) {
         ulong arm_smmu_device_addr = smmu_pair.first;
         const auto& groups = smmu_pair.second;
 
+        // Get and print SMMU device name
         std::shared_ptr<device> arm_smmu_device_ptr = parser_device(
             read_pointer(arm_smmu_device_addr + field_offset(arm_smmu_device, dev), "device"));
-
         PRINT("arm_smmu_device:%#lx[%s]\n", arm_smmu_device_addr, arm_smmu_device_ptr->name.c_str());
 
-        std::map<std::string, ulong> cbar_enum_list = read_enum_list("arm_smmu_cbar_type");
-        std::map<std::string, ulong> fmt_enum_list = read_enum_list("arm_smmu_context_fmt");
-        std::map<std::string, ulong> stage_enum_list = read_enum_list("arm_smmu_domain_stage");
-
+        // Print each group under this SMMU device
         for (const auto& group : groups) {
-            ulong arm_smmu_domain_addr = group.iommu_domain_addr - field_offset(arm_smmu_domain, domain);
-            PRINT("    [%03d]iommu_group:%#lx ", group.group_id, group.iommu_group_addr);
-            ulong cfg_base = arm_smmu_domain_addr + field_offset(arm_smmu_domain, cfg);
+            PRINT("    [%03d]iommu_group:%#lx\n", group.id, group.addr);
+
+            // Read ARM SMMU configuration from the domain
+            ulong arm_smmu_domain = group.iommu_domain - field_offset(arm_smmu_domain, domain);
+            ulong cfg_base = arm_smmu_domain + field_offset(arm_smmu_domain, cfg);
+
+            // Read context bank configuration fields
             uint8_t cbndx = read_uint(cfg_base + field_offset(arm_smmu_cfg, cbndx), "cbndx") & 0xFF;
             uint16_t vmid = read_uint(cfg_base + field_offset(arm_smmu_cfg, vmid), "vmid") & 0xFFFF;
-            uint32_t procid = 0;
-            if (field_offset(arm_smmu_cfg, procid) != -1){
-                procid = read_uint(cfg_base + field_offset(arm_smmu_cfg, procid), "procid");
-            }
+            uint32_t procid = read_uint(cfg_base + field_offset(arm_smmu_cfg, procid), "procid");
             uint32_t cbar_val = read_uint(cfg_base + field_offset(arm_smmu_cfg, cbar), "cbar");
             uint32_t fmt_val = read_uint(cfg_base + field_offset(arm_smmu_cfg, fmt), "fmt");
 
+            // Convert enum values to readable strings
             std::string cbar_str = get_enum_name(cbar_enum_list, cbar_val);
             std::string fmt_str = get_enum_name(fmt_enum_list, fmt_val);
 
-            uint32_t stage_val = read_uint(arm_smmu_domain_addr + field_offset(arm_smmu_domain, stage), "stage");
-            uint32_t secure_vmid = read_uint(arm_smmu_domain_addr + field_offset(arm_smmu_domain, secure_vmid), "secure_vmid");
-            bool skip_tlb = read_bool(arm_smmu_domain_addr + field_offset(arm_smmu_domain, skip_tlb_management), "skip_tlb_management");
+            // Read domain-level configuration
+            uint32_t stage_val = read_uint(arm_smmu_domain + field_offset(arm_smmu_domain, stage), "stage");
+            uint32_t secure_vmid = read_uint(arm_smmu_domain + field_offset(arm_smmu_domain, secure_vmid), "secure_vmid");
+            bool skip_tlb = read_bool(arm_smmu_domain + field_offset(arm_smmu_domain, skip_tlb_management), "skip_tlb_management");
 
             std::string stage_str = get_enum_name(stage_enum_list, stage_val);
-            print_iommu_domain_info(group.iommu_domain_addr);
 
+            // Print ARM SMMU domain configuration summary
             std::ostringstream domain_oss;
-            domain_oss << "         arm_smmu_domain      : " << std::hex << std::showbase << arm_smmu_domain_addr << "\n";
-            domain_oss << "           cbndx              : " << std::dec << (unsigned)cbndx << "\n";
-            domain_oss << "           vmid               : " << std::dec << vmid << "\n";
-            domain_oss << "           procid             : " << std::dec << procid << "\n";
-            domain_oss << "           cbar               : " << cbar_str << "\n";
-            domain_oss << "           fmt                : " << fmt_str << "\n";
-            domain_oss << "           stage              : " << stage_str << "\n";
-            domain_oss << "           secure_vmid        : " << std::dec << secure_vmid << "\n";
-            domain_oss << "           skip_tlb           : " << (skip_tlb ? "true" : "false") << "\n";
+            domain_oss << "         arm_smmu_domain:" << std::hex << std::showbase << arm_smmu_domain
+                      << ",cbndx=" << std::dec << (unsigned)cbndx
+                      << ",vmid=" << vmid
+                      << ",procid=" << procid
+                      << ",cbar=" << cbar_str
+                      << ",fmt=" << fmt_str
+                      << "," << stage_str
+                      << ",sec_vmid=" << secure_vmid
+                      << ",skip_tlb=" << (skip_tlb ? "true" : "false") << "\n";
             PRINT("%s", domain_oss.str().c_str());
 
+            // Print IOMMU domain details (type, address range, page count)
+            print_iommu_domain_info(group.iommu_domain);
 
-
-            for (const auto& addr : group.devices) {
+            // Print all devices in this group with their Stream IDs
+            ulong devices_head = group.addr + field_offset(iommu_group, devices);
+            for (const auto& addr : for_each_list(devices_head, field_offset(group_device, list))) {
                 ulong dev_addr = read_pointer(addr + field_offset(group_device, dev), "dev addr");
                 ulong name_addr = read_pointer(addr + field_offset(group_device, name), "name addr");
                 std::string name = read_cstring(name_addr, 100, "device name");
+
+                // Extract Stream ID (SID) from device's IOMMU firmware spec
                 ulong dev_iommu_addr = read_pointer(dev_addr + field_offset(device, iommu), "dev_iommu");
                 uint sid = 0;
                 if (is_kvaddr(dev_iommu_addr)) {
                     ulong fwspec_addr = read_pointer(dev_iommu_addr + field_offset(dev_iommu, fwspec), "iommu_fwspec");
                     uint ids = read_uint(fwspec_addr + field_offset(iommu_fwspec, ids), "ids");
-                    sid = ids & 0xffff;
+                    sid = ids & 0xffff; // Extract lower 16 bits as SID
                 }
                 PRINT("         SID:%#-8x device:%#lx[%s] \n", sid, dev_addr, name.c_str());
             }
             PRINT("\n");
         }
-
-        PRINT("\n");
     }
 }
 
@@ -442,34 +934,47 @@ void IOMMU::print_iommu_groups(void) {
  * Initialize kernel structure field offsets
  */
 void IOMMU::init_offset(void) {
+    //  Core Kernel Structures
     field_init(page, lru);
-    // Device structure fields
     field_init(device, iommu_group);
     field_init(device, iommu);
     field_init(device, driver_data);
 
-    // IOMMU group structure fields
+    //  IOMMU Group Structures
     field_init(iommu_group, domain);
     field_init(iommu_group, id);
     field_init(iommu_group, devices);
-    field_init(iommu_group, default_domain);
 
-    // Group device structure fields
     field_init(group_device, list);
     field_init(group_device, name);
     field_init(group_device, dev);
 
-    // Per-device IOMMU structure fields
+    //  Per-Device IOMMU Structures
     field_init(dev_iommu, iommu_dev);
     field_init(dev_iommu, fwspec);
     field_init(iommu_fwspec, ids);
 
-    // IOMMU device structure fields
     field_init(iommu_device, dev);
+    field_init(iommu_device, ops);
 
-    // ARM SMMU device structure fields
+    //  IOMMU Domain Structures
+    field_init(iommu_domain, type);
+    field_init(iommu_domain, ops);
+    field_init(iommu_domain, pgsize_bitmap);
+    field_init(iommu_domain, geometry);
+    field_init(iommu_domain, iova_cookie);
+    field_init(iommu_domain, iopf_handler);
+    field_init(iommu_domain, fault_data);
+    field_init(iommu_domain, priv);
+
+    field_init(iommu_domain_geometry, aperture_start);
+    field_init(iommu_domain_geometry, aperture_end);
+    field_init(iommu_domain_geometry, force_aperture);
+
+    //  ARM SMMU Device Structures (v2/v3)
     field_init(arm_smmu_device, dev);
     field_init(arm_smmu_device, base);
+    field_init(arm_smmu_device, page1);
     field_init(arm_smmu_device, ioaddr);
     field_init(arm_smmu_device, numpage);
     field_init(arm_smmu_device, pgshift);
@@ -483,8 +988,29 @@ void IOMMU::init_offset(void) {
     field_init(arm_smmu_device, ipa_size);
     field_init(arm_smmu_device, pa_size);
     field_init(arm_smmu_device, cbs);
+    field_init(arm_smmu_device, strtab_cfg);
+    field_init(arm_smmu_device, iommu);
+    field_init(arm_smmu_device, streams);
 
-    // ARM SMMU domain structure fields
+    //  ARM SMMU v3 Specific Structures
+    field_init(arm_smmu_strtab_cfg, strtab);
+    field_init(arm_smmu_strtab_cfg, strtab_dma);
+    field_init(arm_smmu_strtab_cfg, l1_desc);
+    field_init(arm_smmu_strtab_cfg, num_l1_ents);
+    field_init(arm_smmu_strtab_cfg, strtab_base);
+    field_init(arm_smmu_strtab_cfg, strtab_base_cfg);
+
+    field_init(arm_smmu_stream, id);
+    field_init(arm_smmu_stream, master);
+    field_init(arm_smmu_stream, node);
+
+    field_init(arm_smmu_master, node);
+    field_init(arm_smmu_master, dev);
+    field_init(arm_smmu_master, smmu);
+    field_init(arm_smmu_master, streams);
+    field_init(arm_smmu_master, num_streams);
+
+    //  ARM SMMU Domain Structures
     field_init(arm_smmu_domain, domain);
     field_init(arm_smmu_domain, smmu);
     field_init(arm_smmu_domain, cfg);
@@ -493,29 +1019,17 @@ void IOMMU::init_offset(void) {
     field_init(arm_smmu_domain, skip_tlb_management);
     field_init(arm_smmu_domain, freelist);
     field_init(arm_smmu_domain, pgtbl_ops);
+    field_init(arm_smmu_domain, pgtbl_info);
 
-    // IOMMU domain structure fields
-    field_init(iommu_domain, type);
-    field_init(iommu_domain, ops);
-    field_init(iommu_domain, pgsize_bitmap);
-    field_init(iommu_domain, geometry);
-    field_init(iommu_domain, iova_cookie);
-    field_init(iommu_domain, iopf_handler);
-    field_init(iommu_domain, fault_data);
-
-    // IOMMU domain geometry structure fields
-    field_init(iommu_domain_geometry, aperture_start);
-    field_init(iommu_domain_geometry, aperture_end);
-    field_init(iommu_domain_geometry, force_aperture);
-
-    // ARM SMMU context bank structure fields
+    //  ARM SMMU Context Bank Structures
+    struct_init("arm_smmu_cb");
     field_init(arm_smmu_cb, ttbr);
     field_init(arm_smmu_cb, tcr);
     field_init(arm_smmu_cb, mair);
     field_init(arm_smmu_cb, sctlr);
     field_init(arm_smmu_cb, cfg);
 
-    // ARM SMMU configuration structure fields
+    //  ARM SMMU Configuration Structures
     field_init(arm_smmu_cfg, cbndx);
     field_init(arm_smmu_cfg, irptndx);
     field_init(arm_smmu_cfg, asid);
@@ -525,9 +1039,40 @@ void IOMMU::init_offset(void) {
     field_init(arm_smmu_cfg, cbar);
     field_init(arm_smmu_cfg, fmt);
 
-    field_init(dma_buf, attachments);
-    field_init(dma_buf_attachment, node);
-    field_init(dma_buf_attachment, dev);
+    //  Page Table Structures
+    field_init(io_pgtable_ops, map);
+    field_init(io_pgtable_ops, map_pages);
+    field_init(io_pgtable, ops);
+
+    field_init(arm_lpae_io_pgtable, iop);
+    field_init(arm_lpae_io_pgtable, levels);
+    field_init(arm_lpae_io_pgtable, start_level);
+    field_init(arm_lpae_io_pgtable, pgd);
+
+    field_init(qcom_io_pgtable_info, vmid);
+    field_init(qcom_io_pgtable_info, iova_base);
+    field_init(qcom_io_pgtable_info, iova_end);
+    field_init(qcom_io_pgtable_info, cfg);
+
+    field_init(io_pgtable_cfg, arm_lpae_s1_cfg);
+    field_init(arm_lpae_s1_cfg, ttbr);
+
+    //  IOMMU Debug Structures
+    field_init(iommu_debug_attachment, domain);
+    field_init(iommu_debug_attachment, group);
+    field_init(iommu_debug_attachment, client_name);
+    field_init(iommu_debug_attachment, fmt);
+    field_init(iommu_debug_attachment, levels);
+    field_init(iommu_debug_attachment, ttbr0);
+    field_init(iommu_debug_attachment, ttbr1);
+    field_init(iommu_debug_attachment, list);
+    field_init(iommu_debug_attachment, dev);
+
+    //  Vendor-Specific IOMMU Operations
+    struct_init(qcom_iommu_ops);
+    struct_init(msm_iommu_ops);
+    field_init(qcom_iommu_ops, iommu_ops);
+    field_init(qcom_iommu_ops, domain_ops);
 }
 
 /**
@@ -538,21 +1083,29 @@ void IOMMU::init_command(void) {
     help_str_list = {
         "iommu",
         "display IOMMU (Input-Output Memory Management Unit) information",
-        "-l | -g",
-        "  This command displays IOMMU device and domain information.",
+        "-d | -c | -g | -p <client_name>",
+        "  This command displays IOMMU device, client, and domain information.",
         "\n",
         "OPTIONS",
-        "  -l",
+        "  -d",
         "    List all ARM SMMU devices with detailed hardware configuration.",
         "    Displays device base address, features, context banks, and more.",
+        "",
+        "  -c",
+        "    Display IOMMU client information including domain addresses,",
+        "    page table levels, and translation table base registers (TTBR).",
         "",
         "  -g",
         "    Display IOMMU groups with their associated devices and domains.",
         "    Shows domain configuration, context bank settings, and device mappings.",
+        "",
+        "  -p <client_name>",
+        "    Dump AArch64 page tables for the specified SMMU client.",
+        "    Displays virtual-to-physical address mappings with attributes.",
         "\n",
         "EXAMPLES",
         "  List all IOMMU devices:",
-        "    %s> iommu -l",
+        "    %s> iommu -d",
         "    arm_smmu_device:0xffffff880a234000 [15000000.iommu]",
         "        base                 : 0x15000000",
         "        ioaddr               : 0x15000000",
@@ -568,6 +1121,15 @@ void IOMMU::init_command(void) {
         "               vmid               : 200",
         "               cbar               : CBAR_TYPE_S2_TRANS",
         "               fmt                : ARM_SMMU_CTX_FMT_AARCH64",
+        "\n",
+        "  Display IOMMU client information:",
+        "    %s> iommu -c",
+        "    Total SMMU clients found: 5",
+        "    client_device_name",
+        "        domain       : 0xffffff8808a5c000",
+        "        levels       : 3",
+        "        ttbr0        : 0x123456789000",
+        "        ttbr1        : 0x0",
         "\n",
         "  Display IOMMU groups:",
         "    %s> iommu -g",
@@ -585,6 +1147,14 @@ void IOMMU::init_command(void) {
         "               skip_tlb           : false",
         "             SID:0x100    device:0xffffff8808a5d000[device_name]",
         "\n",
+        "  Dump page tables for a specific client:",
+        "    %s> iommu -p client_device_name",
+        "    Client: client_device_name",
+        "    TTBR0: 0x123456789000",
+        "    Levels: 3",
+        "    [VA Start -- VA End  ] [Size] [PA Start -- PA End] [Attributes]...",
+        "    0x0000000000000000--0x00000000001fffff [0x200000] A:0x... [R/W][2M]...",
+        "\n",
     };
 }
 
@@ -592,8 +1162,27 @@ void IOMMU::init_command(void) {
  * Default constructor
  */
 IOMMU::IOMMU() {
-    // Constructor body intentionally left empty
-    // Initialization is handled by init_offset() and init_command()
+
+}
+
+/**
+ * Dump AArch64 page tables for all SMMU clients
+ */
+void IOMMU::dump_aarch64_page_tables(const std::string& name) {
+    if (smmu_client_list.empty()) {
+        parser_iommu_client();
+    }
+    if (smmu_client_list.empty()) {
+        PRINT("No SMMU clients found\n");
+        return;
+    }
+    for (const auto& client : smmu_client_list) {
+        if (client->client_name == name && client->ttbr0 != 0 && client->levels > 0) {
+            // Create an instance of AArch64PTParser and use it
+            AArch64PTParser parser;
+            parser.parse_and_print_tables(client->ttbr0, client->levels, client->client_name);
+        }
+    }
 }
 
 #pragma GCC diagnostic pop

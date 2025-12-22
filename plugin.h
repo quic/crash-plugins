@@ -243,6 +243,7 @@ public:
     std::vector<std::shared_ptr<device>> for_each_device_for_bus(const std::string& bus_name);
     std::vector<std::shared_ptr<device>> for_each_device_for_class(const std::string& class_name);
     std::vector<std::shared_ptr<device>> for_each_device_for_driver(ulong driver_addr);
+    std::shared_ptr<driver> find_device_driver(const std::string & driver_name);
     std::vector<ulong> for_each_driver(const std::string& bus_name);
     std::vector<ulong> for_each_task_files(task_context *tc);
 
@@ -275,8 +276,8 @@ public:
     bool is_kvaddr(ulong addr);
     bool is_uvaddr(ulong addr, struct task_context *);
     int page_to_nid(ulong page);
-    ulong virt_to_phy(ulong paddr);
-    ulong phy_to_virt(ulong vaddr);
+    ulong virt_to_phy(ulong vaddr);
+    ulong phy_to_virt(ulong paddr);
     ulong page_to_pfn(ulong page);
     ulong pfn_to_page(ulong pfn);
     ulong phy_to_page(ulong paddr);

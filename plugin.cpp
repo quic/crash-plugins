@@ -1816,6 +1816,18 @@ std::vector<std::shared_ptr<device>> ParserPlugin::for_each_device_for_driver(ul
     return device_list;
 }
 
+std::shared_ptr<driver> ParserPlugin::find_device_driver(const std::string& driver_name){
+    for (const auto& bus_ptr : for_each_bus_type()) {
+        for (const auto& driver_addr : for_each_driver(bus_ptr->name)) {
+            std::shared_ptr<driver> driv_ptr = parser_driver(driver_addr);
+            if (driv_ptr->name == driver_name){
+                return driv_ptr;
+            }
+        }
+    }
+    return nullptr;
+}
+
 /**
  * Retrieve all device driver addresses for a given device bus
  *
