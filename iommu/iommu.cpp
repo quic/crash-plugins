@@ -43,7 +43,7 @@ void IOMMU::cmd_main(void) {
     }
 
     // Process command-line options
-    while ((c = getopt(argcnt, args, "dcgp:")) != EOF) {
+    while ((c = getopt(argcnt, args, "dcgp:k")) != EOF) {
         switch(c) {
             case 'd':
                 // List all IOMMU devices in the system
@@ -65,6 +65,10 @@ void IOMMU::cmd_main(void) {
                     LOGE("Error: -p option requires a domain name argument\n");
                     argerrs++;
                 }
+                break;
+            case 'k':
+                // Display KGSL (Kernel Graphics Support Layer) information
+                print_kgsl();
                 break;
             default:
                 LOGD("Unknown option: -%c\n", c);
@@ -788,8 +792,289 @@ void IOMMU::print_iommu_domain_info(ulong domain_addr) {
     ulong arm_smmu_domain_addr = domain_addr - field_offset(arm_smmu_domain, domain);
     ulong freelist = read_pointer(arm_smmu_domain_addr + field_offset(arm_smmu_domain, freelist), "freelist");
     size_t page_count = for_each_list(freelist, field_offset(page, lru)).size();
-    PRINT(" iommu_domain:%#lx(%zu) %s [%#016lx ~ %#016lx]\n",
+    PRINT("         iommu_domain:%#lx(%zu) %s [%#016lx ~ %#016lx]\n",
           domain_addr, page_count, type_str, aperture_start, aperture_end);
+}
+
+void IOMMU::print_kgsl_iommu_context(ulong context_addr, const char* context_type) {
+    ulong name_addr = read_pointer(context_addr + field_offset(kgsl_iommu_context, name), "name");
+    std::string name = "Unknown";
+    if (is_kvaddr(name_addr)) {
+        name = read_cstring(name_addr, 100, "name");
+    }
+
+    ulong domain = read_pointer(context_addr + field_offset(kgsl_iommu_context, domain), "domain");
+    if (is_kvaddr(domain)) {
+        ulong arm_smmu_domain_addr = domain - field_offset(arm_smmu_domain, domain);
+        ulong freelist = read_pointer(arm_smmu_domain_addr + field_offset(arm_smmu_domain, freelist), "freelist");
+        size_t page_count = for_each_list(freelist, field_offset(page, lru)).size();
+        PRINT("            kgsl_iommu_context:%#lx name:%s iommu_domain:%#lx(%zu)\n",
+              context_addr, name.c_str(), domain, page_count);
+    }
+}
+
+void IOMMU::print_kgsl_iommu(ulong mmu) {
+    if (!is_kvaddr(mmu)) {
+        return;
+    }
+
+    // Calculate kgsl_iommu address with offset check
+    ulong kgsl_iommu_addr = 0;
+    if (field_offset(kgsl_mmu, iommu) != -1) {
+        kgsl_iommu_addr = mmu + field_offset(kgsl_mmu, iommu);
+    }
+
+    if (!is_kvaddr(kgsl_iommu_addr)) {
+        return;
+    }
+
+    // Read context addresses with offset checks
+    ulong user_context_addr = 0;
+    if (field_offset(kgsl_iommu, user_context) != -1) {
+        user_context_addr = kgsl_iommu_addr + field_offset(kgsl_iommu, user_context);
+    }
+
+    ulong secure_context_addr = 0;
+    if (field_offset(kgsl_iommu, secure_context) != -1) {
+        secure_context_addr = kgsl_iommu_addr + field_offset(kgsl_iommu, secure_context);
+    }
+
+    ulong lpac_context_addr = 0;
+    if (field_offset(kgsl_iommu, lpac_context) != -1) {
+        lpac_context_addr = kgsl_iommu_addr + field_offset(kgsl_iommu, lpac_context);
+    }
+
+    // Read smmu_info and pagesize with offset checks
+    ulong smmu_info = 0;
+    if (field_offset(kgsl_iommu, smmu_info) != -1) {
+        smmu_info = read_pointer(kgsl_iommu_addr + field_offset(kgsl_iommu, smmu_info), "smmu_info");
+    }
+
+    uint32_t pagesize = 0;
+    if (field_offset(kgsl_iommu, pagesize) != -1) {
+        pagesize = read_uint(kgsl_iommu_addr + field_offset(kgsl_iommu, pagesize), "pagesize");
+    }
+
+    // Print using std::ostringstream
+    std::ostringstream oss;
+    oss << "        kgsl_iommu:" << std::hex << std::showbase << kgsl_iommu_addr
+        << " kgsl_memdesc:" << smmu_info
+        << " pagesize:" << pagesize << "\n";
+    PRINT("%s", oss.str().c_str());
+
+    // Print contexts if addresses are valid
+    if (is_kvaddr(user_context_addr)) {
+        print_kgsl_iommu_context(user_context_addr, "user");
+    }
+    if (is_kvaddr(secure_context_addr)) {
+        print_kgsl_iommu_context(secure_context_addr, "secure");
+    }
+    if (is_kvaddr(lpac_context_addr)) {
+        print_kgsl_iommu_context(lpac_context_addr, "lpac");
+    }
+}
+
+void IOMMU::print_kgsl_pagetable(ulong pagetable) {
+    if (!is_kvaddr(pagetable)) {
+        return;
+    }
+
+    // Calculate kgsl_iommu_pt address with offset check
+    ulong kgsl_iommu_pt_addr = 0;
+    if (field_offset(kgsl_iommu_pt, base) != -1) {
+        kgsl_iommu_pt_addr = pagetable - field_offset(kgsl_iommu_pt, base);
+    }
+
+    // Read kgsl_iommu_pt fields with offset checks
+    uint64_t ttbr0 = 0;
+    if (is_kvaddr(kgsl_iommu_pt_addr) && field_offset(kgsl_iommu_pt, ttbr0) != -1) {
+        ttbr0 = read_ulong(kgsl_iommu_pt_addr + field_offset(kgsl_iommu_pt, ttbr0), "ttbr0");
+    }
+
+    ulong pgtbl_ops = 0;
+    if (is_kvaddr(kgsl_iommu_pt_addr) && field_offset(kgsl_iommu_pt, pgtbl_ops) != -1) {
+        pgtbl_ops = read_pointer(kgsl_iommu_pt_addr + field_offset(kgsl_iommu_pt, pgtbl_ops), "pgtbl_ops");
+    }
+
+    // Read kgsl_pagetable fields with offset checks
+    ulong mmu = 0;
+    if (field_offset(kgsl_pagetable, mmu) != -1) {
+        mmu = read_pointer(pagetable + field_offset(kgsl_pagetable, mmu), "mmu");
+    }
+
+    uint64_t va_start = 0;
+    if (field_offset(kgsl_pagetable, va_start) != -1) {
+        va_start = read_ulong(pagetable + field_offset(kgsl_pagetable, va_start), "va_start");
+    }
+
+    uint64_t va_end = 0;
+    if (field_offset(kgsl_pagetable, va_end) != -1) {
+        va_end = read_ulong(pagetable + field_offset(kgsl_pagetable, va_end), "va_end");
+    }
+
+    uint64_t svm_start = 0;
+    if (field_offset(kgsl_pagetable, svm_start) != -1) {
+        svm_start = read_ulong(pagetable + field_offset(kgsl_pagetable, svm_start), "svm_start");
+    }
+
+    uint64_t svm_end = 0;
+    if (field_offset(kgsl_pagetable, svm_end) != -1) {
+        svm_end = read_ulong(pagetable + field_offset(kgsl_pagetable, svm_end), "svm_end");
+    }
+
+    uint64_t compat_va_start = 0;
+    if (field_offset(kgsl_pagetable, compat_va_start) != -1) {
+        compat_va_start = read_ulong(pagetable + field_offset(kgsl_pagetable, compat_va_start), "compat_va_start");
+    }
+
+    uint64_t compat_va_end = 0;
+    if (field_offset(kgsl_pagetable, compat_va_end) != -1) {
+        compat_va_end = read_ulong(pagetable + field_offset(kgsl_pagetable, compat_va_end), "compat_va_end");
+    }
+
+    // Print using std::ostringstream
+    std::ostringstream oss;
+    oss << "    kgsl_iommu_pt:" << std::hex << std::showbase << kgsl_iommu_pt_addr
+        << " ttbr0:" << ttbr0
+        << " io_pgtable_ops:" << pgtbl_ops << "\n";
+    oss << "    kgsl_pagetable:" << pagetable
+        << " kgsl_mmu:" << mmu
+        << " va:[" << va_start << "~" << va_end << "]"
+        << " svm:[" << svm_start << "~" << svm_end << "]"
+        << " compat_va:[" << compat_va_start << "~" << compat_va_end << "]\n";
+    PRINT("%s", oss.str().c_str());
+
+    print_kgsl_iommu(mmu);
+}
+
+
+void IOMMU::print_kgsl_process(ulong kpp_addr) {
+    if (!is_kvaddr(kpp_addr)) {
+        return;
+    }
+
+    // Read fields with offset checks
+    ulong priv = 0;
+    if (field_offset(kgsl_process_private, priv) != -1) {
+        priv = read_ulong(kpp_addr + field_offset(kgsl_process_private, priv), "priv");
+    }
+
+    ulong pid_addr = 0;
+    if (field_offset(kgsl_process_private, pid) != -1) {
+        pid_addr = read_pointer(kpp_addr + field_offset(kgsl_process_private, pid), "pid");
+    }
+
+    char comm[17] = {0};
+    if (field_offset(kgsl_process_private, comm) != -1) {
+        readmem(kpp_addr + field_offset(kgsl_process_private, comm), KVADDR, comm, 16, TO_CONST_STRING("comm"), FAULT_ON_ERROR);
+    }
+
+    ulong pagetable = 0;
+    if (field_offset(kgsl_process_private, pagetable) != -1) {
+        pagetable = read_pointer(kpp_addr + field_offset(kgsl_process_private, pagetable), "pagetable");
+    }
+
+    int fd_count = 0;
+    if (field_offset(kgsl_process_private, fd_count) != -1) {
+        fd_count = read_int(kpp_addr + field_offset(kgsl_process_private, fd_count), "fd_count");
+    }
+
+    int ctxt_count = 0;
+    if (field_offset(kgsl_process_private, ctxt_count) != -1) {
+        ctxt_count = read_int(kpp_addr + field_offset(kgsl_process_private, ctxt_count), "ctxt_count");
+    }
+
+    long frame_count = 0;
+    if (field_offset(kgsl_process_private, frame_count) != -1) {
+        frame_count = read_long(kpp_addr + field_offset(kgsl_process_private, frame_count), "frame_count");
+    }
+
+    int unpinned_page_count = 0;
+    if (field_offset(kgsl_process_private, unpinned_page_count) != -1) {
+        unpinned_page_count = read_int(kpp_addr + field_offset(kgsl_process_private, unpinned_page_count), "unpinned_page_count");
+    }
+
+    uint fault_count = 0;
+    if (field_offset(kgsl_process_private, fault_count) != -1) {
+        fault_count = read_uint(kpp_addr + field_offset(kgsl_process_private, fault_count), "fault_count");
+    }
+
+    uint pf_count = 0;
+    if (field_offset(kgsl_process_private, pf_count) != -1) {
+        pf_count = read_uint(kpp_addr + field_offset(kgsl_process_private, pf_count), "pf_count");
+    }
+
+    int pid_value = 0;
+    if (is_kvaddr(pid_addr)) {
+        pid_value = read_int(pid_addr, "pid_value");
+    }
+
+    std::ostringstream oss;
+    oss << "kgsl_process_private:" << std::hex << std::showbase << kpp_addr
+        << " priv:" << priv
+        << " pid:" << std::dec << pid_value
+        << " comm:" << comm
+        << " fd_count:" << fd_count
+        << " ctxt_count:" << ctxt_count
+        << " frame_count:" << frame_count
+        << " unpinned_page_count:" << unpinned_page_count
+        << " fault_count:" << fault_count
+        << " pf_count:" << pf_count << "\n";
+    PRINT("%s", oss.str().c_str());
+
+    print_kgsl_pagetable(pagetable);
+    PRINT("\n");
+}
+
+void IOMMU::print_kgsl(void) {
+    if (!csymbol_exists("kgsl_driver")){
+        return;
+    }
+    ulong kgsl_driver_addr = csymbol_value("kgsl_driver");
+    if (!is_kvaddr(kgsl_driver_addr)) {
+        return;
+    }
+
+    // Read atomic_long_t values from the embedded stats structure with offset checks
+    long vmalloc = 0;
+    if (field_offset(kgsl_driver, stats.vmalloc) != -1) {
+        vmalloc = read_long(kgsl_driver_addr + field_offset(kgsl_driver, stats.vmalloc), "vmalloc");
+    }
+
+    long page_alloc = 0;
+    if (field_offset(kgsl_driver, stats.page_alloc) != -1) {
+        page_alloc = read_long(kgsl_driver_addr + field_offset(kgsl_driver, stats.page_alloc), "page_alloc");
+    }
+
+    long coherent = 0;
+    if (field_offset(kgsl_driver, stats.coherent) != -1) {
+        coherent = read_long(kgsl_driver_addr + field_offset(kgsl_driver, stats.coherent), "coherent");
+    }
+
+    long secure = 0;
+    if (field_offset(kgsl_driver, stats.secure) != -1) {
+        secure = read_long(kgsl_driver_addr + field_offset(kgsl_driver, stats.secure), "secure");
+    }
+
+    long mapped = 0;
+    if (field_offset(kgsl_driver, stats.mapped) != -1) {
+        mapped = read_long(kgsl_driver_addr + field_offset(kgsl_driver, stats.mapped), "mapped");
+    }
+
+    std::ostringstream oss;
+    oss << "kgsl_driver:" << std::hex << std::showbase << kgsl_driver_addr << "\n";
+    oss << " vmalloc:    " << csize(vmalloc) << "\n";
+    oss << " page_alloc: " << csize(page_alloc) << "\n";
+    oss << " coherent:   " << csize(coherent) << "\n";
+    oss << " secure:     " << csize(secure) << "\n";
+    oss << " mapped:     " << csize(mapped) << "\n\n";
+    PRINT("%s", oss.str().c_str());
+
+    if (field_offset(kgsl_driver, process_list) != -1 && field_offset(kgsl_process_private, list) != -1) {
+        for (const auto& kpp_addr : for_each_list(kgsl_driver_addr + field_offset(kgsl_driver, process_list), field_offset(kgsl_process_private, list))) {
+            print_kgsl_process(kpp_addr);
+        }
+    }
 }
 
 /**
@@ -923,7 +1208,7 @@ void IOMMU::print_iommu_groups(void) {
                     uint ids = read_uint(fwspec_addr + field_offset(iommu_fwspec, ids), "ids");
                     sid = ids & 0xffff; // Extract lower 16 bits as SID
                 }
-                PRINT("         SID:%#-8x device:%#lx[%s] \n", sid, dev_addr, name.c_str());
+                PRINT("            SID:%#-8x device:%#lx[%s] \n", sid, dev_addr, name.c_str());
             }
             PRINT("\n");
         }
@@ -1073,6 +1358,43 @@ void IOMMU::init_offset(void) {
     struct_init(msm_iommu_ops);
     field_init(qcom_iommu_ops, iommu_ops);
     field_init(qcom_iommu_ops, domain_ops);
+
+    field_init(kgsl_driver, process_list);
+    field_init(kgsl_driver, stats.vmalloc, true);
+    field_init(kgsl_driver, stats.page_alloc, true);
+    field_init(kgsl_driver, stats.coherent, true);
+    field_init(kgsl_driver, stats.secure, true);
+    field_init(kgsl_driver, stats.mapped, true);
+    field_init(kgsl_process_private, list);
+    field_init(kgsl_process_private, priv);
+    field_init(kgsl_process_private, pid);
+    field_init(kgsl_process_private, comm);
+    field_init(kgsl_process_private, pagetable);
+    field_init(kgsl_process_private, fd_count);
+    field_init(kgsl_process_private, ctxt_count);
+    field_init(kgsl_process_private, frame_count);
+    field_init(kgsl_process_private, unpinned_page_count);
+    field_init(kgsl_process_private, fault_count);
+    field_init(kgsl_process_private, pf_count);
+    field_init(kgsl_pagetable, mmu);
+    field_init(kgsl_pagetable, va_start);
+    field_init(kgsl_pagetable, va_end);
+    field_init(kgsl_pagetable, svm_start);
+    field_init(kgsl_pagetable, svm_end);
+    field_init(kgsl_pagetable, compat_va_start);
+    field_init(kgsl_pagetable, compat_va_end);
+    field_init(kgsl_mmu, iommu);
+    field_init(kgsl_iommu_pt, base);
+    field_init(kgsl_iommu_pt, ttbr0);
+    field_init(kgsl_iommu_pt, pgtbl_ops);
+    field_init(kgsl_iommu, user_context);
+    field_init(kgsl_iommu, secure_context);
+    field_init(kgsl_iommu, lpac_context);
+    field_init(kgsl_iommu, smmu_info);
+    field_init(kgsl_iommu, pdev);
+    field_init(kgsl_iommu, pagesize);
+    field_init(kgsl_iommu_context, name);
+    field_init(kgsl_iommu_context, domain);
 }
 
 /**

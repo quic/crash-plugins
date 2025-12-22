@@ -224,7 +224,7 @@ ulong Watchdog::find_watchdog(){
     // Get the address of qcom_watchdog_driver symbol (platform_driver structure)
     ulong wdt_driver_addr = csymbol_value("qcom_watchdog_driver");
     if (!is_kvaddr(wdt_driver_addr)) {
-        LOGE("qcom_watchdog_driver address is invalid! %#lx\n", wdt_driver_addr);
+        LOGE("watchdog_driver address is invalid! %#lx\n", wdt_driver_addr);
         return 0;
     }
 

@@ -179,6 +179,11 @@ struct smmu_client {
  * Supports both ARM SMMU v2 and v3 architectures.
  */
 class IOMMU : public ParserPlugin {
+    void print_kgsl_process(ulong kpp_addr);
+    void print_kgsl(void);
+    void print_kgsl_pagetable(ulong pagetable);
+    void print_kgsl_iommu(ulong mmu);
+    void print_kgsl_iommu_context(ulong context_addr, const char* context_type);
 public:
     // Maximum length for device name strings
     static constexpr int MAX_DEVICE_NAME_LEN = 100;
