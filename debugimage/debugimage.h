@@ -21,6 +21,7 @@
 #include "cpu64_ctx_v13.h"
 #include "cpu64_ctx_v14.h"
 #include "cpu64_ctx_v20.h"
+#include "coredump/arm/arm64.h"
 
 struct Dump_entry {
     ulong addr;
@@ -88,6 +89,46 @@ struct cpu_context {
     unsigned long pc;
 };
 
+struct vmcore_data {
+	ulong flags;
+	int ndfd;
+	FILE *ofp;
+	uint header_size;
+	char *elf_header;
+	uint num_pt_load_segments;
+	struct pt_load_segment *pt_load_segments;
+    Elf32_Ehdr *elf32;
+    Elf32_Phdr *notes32;
+    Elf32_Phdr *load32;
+    Elf64_Ehdr *elf64;
+    Elf64_Phdr *notes64;
+    Elf64_Phdr *load64;
+    Elf64_Shdr *sect0_64;
+    void *nt_prstatus;
+    void *nt_prpsinfo;
+    void *nt_taskstruct;
+	ulong task_struct;
+	uint page_size;
+	ulong switch_stack;
+	uint num_prstatus_notes;
+	void *nt_prstatus_percpu[NR_CPUS];
+	void *vmcoreinfo;
+	uint size_vmcoreinfo;
+/* Backup Region, first 640K of System RAM. */
+#define KEXEC_BACKUP_SRC_END	0x0009ffff
+	uint num_qemu_notes;
+	void *nt_qemu_percpu[NR_CPUS];
+	ulonglong backup_src_start;
+	ulong backup_src_size;
+	ulonglong backup_offset;
+	ulong arch_data;
+#define arch_data1 arch_data
+	ulong phys_base;
+	ulong arch_data2;
+	void *nt_vmcoredd_array[NR_DEVICE_DUMPS];
+	uint  num_vmcoredd_notes;
+};
+
 class ImageParser;
 
 class DebugImage : public ParserPlugin {
@@ -111,8 +152,13 @@ private:
     void print_task_stack(int pid);
     void print_irq_stack(int cpu);
 
+    /* CPU register manipulation methods */
+    void parser_cpu_set(const std::string& cmm, int cpu);
+    void parser_cpu_reset(int cpu);
+
 public:
     DebugImage();
+    ~DebugImage();
     void cmd_main(void) override;
     void init_offset(void) override;
     void init_command(void) override;

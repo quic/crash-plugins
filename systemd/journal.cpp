@@ -152,7 +152,7 @@ void Journal::init_command(void){
         "       - Success rate: 100.0%",
         "\n",
         "  Show the journal log",
-        "    %s> systemd -svf system.journal",
+        "    %s> systemd -s system.journal",
         "     Journal Logs (274270 entries):",
         "     ================================================================================",
         "     Jan 02 00:43:47 xxx kernel: [drm:sde_encoder_wait_for_event:6374] [sde error]enc66 intf_type:16, event:0 i:0, failed:-110",

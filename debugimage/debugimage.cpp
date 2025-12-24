@@ -14,6 +14,7 @@
  */
 
 #include "debugimage.h"
+#include <inttypes.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -22,61 +23,258 @@
 DEFINE_PLUGIN_COMMAND(DebugImage)
 #endif
 
+/**
+ * @brief ARM64 register mapping table
+ * Maps register names to their positions in the user_regs array
+ */
+static const std::unordered_map<std::string, int> arm64_reg_map = {
+    // General purpose registers X0-X30
+    {"x0", 0},   {"x1", 1},   {"x2", 2},   {"x3", 3},
+    {"x4", 4},   {"x5", 5},   {"x6", 6},   {"x7", 7},
+    {"x8", 8},   {"x9", 9},   {"x10", 10}, {"x11", 11},
+    {"x12", 12}, {"x13", 13}, {"x14", 14}, {"x15", 15},
+    {"x16", 16}, {"x17", 17}, {"x18", 18}, {"x19", 19},
+    {"x20", 20}, {"x21", 21}, {"x22", 22}, {"x23", 23},
+    {"x24", 24}, {"x25", 25}, {"x26", 26}, {"x27", 27},
+    {"x28", 28}, {"x29", 29}, {"x30", 30},
+
+    // Special registers
+    {"sp", 31},       // Stack pointer (generic name)
+    {"sp_el1", 31},   // Stack pointer EL1
+    {"pc", 32},       // Program counter
+    {"pstate", 33},   // Processor state (generic name)
+    {"spsr", 33},     // Saved processor state (generic name)
+    {"spsr_el1", 33}, // Saved processor state EL1
+};
+
+/**
+ * @brief Main command entry point for DebugImage plugin
+ *
+ */
 void DebugImage::cmd_main(void) {
-    int c;
+    if (argcnt < 2) {
+        cmd_usage(pc->curcmd, SYNOPSIS);
+        return;
+    }
+
+    // Variables for all operations
     int pid = -1;
-    int cpu = 0;
-    std::string cppString;
-    if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
+    int cpu = -1;
+    std::string cmm_file;
+    bool has_cpu_option = false;
+
+    // Lazy initialization: parse memdump only when needed
     if (image_list.size() == 0){
         LOGI("Image list empty, parsing memdump");
         parser_memdump();
     } else {
         LOGD("Image list already populated with %zu entries", image_list.size());
     }
-    while ((c = getopt(argcnt, args, "acsp:C:")) != EOF) {
-        switch(c) {
+
+    // Process command-line options
+    int opt;
+    optind = 0; // reset
+
+    while ((opt = getopt(argcnt, args, "adsi:c:l:p:")) != EOF) {
+        switch(opt) {
             case 'a':
+                // Print memdump info
                 LOGI("Printing all memdump info");
                 print_memdump();
-                break;
-            case 'c':
+                return;
+
+            case 'd':
+                // Parse CPU context and generate CMM files
                 LOGI("Parsing CPU context and generating CMM files");
                 parse_cpu_ctx();
-                break;
+                return;
+
             case 's':
+                // Print CPU stack traces
                 LOGI("Printing CPU stack traces");
                 print_cpu_stack();
+                return;
+
+            case 'i':
+                // Print IRQ stack
+                if (optarg) {
+                    try {
+                        cpu = std::stoi(optarg);
+                        LOGI("Printing IRQ stack for CPU: %d", cpu);
+                        print_irq_stack(cpu);
+                    } catch (...) {
+                        LOGE("Invalid CPU index: %s", optarg);
+                        argerrs++;
+                    }
+                } else {
+                    // No CPU specified, print for CPU 0
+                    LOGI("Printing IRQ stack for CPU 0");
+                    print_irq_stack(0);
+                }
+                return;
+
+            case 'c':
+                // CPU index for register manipulation
+                has_cpu_option = true;
+                try {
+                    cpu = std::stoi(optarg);
+                    LOGD("CPU index: %d", cpu);
+                } catch (...) {
+                    LOGE("Invalid CPU index: %s", optarg);
+                    argerrs++;
+                }
                 break;
+
+            case 'l':
+                // CMM file path
+                cmm_file = optarg;
+                LOGD("CMM file: %s", cmm_file.c_str());
+                break;
+
             case 'p':
-                cppString.assign(optarg);
+                // Print task stack for PID
                 try {
-                    pid = std::stoi(cppString);
+                    pid = std::stoi(optarg);
                     LOGI("Printing task stack for PID: %d", pid);
+                    print_task_stack(pid);
+                    return;
                 } catch (...) {
-                    LOGE("Invalid pid argument: %s", cppString.c_str());
-                    break;
+                    LOGE("Invalid PID: %s", optarg);
+                    argerrs++;
                 }
-                print_task_stack(pid);
                 break;
-            case 'C':
-                cppString.assign(optarg);
-                try {
-                    cpu = std::stoi(cppString);
-                    LOGI("Printing IRQ stack for CPU: %d", cpu);
-                } catch (...) {
-                    LOGE("Invalid cpu argument: %s", cppString.c_str());
-                    break;
-                }
-                print_irq_stack(cpu);
-                break;
+
             default:
                 argerrs++;
                 break;
         }
     }
-    if (argerrs)
+
+    // Handle CPU register manipulation (requires -c option)
+    if (has_cpu_option && cpu >= 0) {
+        LOGD("Processing CPU register manipulation for CPU %d", cpu);
+
+        // Validate architecture first
+        if (!machine_type(TO_CONST_STRING("ARM64"))) {
+            LOGE("Only ARM64 architecture is supported");
+            return;
+        }
+
+        // Validate vmcore data
+        if (!get_kdump_vmcore_data()) {
+            LOGE("This dump does not have vmcore data");
+            return;
+        }
+
+        // Perform the requested operation
+        if (!cmm_file.empty()) {
+            LOGI("Loading CPU %d registers from CMM file: %s", cpu, cmm_file.c_str());
+            parser_cpu_set(cmm_file, cpu);
+        } else {
+            LOGE("Must specify -l <cmm_file> with -c <cpu>");
+            return;
+        }
+        return;
+    }
+
+    if (argerrs) {
         cmd_usage(pc->curcmd, SYNOPSIS);
+    }
+}
+
+/**
+ * @brief Set CPU registers from CMM file
+ */
+void DebugImage::parser_cpu_set(const std::string& cmm, int cpu) {
+#ifdef ARM64
+    struct vmcore_data *vmd = get_kdump_vmcore_data();
+
+    // Allocate memory for user data
+    size_t user_data_size = sizeof(struct elf64_prstatus) + sizeof(Elf64_Nhdr) + 8;
+    char* prstatus = (char*)malloc(user_data_size);
+    memset(prstatus, 0, user_data_size);
+
+    // Setup ELF note header
+    Elf64_Nhdr note64;
+    note64.n_namesz = 5;
+    note64.n_descsz = sizeof(struct elf64_prstatus);
+    note64.n_type = NT_PRSTATUS;
+
+    // Create magic string
+    char magic[8];
+    memset(magic, 0, sizeof(magic));
+    snprintf(magic, 5, "CPU%d", cpu);
+
+    // Calculate offsets
+    size_t len = sizeof(Elf64_Nhdr);
+    len = roundup(len + note64.n_namesz, 4);
+    len = roundup(len + note64.n_descsz, 4);
+
+    field_init(elf_prstatus,pr_reg);
+    char* user_regs = prstatus + len - sizeof(struct elf64_prstatus) + field_offset(elf_prstatus,pr_reg);
+
+    // Copy header and magic
+    memcpy(prstatus, &note64, sizeof(Elf64_Nhdr));
+    memcpy(prstatus + sizeof(Elf64_Nhdr), magic, 8);
+
+    // Open CMM file using
+    FILE* cmm_file = fopen(cmm.c_str(), "r");
+    if (!cmm_file) {
+        LOGE("Failed to open CMM file: %s", cmm.c_str());
+        free(prstatus);
+        return;
+    }
+
+    // Parse CMM file line by line
+    char temp_buffer[512];
+    while (fgets(temp_buffer, sizeof(temp_buffer), cmm_file)) {
+        // Convert to std::string
+        std::string line(temp_buffer);
+        // Remove newline character
+        if (!line.empty() && line.back() == '\n') {
+            line.pop_back();
+        }
+        // Parse using std::istringstream (keep original logic)
+        std::istringstream iss(line);
+        std::string ops_name, reg_name;
+        uint64_t reg_val;
+        // Parse line: type_name regs_name address
+        if (!(iss >> ops_name >> reg_name >> std::hex >> reg_val)) {
+            continue;  // Skip malformed lines
+        }
+        // Only process "r.s" type entries
+        if (ops_name != "r.s") {
+            continue;
+        }
+        // Update user_regs
+        auto it = arm64_reg_map.find(reg_name);
+        if (it != arm64_reg_map.end()) {
+            if (it->second == 33){
+                reg_val |= 1;
+            }
+            memcpy(user_regs + sizeof(ulong) * it->second, &reg_val, sizeof(ulong));
+            LOGD("set %s %#lx \n", reg_name.c_str(), reg_val);
+        }
+    }
+    fclose(cmm_file);
+    LOGD("user_regs: \n");
+    LOGD("%s \n", hexdump(0x1000, (char*)user_regs, sizeof(struct arm64_pt_regs)).c_str());
+    // Initialize panic_task_regs if needed
+    if (!machdep->machspec->panic_task_regs) {
+        machdep->machspec->panic_task_regs = (struct arm64_pt_regs *)calloc((size_t)kt->cpus, sizeof(struct arm64_pt_regs));
+        memset(machdep->machspec->panic_task_regs, 0x0, (size_t)kt->cpus * sizeof(struct arm64_pt_regs));
+    }
+    // Copy registers to panic_task_regs
+    if (machdep->machspec->panic_task_regs) {
+        BCOPY(user_regs, &machdep->machspec->panic_task_regs[cpu], sizeof(struct arm64_pt_regs));
+    }
+
+    if(vmd->nt_prstatus_percpu[cpu] != nullptr){
+        free(vmd->nt_prstatus_percpu[cpu]);
+    }
+    vmd->nt_prstatus_percpu[cpu] = prstatus;
+    PRINT("CPU %d registers loaded from %s\n", cpu, cmm.c_str());
+#endif
 }
 
 void DebugImage::init_offset(void) {
@@ -102,124 +300,55 @@ void DebugImage::init_offset(void) {
 void DebugImage::init_command(void) {
     cmd_name = "dbi";
     help_str_list={
-        "dbi",                            /* command name */
-        "dump debug image region information",        /* short description */
-        "-a \n"
-            "  dbi -c\n"
-            "  dbi -s\n"
-            "  dbi -p <pid>\n"
-            "  dbi -C <cpu> \n"
-            "  This command dump debug image info.",
+        "dbi",
+        "dump debug image region information and manage CPU registers",
+        "-a | -d | -s | -i [cpu] | -p <pid> | -c <cpu> -l <cmm>\n"
+            "  This command dumps debug image info and manages CPU registers.",
+        "\n",
+        "OPTIONS",
+        "  -a",
+        "    Print memdump information",
+        "",
+        "  -d",
+        "    Parse CPU context and generate CMM files",
+        "",
+        "  -s",
+        "    Print CPU stack traces for all cores",
+        "",
+        "  -i [cpu]",
+        "    Print IRQ stack (optionally for specific CPU, default: CPU 0)",
+        "",
+        "  -p <pid>",
+        "    Print task stack for specified PID",
+        "",
+        "  -c <cpu> -l <cmm>",
+        "    Load CPU registers from CMM file (ARM64 only)",
+        "    <cpu>   : CPU index (0-based)",
+        "    <cmm>   : Path to Trace32 CMM file",
         "\n",
         "EXAMPLES",
-        "  Display all debug image info:",
+        "  Display all memdump info:",
         "    %s> dbi -a",
-        "     DumpTable base:bc700000",
-        "     Id   Dump_entry       version magic            DataAddr         DataLen    Name",
-        "     0    bc707e10         20      42445953         bc707e50         2048       c0_context",
-        "     1    bc708650         20      42445953         bc708690         2048       c1_context",
-        "     2    bc708e90         20      42445953         bc708ed0         2048       c2_context",
-        "     3    bc7096d0         20      42445953         bc709710         2048       c3_context",
         "\n",
-        "  Generate the cmm file:",
-        "    %s> dbi -c",
-        "    c0_context  core:0  version:1.4",
-        "    save to xx/core0_regs.cmm",
-        "    c1_context  core:1  version:1.4",
-        "    save to xx/core1_regs.cmm",
-        "    c2_context  core:2  version:1.4",
-        "    save to xx/core2_regs.cmm",
-        "    c3_context  core:3  version:1.4",
-        "    save to xx/core3_regs.cmm",
+        "  Generate CMM files from CPU context:",
+        "    %s> dbi -d",
         "\n",
-        "  Parser cpu stack which capture by sdi:",
+        "  Print CPU stack traces:",
         "    %s> dbi -s",
-        "     c0_context  core:0  version:1.4",
-        "     Core0 PC: <ffffffd20a0b601c>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c8",
-        "     Core0 LR: <ffffffd20a0b6014>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c0",
-        "     PID: 0        TASK: ffffffd20c4a7e80  CPU: 0    COMMAND: swapper/0",
-        "      #0 [ffffffc008003f50] handle_percpu_devid_irq at ffffffd20a1d8884",
-        "      #1 [ffffffc008003fa0] handle_domain_irq at ffffffd20a1cffac",
-        "      #2 [ffffffc008003fe0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd20a0101f8",
-        "      --- <IRQ stack> ---",
-        "      #3 [ffffffd20c483b70] call_on_irq_stack at ffffffd20a01495c",
-        "      #4 [ffffffd20c483b90] do_interrupt_handler at ffffffd20a0a15f0",
-        "      #5 [ffffffd20c483ba0] el1_interrupt at ffffffd20b0731a0",
-        "      #6 [ffffffd20c483bc0] el1h_64_irq_handler at ffffffd20b073164",
-        "      #7 [ffffffd20c483d00] el1h_64_irq at ffffffd20a011370",
-        "      #8 [ffffffd20c483d30] cpuidle_enter_state at ffffffd20abfbaac",
-        "      #9 [ffffffd20c483d80] cpuidle_enter at ffffffd20abfc034",
-        "     #10 [ffffffd20c483dc0] do_idle at ffffffd20a18c584",
-        "     #11 [ffffffd20c483e20] cpu_startup_entry at ffffffd20a18c694",
-        "     #12 [ffffffd20c483e40] rest_init at ffffffd20b075370",
-        "     #13 [ffffffd20c483e60] arch_call_rest_init at ffffffd20bff9718",
-        "     #14 [ffffffd20c483e90] start_kernel at ffffffd20bff9af4",
         "\n",
-        "  Display the stack for specified task pid (only support ARM64):",
-        "    %s> dbi -p 663",
-        "    cpu_context:",
-        "       X19: 0xffffff80031e6180",
-        "       X20: 0xffffff8027e02700",
-        "       X21: 0xffffff8027e02700",
-        "       X22: 0xffffffd20c4a5000",
-        "       X23: 0xffffff80031e6180",
-        "       X24: 0xffffff8027e02710",
-        "       X25: 0xffffffd20c493a38",
-        "       X26: 0xffffff8027e02700",
-        "       X27: 0xffffff80199f4970",
-        "       X28: 0xffffffc00c423bf0",
-        "       fp:  0xffffffc00c423a70",
-        "       sp:  0xffffffc00c423a70",
-        "       pc:  0xffffffd20b09f5e4",
-        "",
-        "   Stack:0xffffffc00c420000~0xffffffc00c424000",
-        "   [0]Potential backtrace -> FP:0xffffffc00c423a50, LR:0xffffffc00c423a58",
-        "       #0 [ffffffc00c423a70] __switch_to at ffffffd20b09f598",
-        "       #1 [ffffffc00c423ac0] __schedule at ffffffd20b09fd78",
-        "       #2 [ffffffc00c423b20] schedule at ffffffd20b0a032c",
-        "       #3 [ffffffc00c423d60] qseecom_ioctl at ffffffd20e7ab400 [qseecom_dlkm]",
-        "       #4 [ffffffc00c423dc0] __arm64_sys_ioctl at ffffffd20a43bd4c",
-        "       #5 [ffffffc00c423e10] invoke_syscall at ffffffd20a0b6f98",
-        "       #6 [ffffffc00c423e30] el0_svc_common at ffffffd20a0b6ecc",
-        "       #7 [ffffffc00c423e70] do_el0_svc at ffffffd20a0b6da8",
-        "       #8 [ffffffc00c423e80] el0_svc at ffffffd20b0734e4",
-        "       #9 [ffffffc00c423ea0] el0t_64_sync_handler at ffffffd20b073468",
-        "       #10 [ffffffc00c423fe0] el0t_64_sync at ffffffd20a011620",
-        "           PC: 0000007e9c1b150c   LR: 0000007e9c157394   SP: 0000007c07b3ea00",
-        "           X29: 0000007c07b3eae0  X28: 0000007c08ccce94  X27: 0000007c08ccd84a",
-        "           X26: 0000007c08cccecb  X25: 0000007c08ccd774  X24: 0000007c07b3ec80",
-        "           X23: 000000000000025c  X22: b400007e294c4110  X21: 0000007c07b46000",
-        "           X20: 0000007c08cccf27  X19: 0000007c07b3f000  X18: 0000007c06d00000",
-        "           X17: 0000007e9c1572f4  X16: 0000007e9d39f2a8  X15: 00000009023a4dd6",
-        "           X14: 0000000000002a3c  X13: 0000007c07b3e6d8  X12: ffffffffffffffff",
-        "           X11: 0000007c07b3e570  X10: ffffff80ffffffd0   X9: 0000007c07b3eab0",
-        "           X8: 000000000000001d   X7: 7f7f7f7f7f7f7f7f   X6: 6467731f63606471",
-        "           X5: 0000000000002a3c   X4: 0000007c07b3e450   X3: 0000007c07b3e400",
-        "           X2: 0000000000081000   X1: 0000000000009705   X0: 0000000000000009",
-        "           ORIG_X0: 0000000000000009  SYSCALLNO: 1d  PSTATE: 80000000",
+        "  Print IRQ stack for CPU 0:",
+        "    %s> dbi -i",
+        "    %s> dbi -i 0",
         "\n",
-        "  Display the current stack for specified cpu(only support ARM64):",
-        "    %s> dbi -C 0",
-        "    CPU[0] irq stack:0xffffffc008000000~0xffffffc008004000",
-        "    [0]Potential backtrace -> FP:0xffffffc008003ee0, LR:0xffffffc008003ee8",
-        "    PID: 0        TASK: ffffffd20c4a7e80  CPU: 0    COMMAND: swapper/0",
-        "       #0 [ffffffc008003f20] ipi_handler.04f2cb5359f849bb5e8105832b6bf932 at ffffffd20a0b6010",
-        "       #1 [ffffffc008003f50] handle_percpu_devid_irq at ffffffd20a1d8884",
-        "       #2 [ffffffc008003fa0] handle_domain_irq at ffffffd20a1cffac",
-        "       #3 [ffffffc008003fe0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd20a0101f8",
-        "       --- <IRQ stack> ---",
-        "       #4 [ffffffd20c483b70] call_on_irq_stack at ffffffd20a01495c",
-        "       #5 [ffffffd20c483b90] do_interrupt_handler at ffffffd20a0a15f0",
-        "       #6 [ffffffd20c483ba0] el1_interrupt at ffffffd20b0731a0",
-        "       #7 [ffffffd20c483bc0] el1h_64_irq_handler at ffffffd20b073164",
-        "       #8 [ffffffd20c483d00] el1h_64_irq at ffffffd20a011370",
-        "       #9 [ffffffd20c483d30] cpuidle_enter_state at ffffffd20abfbaac",
-        "       #10 [ffffffd20c483d80] cpuidle_enter at ffffffd20abfc034",
-        "       #11 [ffffffd20c483dc0] do_idle at ffffffd20a18c584",
-        "       #12 [ffffffd20c483e20] cpu_startup_entry at ffffffd20a18c694",
-        "       #13 [ffffffd20c483e40] rest_init at ffffffd20b075370",
-        "       #14 [ffffffd20c483e60] arch_call_rest_init at ffffffd20bff9718",
-        "       #15 [ffffffd20c483e90] start_kernel at ffffffd20bff9af4",
+        "  Print IRQ stack for CPU 2:",
+        "    %s> dbi -i 2",
+        "\n",
+        "  Print task stack for PID 1234:",
+        "    %s> dbi -p 1234",
+        "\n",
+        "  Load CPU 0 registers from CMM file:",
+        "    %s> dbi -c 0 -l /path/to/core0_regs.cmm",
+        "    CPU 0 registers loaded from /path/to/core0_regs.cmm",
         "\n",
     };
 
@@ -235,6 +364,10 @@ void DebugImage::init_command(void) {
 
 DebugImage::DebugImage(){
     do_init_offset = false;
+}
+
+DebugImage::~DebugImage(){
+
 }
 
 void DebugImage::print_memdump(){
