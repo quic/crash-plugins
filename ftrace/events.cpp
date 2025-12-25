@@ -5331,4 +5331,30 @@ void usb_gadget_frame_number_event::handle(ulong addr){
     read_trace_field(addr, arg_list[1]);
 }
 
+/**
+ * @brief Handle module_load event
+ * Format: "%s %s", __get_str(name), __print_flags(REC->taints, "", { (1UL << 0), "P" }, { (1UL << 12), "O" }, { (1UL << 1), "F" }, { (1UL << 10), "C" }, { (1UL << 13), "E" })
+ */
+void module_load_event::handle(ulong addr){
+    // Read module name string
+    arg_list[0]->name = "name";
+    read_trace_field(addr, arg_list[0]);
+
+    // Decode taints flags
+    std::shared_ptr<trace_field> field_ptr = field_maps["taints"];
+    if (field_ptr) {
+        uint taints = plugin_ptr->read_uint(addr + field_ptr->offset, "taints");
+
+        // Build flags string using __print_flags logic
+        static const flag_map maps[] = {
+            { 1UL << 0, "P" },   // Proprietary module
+            { 1UL << 12, "O" },  // Out-of-tree module
+            { 1UL << 1, "F" },   // Forced module
+            { 1UL << 10, "C" },  // Staging driver
+            { 1UL << 13, "E" },  // Unsigned module
+        };
+
+        copy_str(arg_list[1], build_flag_string(taints, maps, 5));
+    }
+}
 #pragma GCC diagnostic pop

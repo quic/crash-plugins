@@ -1390,6 +1390,8 @@ std::shared_ptr<TraceEvent> Ftrace::parser_trace_event_call(ulong addr){
 
     // SMC Invoke events
     CREATE_EVENT_IF_MATCH(smcinvoke_ioctl)               /**< SMC invoke ioctl event handler */
+
+    CREATE_EVENT_IF_MATCH(module_load)                   /**< module event handler */
     else{
         // Generic event handler for unknown event types
         event_ptr = std::make_shared<TraceEvent>();
