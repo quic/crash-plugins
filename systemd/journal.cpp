@@ -694,13 +694,38 @@ void Journal::show_journal_log(){
     }
     PRINT("Journal Logs (%zu entries):\n", log_list.size());
     PRINT("================================================================================\n");
+
+    // Use a set to track unique logs for deduplication
+    std::set<std::tuple<uint64_t, std::string, std::string, std::string, std::string>> seen_logs;
     size_t displayed_entries = 0;
+    size_t duplicate_entries = 0;
+
     for (const auto& log : log_list) {
         if (!log) continue;
+
+        // Create a unique key for this log entry
+        auto log_key = std::make_tuple(
+            log->timestamp,
+            log->hostname,
+            log->com,
+            log->pid,
+            log->message
+        );
+
+        // Check if we've already seen this log entry
+        if (seen_logs.find(log_key) != seen_logs.end()) {
+            duplicate_entries++;
+            continue;  // Skip duplicate log
+        }
+
+        // Mark this log as seen and display it
+        seen_logs.insert(log_key);
         print_syslog(log);
         displayed_entries++;
     }
+
     PRINT("================================================================================\n");
+    LOGD("Displayed %zu unique entries, filtered %zu duplicates\n", displayed_entries, duplicate_entries);
 }
 
 /**
