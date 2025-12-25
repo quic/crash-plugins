@@ -726,47 +726,108 @@ void dwc3_gadget_ep_cmd_event::handle(ulong addr) {
 
 /**
  * @brief Handle bprint event
- *
+ * fmt: "%ps: %s", (void *)REC->ip, REC->fmt
  * TODO: Implement binary print event handling
  */
 void bprint_event::handle(ulong addr) {
-    // TODO: Implement IP and buffer printing
+    arg_list[0]->name = "ip";
+    read_trace_field(addr, arg_list[0]);
+
+    arg_list[1]->name = "fmt";
+    read_trace_field(addr, arg_list[1]);
 }
 
 /**
  * @brief Handle print event
- *
- * TODO: Implement print event handling
+ * fmt: "%ps: %s", (void *)REC->ip, REC->buf
  */
 void print_event::handle(ulong addr) {
-    // TODO: Implement IP and buffer printing
+    arg_list[0]->name = "ip";
+    read_trace_field(addr, arg_list[0]);
+
+    arg_list[1]->name = "buf";
+    read_trace_field(addr, arg_list[1]);
 }
 
 /**
  * @brief Handle bputs event
- *
- * TODO: Implement binary puts event handling
+ * fmt: bputs: "%ps: %s", (void *)REC->ip, REC->str
  */
 void bputs_event::handle(ulong addr) {
-    // TODO: Implement IP and string printing
+    arg_list[0]->name = "ip";
+    read_trace_field(addr, arg_list[0]);
+
+    arg_list[1]->name = "str";
+    read_trace_field(addr, arg_list[1]);
 }
 
 /**
  * @brief Handle kernel stack event
+ * fmt:"\t=> %ps\n\t=> %ps\n\t=> %ps\n" "\t=> %ps\n\t=> %ps\n\t=> %ps\n" "\t=> %ps\n\t=> %ps\n", (void *)REC->caller[0], (void *)REC->caller[1], (void *)REC->caller[2], (void *)REC->caller[3], (void *)REC->caller[4], (void *)REC->caller[5], (void *)REC->caller[6], (void *)REC->caller[7]
  *
- * TODO: Implement kernel stack trace handling
+ * struct stack_entry {
+ *     struct trace_entry ent;
+ *     int size;
+ *     unsigned long caller[];
+ * }
  */
 void kernel_stack_event::handle(ulong addr) {
-    // TODO: Implement stack trace printing
+    // Read the size field to determine how many stack frames we have
+    std::shared_ptr<trace_field> field_ptr = field_maps["size"];
+    if (!field_ptr) return;
+
+    int size = plugin_ptr->read_int(addr + field_ptr->offset, "size");
+
+    // Read the caller array field
+    field_ptr = field_maps["caller"];
+    if (!field_ptr) return;
+
+    // Limit to maximum 8 callers as shown in the format string
+    int max_callers = (size > 8) ? 8 : size;
+
+    // Read each caller address and resolve to symbol
+    for (int i = 0; i < max_callers && i < 8; i++) {
+        unsigned long caller_addr = plugin_ptr->read_ulong(addr + field_ptr->offset + i * sizeof(unsigned long), "caller");
+        if (is_kvaddr(caller_addr)) {
+            ulong offset;
+            struct syment *sp = value_search(caller_addr, &offset);
+            if (sp) {
+                copy_str(arg_list[i], sp->name);
+            }else{
+                char addr_str[32];
+                snprintf(addr_str, sizeof(addr_str), "0x%lx", caller_addr);
+                copy_str(arg_list[i], addr_str);
+            }
+        }else{
+            char addr_str[32];
+            snprintf(addr_str, sizeof(addr_str), "0x%lx", caller_addr);
+            copy_str(arg_list[i], addr_str);
+        }
+    }
 }
 
 /**
  * @brief Handle user stack event
+ * fmt: "\t=> %ps\n\t=> %ps\n\t=> %ps\n" "\t=> %ps\n\t=> %ps\n\t=> %ps\n" "\t=> %ps\n\t=> %ps\n", (void *)REC->caller[0], (void *)REC->caller[1], (void *)REC->caller[2], (void *)REC->caller[3], (void *)REC->caller[4], (void *)REC->caller[5], (void *)REC->caller[6], (void *)REC->caller[7]
  *
- * TODO: Implement user stack trace handling
+ * struct userstack_entry {
+ *     struct trace_entry ent;
+ *     unsigned int tgid;
+ *     unsigned long caller[8];
+ * }
  */
 void user_stack_event::handle(ulong addr) {
-    // TODO: Implement stack trace printing
+    // Read the caller array field
+    std::shared_ptr<trace_field> field_ptr = field_maps["caller"];
+    if (!field_ptr) return;
+
+    // Read all 8 caller addresses from the fixed-size array
+    for (int i = 0; i < 8; i++) {
+        unsigned long caller_addr = plugin_ptr->read_ulong(addr + field_ptr->offset + i * sizeof(unsigned long), "caller");
+        char addr_str[32];
+        snprintf(addr_str, sizeof(addr_str), "0x%lx", caller_addr);
+        copy_str(arg_list[i], addr_str);
+    }
 }
 
 /**

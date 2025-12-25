@@ -904,7 +904,7 @@ void Ftrace::parse_trace_entry(std::shared_ptr<trace_array> ta_ptr, std::shared_
     // Build the formatted trace log entry
     std::ostringstream oss;
     // Format: <comm-pid> [cpu] lat_fmt timestamp: event_name event_data
-    oss << std::right << std::setw(16) << comm << " "
+    oss << std::right << std::setw(25) << comm << " "
         << "[" << std::setfill('0') << std::setw(3) << rb_ptr->cpu << std::setfill(' ') << "] "
         << lat_fmt << " "
         << std::setw(12) << std::fixed << std::setprecision(6) << (double)timestamp/1000000000 << ": "
@@ -1035,26 +1035,8 @@ std::shared_ptr<TraceEvent> Ftrace::parser_trace_event_call(ulong addr){
     std::string name = get_event_type_name(addr);
     std::shared_ptr<TraceEvent> event_ptr;
     // Create specialized event handlers for known event types
-    if (id == 6) { // TRACE_BPRINT
-        event_ptr = std::make_shared<bprint_event>();
-        event_ptr->name = "bprint";
-        event_ptr->struct_type = "bputs_entry";
-    }else if (id == 5){
-        event_ptr = std::make_shared<print_event>();
-        event_ptr->name = "print";
-        event_ptr->struct_type = "print_entry";
-    }else if (id == 4){
-        event_ptr = std::make_shared<kernel_stack_event>();
-        event_ptr->name = "kernel_stack";
-        event_ptr->struct_type = "stack_entry";
-    }else if (id == 12){
-        event_ptr = std::make_shared<user_stack_event>();
-        event_ptr->name = "user_stack";
-        event_ptr->struct_type = "userstack_entry";
-    }else if (id == 14){
-        event_ptr = std::make_shared<bputs_event>();
-        event_ptr->name = "bputs";
-        event_ptr->struct_type = "bputs_entry";
+    if (false) { // TRACE_BPRINT
+        //TODO
     }
     // Create specialized handlers for known trace events
     CREATE_EVENT_IF_MATCH(bprint)                        /**< Binary print event handler */

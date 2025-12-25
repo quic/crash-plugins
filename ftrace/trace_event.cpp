@@ -1748,6 +1748,9 @@ void TraceEvent::skipOpenParensAndSpaces(const std::string& str, size_t& pos) {
  * @return true if advanced features detected, false otherwise
  */
 bool TraceEvent::has_advanced_features() {
+    if ((name == "bprint") || (name == "print") || (name == "bputs")) {
+        return true;
+    }
     // Check for ternary operator
     if (org_print_fmt.find('?') != std::string::npos &&
         org_print_fmt.find(':') != std::string::npos) {

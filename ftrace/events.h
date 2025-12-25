@@ -407,5 +407,4 @@ DEFINE_EVENT(rcu_segcb_stats)               /**< RCU segcb stats event handler *
 
 // SMC Invoke events
 DEFINE_EVENT(smcinvoke_ioctl)               /**< SMC invoke ioctl event handler */
-
 #endif // EVENTS_DEFS_H_
