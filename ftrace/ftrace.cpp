@@ -872,7 +872,7 @@ void Ftrace::parse_trace_entry(std::shared_ptr<trace_array> ta_ptr, std::shared_
 
     // Validate event type exists in our event map
     if (event_maps.find(entry.type) == event_maps.end()) {
-        LOGE("Event type %u not found in event maps, skipping", entry.type);
+        LOGD("Event type %u not found in event maps, skipping", entry.type);
         return;
     }
 
@@ -903,12 +903,12 @@ void Ftrace::parse_trace_entry(std::shared_ptr<trace_array> ta_ptr, std::shared_
 
     // Build the formatted trace log entry
     std::ostringstream oss;
-    oss << std::left << std::setw(10)  << ta_ptr->name << " "
-        << std::left << std::setw(28)  << comm << " "
-        << std::left << "[" << rb_ptr->cpu << "] "
-        << std::left << lat_fmt << " "
-        << std::left << std::fixed << std::setprecision(6) << (double)timestamp/1000000000 << ": "
-        << std::left << event_ptr->name << " ";
+    // Format: <comm-pid> [cpu] lat_fmt timestamp: event_name event_data
+    oss << std::right << std::setw(16) << comm << " "
+        << "[" << std::setfill('0') << std::setw(3) << rb_ptr->cpu << std::setfill(' ') << "] "
+        << lat_fmt << " "
+        << std::setw(12) << std::fixed << std::setprecision(6) << (double)timestamp/1000000000 << ": "
+        << std::left << std::setw(30) << (event_ptr->name + ":") << " ";
 
     // Let the event handler format event-specific data
     event_ptr->handle(addr);
