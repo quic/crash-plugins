@@ -32,6 +32,7 @@ private:
     void print_socinfo();
     void print_qsocinfo();
     void print_command_line();
+    void print_sysctl_values();
     void print_soc_info();
     void print_soc_info5();
     void read_pmic_models();

@@ -26,13 +26,16 @@ void SysInfo::cmd_main(void) {
     int c;
     std::string cppString;
     if (argcnt < 2) cmd_usage(pc->curcmd, SYNOPSIS);
-    while ((c = getopt(argcnt, args, "cs")) != EOF) {
+    while ((c = getopt(argcnt, args, "csp")) != EOF) {
         switch(c) {
             case 'c': //print command line
                 print_command_line();
                 break;
             case 's': //print soc info
                 print_soc_info();
+                break;
+            case 'p': //print sysctl values
+                print_sysctl_values();
                 break;
             default:
                 argerrs++;
@@ -54,6 +57,7 @@ void SysInfo::init_command(void) {
         "dump system information",        /* short description */
         "-c \n"
             "  env -s \n"
+            "  env -p \n"
             "  This command dumps the config info.",
         "\n",
         "EXAMPLES",
@@ -67,6 +71,11 @@ void SysInfo::init_command(void) {
         "\n",
         "  Display soc info:",
         "    %s> env -s",
+        "\n",
+        "  Display sysctl values:",
+        "    %s> env -p",
+        "    sysctl_vfs_cache_pressure        :              100",
+        "    min_free_kbytes                  :            16384",
         "\n",
     };
 }
@@ -286,6 +295,106 @@ void SysInfo::read_soc_ids(){
         LOGD("soc_id[%u] = %s\n", id, name.c_str());
     }
     LOGI("SOC IDs reading completed: %zu entries\n", soc_ids.size());
+}
+
+void SysInfo::print_sysctl_values(){
+    std::ostringstream oss;
+
+    // Helper lambda to read and format sysctl value
+    auto read_sysctl = [&](const char* name) {
+        if (!csymbol_exists(name)) {
+            LOGW("Symbol %s doesn't exist in this kernel\n", name);
+            return;
+        }
+        ulong addr = csymbol_value(name);
+        if (!is_kvaddr(addr)) {
+            LOGW("Invalid address for %s: %lx\n", name, addr);
+            return;
+        }
+        int value = read_int(addr, name);
+        oss << std::left << std::setw(35) << name << ": "
+            << std::right << std::setw(16) << value << "\n";
+        LOGD("Read %s = %d\n", name, value);
+    };
+
+    // Read VFS cache related
+    read_sysctl("sysctl_vfs_cache_pressure");
+
+    // Read dirty page management parameters
+    read_sysctl("dirtytime_expire_interval");
+    read_sysctl("dirty_expire_interval");
+    read_sysctl("dirty_background_bytes");
+    read_sysctl("dirty_background_ratio");
+    read_sysctl("dirty_writeback_interval");
+    read_sysctl("vm_dirty_ratio");
+    read_sysctl("vm_dirty_bytes");
+
+    // Read memory management parameters
+    read_sysctl("min_free_kbytes");
+    read_sysctl("watermark_boost_factor");
+    read_sysctl("watermark_scale_factor");
+
+    // Read OOM related parameters
+    read_sysctl("sysctl_panic_on_oom");
+    read_sysctl("sysctl_oom_kill_allocating_task");
+    read_sysctl("sysctl_oom_dump_tasks");
+
+    // Read other parameters
+    read_sysctl("sysctl_extfrag_threshold");
+    read_sysctl("vm_swappiness");
+
+    // Read lowmem_reserve_ratio array
+    if (csymbol_exists("sysctl_lowmem_reserve_ratio") &&
+        csymbol_exists("contig_page_data")) {
+
+        LOGD("Reading lowmem_reserve_ratio array\n");
+        oss << "\n/proc/sys/vm/lowmem_reserve_ratio\n\n";
+
+        // Get MAX_NR_ZONES
+        int max_nr_zones = 0;
+        max_nr_zones = read_enum_val("__MAX_NR_ZONES");
+        LOGD("MAX_NR_ZONES = %d\n", max_nr_zones);
+
+        // Initialize zone structure
+        field_init(zone, name);
+        field_init(pglist_data, node_zones);
+        struct_init(zone);
+        struct_init(pglist_data);
+
+        ulong contig_page_data_addr = csymbol_value("contig_page_data");
+        ulong zone_addr = contig_page_data_addr + field_offset(pglist_data, node_zones);
+        ulong ratio_addr = csymbol_value("sysctl_lowmem_reserve_ratio");
+
+        std::ostringstream zone_names;
+        std::ostringstream ratios;
+
+        for (int i = 0; i < max_nr_zones; i++) {
+            // Read zone name
+            ulong name_addr = read_pointer(zone_addr + field_offset(zone, name), "zone name");
+            if (is_kvaddr(name_addr)) {
+                std::string zone_name = read_cstring(name_addr, 12, "zone name");
+                zone_names << std::right << std::setw(16) << zone_name << "\t";
+                LOGD("Zone[%d] name: %s\n", i, zone_name.c_str());
+            } else {
+                zone_names << std::right << std::setw(16) << "UNKNOWN" << "\t";
+            }
+
+            // Read ratio value
+            ulong ratio_elem_addr = ratio_addr + i * sizeof(int);
+            int ratio_value = read_int(ratio_elem_addr, "ratio");
+            ratios << std::right << std::setw(16) << ratio_value << "\t";
+            LOGD("Zone[%d] ratio: %d\n", i, ratio_value);
+
+            zone_addr += struct_size(zone);
+        }
+
+        oss << zone_names.str() << "\n";
+        oss << ratios.str() << "\n";
+    } else {
+        LOGW("Cannot read lowmem_reserve_ratio: required symbols not found\n");
+    }
+
+    PRINT("%s\n", oss.str().c_str());
 }
 
 void SysInfo::print_command_line(){
