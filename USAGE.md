@@ -1795,13 +1795,12 @@ Save system.journal to xxx/cache//run/log/journal/0306e3733ef9480a8ef2e76eaa2834
 ```
 
 ## dbi
-This command dumps the debug image info.
+This command dumps debug image region information and manages CPU registers.
 
 ### dbi -a
-Display all debug image.
+Display memdump information.
 ```
 crash> dbi -a
-DumpTable base:bc700000
 Id   Dump_entry       version  magic            DataAddr         DataLen    Name
 0    bc707e10         20       42445953         bc707e50         2048       c0_context
 1    bc708650         20       42445953         bc708690         2048       c1_context
@@ -1811,19 +1810,58 @@ Id   Dump_entry       version  magic            DataAddr         DataLen    Name
 97   bc712f90         20       42445953         bc712fd0         36928      l1_icache1
 98   bc71c010         20       42445953         bc71c050         36928      l1_icache2
 ```
-### dbi -c
-Generate the cmm file.
+
+### dbi -d
+Parse CPU context and generate CMM files.
 ```
-crash> dbi -c
+crash> dbi -d
 c0_context  core:0  version:1.4
 c1_context  core:1  version:1.4
 c2_context  core:2  version:1.4
 c3_context  core:3  version:1.4
+Saved CMM files: /path/to/cmm/core0_regs.cmm and /path/to/cmm/secure_world_core0_regs.cmm
+Saved CMM files: /path/to/cmm/core1_regs.cmm and /path/to/cmm/secure_world_core1_regs.cmm
+Saved CMM files: /path/to/cmm/core2_regs.cmm and /path/to/cmm/secure_world_core2_regs.cmm
+Saved CMM files: /path/to/cmm/core3_regs.cmm and /path/to/cmm/secure_world_core3_regs.cmm
 ```
-### dbi -C 'cpu'
-Parser specified cpu stack(skip swapper).
+
+### dbi -s
+Print CPU stack traces for all cores from sdi register.
 ```
-crash> dbi -C 0
+crash> dbi -s
+c0_context  core:0  version:1.4
+Core0
+PC: <ffffffd4d52b5b54>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c8
+LR: <ffffffd4d52b5b4c>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c0
+
+PID: 504      TASK: ffffff8013aa4e00  CPU: 0    COMMAND: "servicemanager"
+ #0 [ffffffc008003b60] handle_percpu_devid_irq at ffffffd4d53cd864
+ #1 [ffffffc008003bb0] handle_domain_irq at ffffffd4d53c4f8c
+ #2 [ffffffc008003bf0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd4d6297afc
+ #3 [ffffffc008003c20] do_interrupt_handler at ffffffd4d52a1140
+ #4 [ffffffc008003c30] el1_interrupt at ffffffd4d625d9e4
+ #5 [ffffffc008003c50] el1h_64_irq_handler at ffffffd4d625d9a8
+ #6 [ffffffc008003d90] el1h_64_irq at ffffffd4d5211370
+ #7 [ffffffc008003db0] _raw_spin_unlock_irqrestore at ffffffd4d62952c4
+ #8 [ffffffc008003dd0] swake_up_one at ffffffd4d53a1a70
+ #9 [ffffffc008003e10] rcu_report_qs_rnp at ffffffd4d53e64a0
+#10 [ffffffc008003e70] rcu_core at ffffffd4d53eed94
+#11 [ffffffc008003ed0] rcu_core_si.4b91badfc51da2dfae7c420c3dfdf5d0 at ffffffd4d53e72b4
+#12 [ffffffc008003f10] _stext at ffffffd4d5210198
+#13 [ffffffc008003f70] __irq_exit_rcu at ffffffd4d533fa68
+#14 [ffffffc008003f90] irq_exit at ffffffd4d533fb0c
+#15 [ffffffc008003fa0] handle_domain_irq at ffffffd4d53c4f90
+#16 [ffffffc008003fe0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd4d6297afc
+--- <IRQ stack> ---
+#17 [ffffffc00cf139f0] call_on_irq_stack at ffffffd4d521495c
+#18 [ffffffc00cf13a10] do_interrupt_handler at ffffffd4d52a1120
+#19 [ffffffc00cf13a20] el1_interrupt at ffffffd4d625d9e4
+```
+
+### dbi -i <cpu>
+Print IRQ stack for cpu.
+```
+crash> dbi -i 2
 CPU[0] irq stack:0xffffffc080000000~0xffffffc080004000
 [0]Potential backtrace -> FP:0xffffffc080003ec0, LR:0xffffffc080003ec8
 PID: 0        TASK: ffffffc0822dccc0  CPU: 0    COMMAND: "swapper/0"
@@ -1838,8 +1876,9 @@ PID: 0        TASK: ffffffc0822dccc0  CPU: 0    COMMAND: "swapper/0"
  #7 [ffffffc0822c3bf0] init_thread_union at ffffffc0822c3bec
  #8 [ffffffc0822f9e20] __kvm_nvhe___kcfi_typeid_hyp_unpin_shared_mem at ffffff887ab592fc
 ```
-### dbi -p 'pid'
-unwind specified pid stack(only support ARM64).
+
+### dbi -p <pid>
+Print task stack for specified PID (ARM64 only).
 ```
 crash> dbi -p 141
 cpu_context:
@@ -1870,36 +1909,12 @@ Stack:0xffffffc083c08000~0xffffffc083c0c000
  #8 [ffffffc083c0be10] rescuer_thread at ffffffc0800fd118
  #9 [ffffffc083c0be70] kthread at ffffffc080102e20
 ```
-### dbi -s
-unwind stack for current core
-```
-crash> dbi -s
-c0_context  core:0  version:1.4
-Core0 PC: <ffffffd4d52b5b54>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c8
-Core0 LR: <ffffffd4d52b5b4c>: ipi_handler.04f2cb5359f849bb5e8105832b6bf932+c0
-PID: 504      TASK: ffffff8013aa4e00  CPU: 0    COMMAND: "servicemanager"
- #0 [ffffffc008003b60] handle_percpu_devid_irq at ffffffd4d53cd864
- #1 [ffffffc008003bb0] handle_domain_irq at ffffffd4d53c4f8c
- #2 [ffffffc008003bf0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd4d6297afc
- #3 [ffffffc008003c20] do_interrupt_handler at ffffffd4d52a1140
- #4 [ffffffc008003c30] el1_interrupt at ffffffd4d625d9e4
- #5 [ffffffc008003c50] el1h_64_irq_handler at ffffffd4d625d9a8
- #6 [ffffffc008003d90] el1h_64_irq at ffffffd4d5211370
- #7 [ffffffc008003db0] _raw_spin_unlock_irqrestore at ffffffd4d62952c4
- #8 [ffffffc008003dd0] swake_up_one at ffffffd4d53a1a70
- #9 [ffffffc008003e10] rcu_report_qs_rnp at ffffffd4d53e64a0
-#10 [ffffffc008003e70] rcu_core at ffffffd4d53eed94
-#11 [ffffffc008003ed0] rcu_core_si.4b91badfc51da2dfae7c420c3dfdf5d0 at ffffffd4d53e72b4
-#12 [ffffffc008003f10] _stext at ffffffd4d5210198
-#13 [ffffffc008003f70] __irq_exit_rcu at ffffffd4d533fa68
-#14 [ffffffc008003f90] irq_exit at ffffffd4d533fb0c
-#15 [ffffffc008003fa0] handle_domain_irq at ffffffd4d53c4f90
-#16 [ffffffc008003fe0] gic_handle_irq.0baca5b50aed29204608b368989cedda at ffffffd4d6297afc
---- <IRQ stack> ---
-#17 [ffffffc00cf139f0] call_on_irq_stack at ffffffd4d521495c
-#18 [ffffffc00cf13a10] do_interrupt_handler at ffffffd4d52a1120
-#19 [ffffffc00cf13a20] el1_interrupt at ffffffd4d625d9e4
 
+### dbi -c <cpu> -l <cmm>
+Load CPU registers from CMM file (ARM64 only).
+```
+crash> dbi -c 0 -l /path/to/core0_regs.cmm
+CPU 0 registers loaded from /path/to/core0_regs.cmm
 ```
 
 ## ipc
@@ -2184,7 +2199,7 @@ Warm Reset Count: 0
 PON Successful
 ```
 
-### boot -b
+### qlog -b
 View boot log
 ```
 crash> qlog -b

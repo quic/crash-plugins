@@ -97,20 +97,14 @@ void DebugImage::cmd_main(void) {
 
             case 'i':
                 // Print IRQ stack
-                if (optarg) {
-                    try {
-                        cpu = std::stoi(optarg);
-                        LOGI("Printing IRQ stack for CPU: %d", cpu);
-                        print_irq_stack(cpu);
-                    } catch (...) {
-                        LOGE("Invalid CPU index: %s", optarg);
-                        argerrs++;
-                    }
-                } else {
-                    // No CPU specified, print for CPU 0
-                    LOGI("Printing IRQ stack for CPU 0");
-                    print_irq_stack(0);
+                try {
+                    cpu = std::stoi(optarg);
+                    LOGI("Printing IRQ stack for CPU: %d", cpu);
+                } catch (...) {
+                    LOGE("Invalid CPU index: %s", optarg);
+                    cpu = 0;
                 }
+                print_irq_stack(cpu);
                 return;
 
             case 'c':
@@ -121,7 +115,7 @@ void DebugImage::cmd_main(void) {
                     LOGD("CPU index: %d", cpu);
                 } catch (...) {
                     LOGE("Invalid CPU index: %s", optarg);
-                    argerrs++;
+                    cpu = 0;
                 }
                 break;
 
@@ -302,7 +296,7 @@ void DebugImage::init_command(void) {
     help_str_list={
         "dbi",
         "dump debug image region information and manage CPU registers",
-        "-a | -d | -s | -i [cpu] | -p <pid> | -c <cpu> -l <cmm>\n"
+        "-a | -d | -s | -i <cpu> | -p <pid> | -c <cpu> -l <cmm>\n"
             "  This command dumps debug image info and manages CPU registers.",
         "\n",
         "OPTIONS",
@@ -315,8 +309,8 @@ void DebugImage::init_command(void) {
         "  -s",
         "    Print CPU stack traces for all cores",
         "",
-        "  -i [cpu]",
-        "    Print IRQ stack (optionally for specific CPU, default: CPU 0)",
+        "  -i <cpu>",
+        "    Print IRQ stack for cpu",
         "",
         "  -p <pid>",
         "    Print task stack for specified PID",
@@ -333,15 +327,11 @@ void DebugImage::init_command(void) {
         "  Generate CMM files from CPU context:",
         "    %s> dbi -d",
         "\n",
-        "  Print CPU stack traces:",
+        "  Print CPU stack traces with sdi register:",
         "    %s> dbi -s",
         "\n",
-        "  Print IRQ stack for CPU 0:",
-        "    %s> dbi -i",
+        "  Print IRQ stack for CPU:",
         "    %s> dbi -i 0",
-        "\n",
-        "  Print IRQ stack for CPU 2:",
-        "    %s> dbi -i 2",
         "\n",
         "  Print task stack for PID 1234:",
         "    %s> dbi -p 1234",

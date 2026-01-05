@@ -142,8 +142,8 @@ crash> extend <path-to>/output/arm64/slub.so
 | pstore | ✓ | ✓ | Persistent storage logs |
 | qlog | ✓ | ✓ | PMIC and boot logs |
 | ipc | ✓ | ✓ | IPC logging framework |
-| debugimage | ✓ | ✓ | Debug image parser |
-| ftrace | ✓ | ✗ | Ftrace event analysis |
+| debugimage | ✓ | ✗ | Debug image parser |
+| ftrace | ✓ | ✓ | Ftrace event analysis |
 | systemd | ✓ | ✓ | Systemd journal logs |
 | **Utilities** |||
 | workqueue | ✓ | ✓ | Workqueue analysis |
@@ -152,7 +152,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | sysinfo | ✓ | ✓ | System information |
 | t32 | ✓ | ✓ | T32 debugger script generation |
 | lockdep | ✓ | ✗ | Lockdep detection |
-| iommu | ✓ | ✓ | print iommu information |
+| iommu | ✓ | ✗ | print iommu information |
 
 ### Android Userspace Modules
 
