@@ -48,7 +48,7 @@ void Cma::cmd_main(void) {
     int argerrs = 0;
     int c;
     // Parse command line options
-    while ((c = getopt(argcnt, args, "ap:")) != EOF) {
+    while ((c = getopt(argcnt, args, "ap:b:")) != EOF) {
         switch(c) {
             case 'a':
                 LOGD("Executing print_cma_areas() - display all CMA areas\n");
@@ -56,6 +56,9 @@ void Cma::cmd_main(void) {
                 break;
             case 'p':
                 print_cma_page_status(std::string(optarg));
+                break;
+            case 'b':
+                print_cma_alloc_page_stack(std::string(optarg));
                 break;
             default:
                 LOGD("Unknown option: -%c\n", c);
@@ -100,10 +103,12 @@ void Cma::init_command(void) {
         "display CMA (Contiguous Memory Allocator) information",  /* short description */
         "-a \n"
         "  cma -p <physical addr> \n"
+        "  cma -b <cma name>\n"
         "  This command displays CMA memory allocation information.",
         "  Without options, it shows a summary of all CMA areas.",
         "  Use -a to list all CMA areas with detailed statistics.",
         "  Use -p to check the status of a specific page.",
+        "  Use -b to display allocated CMA pages with pageowner stack traces.",
         "\n",
         "OPTIONS",
         "  -a",
@@ -111,6 +116,10 @@ void Cma::init_command(void) {
         "",
         "  -p <physical addr>",
         "    Display the status of a specific page.",
+        "",
+        "  -b [cma_name]",
+        "    Display allocated CMA pages with pageowner stack traces.",
+        "    If cma_name is specified, only show stack traces for that CMA area.",
         "\n",
         "EXAMPLES",
         "  List all CMA areas with detailed information:",
@@ -145,6 +154,17 @@ void Cma::init_command(void) {
         "    │  Page Size:               4 KB                                               │",
         "    │  Status:                  ALLOCATED                                          │",
         "    └──────────────────────────────────────────────────────────────────────────────┘",
+        "\n",
+        "  Display allocated pages with stack traces for specific CMA area:",
+        "    %s> cma -b linux,cma",
+        "    ================================================================================",
+        "                CMA ALLOCATED PAGES WITH STACK TRACES - linux,cma",
+        "    ================================================================================",
+        "    CMA Area: linux,cma | Total Allocated Pages: 4608 | Total Memory: 17.66MB",
+        "    ================================================================================",
+        "      [1/4608] PFN: 0xf6800~0xf6801 (4KB) - PID: 1234 [kswapd0] - 1d 00:53:20.156 - GFP:0x400dc0",
+        "        [<ffffffde2edb039c>] post_alloc_hook+0x20c",
+        "        [<ffffffde2edb3064>] prep_new_page+0x28",
         "\n",
     };
 }
@@ -416,6 +436,155 @@ size_t Cma::get_cma_used_size(const std::shared_ptr<cma_mem>& cma) {
     return total_used_size;
 }
 
+void Cma::print_cma_alloc_page_stack(const std::string& cma_name){
+    // Check if page_owner is enabled in the kernel
+    if (!is_enable_pageowner()) {
+        PRINT("Page owner is not enabled in kernel. Cannot display stack traces.\n");
+        return;
+    }
+
+    // Check if we have any CMA areas to analyze
+    if (mem_list.empty()) {
+        PRINT("No CMA areas found. Please run 'cma -a' first to parse CMA areas.\n");
+        return;
+    }
+
+    // Find the specified CMA area
+    std::shared_ptr<cma_mem> target_cma = nullptr;
+    for (const auto& cma : mem_list) {
+        if (cma->name == cma_name) {
+            target_cma = cma;
+            break;
+        }
+    }
+
+    if (!target_cma) {
+        PRINT("CMA area '%s' not found. Available CMA areas:\n", cma_name.c_str());
+        for (const auto& cma : mem_list) {
+            PRINT("  - %s\n", cma->name.c_str());
+        }
+        return;
+    }
+
+    LOGD("Starting CMA allocated pages stack trace analysis for area: %s", cma_name.c_str());
+
+    // Statistics counters for the specific area
+    size_t area_allocated_pages = 0;
+
+    // Print header
+    PRINT("================================================================================\n");
+    PRINT("                CMA ALLOCATED PAGES WITH STACK TRACES - %s\n", cma_name.c_str());
+    PRINT("================================================================================\n");
+
+    // Calculate bitmap parameters
+    size_t per_nr_pages = (1U << target_cma->order_per_bit);
+    size_t bitmap_bits = target_cma->count >> target_cma->order_per_bit;
+
+    // First pass: collect statistics for the specific area
+    for (size_t bit_index = 0; bit_index < bitmap_bits; ++bit_index) {
+        // Calculate PFN for the first page of this allocation block
+        ulong pfn = target_cma->base_pfn + bit_index * per_nr_pages;
+
+        // Use existing is_page_allocated function to check allocation status
+        if (is_cma_page_allocated(target_cma, pfn)) {
+            area_allocated_pages += per_nr_pages;
+        }
+    }
+
+    // Print summary statistics
+    PRINT("CMA Area: %s | Total Allocated Pages: %zu | Total Memory: %s\n",
+          cma_name.c_str(), area_allocated_pages, csize(area_allocated_pages * page_size).c_str());
+    PRINT("================================================================================\n");
+
+    // Second pass: collect and display detailed information
+    std::vector<std::shared_ptr<page_owner>> allocated_pages;
+
+    for (size_t bit_index = 0; bit_index < bitmap_bits; ++bit_index) {
+        // Calculate PFN for the first page of this allocation block
+        ulong pfn = target_cma->base_pfn + bit_index * per_nr_pages;
+
+        // Use existing is_page_allocated function to check allocation status
+        if (is_cma_page_allocated(target_cma, pfn)) {
+            // Get pageowner info for the first page of this allocation
+            std::shared_ptr<page_owner> owner_ptr = parse_page_owner_by_pfn(pfn);
+            if (owner_ptr) {
+                allocated_pages.push_back(owner_ptr);
+            }
+        }
+    }
+
+    // Check if we have any allocations to display
+    if (allocated_pages.empty()) {
+        PRINT("No allocated pages found in CMA area '%s'.\n", cma_name.c_str());
+        return;
+    }
+    // Display each allocated page with stack trace
+    size_t entry_num = 0;
+    for (const auto& owner_ptr : allocated_pages) {
+        entry_num++;
+
+        // Calculate page range for this allocation
+        ulong page_count = 1UL << owner_ptr->order;
+        ulong end_pfn = owner_ptr->pfn + page_count;
+
+        // Get process information
+        std::string comm = owner_ptr->comm;
+        if (comm.empty()) {
+            struct task_context *tc = pid_to_context(owner_ptr->pid);
+            if (tc) {
+                comm = std::string(tc->comm);
+            } else {
+                comm = "unknown";
+            }
+        }
+
+        // Print page allocation info with timestamp and GFP mask in one line
+        std::string time_str = "";
+        if (owner_ptr->ts_nsec > 0) {
+            time_str = formatTimestamp(owner_ptr->ts_nsec);
+        }
+
+        std::string gfp_str = "";
+        if (owner_ptr->gfp_mask > 0) {
+            char gfp_buf[32];
+            snprintf(gfp_buf, sizeof(gfp_buf), "GFP:0x%x", owner_ptr->gfp_mask);
+            gfp_str = gfp_buf;
+        }
+
+        PRINT("[%zu/%zu]PFN:0x%lx~0x%lx (%lu page%s, %s) - PID:%zu [%s] %s %s\n",
+              entry_num, allocated_pages.size(),
+              owner_ptr->pfn, end_pfn,
+              page_count, (page_count > 1) ? "s" : "",
+              csize(page_count * page_size).c_str(),
+              owner_ptr->pid, comm.c_str(),
+              gfp_str.c_str(),time_str.c_str());
+
+        // Print allocation stack trace
+        if (is_page_allocated(owner_ptr)) {
+            std::shared_ptr<stack_record_t> record_ptr = get_stack_record(owner_ptr->handle);
+            if (record_ptr != nullptr) {
+                std::string stack = get_call_stack(record_ptr);
+                // Indent each line of the stack trace
+                std::istringstream iss(stack);
+                std::string line;
+                while (std::getline(iss, line)) {
+                    if (!line.empty()) {
+                        PRINT("    %s\n", line.c_str());
+                    }
+                }
+            } else {
+                PRINT("    [Stack trace not available - handle: 0x%x]\n", owner_ptr->handle);
+            }
+        } else {
+            PRINT("    [No allocation stack trace available]\n");
+        }
+
+        PRINT("\n");
+    }
+
+    LOGD("CMA allocated pages stack trace analysis completed for area: %s", cma_name.c_str());
+}
+
 void Cma::print_cma_page_status(const std::string& addr_str){
     if (addr_str.empty()) {
         LOGE("Empty address provided\n");
@@ -453,7 +622,7 @@ void Cma::print_cma_page_status(const std::string& addr_str){
     size_t per_nr_pages = (1U << cma_ptr->order_per_bit);
     size_t bit_index = pfn_offset / per_nr_pages;
     // Calculate start and end PFN for this bit
-    bool allocated = is_page_allocated(cma_ptr, pfn);
+    bool allocated = is_cma_page_allocated(cma_ptr, pfn);
     PRINT("┌──────────────────────────────────────────────────────────────────────────────┐\n");
     PRINT("│  CMA Region:              %-50s │\n", cma_ptr->name.c_str());
     PRINT("│  Total Size:              %-50s │\n", csize(cma_ptr->count * page_size).c_str());
@@ -470,7 +639,7 @@ void Cma::print_cma_page_status(const std::string& addr_str){
     PRINT("└──────────────────────────────────────────────────────────────────────────────┘\n");
 }
 
-bool Cma::is_page_allocated(const std::shared_ptr<cma_mem>& cma, ulong pfn){
+bool Cma::is_cma_page_allocated(const std::shared_ptr<cma_mem>& cma, ulong pfn){
     // Validate input
     if (!cma || pfn < cma->base_pfn || pfn >= (cma->base_pfn + cma->count)) {
         return false;

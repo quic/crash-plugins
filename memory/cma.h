@@ -87,9 +87,9 @@ private:
     void parser_cma_areas();                            ///< Parse and collect CMA area information from kernel
     size_t get_cma_used_size(const std::shared_ptr<cma_mem>& cma);  ///< Calculate allocated size for a CMA area
     void print_cma_page_status(const std::string &addr_str);
-    bool is_page_allocated(const std::shared_ptr<cma_mem> &cma, ulong pfn);
+    bool is_cma_page_allocated(const std::shared_ptr<cma_mem> &cma, ulong pfn);
     void print_cma_areas(); ///< Display overview of all CMA areas
-
+    void print_cma_alloc_page_stack(const std::string& cma_name); ///< Print allocated CMA pages with pageowner stack traces for specific area
     // Statistics and analysis methods
     CMAStatistics calculate_cma_statistics();           ///< Calculate overall CMA system statistics
     ColumnWidths calculate_optimal_column_widths();     ///< Determine optimal column widths for table display
