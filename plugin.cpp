@@ -163,6 +163,34 @@ ParserPlugin::ParserPlugin(){
     field_init(probe, data);
     field_init(probe, next);
 
+    field_init(page_owner,order);
+    field_init(page_owner,last_migrate_reason);
+    field_init(page_owner,gfp_mask);
+    field_init(page_owner,handle);
+    field_init(page_owner,free_handle);
+    field_init(page_owner,ts_nsec);
+    field_init(page_owner,free_ts_nsec);
+    field_init(page_owner,pid);
+    field_init(page_owner,tgid);
+    field_init(page_owner,comm);
+    field_init(page_owner,free_pid);
+    field_init(page_owner,free_tgid);
+    struct_init(page_owner);
+    field_init(mem_section,page_ext);
+    field_init(pglist_data,node_page_ext);
+    field_init(page_ext,flags);
+    struct_init(page_ext);
+
+    field_init(page_ext_operations,offset);
+    field_init(page_ext_operations,size);
+    struct_init(page_ext_operations);
+
+    field_init(stack_record,next);
+    field_init(stack_record,size);
+    field_init(stack_record,handle);
+    field_init(stack_record,entries);
+    struct_init(stack_record);
+
     if (BITS64()){
         std::string config = get_config_val("CONFIG_ARM64_VA_BITS");
         int va_bits = std::stoi(config);
@@ -188,6 +216,16 @@ ParserPlugin::ParserPlugin(){
     /* min_low_pfn */
     min_low_pfn = csymbol_exists("min_low_pfn") ?
         (try_get_symbol_data(TO_CONST_STRING("min_low_pfn"), sizeof(ulong), &min_low_pfn), min_low_pfn) : 0;
+
+    // Get the offset of page_owner within page_ext structure
+    if (csymbol_exists("page_owner_ops")){
+        ulong ops_addr = csymbol_value("page_owner_ops");
+        page_ext_ops_offset = read_ulong(ops_addr + field_offset(page_ext_operations,offset),"page_owner_ops.offset");
+        LOGD("ops_offset: %zu", page_ext_ops_offset);
+    }
+    // Read page extension flag bit positions
+    PAGE_EXT_OWNER = read_enum_val("PAGE_EXT_OWNER");
+    PAGE_EXT_OWNER_ALLOCATED = read_enum_val("PAGE_EXT_OWNER_ALLOCATED");
     //print_table();
 }
 
@@ -4444,6 +4482,300 @@ void ParserPlugin::write_pagecache_to_file(ulong inode_addr, const std::string& 
 
 cmd_func_t ParserPlugin::get_wrapper_func() {
     return nullptr;
+}
+
+/* ============================================================================
+ * Page Owner Interface Functions
+ * ============================================================================ */
+
+/**
+ * Check if page_owner is enabled in the kernel
+ *
+ * This function verifies that the page_owner feature is enabled in the kernel
+ * by checking configuration settings and runtime initialization status.
+ *
+ * @return true if page_owner is enabled and initialized, false otherwise
+ */
+bool ParserPlugin::is_enable_pageowner() {
+    // Check if CONFIG_PAGE_OWNER is enabled in kernel configuration
+    if (get_config_val("CONFIG_PAGE_OWNER") != "y") {
+        LOGE("page_owner is disabled in kernel configuration\n");
+        return false;
+    }
+
+    // Check if page_owner_inited symbol exists
+    if (!csymbol_exists("page_owner_inited")) {
+        LOGE("page_owner_inited symbol not found\n");
+        return false;
+    }
+
+    // Check if page_owner is initialized at runtime
+    int inited;
+    try_get_symbol_data(TO_CONST_STRING("page_owner_inited"), sizeof(int), &inited);
+    if (inited != 1) {
+        LOGE("page_owner is not initialized, check page_owner=on in cmdline\n");
+        return false;
+    }
+    // Determine page_ext_size based on kernel version
+    // Kernel 5.4+ uses page_ext_size symbol directly
+    if (csymbol_exists("page_ext_size")) {
+        try_get_symbol_data(TO_CONST_STRING("page_ext_size"), sizeof(ulong), &page_ext_size);
+        LOGD("Found page_ext_size symbol: %d", page_ext_size);
+    } else if (csymbol_exists("extra_mem") && struct_size(page_ext)) {
+        // Older kernels: calculate from struct size + extra_mem
+        ulong extra_mem;
+        if (try_get_symbol_data(TO_CONST_STRING("extra_mem"), sizeof(ulong), &extra_mem)){
+            page_ext_size = struct_size(page_ext) + extra_mem;
+            LOGD("Calculated page_ext_size from extra_mem: %d", page_ext_size);
+        }
+    }
+    if (page_ext_size <= 0){
+        LOGE("Cannot determine page_ext_size value");
+        return false;
+    }
+    if (page_ext_ops_offset <= 0){
+        LOGE("Cannot determine page_ext ops_offset value");
+        return false;
+    }
+    if (!stack_slabs){
+        LOGE("stack_slabs not available");
+        return false;
+    }
+    LOGD("page_ext_size: %d bytes", page_ext_size);
+    return true;
+}
+
+/**
+ * Parse page owner information by page structure address
+ *
+ * This function extracts page owner information for a given page structure address.
+ * It validates the page address, looks up the page_ext structure, and parses the
+ * page_owner data if available.
+ *
+ * @param page_addr The kernel virtual address of the page structure
+ * @return Shared pointer to page_owner structure, or nullptr if parsing fails
+ */
+std::shared_ptr<page_owner> ParserPlugin::parse_page_owner_by_page(ulong page_addr) {
+    if (!is_kvaddr(page_addr)) {
+        LOGD("Invalid page address: 0x%lx\n", page_addr);
+        return nullptr;
+    }
+
+    // Convert page address to PFN
+    ulong pfn = page_to_pfn(page_addr);
+    if (pfn == 0) {
+        LOGE("Failed to convert page address to PFN\n");
+        return nullptr;
+    }
+
+    return parse_page_owner_by_pfn(pfn);
+}
+
+/**
+ * Parse page owner information by page frame number (PFN)
+ *
+ * This function extracts page owner information for a given PFN by looking up
+ * the corresponding page_ext structure and parsing the page_owner data.
+ *
+ * @param pfn The page frame number to analyze
+ * @return Shared pointer to page_owner structure, or nullptr if parsing fails
+ */
+std::shared_ptr<page_owner> ParserPlugin::parse_page_owner_by_pfn(ulong pfn) {
+    // Validate PFN range
+    if (pfn < min_low_pfn || pfn > max_pfn) {
+        LOGE("Invalid PFN: 0x%lx (valid range: 0x%lx - 0x%lx)\n", pfn, min_low_pfn, max_pfn);
+        return nullptr;
+    }
+
+    // Convert PFN to page structure address
+    ulong page = pfn_to_page(pfn);
+    if (!is_kvaddr(page)) {
+        LOGD("Invalid page address: 0x%lx\n", page);
+        return nullptr;
+    }
+
+    // Lookup page_ext structure
+    ulong page_ext = lookup_page_ext(page);
+    if (!is_kvaddr(page_ext)) {
+        LOGD("Cannot find page_ext for PFN: 0x%lx\n", pfn);
+        return nullptr;
+    }
+
+    // Check if page owner is enabled for this page
+    ulong page_ext_flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
+    if (!(page_ext_flags & (1UL << PAGE_EXT_OWNER))) {
+        LOGD("Page owner not enabled for PFN: 0x%lx\n", pfn);
+        return nullptr;
+    }
+
+    // Parse page_owner structure
+    auto owner_ptr = std::make_shared<page_owner>();
+    owner_ptr->page_ext = page_ext;
+    owner_ptr->addr = page_ext + page_ext_ops_offset;
+    owner_ptr->pfn = pfn;
+
+    // Read page_owner fields
+    void *page_owner = read_struct(owner_ptr->addr, "page_owner");
+    if (page_owner == nullptr) {
+        LOGE("Cannot parse page owner for PFN: 0x%lx\n", pfn);
+        return nullptr;
+    }
+    owner_ptr->order = SHORT(page_owner + field_offset(page_owner, order));
+    owner_ptr->handle = UINT(page_owner + field_offset(page_owner, handle));
+    owner_ptr->free_handle = UINT(page_owner + field_offset(page_owner, free_handle));
+    owner_ptr->last_migrate_reason = SHORT(page_owner + field_offset(page_owner, last_migrate_reason));
+    owner_ptr->ts_nsec = ULONG(page_owner + field_offset(page_owner, ts_nsec));
+    owner_ptr->free_ts_nsec = ULONG(page_owner + field_offset(page_owner, free_ts_nsec));
+    owner_ptr->gfp_mask = INT(page_owner + field_offset(page_owner, gfp_mask));
+    owner_ptr->pid = INT(page_owner + field_offset(page_owner, pid));
+
+    // Handle optional fields
+    const auto comm_offset = field_offset(page_owner, comm);
+    if (comm_offset > 0) {
+        owner_ptr->comm = read_cstring(owner_ptr->addr + comm_offset, 64, "page_owner_comm");
+    }
+
+    const auto tgid_offset = field_offset(page_owner, tgid);
+    if (tgid_offset > 0) {
+        owner_ptr->tgid = INT(page_owner + tgid_offset);
+    } else {
+        struct task_context *tc = pid_to_context(owner_ptr->pid);
+        if (tc) {
+            owner_ptr->tgid = task_tgid(tc->task);
+            if (comm_offset <= 0) {
+                owner_ptr->comm = std::string(tc->comm);
+            }
+        }
+    }
+
+    FREEBUF(page_owner);
+    uint handle = is_page_allocated(owner_ptr) ? owner_ptr->handle : owner_ptr->free_handle;
+    owner_ptr->stack_ptr = get_stack_record(handle);
+    return owner_ptr;
+}
+
+/**
+ * Parse page owner information by physical address
+ *
+ * This function extracts page owner information for a given physical address
+ * by converting it to a PFN and then parsing the page_owner data.
+ *
+ * @param phys_addr The physical address to analyze
+ * @return Shared pointer to page_owner structure, or nullptr if parsing fails
+ */
+std::shared_ptr<page_owner> ParserPlugin::parse_page_owner_by_phys(ulong phys_addr) {
+    if (phys_addr == 0) {
+        LOGE("Invalid physical address: 0x%lx\n", phys_addr);
+        return nullptr;
+    }
+
+    // Convert physical address to PFN
+    ulong pfn = phy_to_pfn(phys_addr);
+    return parse_page_owner_by_pfn(pfn);
+}
+
+/**
+ * Parse page owner information by virtual address
+ *
+ * This function extracts page owner information for a given virtual address
+ * by translating it to a physical address, converting to PFN, and parsing
+ * the page_owner data.
+ *
+ * @param virt_addr The virtual address to analyze
+ * @return Shared pointer to page_owner structure, or nullptr if parsing fails
+ */
+std::shared_ptr<page_owner> ParserPlugin::parse_page_owner_by_vaddr(ulong virt_addr) {
+    if (virt_addr == 0) {
+        LOGE("Invalid virtual address: 0x%lx\n", virt_addr);
+        return nullptr;
+    }
+
+    physaddr_t paddr = 0;
+
+    // Try kernel virtual address translation first
+    if (kvtop(NULL, virt_addr, &paddr, 0)) {
+        return parse_page_owner_by_phys(paddr);
+    }
+
+    // Try current task context
+    if (CURRENT_TASK() && uvtop(CURRENT_CONTEXT(), virt_addr, &paddr, 0)) {
+        return parse_page_owner_by_phys(paddr);
+    }
+
+    // Search through all tasks
+    struct task_context *tc;
+    for (ulong i = 0; i < RUNNING_TASKS(); i++) {
+        tc = FIRST_CONTEXT() + i;
+        if (tc->task && uvtop(tc, virt_addr, &paddr, 0)) {
+            LOGD("Found virtual address in task PID:%ld [%s]\n", task_to_pid(tc->task), tc->comm);
+            return parse_page_owner_by_phys(paddr);
+        }
+    }
+
+    LOGE("Cannot translate virtual address 0x%lx to physical address\n", virt_addr);
+    return nullptr;
+}
+
+/**
+ * Lookup page_ext structure for a given page
+ *
+ * This is a simplified version of the lookup_page_ext function from pageowner.cpp
+ * that handles the basic page extension lookup functionality.
+ *
+ * @param page The page structure address
+ * @return The page_ext structure address, or 0 if not found
+ */
+ulong ParserPlugin::lookup_page_ext(ulong page) {
+    if(get_config_val("CONFIG_PAGE_EXTENSION") != "y"){
+        LOGD("Not enable CONFIG_PAGE_EXTENSION \n");
+        return 0;
+    }
+    const ulong pfn = page_to_pfn(page);
+    ulong page_ext = 0;
+
+    if(get_config_val("CONFIG_SPARSEMEM") == "y"){
+        const ulong section_nr = pfn_to_section_nr(pfn);
+        const ulong section = valid_section_nr(section_nr);
+        if (!section || !is_kvaddr(section)){
+            LOGD("invaild section %#lx \n",section);
+            return 0;
+        }
+        page_ext = read_pointer(section + field_offset(mem_section,page_ext),"mem_section_page_ext");
+        if (page_ext_invalid(page_ext)){
+            LOGD("invaild page_ext %#lx \n",page_ext);
+            return 0;
+        }
+    } else {
+        const int nid = page_to_nid(page);
+        const struct node_table *nt = &vt->node_table[nid];
+        page_ext = read_pointer(nt->pgdat + field_offset(pglist_data,node_page_ext),"pglist_data_node_page_ext");
+    }
+    return get_entry(page_ext, pfn);
+}
+
+ulong ParserPlugin::get_entry(ulong base, ulong pfn) {
+    LOGD("page_ext:%lx pfn:%lx\n", base,pfn);
+#ifdef ARM64
+    return base + page_ext_size * pfn;
+#else
+    ulong pfn_index = pfn - phy_to_pfn(machdep->machspec->phys_base);
+    return base + page_ext_size * pfn_index;
+#endif
+}
+
+bool ParserPlugin::page_ext_invalid(ulong page_ext){
+    return !is_kvaddr(page_ext) || (((unsigned long)page_ext & PAGE_EXT_INVALID) == PAGE_EXT_INVALID);
+}
+
+bool ParserPlugin::is_page_allocated(std::shared_ptr<page_owner> owner_ptr) {
+    if (is_kvaddr(owner_ptr->page_ext)) {
+        ulong flags = read_ulong(owner_ptr->page_ext + field_offset(page_ext, flags), "page_ext_flags");
+        return (flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0;
+    }
+    if (owner_ptr->ts_nsec > 0 && owner_ptr->free_ts_nsec > 0) {
+        return owner_ptr->ts_nsec > owner_ptr->free_ts_nsec;
+    }
+    return true;
 }
 
 #pragma GCC diagnostic pop

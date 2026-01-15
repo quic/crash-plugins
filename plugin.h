@@ -47,6 +47,7 @@ struct driver;
 struct device;
 struct bus_type;
 struct class_type;
+struct page_owner;
 
 struct driver {
     size_t addr;
@@ -162,6 +163,32 @@ struct mount_point {
     ulong root_dentry;
 };
 
+/* Page extension invalid flag from mm/page_ext.c */
+#define PAGE_EXT_INVALID    (0x1)
+
+/**
+ * struct page_owner - Represents page ownership information
+ *
+ * This structure contains allocation/deallocation tracking information
+ * for a physical page in the kernel memory management system.
+ */
+struct page_owner {
+    ulong addr;                      // Virtual address of page_owner structure
+    ulong pfn;                       // Page Frame Number
+    ulong page_ext;
+    unsigned short order;            // Allocation order (2^order pages)
+    short last_migrate_reason;       // Last page migration reason code
+    unsigned int gfp_mask;           // GFP (Get Free Pages) allocation flags
+    unsigned int handle;             // Stack trace handle for allocation
+    unsigned int free_handle;        // Stack trace handle for deallocation
+    unsigned long long ts_nsec;      // Allocation timestamp in nanoseconds
+    unsigned long long free_ts_nsec; // Deallocation timestamp in nanoseconds
+    size_t pid;                      // Process ID that allocated the page
+    size_t tgid;                     // Thread Group ID (process group)
+    std::string comm;                // Process command name
+    std::shared_ptr<stack_record_t> stack_ptr;
+};
+
 class ParserPlugin {
 private:
 #if defined(ARM)
@@ -188,8 +215,13 @@ public:
     int depot_index = 0;
     ulong stack_slabs = 0;
     ulong kaddr_mask = 0;
-    ulong max_pfn;
-    ulong min_low_pfn;
+    ulong max_pfn = 0;
+    ulong min_low_pfn = 0;
+    size_t page_ext_ops_offset = 0;         // Offset to page_owner in page_ext
+    size_t page_ext_size = 0;
+    long PAGE_EXT_OWNER;                    // Page owner extension flag bit
+    long PAGE_EXT_OWNER_ALLOCATED;          // Page allocated flag bit
+
     std::string cmd_name;
     std::vector<std::string> help_str_list;
     char** cmd_help;
@@ -318,7 +350,20 @@ public:
 #if defined(ARM)
     ulong get_arm_pte(ulong task_addr, ulong page_vaddr);
 #endif
+
+    // Page owner related functions
+    bool is_enable_pageowner();
+    std::shared_ptr<page_owner> parse_page_owner_by_page(ulong page_addr);
+    std::shared_ptr<page_owner> parse_page_owner_by_pfn(ulong pfn);
+    std::shared_ptr<page_owner> parse_page_owner_by_phys(ulong phys_addr);
+    std::shared_ptr<page_owner> parse_page_owner_by_vaddr(ulong virt_addr);
+    ulong lookup_page_ext(ulong page);
+    bool page_ext_invalid(ulong page_ext);
+    ulong get_entry(ulong base, ulong pfn);
+    bool is_page_allocated(std::shared_ptr<page_owner> owner_ptr);
+
     virtual cmd_func_t get_wrapper_func();
+    void print_page_owner_info(std::shared_ptr<page_owner> owner_ptr);
 };
 
 #define DEFINE_PLUGIN_INSTANCE(class_name)                                                                      \

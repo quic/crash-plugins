@@ -13,130 +13,194 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
-#ifndef PAGE_OWNER_DEFS_H_
-#define PAGE_OWNER_DEFS_H_
+#ifndef PAGEOWNER_H_
+#define PAGEOWNER_H_
 
 #include "plugin.h"
 
-/* Page extension invalid flag from mm/page_ext.c */
-#define PAGE_EXT_INVALID    (0x1)
-
 /**
- * struct page_owner - Represents page ownership information
+ * @brief Per-process allocation statistics for pageowner
  *
- * This structure contains allocation/deallocation tracking information
- * for a physical page in the kernel memory management system.
+ * Tracks memory allocation patterns for individual processes,
+ * including total allocations and per-stack breakdowns.
  */
-struct page_owner {
-    ulong addr;                      // Virtual address of page_owner structure
-    ulong pfn;                       // Page Frame Number
-    unsigned short order;            // Allocation order (2^order pages)
-    short last_migrate_reason;       // Last page migration reason code
-    unsigned int gfp_mask;           // GFP (Get Free Pages) allocation flags
-    unsigned int handle;             // Stack trace handle for allocation
-    unsigned int free_handle;        // Stack trace handle for deallocation
-    unsigned long long ts_nsec;      // Allocation timestamp in nanoseconds
-    unsigned long long free_ts_nsec; // Deallocation timestamp in nanoseconds
-    size_t pid;                      // Process ID that allocated the page
-    size_t tgid;                     // Thread Group ID (process group)
-    std::string comm;                // Process command name
+struct PageownerPidStatistics {
+    size_t allocation_count = 0;                                    ///< Total number of allocations by this PID
+    size_t total_memory = 0;                                        ///< Total memory allocated by this PID
+    std::unordered_map<unsigned int, size_t> stack_memory;          ///< Stack handle -> memory allocated by this stack
 };
 
 /**
- * struct process_info - Aggregated memory statistics per process
- */
-struct process_info {
-    ulong total_cnt;   // Total number of allocations
-    ulong total_size;  // Total memory size in bytes
-};
-
-/**
- * struct stack_info - Aggregated allocation statistics per stack trace
- */
-struct stack_info {
-    unsigned int handle;             // Stack trace handle identifier
-    ulong total_cnt;                 // Total allocation count for this stack
-    ulong total_size;                // Total memory size for this stack
-    std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list; // Map of PFN to page_owner
-};
-
-/**
- * class Pageowner - Plugin for analyzing kernel page owner information
+ * @brief Per-call-stack allocation statistics for pageowner
  *
- * This plugin provides functionality to analyze page allocation and deallocation
- * tracking in Linux kernel crash dumps. It can display allocation stacks,
- * memory usage statistics, and track page ownership across the system.
+ * Tracks memory allocation patterns for specific call stacks,
+ * enabling identification of memory-intensive code paths.
+ */
+struct PageownerStackStatistics {
+    unsigned int handle = 0;                                        ///< Stack handle ID
+    size_t total_allocations = 0;                                   ///< Total allocations from this call stack
+    size_t total_memory = 0;                                        ///< Total memory allocated from this call stack
+    std::unordered_map<size_t, PageownerPidStatistics> pid_stats;   ///< Per-PID statistics within this stack
+};
+
+/**
+ * @class Pageowner
+ * @brief Plugin for analyzing kernel page owner information
+ *
+ * This plugin provides comprehensive functionality to analyze page allocation
+ * and deallocation tracking in Linux kernel crash dumps. It supports:
+ * - Display of allocation/deallocation stacks
+ * - Memory usage statistics by process and call stack
+ * - Address type auto-detection (PFN, physical, virtual, page structure)
+ * - Advanced filtering and analysis capabilities
  */
 class Pageowner : public ParserPlugin {
-private:
-    /**
-     * enum AddressType - Types of memory addresses that can be analyzed
-     */
-    enum AddressType {
-        ADDR_PFN,       // Page Frame Number
-        ADDR_PHYSICAL,  // Physical memory address
-        ADDR_PAGE,      // Kernel page structure address
-        ADDR_VIRTUAL,   // Virtual memory address
-        ADDR_UNKNOWN    // Unknown or invalid address type
-    };
-
-    // Input type flags for address interpretation
-    static const int INPUT_PFN = 0x0001;    // Input is a Page Frame Number
-    static const int INPUT_PYHS = 0x0002;   // Input is a Physical address
-    static const int INPUT_PAGE = 0x0004;   // Input is a Page structure address
-    static const int INPUT_VADDR = 0x0008;  // Input is a Virtual address
-
-    // Kernel data structure sizes and offsets
-    int page_ext_size;                      // Size of page_ext structure
-    size_t ops_offset;                      // Offset to page_owner in page_ext
-    long PAGE_EXT_OWNER;                    // Page owner extension flag bit
-    long PAGE_EXT_OWNER_ALLOCATED;          // Page allocated flag bit
-
-    // Data caches for parsed information
-    std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_map;        // PFN -> page_owner mapping
-    std::unordered_map<unsigned int, std::shared_ptr<stack_info>> handle_map; // Stack handle -> stack_info mapping
-    std::set<ulong> page_owner_page_list;   // Set of pages used by page_owner structures
-    std::set<ulong> stack_record_page_list; // Set of pages used by stack_record structures
-
-    // Core functionality methods
-    bool is_enable_pageowner();             // Check if page_owner is enabled in kernel
-    void parser_all_pageowners();           // Parse all page owner information from crash dump
-    std::shared_ptr<page_owner> parser_page_owner(ulong addr); // Parse single page_owner structure
-
-    // Page extension lookup methods
-    ulong get_entry(ulong base, ulong pfn); // Calculate page_ext entry address
-    bool page_ext_invalid(ulong page_ext);  // Check if page_ext pointer is valid
-    ulong lookup_page_ext(ulong page);      // Lookup page_ext for a given page
-    ulong get_page_owner(ulong page_ext);   // Get page_owner from page_ext
-
-    // Display and output methods
-    void print_page_owner(const std::string& addr, int flags); // Print page owner info for address
-    void print_sorted_allocation_summary(); // Print allocations sorted by frequency
-    void print_process_memory_summary(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list); // Print per-process summary
-    void print_memory_info();               // Print overall memory usage statistics
-    void print_all_allocated_pages();       // Print all currently allocated pages
-    void print_all_freed_pages();           // Print all freed pages
-    void print_page_owner_entry(std::shared_ptr<page_owner> owner_ptr, bool is_free,
-                               size_t entry_num, size_t total_entries); // Print single page owner entry
-    void print_page_owner_detailed(std::shared_ptr<page_owner> owner_ptr, bool is_free); // Print detailed page owner info
-    void print_page_owner_auto(const std::string& addr_str); // Auto-detect address type and print
-
-    // Address analysis methods
-    AddressType detect_address_type(ulonglong addr); // Detect what type of address is provided
-    bool is_page_address(ulonglong addr);   // Check if address is a page structure
-    bool is_physical_address(ulonglong addr); // Check if address is physical
-    bool is_user_virtual_address(ulonglong addr); // Check if address is user virtual
-    ulong vaddr_to_pfn(ulong vaddr);        // Convert virtual address to PFN
-
-    // Page state methods
-    bool is_page_allocated(std::shared_ptr<page_owner> owner_ptr); // Check if page is currently allocated
-
 public:
+    // Constructor and plugin interface methods
     Pageowner();
     void cmd_main(void) override;
     void init_offset(void) override;
     void init_command(void) override;
     DEFINE_PLUGIN_INSTANCE(Pageowner)
+
+private:
+    enum AddressType {
+        ADDR_PFN,           ///< Page Frame Number
+        ADDR_PHYSICAL,      ///< Physical memory address
+        ADDR_PAGE,          ///< Kernel page structure address
+        ADDR_VIRTUAL,       ///< Virtual memory address
+        ADDR_UNKNOWN        ///< Unknown or invalid address type
+    };
+
+    /**
+     * @brief Input type flags for address interpretation
+     */
+    static const int INPUT_PFN    = 0x0001;    ///< Input is a Page Frame Number
+    static const int INPUT_PHYS   = 0x0002;    ///< Input is a Physical address
+    static const int INPUT_PAGE   = 0x0004;    ///< Input is a Page structure address
+    static const int INPUT_VADDR  = 0x0008;    ///< Input is a Virtual address
+
+    /**
+     * @brief Default display limits for statistics output
+     */
+    const size_t DEFAULT_TOP_COUNT    = 20;     ///< Default number of top entries to display
+    const size_t DEFAULT_DETAIL_COUNT = 20;     ///< Default number of detailed entries to display
+
+    /// Main data cache: PFN -> page_owner mapping
+    std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_map;
+
+    /// Memory usage tracking for internal structures
+    std::set<ulong> page_owner_page_list;       ///< Pages used by page_owner structures
+    std::set<ulong> stack_record_page_list;     ///< Pages used by stack_record structures
+
+    /// Statistics collections
+    std::unordered_map<unsigned int, PageownerStackStatistics> stack_statistics;    ///< Stack-based allocation statistics
+    std::unordered_map<size_t, PageownerPidStatistics> global_pid_statistics;       ///< Global per-process statistics
+
+    /**
+     * @brief Parse all page owner information from crash dump
+     *
+     * This is the main parsing function that iterates through all physical
+     * page frames and extracts page owner information. It's performance-critical
+     * and may take significant time for systems with large memory.
+     */
+    void parser_pageowners();
+
+    /**
+     * @brief Collect allocation statistics for stack and PID analysis
+     * @param owner_ptr page_owner structure containing allocation information
+     */
+    void collect_stack_statistics(std::shared_ptr<page_owner>& owner_ptr);
+
+    /**
+     * @brief Detect the type of a given address using various heuristics
+     * @param addr Address to analyze
+     * @return AddressType enum value indicating the detected type
+     */
+    AddressType detect_address_type(ulonglong addr);
+
+    /**
+     * @brief Check if address is a kernel page structure address
+     * @param addr Address to check
+     * @return true if address is a valid page structure
+     */
+    bool is_page_address(ulonglong addr);
+
+    /**
+     * @brief Check if address is a physical memory address
+     * @param addr Address to check
+     * @return true if address is in valid physical memory range
+     */
+    bool is_physical_address(ulonglong addr);
+
+    /**
+     * @brief Print page owner info for specific address with type flags
+     * @param addr Address string in hexadecimal format
+     * @param flags Input type flags (INPUT_PFN, INPUT_PHYS, etc.)
+     */
+    void print_page_owner(const std::string& addr, int flags);
+
+    /**
+     * @brief Auto-detect address type and print page owner info
+     * @param addr_str Address string in hexadecimal format
+     */
+    void print_page_owner(const std::string& addr_str);
+
+    /**
+     * @brief Print all allocated or freed pages
+     * @param show_freed true to show freed pages, false for allocated pages
+     */
+    void print_all_pages(bool show_freed);
+
+    /**
+     * @brief Print single page owner entry in list format
+     * @param owner_ptr page_owner structure to display
+     * @param is_free true if showing free operation, false for allocation
+     * @param entry_num Current entry number in the list
+     * @param total_entries Total number of entries in the list
+     */
+    void print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_free,
+                         size_t entry_num, size_t total_entries);
+
+    /**
+     * @brief Print detailed page owner information
+     * @param owner_ptr page_owner structure to display
+     * @param is_free true if showing free operation, false for allocation
+     */
+    void print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_free);
+
+    /**
+     * @brief Print allocation statistics sorted by call stack memory usage
+     */
+    void print_alloc_mem_by_stack();
+
+    /**
+     * @brief Print global allocation statistics sorted by process memory usage
+     */
+    void print_alloc_mem_by_pid();
+
+    /**
+     * @brief Print detailed memory allocation analysis for a specific process
+     * @param pid Process ID to analyze
+     */
+    void print_pid_details(size_t pid);
+
+    /**
+     * @brief Print detailed call stack information for a specific handle
+     * @param handle Stack handle ID to display
+     */
+    void print_stack_info(unsigned int handle);
+
+    /**
+     * @brief Helper function to print formatted stack statistics
+     * @param sorted_stacks Vector of sorted stack statistics
+     * @param total_allocations Total allocation count across all stacks
+     * @param total_memory Total memory usage across all stacks
+     */
+    void print_stack_statistics_info(
+        const std::vector<std::pair<unsigned int, PageownerStackStatistics>>& sorted_stacks,
+        size_t total_allocations,
+        size_t total_memory);
 };
 
-#endif // PAGE_OWNER_DEFS_H_
+#endif // PAGEOWNER_H_

@@ -15,6 +15,7 @@
 
 #include "pageowner.h"
 #include <chrono>
+#include "plugin.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -23,360 +24,31 @@
 DEFINE_PLUGIN_COMMAND(Pageowner)
 #endif
 
-/**
- * cmd_main - Main entry point for the pageowner command
- *
- * This function processes command-line arguments and dispatches to the appropriate
- * handler based on the options provided. It supports various operations like
- * displaying allocated/freed pages, searching by address, and memory statistics.
- */
-void Pageowner::cmd_main(void) {
-    // Check if sufficient arguments are provided
-    if (argcnt < 2) {
-        LOGD("Insufficient arguments: argcnt=%d", argcnt);
-        cmd_usage(pc->curcmd, SYNOPSIS);
-        return;
-    }
 
-    // Verify page_owner is enabled in the kernel
-    if (!is_enable_pageowner()) {
-        LOGE("Page owner is not enabled in kernel");
-        return;
-    }
-
-    // Parse all page owner information if not already done (lazy initialization)
-    if (owner_map.empty()) {
-        LOGD("Owner map is empty, parsing all page owners...");
-        parser_all_pageowners();
-        LOGD("Parsed %zu page owner entries", owner_map.size());
-    } else {
-        LOGD("Using cached owner_map with %zu entries", owner_map.size());
-    }
-
-    int c;
-    int argerrs = 0;
-
-    // Process command-line options
-    while ((c = getopt(argcnt, args, "afs:tmp:")) != EOF) {
-        switch(c) {
-            case 'a': // Display all allocated page_owner info
-                print_all_allocated_pages();
-                break;
-            case 'f': // Display all freed page_owner info
-                print_all_freed_pages();
-                break;
-            case 's': // Search page_owner info by address (auto-detect type)
-                print_page_owner_auto(std::string(optarg));
-                break;
-            case 't': // Sort and display page_owner info by total allocation count
-                print_sorted_allocation_summary();
-                break;
-            case 'm': // Display overall memory information
-                print_memory_info();
-                break;
-            default:
-                LOGE("Unknown option: %c", c);
-                argerrs++;
-                break;
-        }
-    }
-
-    // Display usage if there were argument errors
-    if (argerrs) {
-        cmd_usage(pc->curcmd, SYNOPSIS);
-    }
-}
-
-/**
- * print_page_owner_auto - Automatically detect address type and print page owner info
- * @addr_str: Address string in hexadecimal format
- *
- * This function automatically detects whether the provided address is a PFN,
- * physical address, page structure address, or virtual address, then displays
- * the corresponding page owner information.
- */
-void Pageowner::print_page_owner_auto(const std::string& addr_str) {
-    // Validate input string
-    if (addr_str.empty()) {
-        LOGE("Empty address string provided");
-        return;
-    }
-    // Parse hexadecimal address string
-    ulonglong addr;
-    try {
-        addr = std::stoull(addr_str, nullptr, 16);
-    } catch (const std::exception& e) {
-        LOGE("Failed to parse address: %s", addr_str.c_str());
-        return;
-    }
-    // Reject null address
-    if (addr == 0) {
-        LOGE("Null address provided");
-        return;
-    }
-    // Detect address type and dispatch to appropriate handler
-    AddressType addr_type = detect_address_type(addr);
-    LOGD("Detected address type: %d", addr_type);
-    switch (addr_type) {
-        case ADDR_PFN:
-            LOGD("Address 0x%llx identified as PFN", addr);
-            print_page_owner(addr_str, INPUT_PFN);
-            break;
-        case ADDR_PHYSICAL:
-            LOGD("Address 0x%llx identified as Physical Address", addr);
-            print_page_owner(addr_str, INPUT_PYHS);
-            break;
-        case ADDR_PAGE:
-            LOGD("Address 0x%llx identified as Page Structure Address", addr);
-            print_page_owner(addr_str, INPUT_PAGE);
-            break;
-        case ADDR_VIRTUAL:
-            LOGD("Address 0x%llx identified as Virtual Address", addr);
-            print_page_owner(addr_str, INPUT_VADDR);
-            break;
-        case ADDR_UNKNOWN:
-        default:
-            LOGE("Cannot determine address type for 0x%llx", addr);
-            break;
-    }
-}
-
-/**
- * detect_address_type - Determine the type of a given address
- * @addr: Address to analyze
- *
- * This function uses various heuristics to determine whether an address is:
- * - A Page Frame Number (PFN)
- * - A physical memory address
- * - A kernel page structure address
- * - A virtual address (kernel or user space)
- *
- * Returns: AddressType enum value indicating the detected type
- */
-Pageowner::AddressType Pageowner::detect_address_type(ulonglong addr) {
-    // Check if address is in valid PFN range
-    // PFNs are typically small numbers representing page frame indices
-    if (addr >= min_low_pfn && addr <= max_pfn) {
-        ulong page = pfn_to_page(addr);
-        if (is_kvaddr(page)) {
-            LOGD("Address in PFN range [0x%lx, 0x%lx]", min_low_pfn, max_pfn);
-            return ADDR_PFN;
-        }
-    }
-
-    // Check if it's a kernel virtual address
-    if (is_kvaddr(addr)) {
-        // Distinguish between page structure address and other kernel addresses
-        if (is_page_address(addr)) {
-            LOGD("Address is a page address");
-            return ADDR_PAGE;
-        }
-        LOGD("Address is a generic kernel virtual address");
-        return ADDR_VIRTUAL;
-    }
-
-    // Check if it's a physical address
-    if (is_physical_address(addr)) {
-        LOGD("Address is a physical address");
-        return ADDR_PHYSICAL;
-    }
-
-    // Try to translate as user virtual address from current task
-    physaddr_t paddr = 0;
-    if (CURRENT_TASK() && uvtop(CURRENT_CONTEXT(), addr, &paddr, 0)) {
-        LOGD("Address translates in current task context to phys: 0x%llx", (ulonglong)paddr);
-        return ADDR_VIRTUAL;
-    }
-
-    // Search through all tasks to find if this is a user virtual address
-    struct task_context *tc;
-    for (ulong i = 0; i < RUNNING_TASKS(); i++) {
-        tc = FIRST_CONTEXT() + i;
-        if (tc->task && uvtop(tc, addr, &paddr, 0)) {
-            LOGD("Address found in task PID:%ld [%s], phys: 0x%llx", task_to_pid(tc->task), tc->comm, (ulonglong)paddr);
-            return ADDR_VIRTUAL;
-        }
-    }
-
-    // Unable to determine address type
-    LOGD("Unable to determine address type");
-    return ADDR_UNKNOWN;
-}
-
-bool Pageowner::is_page_address(ulonglong addr) {
-    try {
-        ulong pfn = page_to_pfn(addr);
-        if (pfn >= min_low_pfn && pfn <= max_pfn) {
-            ulong back_page = pfn_to_page(pfn);
-            return (back_page == addr);
-        }
-    } catch (...) {
-    }
-    return false;
-}
-
-bool Pageowner::is_physical_address(ulonglong addr) {
-    ulong pfn = phy_to_pfn(addr);
-    return (pfn >= min_low_pfn && pfn <= max_pfn);
-}
-
-void Pageowner::print_all_allocated_pages() {
-    size_t allocated_count = 0;
-    size_t total_pages = 0;
-    size_t total_size = 0;
-    for (const auto& pair : owner_map) {
-        const auto& owner_ptr = pair.second;
-        if (is_page_allocated(owner_ptr)) {
-            allocated_count++;
-            ulong page_count = 1UL << owner_ptr->order;
-            total_pages += page_count;
-            total_size += page_count * page_size;
-        }
-    }
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    PRINT("                    ALLOCATED PAGES SUMMARY\n");
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    PRINT("Total allocated entries: %zu\n", allocated_count);
-    PRINT("Total allocated pages:   %zu\n", total_pages);
-    PRINT("Total allocated memory:  %s\n", csize(total_size).c_str());
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    size_t entry_num = 0;
-    for (const auto& pair : owner_map) {
-        const auto& owner_ptr = pair.second;
-        if (is_page_allocated(owner_ptr)) {
-            entry_num++;
-            print_page_owner_entry(owner_ptr, false, entry_num, allocated_count);
-        }
-    }
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    PRINT("Displayed %zu allocated page entries\n", allocated_count);
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-}
-
-void Pageowner::print_all_freed_pages() {
-    size_t freed_count = 0;
-    size_t total_pages = 0;
-    size_t total_size = 0;
-    for (const auto& pair : owner_map) {
-        const auto& owner_ptr = pair.second;
-        if (!is_page_allocated(owner_ptr) && owner_ptr->free_handle > 0) {
-            freed_count++;
-            ulong page_count = 1UL << owner_ptr->order;
-            total_pages += page_count;
-            total_size += page_count * page_size;
-        }
-    }
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    PRINT("                      FREED PAGES SUMMARY\n");
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    PRINT("Total freed entries: %zu\n", freed_count);
-    PRINT("Total freed pages:   %zu\n", total_pages);
-    PRINT("Total freed memory:  %s\n", csize(total_size).c_str());
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    size_t entry_num = 0;
-    for (const auto& pair : owner_map) {
-        const auto& owner_ptr = pair.second;
-        if (!is_page_allocated(owner_ptr) && owner_ptr->free_handle > 0) {
-            entry_num++;
-            print_page_owner_entry(owner_ptr, true, entry_num, freed_count);
-        }
-    }
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-    PRINT("Displayed %zu freed page entries\n", freed_count);
-    PRINT("═══════════════════════════════════════════════════════════════\n");
-}
-
-void Pageowner::print_page_owner_entry(std::shared_ptr<page_owner> owner_ptr, bool is_free,
-                                       size_t entry_num, size_t total_entries) {
-    const ulong end_pfn = owner_ptr->pfn + (1UL << owner_ptr->order);
-    const ulong page = pfn_to_page(owner_ptr->pfn);
-    const unsigned int handle = is_free ? owner_ptr->free_handle : owner_ptr->handle;
-    const ulong timestamp = is_free ? owner_ptr->free_ts_nsec : owner_ptr->ts_nsec;
-    const char* action = is_free ? "FREE" : "ALLOC";
-    ulong page_count = 1UL << owner_ptr->order;
-    ulong total_size = page_count * page_size;
-    std::string comm = owner_ptr->comm;
-    if (comm.empty()) {
-        struct task_context *tc = pid_to_context(owner_ptr->pid);
-        if (tc) {
-            comm = std::string(tc->comm);
-        } else {
-            comm = "unknown";
-        }
-    }
-    std::string time_str = formatTimestamp(timestamp);
-    std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
-    if (record_ptr != nullptr) {
-        PRINT("[%zu/%zu] %s: PFN:0x%lx~0x%lx (%lu page%s, %s) Page:0x%lx PID:%zu[%s] timestamp:(%ld) %s\n",
-            entry_num, total_entries, action, owner_ptr->pfn, end_pfn, page_count,
-            (page_count > 1) ? "s" : "", csize(total_size).c_str(),
-            page, owner_ptr->pid, comm.c_str(), timestamp, time_str.c_str());
-
-        std::string stack = get_call_stack(record_ptr);
-        PRINT("%s \n", stack.c_str());
-    }
-}
-
-bool Pageowner::is_enable_pageowner(){
-    if(get_config_val("CONFIG_PAGE_OWNER") != "y"){
-        LOGE("page_owner is disabled\n");
-        return false;
-    }
-    if (!csymbol_exists("page_owner_inited")){
-        LOGE("page_owner is disabled\n");
-        return false;
-    }
-    int inited;
-    // see set_page_owner in page_owner.h
-    try_get_symbol_data(TO_CONST_STRING("page_owner_inited"), sizeof(int), &inited);
-    if (inited != 1){
-        LOGE("page_owner is disabled, pls check the page_owner=on in cmdline\n");
-        return false;
-    }
-    return true;
+Pageowner::Pageowner() {
+    // Constructor implementation - currently empty
 }
 
 void Pageowner::init_offset(void) {
-    field_init(page_owner,order);
-    field_init(page_owner,last_migrate_reason);
-    field_init(page_owner,gfp_mask);
-    field_init(page_owner,handle);
-    field_init(page_owner,free_handle);
-    field_init(page_owner,ts_nsec);
-    field_init(page_owner,free_ts_nsec);
-    field_init(page_owner,pid);
-    field_init(page_owner,tgid);
-    field_init(page_owner,comm);
-    field_init(page_owner,free_pid);
-    field_init(page_owner,free_tgid);
-    struct_init(page_owner);
-    field_init(mem_section,page_ext);
-    field_init(pglist_data,node_page_ext);
-    field_init(page_ext,flags);
-    struct_init(page_ext);
-
-    field_init(page_ext_operations,offset);
-    field_init(page_ext_operations,size);
-    struct_init(page_ext_operations);
-
-    field_init(stack_record,next);
-    field_init(stack_record,size);
-    field_init(stack_record,handle);
-    field_init(stack_record,entries);
-    struct_init(stack_record);
+    // Offset initialization - currently empty
 }
 
 void Pageowner::init_command(void) {
     cmd_name = "pageowner";
-    help_str_list={
+    help_str_list = {
         "pageowner",                            /* command name */
-        "dump page owner information",        /* short description */
-        "-a \n"
-            "  pageowner -f \n"
-            "  pageowner -t \n"
-            "  pageowner -s <address>\n"
-            "  pageowner -m \n"
-            "  This command dumps the pageowner info.",
+        "dump page owner information",          /* short description */
+        "-a                                display all allocated page owner information\n"
+        "  pageowner -f                                display all freed page owner information\n"
+        "  pageowner -s <address>                      display page owner info for specific address\n"
+        "  pageowner -t                                display allocation statistics by call stack\n"
+        "  pageowner -p                                display allocation statistics by process ID\n"
+        "  pageowner -P <pid>                          display detailed statistics for specific PID\n"
+        "  pageowner -H <handle>                       display detailed stack information for specific handle\n"
+        "  \n"
+        "  This command dumps the pageowner info and provides advanced statistics analysis.\n"
+        "  The address parameter supports automatic type detection (PFN, physical, virtual, page).\n"
+        "  Statistics features require page_owner to be enabled with stack tracing support.",
         "\n",
         "EXAMPLES",
         "  Display alloc stack for every page:",
@@ -466,31 +138,449 @@ void Pageowner::init_command(void) {
         "        3791     unknow               1324       5.17MB",
         "        2023     ndroid.systemui      1035       4.04MB",
         "\n",
-        "  Display the alloc memory size for every process:",
-        "    %s> pageowner -m",
-        "        PID      Comm                 Times      Size",
-        "                 page_owner                      20.80MB",
-        "                 stack_record                    308KB",
-        "        3772     memtester            179573     701.46MB",
-        "        1        init                 19078      104.62MB",
-        "        712      main                 14640      58.88MB",
-        "        1881     CachedAppOptimi      13552      52.98MB",
-        "        68       kswapd0              11550      45.20MB",
-        "        960      unknow               8262       32.44MB",
-        "        4268     ndroid.settings      6485       25.36MB",
-        "        1023     RenderEngine         5437       23.99MB",
-        "        1067     system_server        5199       22.14MB",
-        "        3867     binder:1067_18       4468       17.72MB",
-        "        2023     ndroid.systemui      4195       16.64MB",
+        "  Display allocation statistics by call stack (similar to SLUB):",
+        "    %s> pageowner -t",
+        "    ================================================================================",
+        "                        PAGE OWNER ALLOCATION STATISTICS",
+        "    ================================================================================",
+        "    Call Stacks: 1247     | Total Allocations: 2847291    | Total Memory: 1.2GB",
+        "    [1]Stack Handle:0x12856162 - Allocations: 164, Memory: 41.00KB",
+        "       [<ffffffff811d4c5a>] __alloc_pages+0x12a/0x1b0",
+        "       [<ffffffff812a8f3c>] alloc_pages+0x2c/0x60",
+        "      Per-Process Breakdown:",
+        "         PID        Comm                 Count      Memory",
+        "         1234       init                 100        25.00KB",
+        "         5678       kswapd0              64         16.00KB",
+        "\n",
+        "  Display allocation statistics by process ID:",
+        "    %s> pageowner -p",
+        "    ================================================================================",
+        "                    PAGE OWNER ALLOCATION STATISTICS (Top 20 by memory usage)",
+        "    ================================================================================",
+        "    Process: 1247     | Total Allocations: 2847291    | Total Memory: 1.2GB",
+        "    PID        Comm                 Allocations     Total Memory    Stacks",
+        "    1234       init                 50110           17.20MB         25",
+        "    5678       kswapd0              25055           8.60MB          12",
+        "\n",
+        "  Display detailed statistics for specific PID:",
+        "    %s> pageowner -P 1234",
+        "    ================================================================================",
+        "                           Detailed PID Analysis",
+        "    PID: 1234 [init] | Total Allocations: 50110 | Total Memory: 17.20MB | Stack count: 25",
+        "    Stack Handle    Memory              Percentage",
+        "    0x12856162      5.20MB              30.2%",
+        "    0x98765432      3.80MB              22.1%",
+        "    Use 'pageowner -H <handle>' to view detailed stack information.",
+        "\n",
+        "  Display detailed stack information for specific handle:",
+        "    %s> pageowner -H 0x12856162",
+        "    ================================================================================",
+        "    Stack Information - Handle: 0x12856162",
+        "    Total Allocations: 164 | Total Memory: 41.00KB",
+        "      [<ffffffff811d4c5a>] __alloc_pages+0x12a",
+        "      [<ffffffff812a8f3c>] alloc_pages+0x2c",
+        "    PID        Comm                 Allocations     Memory",
+        "    1234       init                 100             25.00KB",
+        "    5678       kswapd0              64              16.00KB",
         "\n",
     };
 }
 
-Pageowner::Pageowner(){}
+/**
+ * @brief Main entry point for the pageowner command
+ *
+ * This function processes command-line arguments and dispatches to the appropriate
+ * handler based on the options provided. It supports various operations like
+ * displaying allocated/freed pages, searching by address, and memory statistics.
+ */
+void Pageowner::cmd_main(void) {
+    // Validate minimum argument count
+    if (argcnt < 2) {
+        LOGD("Insufficient arguments: argcnt=%d", argcnt);
+        cmd_usage(pc->curcmd, SYNOPSIS);
+        return;
+    }
 
+    // Verify page_owner is enabled in the kernel
+    if (!is_enable_pageowner()) {
+        LOGE("Page owner is not enabled in kernel");
+        return;
+    }
+
+    // Lazy initialization: parse page owner data if not already done
+    if (owner_map.empty()) {
+        parser_pageowners();
+    } else {
+        LOGD("Using cached owner_map with %zu entries", owner_map.size());
+    }
+
+    // Process command-line options
+    int c;
+    int argerrs = 0;
+
+    while ((c = getopt(argcnt, args, "afs:tpP:H:")) != EOF) {
+        switch(c) {
+            case 'a':   // Display all allocated page_owner info
+                print_all_pages(false);
+                break;
+
+            case 'f':   // Display all freed page_owner info
+                print_all_pages(true);
+                break;
+
+            case 's':   // Search page_owner info by address (auto-detect type)
+                print_page_owner(std::string(optarg));
+                break;
+
+            case 't':   // Display allocation statistics by call stack
+                print_alloc_mem_by_stack();
+                break;
+
+            case 'p':   // Display allocation statistics by process ID
+                print_alloc_mem_by_pid();
+                break;
+
+            case 'P':   // Display detailed statistics for specific PID
+                if (optarg) {
+                    try {
+                        size_t pid = std::stoull(optarg);
+                        print_pid_details(pid);
+                    } catch (const std::exception& e) {
+                        LOGE("Invalid PID: %s", optarg);
+                        argerrs++;
+                    }
+                } else {
+                    LOGE("PID argument required for -P option");
+                    argerrs++;
+                }
+                break;
+
+            case 'H':   // Display detailed stack information for specific handle
+                if (optarg) {
+                    try {
+                        unsigned int handle = std::stoul(optarg, nullptr, 16);
+                        print_stack_info(handle);
+                    } catch (const std::exception& e) {
+                        LOGE("Invalid handle: %s", optarg);
+                        argerrs++;
+                    }
+                } else {
+                    LOGE("Handle argument required for -H option");
+                    argerrs++;
+                }
+                break;
+
+            default:
+                LOGE("Unknown option: %c", c);
+                argerrs++;
+                break;
+        }
+    }
+
+    // Display usage if there were argument errors
+    if (argerrs) {
+        cmd_usage(pc->curcmd, SYNOPSIS);
+    }
+}
+
+/**
+ * @brief Parse all page owner information from crash dump
+ *
+ * This function iterates through all physical page frames in the system and
+ * extracts page owner information for pages that have tracking enabled.
+ * It builds the owner_map which maps PFN to page_owner structures.
+ *
+ * This is a performance-critical function that may take significant time
+ * for systems with large amounts of memory.
+ */
+void Pageowner::parser_pageowners() {
+    LOGD("Starting to parse page owners from PFN range: 0x%lx - 0x%lx", min_low_pfn, max_pfn);
+
+    size_t total_pfns = max_pfn - min_low_pfn;
+    size_t processed = 0;
+    size_t valid_owners = 0;
+    size_t progress_interval = total_pfns / 10; // Log progress every 10%
+
+    // Clear previous statistics and add deduplication set
+    stack_statistics.clear();
+    global_pid_statistics.clear();
+    std::unordered_set<ulong> processed_po_addrs;  // For po_addr deduplication
+
+    if (!is_enable_pageowner()) {
+        PRINT("page_owner not enable !");
+        return;
+    }
+    // Iterate through all page frame numbers in the system
+    for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++) {
+        processed++;
+
+        // Log progress periodically for large memory systems
+        if (progress_interval > 0 && processed % progress_interval == 0) {
+            PRINT("Parsing progress: %zu/%zu PFNs (%.1f%%) \n",
+                  processed, total_pfns, (processed * 100.0) / total_pfns);
+        }
+        // Convert PFN to page structure address
+        ulong page = pfn_to_page(pfn);
+        if (!is_kvaddr(page)) {
+            LOGD("Invalid page address: 0x%lx\n", page);
+            continue;
+        }
+
+        // Lookup page_ext structure
+        ulong page_ext = lookup_page_ext(page);
+        if (!is_kvaddr(page_ext)) {
+            LOGD("Cannot find page_ext for PFN: 0x%lx\n", pfn);
+            continue;
+        }
+        ulong po_addr = page_ext + page_ext_ops_offset;
+        // Check for po_addr deduplication before collecting statistics
+        if (processed_po_addrs.find(po_addr) != processed_po_addrs.end()) {
+            LOGD("PFN 0x%zx: po_addr 0x%lx already processed, skipping statistics collection", pfn, po_addr);
+            continue;  // Skip statistics collection for duplicate po_addr
+        }
+        // Mark this po_addr as processed
+        processed_po_addrs.insert(po_addr);
+
+        // Parse page_owner structure for this PFN
+        std::shared_ptr<page_owner> owner_ptr = parse_page_owner_by_pfn(pfn);
+        if (owner_ptr == nullptr) {
+            LOGD("PFN 0x%zx: failed to parse page_owner", pfn);
+            continue;
+        }
+
+        LOGD("pfn:%zu page_ext:%lx page_owner:%lx handle:%ld free_handle:%ld\n",
+             pfn, owner_ptr->page_ext, owner_ptr->addr, (ulong)owner_ptr->handle, (ulong)owner_ptr->free_handle);
+
+        // Track memory usage by internal structures
+        page_owner_page_list.insert(owner_ptr->addr & page_mask);
+
+        if (owner_ptr->stack_ptr != nullptr) {
+            stack_record_page_list.insert(owner_ptr->stack_ptr->record_addr & page_mask);
+        }
+
+        // Store in the owner map for later retrieval
+        owner_map[pfn] = owner_ptr;
+        valid_owners++;
+
+        // Collect statistics for this page owner (only for unique po_addr)
+        collect_stack_statistics(owner_ptr);
+    }
+
+    LOGD("Parsing complete: processed %zu PFNs, found %zu valid page owners", processed, valid_owners);
+    LOGD("page_owner structures use %zu pages (%s)",
+         page_owner_page_list.size(), csize(page_owner_page_list.size() * page_size).c_str());
+    LOGD("stack_record structures use %zu pages (%s)",
+         stack_record_page_list.size(), csize(stack_record_page_list.size() * page_size).c_str());
+}
+
+/**
+ * @brief Collect allocation statistics for stack and PID analysis
+ * @param owner_ptr page_owner structure containing allocation information
+ */
+void Pageowner::collect_stack_statistics(std::shared_ptr<page_owner>& owner_ptr) {
+    if (!owner_ptr || owner_ptr->handle <= 0 || owner_ptr->pid <= 0) {
+        return;
+    }
+
+    // Only collect statistics for the first page of each allocation
+    // to avoid counting the same allocation multiple times
+    size_t alignment = 1UL << owner_ptr->order;
+    if ((owner_ptr->pfn % alignment) != 0) {
+        // This is not the first page of the allocation, skip statistics
+        LOGD("Skipping statistics for PFN 0x%lx (not first page of order %d allocation)",
+             owner_ptr->pfn, owner_ptr->order);
+        return;
+    }
+
+    // Calculate page size for this allocation (full allocation size)
+    size_t page_count = 1UL << owner_ptr->order;
+    size_t alloc_size = page_count * page_size;
+
+    // Update stack_statistics
+    auto& stack_stat = stack_statistics[owner_ptr->handle];
+    stack_stat.handle = owner_ptr->handle;
+    stack_stat.total_allocations++;
+    stack_stat.total_memory += alloc_size;
+
+    // Update PID-level statistics within this stack
+    auto& pid_stat = stack_stat.pid_stats[owner_ptr->pid];
+    pid_stat.allocation_count++;
+    pid_stat.total_memory += alloc_size;
+
+    // Update global_pid_statistics
+    auto& global_pid_stat = global_pid_statistics[owner_ptr->pid];
+    global_pid_stat.allocation_count++;
+    global_pid_stat.total_memory += alloc_size;
+
+    // Track which stacks this PID uses
+    global_pid_stat.stack_memory[owner_ptr->handle] += alloc_size;
+
+    LOGD("Statistics updated: handle=%u, pid=%zu, size=%zu (first page of order %d allocation)",
+         owner_ptr->handle, owner_ptr->pid, alloc_size, owner_ptr->order);
+}
+
+/**
+ * @brief Determine the type of a given address
+ * @param addr Address to analyze
+ *
+ * This function uses various heuristics to determine whether an address is:
+ * - A Page Frame Number (PFN)
+ * - A physical memory address
+ * - A kernel page structure address
+ * - A virtual address (kernel or user space)
+ *
+ * @return AddressType enum value indicating the detected type
+ */
+Pageowner::AddressType Pageowner::detect_address_type(ulonglong addr) {
+    // Check if address is in valid PFN range
+    // PFNs are typically small numbers representing page frame indices
+    if (addr >= min_low_pfn && addr <= max_pfn) {
+        ulong page = pfn_to_page(addr);
+        if (is_kvaddr(page)) {
+            LOGD("Address in PFN range [0x%lx, 0x%lx]", min_low_pfn, max_pfn);
+            return ADDR_PFN;
+        }
+    }
+
+    // Check if it's a kernel virtual address
+    if (is_kvaddr(addr)) {
+        // Distinguish between page structure address and other kernel addresses
+        if (is_page_address(addr)) {
+            LOGD("Address is a page address");
+            return ADDR_PAGE;
+        }
+        LOGD("Address is a generic kernel virtual address");
+        return ADDR_VIRTUAL;
+    }
+
+    // Check if it's a physical address
+    if (is_physical_address(addr)) {
+        LOGD("Address is a physical address");
+        return ADDR_PHYSICAL;
+    }
+
+    // Try to translate as user virtual address from current task
+    physaddr_t paddr = 0;
+    if (CURRENT_TASK() && uvtop(CURRENT_CONTEXT(), addr, &paddr, 0)) {
+        LOGD("Address translates in current task context to phys: 0x%llx", (ulonglong)paddr);
+        return ADDR_VIRTUAL;
+    }
+
+    // Search through all tasks to find if this is a user virtual address
+    struct task_context *tc;
+    for (ulong i = 0; i < RUNNING_TASKS(); i++) {
+        tc = FIRST_CONTEXT() + i;
+        if (tc->task && uvtop(tc, addr, &paddr, 0)) {
+            LOGD("Address found in task PID:%ld [%s], phys: 0x%llx",
+                 task_to_pid(tc->task), tc->comm, (ulonglong)paddr);
+            return ADDR_VIRTUAL;
+        }
+    }
+
+    // Unable to determine address type
+    LOGD("Unable to determine address type");
+    return ADDR_UNKNOWN;
+}
+
+/**
+ * @brief Check if address is a kernel page structure address
+ * @param addr Address to check
+ * @return true if address is a valid page structure
+ */
+bool Pageowner::is_page_address(ulonglong addr) {
+    try {
+        ulong pfn = page_to_pfn(addr);
+        if (pfn >= min_low_pfn && pfn <= max_pfn) {
+            ulong back_page = pfn_to_page(pfn);
+            return (back_page == addr);
+        }
+    } catch (...) {
+        // Ignore exceptions during validation
+    }
+    return false;
+}
+
+/**
+ * @brief Check if address is a physical memory address
+ * @param addr Address to check
+ * @return true if address is in valid physical memory range
+ */
+bool Pageowner::is_physical_address(ulonglong addr) {
+    ulong pfn = phy_to_pfn(addr);
+    return (pfn >= min_low_pfn && pfn <= max_pfn);
+}
+
+/**
+ * @brief Automatically detect address type and print page owner info
+ * @param addr_str Address string in hexadecimal format
+ *
+ * This function automatically detects whether the provided address is a PFN,
+ * physical address, page structure address, or virtual address, then displays
+ * the corresponding page owner information.
+ */
+void Pageowner::print_page_owner(const std::string& addr_str) {
+    // Validate input string
+    if (addr_str.empty()) {
+        LOGE("Empty address string provided");
+        return;
+    }
+
+    // Parse hexadecimal address string
+    ulonglong addr;
+    try {
+        addr = std::stoull(addr_str, nullptr, 16);
+    } catch (const std::exception& e) {
+        LOGE("Failed to parse address: %s", addr_str.c_str());
+        return;
+    }
+
+    // Reject null address
+    if (addr == 0) {
+        LOGE("Null address provided");
+        return;
+    }
+
+    // Detect address type and dispatch to appropriate handler
+    AddressType addr_type = detect_address_type(addr);
+    LOGD("Detected address type: %d", addr_type);
+
+    switch (addr_type) {
+        case ADDR_PFN:
+            LOGD("Address 0x%llx identified as PFN", addr);
+            print_page_owner(addr_str, INPUT_PFN);
+            break;
+
+        case ADDR_PHYSICAL:
+            LOGD("Address 0x%llx identified as Physical Address", addr);
+            print_page_owner(addr_str, INPUT_PHYS);
+            break;
+
+        case ADDR_PAGE:
+            LOGD("Address 0x%llx identified as Page Structure Address", addr);
+            print_page_owner(addr_str, INPUT_PAGE);
+            break;
+
+        case ADDR_VIRTUAL:
+            LOGD("Address 0x%llx identified as Virtual Address", addr);
+            print_page_owner(addr_str, INPUT_VADDR);
+            break;
+
+        case ADDR_UNKNOWN:
+        default:
+            LOGE("Cannot determine address type for 0x%llx", addr);
+            break;
+    }
+}
+
+/**
+ * @brief Print page owner info for specific address with type flags
+ * @param addr Address string in hexadecimal format
+ * @param flags Input type flags (INPUT_PFN, INPUT_PHYS, etc.)
+ */
 void Pageowner::print_page_owner(const std::string& addr, int flags) {
-    if (addr.empty()) return;
-
+    if (addr.empty()) {
+        return;
+    }
     ulonglong number;
     try {
         number = std::stoull(addr, nullptr, 16);
@@ -498,118 +588,82 @@ void Pageowner::print_page_owner(const std::string& addr, int flags) {
         LOGE("Invalid address format\n");
         return;
     }
-
-    if (number == 0) return;
-
-    ulong pfn = 0;
+    if (number == 0) {
+        return;
+    }
+    std::shared_ptr<page_owner> owner_ptr;
     switch (flags) {
         case INPUT_PFN:
-            pfn = number;
+            owner_ptr = parse_page_owner_by_pfn(number);
             break;
-        case INPUT_PYHS:
-            pfn = phy_to_pfn(number);
+
+        case INPUT_PHYS:
+            owner_ptr = parse_page_owner_by_phys(number);
             break;
+
         case INPUT_PAGE:
-            pfn = page_to_pfn(number);
+            owner_ptr = parse_page_owner_by_page(number);
             break;
+
         case INPUT_VADDR:
-            pfn = vaddr_to_pfn(number);
-            if (pfn == 0) {
-                LOGE("Cannot translate virtual address 0x%llx to pfn\n", number);
-                return;
-            }
-            LOGD( "Virtual address translation: 0x%llx -> PFN:0x%lx\n", number, pfn);
+            owner_ptr = parse_page_owner_by_vaddr(number);
+            // PFN will be determined by the parsing function
             break;
+
         default:
             LOGE("Invalid input type\n");
             return;
     }
 
-    if (pfn < min_low_pfn || pfn > max_pfn) {
-        LOGE("Invalid pfn: 0x%lx (valid range: 0x%lx - 0x%lx)\n", pfn, min_low_pfn, max_pfn);
-        return;
-    }
-
-    ulong page = pfn_to_page(pfn);
-    if (!is_kvaddr(page)) {
-        LOGE("Invalid page address: 0x%lx\n", page);
-        return;
-    }
-
-    ulong page_ext = lookup_page_ext(page);
-    if (!is_kvaddr(page_ext)) {
-        LOGE("Cannot find page_ext for PFN:0x%lx\n", pfn);
-        return;
-    }
-    ulong page_ext_flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
-    if (!(page_ext_flags & (1UL << PAGE_EXT_OWNER))) {
-        LOGE("Page owner not enabled for PFN:0x%lx\n", pfn);
-        return;
-    }
-    if (!(page_ext_flags & (1UL << PAGE_EXT_OWNER_ALLOCATED))) {
-        LOGE("Page owner not allocated for PFN:0x%lx\n", pfn);
-        return;
-    }
-    ulong page_owner_addr = get_page_owner(page_ext);
-    std::shared_ptr<page_owner> owner_ptr = parser_page_owner(page_owner_addr);
     if (!owner_ptr) {
-        LOGE("Cannot parse page owner for PFN:0x%lx\n", pfn);
+        LOGE("Cannot parse page owner for address: 0x%llx\n", number);
         return;
     }
-    owner_ptr->pfn = pfn;
+
     bool currently_allocated = is_page_allocated(owner_ptr);
+
+    // Print header
     PRINT("═══════════════════════════════════════════════════════════════\n");
     if (flags == INPUT_VADDR) {
         PRINT("           PAGE OWNER INFO FOR VIRTUAL ADDRESS 0x%llx\n", number);
     } else {
-        PRINT("                    PAGE OWNER INFO FOR PFN:0x%lx\n", pfn);
+        PRINT("                    PAGE OWNER INFO FOR PFN:0x%lx\n", owner_ptr->pfn);
     }
     PRINT("═══════════════════════════════════════════════════════════════\n");
 
     ulong page_count = 1UL << owner_ptr->order;
     ulong total_size = page_count * page_size;
-    PRINT("PFN Range      :   0x%lx - 0x%lx\n", pfn, pfn + page_count - 1);
-    PRINT("Page Address   :   0x%lx\n", page);
-    PRINT("Order          :   %d (%lu page%s, %s)\n", owner_ptr->order, page_count,
-            (page_count > 1) ? "s" : "", csize(total_size).c_str());
-    PRINT("Current Status :   %s\n",
-            currently_allocated ? "ALLOCATED" : "FREED");
+
+    PRINT("Order          :   %d (%lu page%s, %s)\n",
+          owner_ptr->order, page_count, (page_count > 1) ? "s" : "", csize(total_size).c_str());
+    PRINT("Current Status :   %s\n", currently_allocated ? "ALLOCATED" : "FREED");
     PRINT("═══════════════════════════════════════════════════════════════\n");
+
+    // Print allocation history if available
     if (owner_ptr->handle > 0) {
         PRINT("ALLOCATION HISTORY:\n");
-        print_page_owner_detailed(owner_ptr, false);
+        print_page_owner(owner_ptr, false);
     }
+
+    // Print free history if available
     if (owner_ptr->free_handle > 0) {
         PRINT("FREE HISTORY:\n");
-        print_page_owner_detailed(owner_ptr, true);
+        print_page_owner(owner_ptr, true);
     }
+
     PRINT("═══════════════════════════════════════════════════════════════\n");
 }
 
-ulong Pageowner::vaddr_to_pfn(ulong vaddr) {
-    physaddr_t paddr = 0;
-    if (kvtop(NULL, vaddr, &paddr, 0)) {
-        return phy_to_pfn(paddr);
-    }
-    if (CURRENT_TASK() && uvtop(CURRENT_CONTEXT(), vaddr, &paddr, 0)) {
-        return phy_to_pfn(paddr);
-    }
-    struct task_context *tc;
-    for (ulong i = 0; i < RUNNING_TASKS(); i++) {
-        tc = FIRST_CONTEXT() + i;
-        if (tc->task && uvtop(tc, vaddr, &paddr, 0)) {
-            LOGD("Found virtual address in task PID:%ld [%s]\n",
-                    task_to_pid(tc->task), tc->comm);
-            return phy_to_pfn(paddr);
-        }
-    }
-    return 0;
-}
-
-void Pageowner::print_page_owner_detailed(std::shared_ptr<page_owner> owner_ptr, bool is_free) {
+/**
+ * @brief Print detailed page owner information
+ * @param owner_ptr page_owner structure to display
+ * @param is_free true if showing free operation, false for allocation
+ */
+void Pageowner::print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_free) {
     const unsigned int handle = is_free ? owner_ptr->free_handle : owner_ptr->handle;
     const ulong timestamp = is_free ? owner_ptr->free_ts_nsec : owner_ptr->ts_nsec;
     const char* action = is_free ? "FREE" : "ALLOC";
+
     std::string comm = owner_ptr->comm;
     if (comm.empty()) {
         struct task_context *tc = pid_to_context(owner_ptr->pid);
@@ -622,446 +676,444 @@ void Pageowner::print_page_owner_detailed(std::shared_ptr<page_owner> owner_ptr,
 
     std::string time_str = formatTimestamp(timestamp);
     std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+
     if (record_ptr != nullptr) {
-        PRINT( "Status     :   %s\n", action);
-        PRINT( "PID        :   %zu [%s]\n", owner_ptr->pid, comm.c_str());
-        PRINT( "Timestamp  :   %s\n", time_str.c_str());
-        PRINT( "GFP Mask   :   0x%x\n", owner_ptr->gfp_mask);
+        PRINT("Status     :   %s\n", action);
+        PRINT("PID        :   %zu [%s]\n", owner_ptr->pid, comm.c_str());
+        PRINT("Timestamp  :   %s\n", time_str.c_str());
+        PRINT("GFP Mask   :   0x%x\n", owner_ptr->gfp_mask);
+
         if (owner_ptr->last_migrate_reason >= 0) {
-            PRINT( "Migrate Reason:  %d\n", owner_ptr->last_migrate_reason);
+            PRINT("Migrate Reason:  %d\n", owner_ptr->last_migrate_reason);
         }
+
         std::string stack = get_call_stack(record_ptr);
-        PRINT( "%s \n", stack.c_str());
+        PRINT("%s \n", stack.c_str());
     }
-}
-
-bool Pageowner::is_page_allocated(std::shared_ptr<page_owner> owner_ptr) {
-    if (owner_ptr->ts_nsec > 0 && owner_ptr->free_ts_nsec > 0) {
-        return owner_ptr->ts_nsec > owner_ptr->free_ts_nsec;
-    }
-    ulong page = pfn_to_page(owner_ptr->pfn);
-    if (is_kvaddr(page)) {
-        ulong page_ext = lookup_page_ext(page);
-        if (is_kvaddr(page_ext)) {
-            ulong flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
-            return (flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0;
-        }
-    }
-    if (owner_ptr->handle > 0 && owner_ptr->free_handle <= 0) {
-        return true;
-    }
-    if (owner_ptr->free_handle > 0 && owner_ptr->handle <= 0) {
-        return false;
-    }
-    return true;
-}
-
-void Pageowner::print_memory_info(){
-    std::ostringstream oss;
-    oss << std::left << std::setw(8) << "PID" << " "
-        << std::left << std::setw(20) << "Comm" << " "
-        << std::left << std::setw(10) << "Times" << " "
-        << std::left << std::setw(10) << "Size";
-    PRINT( "%s \n", oss.str().c_str());
-
-    const ulong page_owner_size = page_owner_page_list.size() * page_size;
-    oss.str("");
-    oss << std::left << std::setw(8) << "" << " "
-        << std::left << std::setw(20) << "page_owner" << " "
-        << std::left << std::setw(10) << "" << " "
-        << std::left << std::setw(10) << csize(page_owner_size);
-    PRINT( "%s \n", oss.str().c_str());
-
-    const ulong stack_record_size = stack_record_page_list.size() * page_size;
-    oss.str("");
-    oss << std::left << std::setw(8) << "" << " "
-        << std::left << std::setw(20) << "stack_record" << " "
-        << std::left << std::setw(10) << "" << " "
-        << std::left << std::setw(10) << csize(stack_record_size);
-    PRINT( "%s \n", oss.str().c_str());
-
-    std::unordered_map<size_t, std::shared_ptr<process_info>> process_map;
-    process_map.reserve(owner_map.size() / 4); // Reserve space to reduce reallocations
-
-    for (const auto& pair : owner_map) {
-        const auto& owner_ptr = pair.second;
-        if (owner_ptr->handle <= 0 || owner_ptr->pid <= 0) continue;
-
-        const ulong page_size_for_order = power(2, owner_ptr->order) * page_size;
-        auto result = process_map.emplace(owner_ptr->pid, nullptr);
-        auto it = result.first;
-        bool inserted = result.second;
-
-        if (inserted) {
-            it->second = std::make_shared<process_info>();
-            it->second->total_cnt = 1;
-            it->second->total_size = page_size_for_order;
-        } else {
-            it->second->total_cnt += 1;
-            it->second->total_size += page_size_for_order;
-        }
-    }
-
-    // Sort by total count
-    std::vector<std::pair<size_t, std::shared_ptr<process_info>>> process_vec;
-    process_vec.reserve(process_map.size());
-    for (auto& pair : process_map) {
-        auto& pid = pair.first;
-        auto& proc_ptr = pair.second;
-        process_vec.emplace_back(pid, std::move(proc_ptr));
-    }
-
-    std::sort(process_vec.begin(), process_vec.end(),
-              [](const auto& a, const auto& b) {
-                  return a.second->total_cnt > b.second->total_cnt;
-              });
-
-    constexpr size_t print_cnt = 50;
-    const size_t max_print = std::min(process_vec.size(), print_cnt);
-
-    for (size_t i = 0; i < max_print; ++i) {
-        const auto& pair = process_vec[i];
-        const auto& pid = pair.first;
-        const auto& proc_ptr = pair.second;
-
-        std::string name = "unknow";
-        if (struct task_context* tc = pid_to_context(pid)) {
-            name = tc->comm;
-        }
-
-        oss.str("");
-        oss << std::left << std::setw(8) << pid << " "
-            << std::left << std::setw(20) << name << " "
-            << std::left << std::setw(10) << proc_ptr->total_cnt << " "
-            << std::left << std::setw(10) << csize(proc_ptr->total_size);
-        PRINT( "%s \n", oss.str().c_str());
-    }
-}
-
-void Pageowner::print_sorted_allocation_summary(){
-    if (handle_map.empty()){
-        handle_map.reserve(owner_map.size() / 4); // Reserve space to reduce reallocations
-
-        for (const auto& pair : owner_map) {
-            const ulong pfn = pair.first;
-            const auto& owner_ptr = pair.second;
-            if(owner_ptr->handle <= 0) continue;
-
-            const ulong page_size_for_order = power(2, owner_ptr->order) * page_size;
-            auto result = handle_map.emplace(owner_ptr->handle, nullptr);
-            auto it = result.first;
-            bool inserted = result.second;
-
-            if (inserted) {
-                it->second = std::make_shared<stack_info>();
-                it->second->total_cnt = 1;
-                it->second->total_size = page_size_for_order;
-                it->second->handle = owner_ptr->handle;
-                it->second->owner_list.reserve(64); // Reserve space for owner_list
-            } else {
-                it->second->total_cnt += 1;
-                it->second->total_size += page_size_for_order;
-            }
-            it->second->owner_list[pfn] = owner_ptr;
-        }
-    }
-
-    // Sort by total count
-    std::vector<std::pair<unsigned int, std::shared_ptr<stack_info>>> handle_vec;
-    handle_vec.reserve(handle_map.size());
-    for (auto& pair : handle_map) {
-        handle_vec.emplace_back(pair.first, pair.second);
-    }
-
-    std::sort(handle_vec.begin(), handle_vec.end(),
-              [](const auto& a, const auto& b) {
-                  return a.second->total_cnt > b.second->total_cnt;
-              });
-
-    for (const auto& pair : handle_vec) {
-        const unsigned int handle = pair.first;
-        const auto& stack_ptr = pair.second;
-        PRINT( "Allocated %ld times, Total memory: %s\n", stack_ptr->total_cnt, csize(stack_ptr->total_size).c_str());
-        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
-        if (record_ptr != nullptr){
-            std::string stack = get_call_stack(record_ptr);
-            PRINT( "%s",stack.c_str());
-        }
-        print_process_memory_summary(stack_ptr->owner_list);
-        PRINT( "\n");
-    }
-}
-
-void Pageowner::print_process_memory_summary(std::unordered_map<size_t, std::shared_ptr<page_owner>> owner_list){
-    std::unordered_map<size_t, std::shared_ptr<process_info>> process_map; //<pid,process_info>
-    for (const auto& pair : owner_list) {
-        std::shared_ptr<page_owner> owner_ptr = pair.second;
-        if(owner_ptr->pid <= 0) continue;
-        LOGD("pid:%zu, handle:%ld order:%d\n",owner_ptr->pid,(ulong)owner_ptr->handle,owner_ptr->order);
-        std::shared_ptr<process_info> proc_ptr;
-        if (process_map.find(owner_ptr->pid) != process_map.end()) { //exists
-            proc_ptr = process_map[owner_ptr->pid];
-            proc_ptr->total_cnt += 1;
-            proc_ptr->total_size += power(2, owner_ptr->order) * page_size;
-        } else {
-            proc_ptr = std::make_shared<process_info>();
-            proc_ptr->total_cnt = 1;
-            proc_ptr->total_size = power(2, owner_ptr->order) * page_size;
-            process_map[owner_ptr->pid] = proc_ptr;
-        }
-    }
-    //sort
-    std::vector<std::pair<unsigned int, std::shared_ptr<process_info>>> process_vec(process_map.begin(), process_map.end());
-    std::sort(process_vec.begin(), process_vec.end(),[&](const std::pair<unsigned int, std::shared_ptr<process_info>>& a, const std::pair<unsigned int, std::shared_ptr<process_info>>& b){
-        return a.second->total_cnt > b.second->total_cnt;
-    });
-    PRINT( "-------------------------------------------------\n");
-    std::ostringstream oss;
-    oss << std::left << std::setw(8) << "PID" << " "
-        << std::left << std::setw(20) << "Comm" << " "
-        << std::left << std::setw(10) << "Times" << " "
-        << std::left << std::setw(10) << "Size";
-    PRINT( "%s \n", oss.str().c_str());
-    size_t print_cnt = 20; //only print top 20
-    for (size_t i = 0; i < process_vec.size() && i < print_cnt; i++){
-        size_t pid = process_vec[i].first;
-        std::string name = "unknow";
-        struct task_context *tc = pid_to_context(pid);
-        if (tc){
-            name = std::string(tc->comm);
-        }
-        std::shared_ptr<process_info> proc_ptr = process_vec[i].second;
-        oss.str("");
-        oss << std::left << std::setw(8) << pid << " "
-            << std::left << std::setw(20) << name << " "
-            << std::left << std::setw(10) << proc_ptr->total_cnt << " "
-            << std::left << std::setw(10) << csize(proc_ptr->total_size);
-        PRINT( "%s \n", oss.str().c_str());
-    }
-}
-
-std::shared_ptr<page_owner> Pageowner::parser_page_owner(ulong addr){
-    if (!is_kvaddr(addr)) return nullptr;
-
-    void *page_owner_buf = read_struct(addr, "page_owner");
-    if (page_owner_buf == nullptr) return nullptr;
-
-    auto owner_ptr = std::make_shared<page_owner>();
-    owner_ptr->addr = addr;
-
-    // Read all fields in one go to minimize pointer arithmetic
-    const char* buf_base = static_cast<const char*>(page_owner_buf);
-    owner_ptr->order = SHORT(buf_base + field_offset(page_owner, order));
-    owner_ptr->handle = UINT(buf_base + field_offset(page_owner, handle));
-    owner_ptr->free_handle = UINT(buf_base + field_offset(page_owner, free_handle));
-    owner_ptr->last_migrate_reason = SHORT(buf_base + field_offset(page_owner, last_migrate_reason));
-    owner_ptr->ts_nsec = ULONG(buf_base + field_offset(page_owner, ts_nsec));
-    owner_ptr->free_ts_nsec = ULONG(buf_base + field_offset(page_owner, free_ts_nsec));
-    owner_ptr->gfp_mask = INT(buf_base + field_offset(page_owner, gfp_mask));
-    owner_ptr->pid = INT(buf_base + field_offset(page_owner, pid));
-
-    // Handle optional fields
-    const auto comm_offset = field_offset(page_owner, comm);
-    if (comm_offset > 0) {
-        owner_ptr->comm = read_cstring(addr + comm_offset, 64, "page_owner_comm");
-    }
-
-    const auto tgid_offset = field_offset(page_owner, tgid);
-    if (tgid_offset > 0) {
-        owner_ptr->tgid = INT(buf_base + tgid_offset);
-    } else {
-        struct task_context *tc = pid_to_context(owner_ptr->pid);
-        if (tc) {
-            owner_ptr->tgid = task_tgid(tc->task);
-            if (comm_offset <= 0) {
-                owner_ptr->comm = std::string(tc->comm);
-            }
-        }
-    }
-
-    FREEBUF(page_owner_buf);
-    return owner_ptr;
 }
 
 /**
- * parser_all_pageowners - Parse all page owner information from crash dump
- *
- * This function iterates through all physical page frames in the system and
- * extracts page owner information for pages that have tracking enabled.
- * It builds the owner_map which maps PFN to page_owner structures.
- *
- * This is a performance-critical function that may take significant time
- * for systems with large amounts of memory.
+ * @brief Print all allocated or freed pages
+ * @param show_freed true to show freed pages, false for allocated pages
  */
-void Pageowner::parser_all_pageowners(){
-    // Verify page_owner is enabled before proceeding
-    if (!is_enable_pageowner()){
-        LOGE("Page owner is not enabled, cannot parse");
-        return;
+void Pageowner::print_all_pages(bool show_freed) {
+    size_t page_count = 0;
+    size_t total_pages = 0;
+    size_t total_size = 0;
+
+    for (const auto& pair : owner_map) {
+        const auto& owner_ptr = pair.second;
+        bool is_allocated = is_page_allocated(owner_ptr);
+        // PRINT("pfn:%lx \n",pair.first);
+        // PRINT("  page_ext:%llx \n",owner_ptr->page_ext);
+        // PRINT("  page_owner:%llx \n",owner_ptr->addr);
+        // PRINT("  status:%s \n",is_allocated ? "alloc":"free");
+        // PRINT("  handle:%lx \n",owner_ptr->handle);
+        // PRINT("  free_handle:%lx \n",owner_ptr->free_handle);
+        // Check if this page matches our filter criteria
+        bool should_count = show_freed ? !is_allocated : is_allocated;
+
+        if (should_count) {
+            page_count++;
+            ulong pages_in_order = 1UL << owner_ptr->order;
+            total_pages += pages_in_order;
+            total_size += pages_in_order * page_size;
+        }
     }
-    // Determine page_ext_size based on kernel version
-    // Kernel 5.4+ uses page_ext_size symbol directly
-    if (csymbol_exists("page_ext_size")) {
-        try_get_symbol_data(TO_CONST_STRING("page_ext_size"), sizeof(ulong), &page_ext_size);
-        LOGD("Found page_ext_size symbol: %d", page_ext_size);
-    } else if (csymbol_exists("extra_mem") && struct_size(page_ext)) {
-        // Older kernels: calculate from struct size + extra_mem
-        ulong extra_mem;
-        if (try_get_symbol_data(TO_CONST_STRING("extra_mem"), sizeof(ulong), &extra_mem)){
-            page_ext_size = struct_size(page_ext) + extra_mem;
-            LOGD("Calculated page_ext_size from extra_mem: %d", page_ext_size);
-        }
-    }
-    if (page_ext_size <= 0){
-        LOGE("Cannot determine page_ext_size value");
-        return;
-    }
-    LOGD("page_ext_size: %d bytes", page_ext_size);
-    // Get the offset of page_owner within page_ext structure
-    if (csymbol_exists("page_owner_ops")){
-        ulong ops_addr = csymbol_value("page_owner_ops");
-        ops_offset = read_ulong(ops_addr + field_offset(page_ext_operations,offset),"page_owner_ops.offset");
-        LOGD("ops_offset: %zu", ops_offset);
-    }
-    if (ops_offset < 0){
-        LOGE("Cannot determine ops_offset value");
-        return;
-    }
-    // Verify stack_slabs is available for stack trace lookup
-    if (!stack_slabs){
-        LOGE("stack_slabs not available");
-        return;
-    }
-    // Read page extension flag bit positions
-    PAGE_EXT_OWNER = read_enum_val("PAGE_EXT_OWNER");
-    PAGE_EXT_OWNER_ALLOCATED = read_enum_val("PAGE_EXT_OWNER_ALLOCATED");
-    LOGD("Starting to parse page owners from PFN range: 0x%lx - 0x%lx", min_low_pfn, max_pfn);
-    size_t total_pfns = max_pfn - min_low_pfn;
-    size_t processed = 0;
-    size_t valid_owners = 0;
-    size_t progress_interval = total_pfns / 10; // Log progress every 10%
-    // Iterate through all page frame numbers in the system
-    for (size_t pfn = min_low_pfn; pfn < max_pfn; pfn++){
-        processed++;
-        // Log progress periodically for large memory systems
-        if (progress_interval > 0 && processed % progress_interval == 0) {
-            PRINT("Parsing progress: %zu/%zu PFNs (%.1f%%) \n",
-                     processed, total_pfns, (processed * 100.0) / total_pfns);
-        }
 
-        // Convert PFN to page structure address
-        ulong page = pfn_to_page(pfn);
-        if (!is_kvaddr(page)) {
-            LOGD("PFN 0x%zx: invalid page address 0x%lx", pfn, page);
-            continue;
-        }
-
-        // Lookup the page_ext structure for this page
-        ulong page_ext = lookup_page_ext(page);
-        if (!is_kvaddr(page_ext)) {
-            LOGD("PFN 0x%zx: invalid page_ext address", pfn);
-            continue;
-        }
-
-        // Check if page owner tracking is enabled for this page
-        ulong flags = read_ulong(page_ext + field_offset(page_ext, flags), "page_ext_flags");
-        if (!((flags & (1UL << PAGE_EXT_OWNER)) != 0)) {
-            LOGD("PFN 0x%zx: PAGE_EXT_OWNER not set", pfn);
-            continue;
-        }
-        if (!((flags & (1UL << PAGE_EXT_OWNER_ALLOCATED)) != 0)) {
-            LOGD("PFN 0x%zx: PAGE_EXT_OWNER_ALLOCATED not set", pfn);
-            continue;
-        }
-
-        // Get page_owner structure address and parse it
-        ulong page_owner_addr = get_page_owner(page_ext);
-        page_owner_page_list.insert(page_owner_addr & page_mask);
-
-        std::shared_ptr<page_owner> owner_ptr = parser_page_owner(page_owner_addr);
-        LOGD( "pfn:%zu page_ext:%lx page_owner:%lx handle:%ld free_handle:%ld\n",
-                pfn,page_ext,page_owner_addr,(ulong)owner_ptr->handle,(ulong)owner_ptr->free_handle);
-
-        if(owner_ptr == nullptr) {
-            LOGE("PFN 0x%zx: failed to parse page_owner", pfn);
-            continue;
-        }
-
-        // Verify PFN alignment with allocation order
-        // Pages are allocated in power-of-2 blocks, so PFN must be aligned
-        if (!IS_ALIGNED(pfn, 1 << owner_ptr->order)) {
-            LOGD("PFN 0x%zx: not aligned to order %d", pfn, owner_ptr->order);
-            continue;
-        }
-        owner_ptr->pfn = pfn;
-
-        // Retrieve and cache stack trace records for both allocation and free
-        std::shared_ptr<stack_record_t> record_ptr;
-        if(owner_ptr->free_handle > 0){
-            record_ptr = get_stack_record(owner_ptr->free_handle);
-            if (record_ptr) {
-                stack_record_page_list.insert(record_ptr->record_addr & page_mask);
-            }
-        }
-        if(owner_ptr->handle > 0){
-            record_ptr = get_stack_record(owner_ptr->handle);
-            if (record_ptr) {
-                stack_record_page_list.insert(record_ptr->record_addr & page_mask);
-            }
-        }
-        // Store in the owner map for later retrieval
-        owner_map[pfn] = owner_ptr;
-        valid_owners++;
-    }
-    LOGD("Parsing complete: processed %zu PFNs, found %zu valid page owners", processed, valid_owners);
-    LOGD("page_owner structures use %zu pages (%s)", page_owner_page_list.size(), csize(page_owner_page_list.size() * page_size).c_str());
-    LOGD("stack_record structures use %zu pages (%s)", stack_record_page_list.size(),csize(stack_record_page_list.size() * page_size).c_str());
-}
-
-ulong Pageowner::get_page_owner(ulong page_ext){
-    return page_ext + ops_offset;
-}
-
-ulong Pageowner::lookup_page_ext(ulong page) {
-    if(get_config_val("CONFIG_PAGE_EXTENSION") != "y"){
-        LOGD("Not enable CONFIG_PAGE_EXTENSION \n");
-        return 0;
-    }
-    const ulong pfn = page_to_pfn(page);
-    ulong page_ext = 0;
-
-    if(get_config_val("CONFIG_SPARSEMEM") == "y"){
-        const ulong section_nr = pfn_to_section_nr(pfn);
-        const ulong section = valid_section_nr(section_nr);
-        if (!section || !is_kvaddr(section)){
-            LOGD("invaild section %#lx \n",section);
-            return 0;
-        }
-        page_ext = read_pointer(section + field_offset(mem_section,page_ext),"mem_section_page_ext");
-        if (page_ext_invalid(page_ext)){
-            LOGD("invaild page_ext %#lx \n",page_ext);
-            return 0;
-        }
+    // Print header with appropriate title
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+    if (show_freed) {
+        PRINT("                      FREED PAGES SUMMARY\n");
     } else {
-        const int nid = page_to_nid(page);
-        const struct node_table *nt = &vt->node_table[nid];
-        page_ext = read_pointer(nt->pgdat + field_offset(pglist_data,node_page_ext),"pglist_data_node_page_ext");
+        PRINT("                    ALLOCATED PAGES SUMMARY\n");
     }
-    return get_entry(page_ext, pfn);
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+
+    // Print summary statistics
+    if (show_freed) {
+        PRINT("Total freed entries: %zu\n", page_count);
+        PRINT("Total freed pages:   %zu\n", total_pages);
+        PRINT("Total freed memory:  %s\n", csize(total_size).c_str());
+    } else {
+        PRINT("Total allocated entries: %zu\n", page_count);
+        PRINT("Total allocated pages:   %zu\n", total_pages);
+        PRINT("Total allocated memory:  %s\n", csize(total_size).c_str());
+    }
+    PRINT("═══════════════════════════════════════════════════════════════\n");
+
+    // Second pass: print matching entries
+    size_t entry_num = 0;
+    for (const auto& pair : owner_map) {
+        const auto& owner_ptr = pair.second;
+        bool is_allocated = is_page_allocated(owner_ptr);
+
+        // Check if this page matches our filter criteria
+        bool should_print = show_freed ? !is_allocated : is_allocated;
+
+        if (should_print) {
+            entry_num++;
+            print_page_owner(owner_ptr, show_freed, entry_num, page_count);
+        }
+    }
 }
 
-ulong Pageowner::get_entry(ulong base, ulong pfn) {
-    LOGD("page_ext:%lx pfn:%lx\n", base,pfn);
-#ifdef ARM64
-    return base + page_ext_size * pfn;
-#else
-    ulong pfn_index = pfn - phy_to_pfn(machdep->machspec->phys_base);
-    return base + page_ext_size * pfn_index;
-#endif
+/**
+ * @brief Print single page owner entry in list format
+ * @param owner_ptr page_owner structure to display
+ * @param is_free true if showing free operation, false for allocation
+ * @param entry_num Current entry number in the list
+ * @param total_entries Total number of entries in the list
+ */
+void Pageowner::print_page_owner(std::shared_ptr<page_owner> owner_ptr, bool is_free,
+                                 size_t entry_num, size_t total_entries) {
+    const ulong end_pfn = owner_ptr->pfn + (1UL << owner_ptr->order);
+    const ulong page = pfn_to_page(owner_ptr->pfn);
+    const ulong timestamp = is_free ? owner_ptr->free_ts_nsec : owner_ptr->ts_nsec;
+    const char* action = is_free ? "FREE" : "ALLOC";
+    ulong page_count = 1UL << owner_ptr->order;
+    ulong total_size = page_count * page_size;
+
+    std::string comm = owner_ptr->comm;
+    if (comm.empty()) {
+        struct task_context *tc = pid_to_context(owner_ptr->pid);
+        if (tc) {
+            comm = std::string(tc->comm);
+        } else {
+            comm = "unknown";
+        }
+    }
+
+    std::string time_str = formatTimestamp(timestamp);
+    std::shared_ptr<stack_record_t> record_ptr = owner_ptr->stack_ptr;
+    if (record_ptr != nullptr) {
+        PRINT("[%zu/%zu] %s: PFN:0x%lx~0x%lx (%lu page%s, %s) Page:0x%lx PID:%zu[%s] timestamp:(%ld) %s\n",
+              entry_num, total_entries, action, owner_ptr->pfn, end_pfn, page_count,
+              (page_count > 1) ? "s" : "", csize(total_size).c_str(),
+              page, owner_ptr->pid, comm.c_str(), timestamp, time_str.c_str());
+
+        std::string stack = get_call_stack(record_ptr);
+        PRINT("%s \n", stack.c_str());
+    }else{
+        PRINT("record_ptr is null \n");
+    }
 }
 
-bool Pageowner::page_ext_invalid(ulong page_ext){
-    return !is_kvaddr(page_ext) || (((unsigned long)page_ext & PAGE_EXT_INVALID) == PAGE_EXT_INVALID);
+/**
+ * @brief Helper function to print formatted stack statistics
+ * @param sorted_stacks Vector of sorted stack statistics
+ * @param total_allocations Total allocation count across all stacks
+ * @param total_memory Total memory usage across all stacks
+ */
+void Pageowner::print_stack_statistics_info(
+    const std::vector<std::pair<unsigned int, PageownerStackStatistics>>& sorted_stacks,
+    size_t total_allocations,
+    size_t total_memory) {
+
+    for (size_t i = 0; i < sorted_stacks.size(); i++) {
+        const auto& stack_pair = sorted_stacks[i];
+        const auto& handle = stack_pair.first;
+        const auto& stats = stack_pair.second;
+
+        PRINT("[%zu]Stack Handle:0x%x - Allocations: %zu, Memory: %s\n",
+              i + 1, handle, stats.total_allocations, csize(stats.total_memory).c_str());
+
+        // Show call stack
+        std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+        if (record_ptr != nullptr) {
+            std::string stack = get_call_stack(record_ptr);
+            PRINT("%s", stack.c_str());
+        }
+
+        // Sort PIDs by memory usage within this stack
+        std::vector<std::pair<size_t, PageownerPidStatistics>> sorted_pids;
+        sorted_pids.reserve(stats.pid_stats.size());
+        for (const auto& pid_pair : stats.pid_stats) {
+            sorted_pids.emplace_back(pid_pair.first, pid_pair.second);
+        }
+
+        std::sort(sorted_pids.begin(), sorted_pids.end(),
+                  [](const auto& a, const auto& b) {
+                      return a.second.total_memory > b.second.total_memory;
+                  });
+
+        PRINT("  Per-Process Breakdown:\n");
+        PRINT("     %-10s %-20s %-10s %-15s\n", "PID", "Comm", "Count", "Memory");
+        PRINT("     %-10s %-20s %-10s %-15s\n", "---", "----", "-----", "------");
+
+        // Show top 5 PIDs for this stack (or all if less than 5)
+        size_t pid_display_count = std::min(sorted_pids.size(), static_cast<size_t>(5));
+        for (size_t j = 0; j < pid_display_count; j++) {
+            const auto& pid_pair = sorted_pids[j];
+            const auto& pid = pid_pair.first;
+            const auto& pid_stats = pid_pair.second;
+
+            std::string comm = "unknown";
+            struct task_context *tc = pid_to_context(pid);
+            if (tc) {
+                comm = std::string(tc->comm);
+            }
+
+            PRINT("     %-10zu %-20s %-10zu %-15s\n",
+                  pid, comm.c_str(), pid_stats.allocation_count, csize(pid_stats.total_memory).c_str());
+        }
+
+        if (sorted_pids.size() > 5) {
+            PRINT("     ... and %zu more processes\n", sorted_pids.size() - 5);
+        }
+        PRINT("\n");
+    }
+}
+
+/**
+ * @brief Display stack allocation statistics sorted by total memory usage
+ */
+void Pageowner::print_alloc_mem_by_stack() {
+    if (stack_statistics.empty()) {
+        PRINT("No stack statistics available. Ensure page_owner is enabled and data is parsed.\n");
+        return;
+    }
+
+    // Convert to vector for sorting
+    std::vector<std::pair<unsigned int, PageownerStackStatistics>> sorted_stacks;
+    sorted_stacks.reserve(stack_statistics.size());
+
+    for (const auto& stack_pair : stack_statistics) {
+        sorted_stacks.emplace_back(stack_pair.first, stack_pair.second);
+    }
+
+    // Sort by total memory usage (descending)
+    std::sort(sorted_stacks.begin(), sorted_stacks.end(),
+              [](const auto& a, const auto& b) {
+                  return a.second.total_memory > b.second.total_memory;
+              });
+
+    // Limit output if requested
+    if (DEFAULT_TOP_COUNT > 0 && sorted_stacks.size() > DEFAULT_TOP_COUNT) {
+        sorted_stacks.resize(DEFAULT_TOP_COUNT);
+    }
+
+    // Calculate totals
+    size_t total_allocations = 0;
+    size_t total_memory = 0;
+    for (const auto& stack_pair : stack_statistics) {
+        const auto& stats = stack_pair.second;
+        total_allocations += stats.total_allocations;
+        total_memory += stats.total_memory;
+    }
+
+    // Print enhanced header
+    PRINT("================================================================================\n");
+    PRINT("                        PAGE OWNER ALLOCATION STATISTICS\n");
+    PRINT("================================================================================\n");
+    PRINT("Call Stacks: %-8zu | Total Allocations: %-10zu | Total Memory: %s\n",
+          stack_statistics.size(), total_allocations, csize(total_memory).c_str());
+    PRINT("================================================================================\n");
+
+    // Use the helper function to print stack statistics
+    print_stack_statistics_info(sorted_stacks, total_allocations, total_memory);
+}
+
+/**
+ * @brief Display global PID memory allocation statistics
+ */
+void Pageowner::print_alloc_mem_by_pid() {
+    if (global_pid_statistics.empty()) {
+        PRINT("No global PID statistics available. Ensure page_owner is enabled and data is parsed.\n");
+        return;
+    }
+
+    // Convert to vector for sorting
+    std::vector<std::pair<size_t, PageownerPidStatistics>> sorted_pids;
+    sorted_pids.reserve(global_pid_statistics.size());
+
+    for (const auto& pid_pair : global_pid_statistics) {
+        sorted_pids.emplace_back(pid_pair.first, pid_pair.second);
+    }
+
+    // Sort by total memory usage (descending)
+    std::sort(sorted_pids.begin(), sorted_pids.end(),
+              [](const auto& a, const auto& b) {
+                  return a.second.total_memory > b.second.total_memory;
+              });
+
+    // Limit output if requested
+    if (DEFAULT_TOP_COUNT > 0 && sorted_pids.size() > DEFAULT_TOP_COUNT) {
+        sorted_pids.resize(DEFAULT_TOP_COUNT);
+    }
+
+    // Calculate totals
+    size_t total_allocations = 0;
+    size_t total_memory = 0;
+    for (const auto& pid_pair : global_pid_statistics) {
+        const auto& stats = pid_pair.second;
+        total_allocations += stats.allocation_count;
+        total_memory += stats.total_memory;
+    }
+
+    // Print enhanced header
+    PRINT("================================================================================\n");
+    PRINT("                    PAGE OWNER ALLOCATION STATISTICS (Top %zu by memory usage)\n", DEFAULT_TOP_COUNT);
+    PRINT("================================================================================\n");
+    PRINT("Process: %-8zu | Total Allocations: %-10zu | Total Memory: %s\n",
+          global_pid_statistics.size(), total_allocations, csize(total_memory).c_str());
+    PRINT("================================================================================\n");
+
+    // Print header
+    PRINT("%-10s %-20s %-15s %-15s %-10s\n",
+          "PID", "Comm", "Allocations", "Total Memory", "Stacks");
+    PRINT("%-10s %-20s %-15s %-15s %-10s\n",
+          "---", "----", "-----------", "------------", "------");
+
+    // Print data rows
+    for (const auto& pid_pair : sorted_pids) {
+        size_t pid = pid_pair.first;
+        const auto& stats = pid_pair.second;
+
+        std::string comm = "unknown";
+        struct task_context *tc = pid_to_context(pid);
+        if (tc) {
+            comm = std::string(tc->comm);
+        }
+
+        PRINT("%-10zu %-20s %-15zu %-15s %-10zu\n",
+              pid,
+              comm.c_str(),
+              stats.allocation_count,
+              csize(stats.total_memory).c_str(),
+              stats.stack_memory.size());
+    }
+}
+
+/**
+ * @brief Display detailed memory allocation for a specific PID
+ * @param pid Process ID to analyze
+ */
+void Pageowner::print_pid_details(size_t pid) {
+    auto it = global_pid_statistics.find(pid);
+    if (it == global_pid_statistics.end()) {
+        PRINT("PID %zu not found in global statistics\n", pid);
+        return;
+    }
+
+    const auto& stats = it->second;
+
+    std::string comm = "unknown";
+    struct task_context *tc = pid_to_context(pid);
+    if (tc) {
+        comm = std::string(tc->comm);
+    }
+
+    PRINT("================================================================================\n");
+    PRINT("                           Detailed PID Analysis\n");
+    PRINT("PID: %zu [%s] | Total Allocations: %zu | Total Memory: %s | Stack count: %zu\n",
+          pid, comm.c_str(), stats.allocation_count, csize(stats.total_memory).c_str(), stats.stack_memory.size());
+    PRINT("================================================================================\n");
+
+    // Display stack breakdown sorted by memory usage
+    if (!stats.stack_memory.empty()) {
+        PRINT("%-12s    %-18s    %-12s\n", "Stack Handle", "Memory", "Percentage");
+        PRINT("%-12s    %-18s    %-12s\n", "------------", "------", "----------");
+
+        // Sort stacks by memory usage
+        std::vector<std::pair<unsigned int, size_t>> sorted_stacks;
+        sorted_stacks.reserve(stats.stack_memory.size());
+
+        for (const auto& stack_pair : stats.stack_memory) {
+            sorted_stacks.emplace_back(stack_pair.first, stack_pair.second);
+        }
+
+        std::sort(sorted_stacks.begin(), sorted_stacks.end(),
+                  [](const auto& a, const auto& b) {
+                      return a.second > b.second;
+                  });
+
+        // Show top stacks
+        size_t display_count = std::min(sorted_stacks.size(), DEFAULT_DETAIL_COUNT);
+        for (size_t i = 0; i < display_count; i++) {
+            const auto& stack_pair = sorted_stacks[i];
+            unsigned int handle = stack_pair.first;
+            size_t stack_memory = stack_pair.second;
+
+            double percentage = stats.total_memory > 0 ?
+                               (static_cast<double>(stack_memory) / stats.total_memory) * 100.0 : 0.0;
+
+            PRINT("0x%-10x    %-18s    %.1f%%\n",
+                  handle,
+                  csize(stack_memory).c_str(),
+                  percentage);
+        }
+
+        if (sorted_stacks.size() > DEFAULT_DETAIL_COUNT) {
+            PRINT("... and %zu more stacks\n", sorted_stacks.size() - DEFAULT_DETAIL_COUNT);
+        }
+
+        PRINT("\nUse 'pageowner -H <handle>' to view detailed stack information.\n");
+    }
+
+    PRINT("================================================================================\n");
+}
+
+/**
+ * @brief Display detailed stack information for a specific handle
+ * @param handle Stack handle ID to display
+ */
+void Pageowner::print_stack_info(unsigned int handle) {
+    // Find the stack by handle
+    auto it = stack_statistics.find(handle);
+    if (it == stack_statistics.end()) {
+        PRINT("Stack handle 0x%x not found in statistics\n", handle);
+        return;
+    }
+
+    const auto& stats = it->second;
+
+    PRINT("================================================================================\n");
+    PRINT("Stack Information - Handle: 0x%x\n", handle);
+    PRINT("Total Allocations: %zu | Total Memory: %s\n", stats.total_allocations, csize(stats.total_memory).c_str());
+    PRINT("================================================================================\n");
+
+    // Show call stack
+    std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+    if (record_ptr != nullptr) {
+        std::string stack = get_call_stack(record_ptr);
+        PRINT("%s", stack.c_str());
+    }
+
+    // Sort PIDs by memory usage
+    std::vector<std::pair<size_t, PageownerPidStatistics>> sorted_pids;
+    sorted_pids.reserve(stats.pid_stats.size());
+
+    for (const auto& pid_pair : stats.pid_stats) {
+        sorted_pids.emplace_back(pid_pair.first, pid_pair.second);
+    }
+
+    std::sort(sorted_pids.begin(), sorted_pids.end(),
+              [](const auto& a, const auto& b) {
+                  return a.second.total_memory > b.second.total_memory;
+              });
+
+    PRINT("%-10s %-20s %-15s %-15s\n", "PID", "Comm", "Allocations", "Memory");
+    PRINT("%-10s %-20s %-15s %-15s\n", "---", "----", "-----------", "------");
+
+    for (const auto& pid_pair : sorted_pids) {
+        size_t pid = pid_pair.first;
+        const auto& pid_stats = pid_pair.second;
+
+        std::string comm = "unknown";
+        struct task_context *tc = pid_to_context(pid);
+        if (tc) {
+            comm = std::string(tc->comm);
+        }
+
+        PRINT("%-10zu %-20s %-15zu %-15s\n",
+              pid,
+              comm.c_str(),
+              pid_stats.allocation_count,
+              csize(pid_stats.total_memory).c_str());
+    }
+
+    PRINT("================================================================================\n");
 }
 
 #pragma GCC diagnostic pop
