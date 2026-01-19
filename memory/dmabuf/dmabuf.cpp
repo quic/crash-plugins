@@ -553,12 +553,14 @@ void Dmabuf::print_dma_buf_info() {
     oss << "Dma-buf Objects: \n";
     for (const auto& dma_buf : buf_list) {
         oss << std::left << "  "
+            << std::left << std::setw(18) << "dma_buf" << " "
             << std::left << std::setw(10) << "Size" << " "
             << std::left << std::setw(5) << "Ref" << " "
             << std::left << std::setw(25) << "Exp_name" << " "
             << std::left << std::setw(25) << "Name" << "\n";
         oss << std::left << "  "
-            << std::left << std::setw(10) << csize(dma_buf->size) << " "
+            << "0x" << std::hex << std::setw(16) << std::setfill('0') << dma_buf->addr << std::setfill(' ') << " "
+            << std::left << std::dec << std::setw(10) << csize(dma_buf->size) << " "
             << std::left << std::setw(5) << dma_buf->f_count << " "
             << std::left << std::setw(25) << dma_buf->exp_name << " "
             << std::left << std::setw(25) << dma_buf->name << "\n";
@@ -815,6 +817,110 @@ void Dmabuf::print_proc(ulong pid) {
             }
         }
     }
+}
+
+/**
+ * @brief Print page allocation stack traces for all DMA buffers
+ *
+ * Iterates through all DMA buffers and displays the allocation stack trace
+ * for the first valid page of each buffer. This provides a quick overview
+ * of where all buffers were allocated from.
+ */
+void Dmabuf::print_all_dmabuf_page_stacks() {
+    if (!is_enable_pageowner()) {
+        PRINT("Page owner is not enabled in kernel. Cannot display stack traces.\n");
+        return;
+    }
+    if (buf_list.empty()) {
+        PRINT("No DMA buffers found.\n");
+        return;
+    }
+
+    PRINT("================================================================================\n"
+          "            ALL DMABUF PAGE ALLOCATION STACKS\n"
+          "================================================================================\n"
+          "Total DMA Buffers: %zu\n"
+          "================================================================================\n\n", buf_list.size());
+
+    size_t buf_index = 0, buffers_with_stack = 0, buffers_without_stack = 0;
+
+    for (const auto& buf_ptr : buf_list) {
+        PRINT("[%zu/%zu] dma_buf:0x%lx | Size:%s | Exporter:[%s] | Ref:%lu\n",
+              ++buf_index, buf_list.size(), buf_ptr->addr, csize(buf_ptr->size).c_str(),
+              buf_ptr->exp_name.c_str(), buf_ptr->f_count);
+
+        if (buf_ptr->sgl_list.empty()) {
+            PRINT("No scatterlist entries\n\n");
+            buffers_without_stack++;
+            continue;
+        }
+
+        // Find first valid page owner (allocated or freed)
+        std::shared_ptr<page_owner> owner_ptr = nullptr;
+        for (const auto& sgl_ptr : buf_ptr->sgl_list) {
+            if (!is_kvaddr(sgl_ptr->addr) || sgl_ptr->page_link == 0) continue;
+
+            ulong page = sgl_ptr->page_link & ~0x3UL;
+            if (!is_kvaddr(page)) continue;
+
+            ulong pfn = page_to_pfn(page);
+            if (pfn > 0) {
+                owner_ptr = parse_page_owner_by_pfn(pfn);
+                if (owner_ptr) break;
+            }
+        }
+
+        if (!owner_ptr) {
+            PRINT("No page owner information available\n\n");
+            buffers_without_stack++;
+            continue;
+        }
+
+        buffers_with_stack++;
+
+        // Determine current status and prepare variables
+        bool is_allocated = is_page_allocated(owner_ptr);
+        const char *status = is_allocated ? "ALLOCATED" : "FREED";
+        uint handle = is_allocated ? owner_ptr->handle : owner_ptr->free_handle;
+        ulong timestamp = is_allocated ? owner_ptr->ts_nsec : owner_ptr->free_ts_nsec;
+
+        // Print basic info
+        struct task_context *tc = owner_ptr->comm.empty() ? pid_to_context(owner_ptr->pid) : nullptr;
+        const char *comm = owner_ptr->comm.empty() ? (tc ? tc->comm : "unknown") : owner_ptr->comm.c_str();
+
+        PRINT("Current Status: %s\n", status);
+        PRINT("PID:%zu [%s] | Order:%u (%s)\n", owner_ptr->pid, comm, owner_ptr->order,
+              csize((1UL << owner_ptr->order) * page_size).c_str());
+
+        // Print stack header
+        PRINT("Call Stack");
+        if (timestamp > 0)
+            PRINT(" (Time: %s)", formatTimestamp(timestamp).c_str());
+        if (is_allocated && owner_ptr->gfp_mask > 0)
+            PRINT(" (GFP:0x%x)", owner_ptr->gfp_mask);
+        PRINT(":\n");
+
+        // Print stack content
+        try {
+            std::shared_ptr<stack_record_t> record_ptr = get_stack_record(handle);
+            if (record_ptr) {
+                std::istringstream iss(get_call_stack(record_ptr));
+                std::string line;
+                while (std::getline(iss, line))
+                    if (!line.empty()) PRINT("    %s\n", line.c_str());
+            } else {
+                PRINT("    [Stack trace not available]\n");
+            }
+        } catch (...) {
+            PRINT("    [Stack trace not available]\n");
+        }
+        PRINT("\n");
+    }
+
+    PRINT("================================================================================\n"
+          "Summary: %zu buffers analyzed, %zu with stack info, %zu without\n"
+          "================================================================================\n",
+          buf_list.size(), buffers_with_stack, buffers_without_stack);
 }
 
 #pragma GCC diagnostic pop

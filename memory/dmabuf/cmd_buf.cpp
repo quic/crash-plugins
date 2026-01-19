@@ -72,7 +72,7 @@ void DmaIon::cmd_main(void) {
         }
     }
     // Parse command-line options
-    while ((c = getopt(argcnt, args, "abB:hH:pP:sS:")) != EOF) {
+    while ((c = getopt(argcnt, args, "abB:hH:pP:sS:T")) != EOF) {
         switch(c) {
             case 'a':
                 // Print all DMA buffer information with detailed metadata
@@ -141,6 +141,11 @@ void DmaIon::cmd_main(void) {
                 dmabuf_ptr->save_dma_buf(cppString);
                 break;
 
+            case 'T':
+                // Print page allocation stack traces for all DMA buffers
+                dmabuf_ptr->print_all_dmabuf_page_stacks();
+                break;
+
             default:
                 // Invalid option provided
                 LOGW("Invalid option encountered: %c", c);
@@ -197,10 +202,20 @@ void DmaIon::init_command(void) {
             "  dmabuf -P <pid>\n"
             "  dmabuf -s \n"
             "  dmabuf -S <dmabuf addr>\n"
+            "  dmabuf -T\n"
             "  This command dumps the dmabuf information.",
             "\n",
         "EXAMPLES",
-        "  Display all dmabuf:",
+        "  Display all dmabuf with detailed info:",
+        "    %s> dmabuf -a",
+        "    Dma-buf Objects:",
+        "      dma_buf            Size       Ref   Exp_name                  Name",
+        "      0x00ffffff880ea2a000 2.99MB     7     system",
+        "            Attached Devices:",
+        "            xxx",
+        "      Total 1 devices attached",
+        "",
+        "  Display all dmabuf (concise list):",
         "    %s> dmabuf -b",
         "       =======================================================================================",
         "       [001]dma_buf:ffffff80ce9d1c00 ref:3  priv:ffffff80a9774a80 ops::system_heap_buf_ops [system] size:256KB",
@@ -269,6 +284,28 @@ void DmaIon::init_command(void) {
         "  Save a dmabuf data to file:",
         "    %s> dmabuf -S ffffff88d0010400",
         "       Save dmabuf to file xxx/dma_buf@ffffff88d0010400.data !",
+        "\n",
+        "  Display page allocation stack traces for all dmabufs:",
+        "    %s> dmabuf -T",
+        "       ================================================================================",
+        "                   ALL DMABUF PAGE ALLOCATION STACKS",
+        "       ================================================================================",
+        "       Total DMA Buffers: 10",
+        "       ================================================================================",
+        "",
+        "       [1/10] dma_buf:0xffffff880ea2a000 | Size:2.99MB | Exporter:[qcom,system] | Ref:7",
+        "       PID:167 [qcom,system-poo] | Time:00:00:01.592273024 | GFP:0x142dc2 | Order:9 (2 MB)",
+        "       Call Stack:",
+        "           [<ffffffebe5b64988>] post_alloc_hook+260",
+        "           [<ffffffebe5b649e8>] prep_new_page+30",
+        "           [<ffffffebe5b6ae58>] get_page_from_freelist+2094",
+        "",
+        "       [2/10] dma_buf:0xffffff88154a0200 | Size:4KB | Exporter:[system] | Ref:3",
+        "       No page owner information available",
+        "",
+        "       ================================================================================",
+        "       Summary: 10 buffers analyzed, 8 with stack info, 2 without",
+        "       ================================================================================",
         "\n",
     };
 }
