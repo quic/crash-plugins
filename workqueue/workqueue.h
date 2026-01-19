@@ -77,9 +77,10 @@ struct worker_pool{
   int cpu;
   int node;
   int id;
+  int nice;
   std::string flags;
   ulong watchdog_ts;
-  ulong nr_running;
+  int nr_running;
   std::vector<std::shared_ptr<work_struct>> worklist; // save pending work_struct
   int nr_workers;
   int nr_idle;
@@ -114,22 +115,25 @@ class Workqueue : public ParserPlugin {
 private:
     std::vector<std::shared_ptr<workqueue_struct>> workqueue_list;
     std::unordered_map<ulong/* worker ddr address */, std::shared_ptr<worker>> worker_list_map;
-    std::unordered_map<ulong/* worker_pool ddr address */, std::shared_ptr<worker_pool>> worker_pool_map;
+    std::unordered_map<ulong/* worker_pool addr address */, std::shared_ptr<worker_pool>> worker_pool_map;
     std::vector<std::shared_ptr<worker>> idle_worker_list; // save all idle worker, same as idle_list
     // only format for print
     size_t workqueue_name_len = 0;
     size_t worker_flags_len = 0;
     size_t worker_pool_flags_len = 0;
 
-    void print_worker();
+    void print_summary();
+    void print_detailed();
+    void print_check(std::string arg);
     void print_pool_by_addr(std::string addr);
-    void print_pool();
     std::vector<std::shared_ptr<work_struct>> parser_work_list(ulong list_head);
     std::shared_ptr<worker> parser_worker(ulong addr,std::shared_ptr<worker_pool> wp_ptr);
     std::vector<std::shared_ptr<worker>> parser_worker_list(ulong list_head_addr,int offset,std::shared_ptr<worker_pool> wp_ptr);
     std::shared_ptr<worker_pool> parser_worker_pool(ulong addr,std::shared_ptr<pool_workqueue> pwq_ptr);
     std::shared_ptr<pool_workqueue> parser_pool_workqueue(ulong addr,std::shared_ptr<workqueue_struct> wq_ptr);
     std::shared_ptr<workqueue_struct> parser_workqueue_struct(ulong addr);
+    void parse_cpu_worker_pools();
+    void parse_unbound_pool_hash();
     void parse_workqueue();
     std::string print_func_name(ulong func_addr);
     template <typename T>
