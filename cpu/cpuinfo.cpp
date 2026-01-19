@@ -67,15 +67,17 @@ void CpuInfo::init_offset(void) {
 void CpuInfo::init_command(void) {
     cmd_name = "cpu";
     help_str_list={
-        "cpu",                            /* command name */
-        "dump cpu information",        /* short description */
-        "-p \n"
-            "  cpu -f\n"
-            "  cpu -s\n"
-            "  This command dumps the cpu info.",
+        "cpu",                                    /* command name */
+        "dump CPU frequency and state information",  /* short description */
+        "[-p] [-f] [-s]\n"
+        "  This command dumps CPU frequency policy, frequency table, and state information.\n"
+        "\n"
+        "    -p          display CPU frequency policy for all CPUs\n"
+        "    -f          display CPU frequency table\n"
+        "    -s          display CPU cluster state information\n",
         "\n",
         "EXAMPLES",
-        "  Display cpu freq policy:",
+        "  Display CPU frequency policy:",
         "    %s> cpu -p",
         "    CPU cpufreq_policy  cluster cur_freq   min_freq   max_freq   governor",
         "    0   e565fa00        0       1708800    1708800    1708800    schedutil",
@@ -83,7 +85,7 @@ void CpuInfo::init_command(void) {
         "    2   e565fa00        0       1708800    1708800    1708800    schedutil",
         "    3   e565fa00        0       1708800    1708800    1708800    schedutil",
         "\n",
-        "  Display cpu freq table:",
+        "  Display CPU frequency table:",
         "    %s> cpu -f",
         "    CPU0            CPU1            CPU2            CPU3",
         "    614400          614400          614400          614400",
@@ -91,14 +93,13 @@ void CpuInfo::init_command(void) {
         "    1363200         1363200         1363200         1363200",
         "    1708800         1708800         1708800         1708800",
         "\n",
-        "  Display cpu state:",
+        "  Display CPU cluster state:",
         "    %s> cpu -s",
         "    cluster_data:0xffffffe595428460 Enable:true num_cpus:4 first_cpu:0 active_cpus:2",
         "       cpu_data:0xffffff887a139de0 cpu:0 disabled:false is_busy:false busy_pct:32",
         "       cpu_data:0xffffff887a35cde0 cpu:1 disabled:false is_busy:false busy_pct:50",
         "       cpu_data:0xffffff887a57fde0 cpu:2 disabled:false is_busy:false busy_pct:1",
         "       cpu_data:0xffffff887a7a2de0 cpu:3 disabled:false is_busy:false busy_pct:0",
-        "",
         "",
         "    cluster_data:0xffffffe595428590 Enable:true num_cpus:1 first_cpu:4 active_cpus:1",
         "       cpu_data:0xffffff887a9c5de0 cpu:4 disabled:false is_busy:false busy_pct:0",

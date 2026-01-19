@@ -66,12 +66,16 @@ void Thermal::cmd_main(void) {
 void Thermal::init_command(void) {
     cmd_name = "tm";
     help_str_list={
-        "tm",                            /* command name */
-        "dump thermal information",        /* short description */
-        "-z \n"
-            "  tm -Z <thermal zone name>\n"
-            "  tm -c\n"
-            "  This command dumps the thermal info.",
+        "tm",                                /* command name */
+        "display thermal management system information and analysis",  /* short description */
+        "[-z] [-c] [-Z zone_name]\n"
+        "  This command analyzes the thermal management subsystem from crash dumps,\n"
+        "  providing comprehensive information about thermal zones, cooling devices,\n"
+        "  and thermal control policies including trip points and cooling actions.\n"
+        "\n"
+        "    -z              display all thermal zones with temperature and governor information\n"
+        "    -c              display all cooling devices with their addresses and names\n"
+        "    -Z zone_name    display detailed information for specific thermal zone\n",
         "\n",
         "EXAMPLES",
         "  Display all thermal zone info:",

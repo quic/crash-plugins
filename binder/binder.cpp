@@ -229,15 +229,16 @@ void Binder::init_command(void) {
     help_str_list={
         "binder",                            /* command name */
         "dump binder log information",        /* short description */
-        "-a \n"
-            "  binder -p [pid]\n"
-            "  binder -l\n"
-            "  binder -f\n"
-            "  binder -n\n"
-            "  binder -b\n"
-            "  binder -t\n"
-            "  binder -r\n"                    /* argument synopsis, or " " if none */
-        "  This command dumps the binder information.",
+        "[-a] [-p pid] [-l] [-f] [-n] [-b] [-t] [-r]\n"
+            "\n"
+            "  -a         display all binder proc states\n"
+            "  -p pid     display specific process binder states\n"
+            "  -l         display binder transaction log\n"
+            "  -f         display binder fail log\n"
+            "  -n         display binder node info\n"
+            "  -b         display binder buffer info\n"
+            "  -t         display binder thread info\n"
+            "  -r         display binder ref info\n",
         "\n",
         "EXAMPLES",
         "  Display all binder proc states:",

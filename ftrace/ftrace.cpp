@@ -212,16 +212,19 @@ void Ftrace::init_offset(){
 void Ftrace::init_command(void) {
     cmd_name = "ftrace";
     help_str_list={
-        "ftrace",                            /* command name */
-        "dump ftrace information",        /* short description */
-        "-a \n"
-            "  ftrace -l\n"
-            "  ftrace -c <cpu>\n"
-            "  ftrace -s <name>\n"
-            "  ftrace -f\n"
-            "  ftrace -d\n"
-            "  ftrace -S\n"
-            "  This command dumps the ftrace info.",
+        "ftrace",                                 /* command name */
+        "display ftrace information",             /* short description */
+        "[-a] [-l] [-c cpu] [-s name] [-f] [-e] [-d] [-S]\n"
+        "  This command displays ftrace information.\n"
+        "\n"
+        "    -a              display all ftrace log\n"
+        "    -l              list all trace array\n"
+        "    -c cpu          display ftrace log of specified cpu\n"
+        "    -s name         display ftrace log of specified trace array by name\n"
+        "    -f              display all trace event info\n"
+        "    -e              display skip events\n"
+        "    -d              dump all trace to file\n"
+        "    -S              display all trace via trace-cmd\n",
         "\n",
         "EXAMPLES",
         "  List all trace array:",

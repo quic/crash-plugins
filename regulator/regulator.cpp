@@ -130,15 +130,19 @@ void Regulator::init_offset(void) {
 void Regulator::init_command(void) {
     cmd_name = "reg";
     help_str_list={
-        "reg",                            /* command name */
-        "dump regulator information",        /* short description */
-        "-a \n"
-            "  reg -r \n"
-            "  reg -c <name>\n"
-            "  This command dumps the regulator info.",
+        "reg",                                /* command name */
+        "display power regulator framework information and analysis",  /* short description */
+        "[-a] [-r] [-c regulator_name]\n"
+        "  This command analyzes the power regulator framework from crash dumps,\n"
+        "  providing comprehensive information about voltage regulators, power domains,\n"
+        "  consumer relationships, and power management constraints.\n"
+        "\n"
+        "    -a              display all regulators with detailed consumer information\n"
+        "    -r              display regulator device summary table with key statistics\n"
+        "    -c regulator_name  display consumers for specific regulator by name\n",
         "\n",
         "EXAMPLES",
-        "  Display all regulator and consumer info:",
+        "  Display all regulators with comprehensive consumer information:",
         "    %s> reg -a",
         "    regulator_dev:ffffff8006994800 regulator-dummy open_count:4 use_count:3 bypass_count:0 min_uV:0 max_uV:0 input_uV:0",
         "       regulator:ffffff801e51c000 enable:0 load:0uA 5e94000,mdss_dsi0_ctrl-refgen",
@@ -146,7 +150,7 @@ void Regulator::init_command(void) {
         "       regulator:ffffff801ad6cc00 enable:1 load:0uA soc:usb_nop_phy-vcc",
         "       regulator:ffffff800a036780 enable:1 load:0uA regulator.21-SUPPLY",
         "\n",
-        "  Display all regulator info:",
+        "  Display regulator device summary table:",
         "    %s> reg -r",
         "    regulator_dev    open use bypass regulator_desc   constraints      min_uV   max_uV   input_uV Name",
         "    ffffff8006994800 4    3   0      ffffffeee20a0020 ffffff80067f8d00 0        0        0        regulator-dummy",
@@ -157,7 +161,7 @@ void Regulator::init_command(void) {
         "    ffffff8007bac800 0    0   0      ffffff8002114400 ffffff8012ee5200 1816000  1904000  1904000  pm5100_s4",
         "    ffffff8002158000 0    0   0      ffffff8002114600 ffffff8012ee5900 1000000  1000000  1000000  pm5100_l11",
         "\n",
-        "  Display all consumer info of regulator:",
+        "  Display consumers for specific regulator:",
         "    %s> reg -c pm5100_l12",
         "    Consumers:",
         "       regulator        load       enable Name",

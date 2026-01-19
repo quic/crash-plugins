@@ -294,49 +294,36 @@ void DebugImage::init_offset(void) {
 void DebugImage::init_command(void) {
     cmd_name = "dbi";
     help_str_list={
-        "dbi",
-        "dump debug image region information and manage CPU registers",
-        "-a | -d | -s | -i <cpu> | -p <pid> | -c <cpu> -l <cmm>\n"
-            "  This command dumps debug image info and manages CPU registers.",
-        "\n",
-        "OPTIONS",
-        "  -a",
-        "    Print memdump information",
-        "",
-        "  -d",
-        "    Parse CPU context and generate CMM files",
-        "",
-        "  -s",
-        "    Print CPU stack traces for all cores",
-        "",
-        "  -i <cpu>",
-        "    Print IRQ stack for cpu",
-        "",
-        "  -p <pid>",
-        "    Print task stack for specified PID",
-        "",
-        "  -c <cpu> -l <cmm>",
-        "    Load CPU registers from CMM file (ARM64 only)",
-        "    <cpu>   : CPU index (0-based)",
-        "    <cmm>   : Path to Trace32 CMM file",
+        "dbi",                                                    /* command name */
+        "dump debug image region information and manage CPU registers",  /* short description */
+        "[-a] [-d] [-s] [-i cpu] [-p pid] [-c cpu -l cmm_file]\n"
+        "  This command dumps debug image information and manages CPU registers.\n"
+        "\n"
+        "    -a          display all memdump information\n"
+        "    -d          parse CPU context and generate CMM files\n"
+        "    -s          print CPU stack traces for all cores\n"
+        "    -i cpu      print IRQ stack for specified CPU\n"
+        "    -p pid      print task stack for specified process ID\n"
+        "    -c cpu      specify CPU index for register operations (use with -l)\n"
+        "    -l cmm_file load CPU registers from Trace32 CMM file (ARM64 only, requires -c)\n",
         "\n",
         "EXAMPLES",
-        "  Display all memdump info:",
+        "  Display all memdump information:",
         "    %s> dbi -a",
         "\n",
         "  Generate CMM files from CPU context:",
         "    %s> dbi -d",
         "\n",
-        "  Print CPU stack traces with sdi register:",
+        "  Print CPU stack traces for all cores:",
         "    %s> dbi -s",
         "\n",
-        "  Print IRQ stack for CPU:",
+        "  Print IRQ stack for specific CPU:",
         "    %s> dbi -i 0",
         "\n",
-        "  Print task stack for PID 1234:",
+        "  Print task stack for specific PID:",
         "    %s> dbi -p 1234",
         "\n",
-        "  Load CPU 0 registers from CMM file:",
+        "  Load CPU registers from CMM file (ARM64 only):",
         "    %s> dbi -c 0 -l /path/to/core0_regs.cmm",
         "    CPU 0 registers loaded from /path/to/core0_regs.cmm",
         "\n",

@@ -99,15 +99,19 @@ void Meminfo::init_offset(void) {
 void Meminfo::init_command(void) {
     cmd_name = "meminfo";
     help_str_list={
-        "meminfo",                            /* command name */
-        "dump meminfo information",        /* short description */
-        "-a \n"
-            "  meminfo -b \n"
-            "  meminfo -v \n"
-            "  This command dumps the meminfo info.",
+        "meminfo",                                /* command name */
+        "display comprehensive system memory information and analysis",  /* short description */
+        "[-a] [-b] [-v]\n"
+        "  This command provides detailed analysis of system memory usage,\n"
+        "  including kernel memory statistics, zone information, and memory\n"
+        "  breakdown analysis from crash dump data.\n"
+        "\n"
+        "    -a              display complete memory information (similar to /proc/meminfo)\n"
+        "    -b              display memory breakdown analysis with categorized usage\n"
+        "    -v              display detailed vmstat information with zone statistics\n",
         "\n",
         "EXAMPLES",
-        "  Display whole memory info:",
+        "  Display complete system memory information:",
         "    %s> meminfo -a",
         " ",
         "    MemTotal:        11445568 KB",
@@ -117,7 +121,7 @@ void Meminfo::init_command(void) {
         "    Active(anon):        2892 KB",
         "    Inactive(anon):    114068 KB",
         "\n",
-        "  Breakdown memory info:",
+        "  Display memory breakdown analysis:",
         "    %s> meminfo -b",
         "    RAM                :      7.93GB",
         "       MemTotal        :      7.44GB",
@@ -144,7 +148,7 @@ void Meminfo::init_command(void) {
         "",
         "       NON_HLOS        :    308.34MB",
         "\n",
-        "  Breakdown vmstat info:",
+        "  Display detailed vmstat and zone information:",
         "    %s> meminfo -v",
         "    Zone Normal",
         "    present_pages                 :     148440        579MB",

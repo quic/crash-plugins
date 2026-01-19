@@ -103,16 +103,18 @@ void Cache::init_offset(void) {
 void Cache::init_command(void) {
     cmd_name = "cache";
     help_str_list={
-        "cache",                            /* command name */
-        "dump page information",        /* short description */
-        "-f \n"
-            "  cache -a\n"
-            "  cache -l <path>\n"
-            "  cache -d <path>\n"
-            "  This command dumps the page cache info.",
+        "cache",                                   /* command name */
+        "dump page cache information",            /* short description */
+        "[-f] [-a] [-l path] [-d path]\n"
+        "  This command dumps page cache information including file cache and anonymous pages.\n"
+        "\n"
+        "    -f          display file page cache statistics\n"
+        "    -a          display anonymous pages information\n"
+        "    -l path     list files in directory with detailed information\n"
+        "    -d path     dump file or directory contents to disk\n",
         "\n",
         "EXAMPLES",
-        "  Display all file info:",
+        "  Display file page cache statistics:",
         "    %s> cache -f",
         "    Total File cache size: 570.22MB",
         "    ===============================================",
@@ -139,7 +141,7 @@ void Cache::init_command(void) {
         "    page:0xfffffffe0007f440  paddr:0x41fd1000",
         "    page:0xfffffffe0007f4c0  paddr:0x41fd3000",
         "\n",
-        "  Display the file info of special path:",
+        "  List files in directory with detailed information:",
         "    %s> cache -l /",
         "    DENTRY             INODE              PERMISSIONS      UID      GID     SIZE   NRPAGE TIME         PATH",
         "    0xffffff804614cb40 0xffffff8056480898 lrw-r--r--         0        0       21        0 Jan 01 08:00 sdcard -> /storage/self/primary",

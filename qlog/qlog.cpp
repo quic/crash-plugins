@@ -88,15 +88,19 @@ void QLog::init_offset(void) {
 void QLog::init_command(void) {
     cmd_name = "qlog";
     help_str_list = {
-        "qlog",                          /* command name */
-        "dump pmic and boot log",        /* short description */
-        "-p \n"
-            "  qlog -b\n"
-            "  qlog -x\n"
-            "  This command dumps the boot info.",
+        "qlog",                                /* command name */
+        "display Qualcomm boot and power management log information",  /* short description */
+        "[-p] [-b] [-x]\n"
+        "  This command analyzes Qualcomm-specific boot and power management logs\n"
+        "  from crash dumps, providing detailed information about PMIC events,\n"
+        "  kernel boot sequences, and bootloader (XBL/SBL) initialization logs.\n"
+        "\n"
+        "    -p              display PMIC power-on log with detailed event analysis\n"
+        "    -b              display kernel boot log from early boot buffer\n"
+        "    -x              display XBL/SBL bootloader log from UEFI region\n",
         "\n",
         "EXAMPLES",
-        "  Display pmic log:",
+        "  Display comprehensive PMIC power-on event log:",
         "    %s> qlog -p",
         "    Reset Trigger: PS_HOLD",
         "    Reset Type: WARM_RESET",
@@ -106,7 +110,7 @@ void QLog::init_command(void) {
         "    Warm Reset Count: 2",
         "    PON Successful",
         "\n",
-        "  Display the boot log:",
+        "  Display kernel boot log with early initialization messages:",
         "    %s> qlog -b",
         "    <6>[    0.000000][    T0] Booting Linux on physical CPU 0x0000000000 [0x412fd050]",
         "    <5>[    0.000000][    T0] Linux version 6.12.23-android16-4-maybe-dirty-debug (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Thu Jan  1 00:00:00 UTC 1970",
@@ -114,7 +118,7 @@ void QLog::init_command(void) {
         "    <5>[    0.000000][    T0] random: crng init done",
         "    <6>[    0.000000][    T0] Enabling dynamic shadow call stack",
         "\n",
-        "  Display the xbl log:",
+        "  Display XBL/SBL bootloader log from UEFI region:",
         "    %s> qlog -x",
         "    Format: Log Type - Time(microsec) - Message - Optional Info",
         "    Log Type: B - Since Boot(Power On Reset),  D - Delta,  S - Statistic",

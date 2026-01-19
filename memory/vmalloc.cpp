@@ -121,15 +121,17 @@ void Vmalloc::init_offset(void) {
 void Vmalloc::init_command(void) {
     cmd_name = "vmalloc";
     help_str_list = {
-        "vmalloc",                            /* command name */
-        "dump vmalloc memory information",    /* short description */
-        "-a \n"
-            "  vmalloc -r\n"
-            "  vmalloc -v\n"
-            "  vmalloc -s\n"
-            "  vmalloc -f <func name>\n"
-            "  vmalloc -t <type name>\n"
-            "  This command dumps the vmalloc info.",
+        "vmalloc",                                  /* command name */
+        "display vmalloc memory information",       /* short description */
+        "[-a] [-r] [-v] [-s] [-f func_name] [-t type_name]\n"
+        "  This command displays vmalloc memory information.\n"
+        "\n"
+        "    -a              display vmalloc memory info\n"
+        "    -r              display all vmap_area info\n"
+        "    -v              display all vm_struct info\n"
+        "    -s              display vmalloc statistical info\n"
+        "    -f func_name    display allocated pages by function name\n"
+        "    -t type_name    display allocated pages by type name\n",
         "\n",
         "EXAMPLES",
         "  Display vmalloc memory info:",

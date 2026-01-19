@@ -369,10 +369,12 @@ void FileSystem::init_command(void) {
     cmd_name = "df";
     help_str_list = {
         "df",                                    /* command name */
-        "dump filesystem information",           /* short description */
-        "-t \n"
-            "  df -s\n"
-            "  This command dumps the mount info.",
+        "display filesystem information",        /* short description */
+        "[-t] [-s]\n"
+        "  This command displays filesystem mount information.\n"
+        "\n"
+        "    -t    display mount info by tree hierarchy\n"
+        "    -s    display partition size info\n",
         "\n",
         "EXAMPLES",
         "  Display mount info by tree hierarchy:",

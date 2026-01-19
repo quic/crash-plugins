@@ -266,25 +266,44 @@ void Logcat_Parser::init_command(void) {
 
     // Set help text list with usage examples
     help_str_list = {
-        "logcat",                            /* command name */
-        "dump logcat log information",        /* short description */
-        "-s <symbol directory path>\n"
-            "  logcat -b <log id>\n"
-            "  This command dumps the logcat log info.",
+        "logcat",                                  /* command name */
+        "dump logcat log information",            /* short description */
+        "[-b buffer_name] [-s symbol_directory]\n"
+        "  This command dumps logcat log information from kernel memory.\n"
+        "\n"
+        "    -b buffer_name  display logs from specified buffer (main/radio/events/system/crash/stats/security/kernel/all)\n"
+        "    -s symbol_dir   load symbol files from specified directory (required for some features)\n",
         "\n",
         "EXAMPLES",
-        "  Add logd symbol file:",
-        "    %s> logcat -s <symbol directory path>",
-        "    Add symbol table from file \"path/libc.so\"",
-        "    Reading symbols from path/libc.so...",
+        "  Load logd symbol file from directory:",
+        "    %s> logcat -s /path/to/symbols",
+        "    Add symbol table from file \"/path/to/symbols/logd\"",
+        "    Reading symbols from /path/to/symbols/logd...",
         "\n",
-        "  Display logcat log:",
+        "  Display all logcat logs:",
         "    %s> logcat -b all",
+        "    01-17 10:15:23.456  1234  1234 I ActivityManager: Start proc com.example.app",
+        "    01-17 10:15:23.789  1234  1234 D WindowManager: Window added",
+        "\n",
+        "  Display main buffer logs:",
         "    %s> logcat -b main",
+        "    01-17 10:15:23.456  1234  1234 I ActivityManager: Start proc com.example.app",
+        "\n",
+        "  Display system buffer logs:",
         "    %s> logcat -b system",
+        "    01-17 10:15:24.123  5678  5678 W SystemServer: Service timeout",
+        "\n",
+        "  Display radio buffer logs:",
         "    %s> logcat -b radio",
+        "    01-17 10:15:25.456  9012  9012 D RIL: Signal strength updated",
+        "\n",
+        "  Display crash buffer logs:",
         "    %s> logcat -b crash",
+        "    01-17 10:15:26.789  3456  3456 E AndroidRuntime: FATAL EXCEPTION",
+        "\n",
+        "  Display events buffer logs:",
         "    %s> logcat -b events",
+        "    01-17 10:15:27.012  7890  7890 I am_proc_start: [0,1234,10001,com.example.app]",
         "\n",
     };
 }

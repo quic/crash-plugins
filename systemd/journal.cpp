@@ -112,15 +112,18 @@ void Journal::init_offset(void) {
 void Journal::init_command(void){
     cmd_name = "systemd";
     help_str_list={
-        "systemd",                            /* command name */
-        "dump journal log",                   /* short description */
-        "-l \n"
-            "  systemd -d \n"
-            "  systemd -s \n"
-            "  This command dumps the journal log.",
+        "systemd",                                /* command name */
+        "display systemd journal information and extract log data",  /* short description */
+        "[-l] [-d] [-s]\n"
+        "  This command analyzes systemd journal files from both process memory (VMA)\n"
+        "  and page cache (inodes), providing comprehensive journal log management.\n"
+        "\n"
+        "    -l              list all journal files with detailed statistics\n"
+        "    -d              dump journal files to disk for offline analysis\n"
+        "    -s              show journal log contents in chronological order\n",
         "\n",
         "EXAMPLES",
-        "  List the journal log",
+        "  List all journal files with detailed information:",
         "    %s> systemd -l",
         "    ╔══════════════════════════════════════════════════════════════════════════════╗",
         "    ║                            SYSTEMD JOURNAL FILES                             ║",

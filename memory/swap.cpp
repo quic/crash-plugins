@@ -101,22 +101,25 @@ void Swap::init_offset(void) {
 void Swap::init_command(void) {
     cmd_name = "swapinfo";
     help_str_list = {
-        "swapinfo",                            /* command name */
-        "dump swap information",               /* short description */
-        "-a \n"
-            "  swapinfo -p <vaddr>\n"
-            "  swapinfo -d\n"
-            "  This command dumps the swap info.",
+        "swapinfo",                                /* command name */
+        "display swap device information and memory analysis",  /* short description */
+        "[-a] [-p vaddr]\n"
+        "  This command analyzes swap devices and provides detailed information\n"
+        "  about swap space usage, device configuration, and memory content.\n"
+        "  It supports both ZRAM and traditional swap devices.\n"
+        "\n"
+        "    -a              display all swap devices with usage statistics\n"
+        "    -p vaddr        display page memory content at specified virtual address\n",
         "\n",
         "EXAMPLES",
-        "  Display swap info:",
+        "  Display all swap devices with detailed information:",
         "    %s> swapinfo -a",
         "       swap_info_struct   size       used       address_space      file",
         "       ========================================================================",
         "       ffffff804d3d1800   1.50Gb     292.25Mb   ffffff8026a40000   /dev/block/zram0",
         "       ========================================================================",
         "\n",
-        "  Display a page data with specified virt address:",
+        "  Display page memory content at virtual address:",
         "    %s> swapinfo -p 12c000e0",
         "       12c00000: 153F 7F98 0000 0000 7051 4C80 0000 0000 .?......pQL.....",
         "       12c00010: 0000 0000 0000 0000 0000 0000 12C0 0020 ...............",

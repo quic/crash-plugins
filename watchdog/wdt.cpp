@@ -47,10 +47,12 @@ Watchdog::Watchdog(){
 void Watchdog::init_command(void) {
     cmd_name = "wdt";
     help_str_list={
-        "wdt",                            /* command name */
-        "dump watchdog information",        /* short description */
-        "-a \n"
-            "  This command dumps the watchdog info.",
+        "wdt",                                  /* command name */
+        "display watchdog information",         /* short description */
+        "[-a]\n"
+        "  This command displays watchdog information.\n"
+        "\n"
+        "    -a    display watchdog info (automatically detects watchdog type)\n",
         "\n",
         "EXAMPLES",
         "  Display watchdog info:",

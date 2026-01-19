@@ -119,15 +119,17 @@ void IPCLog::cmd_main(void) {
 void IPCLog::init_command(void) {
     cmd_name = "ipc";
     help_str_list={
-        "ipc",                            /* command name */
-        "dump ipc log",        /* short description */
-        "-a \n"
-            "  ipc -l <ipc module name>\n"
-            "  ipc -s \n"
-            "  This command dumps the ipc module log.",
+        "ipc",                                     /* command name */
+        "dump IPC (Inter-Process Communication) log",  /* short description */
+        "[-a] [-l module_name] [-s]\n"
+        "  This command dumps IPC (Inter-Process Communication) log information.\n"
+        "\n"
+        "    -a              display all IPC log contexts with summary information\n"
+        "    -l module_name  display logs from specific IPC module by name\n"
+        "    -s              save all IPC logs to files for offline analysis\n",
         "\n",
         "EXAMPLES",
-        "  Display all ipc_log_context:",
+        "  Display all IPC log contexts:",
         "    %s> ipc -a",
         "    ipc_log_context  Magic      Version first_page       last_page        write_page       read_page        Name",
         "    ffffff80084bfd00 25874452   3       ffffff800a3b7000 ffffff8008628000 ffffff800a3b1000 ffffff800a3b1000 rpm-glink",
@@ -135,8 +137,8 @@ void IPCLog::init_command(void) {
         "    ffffff800a721600 25874452   3       ffffff8008705000 ffffff8013304000 ffffff8008705000 ffffff8008705000 mmc0",
         "    ffffff80180c5c00 25874452   3       ffffff801496b000 ffffff8015d7b000 ffffff801496e000 ffffff801496e000 glink_pkt",
         "\n",
-        "  Display ipc log of specified context by name:",
-        "    %s> ipc -l adsp_region",
+        "  Display IPC logs from specific module:",
+        "    %s> ipc -l glink_pkt",
         "    [ 161.448574138 0x90dee57d91b]   [glink_pkt_poll]: Exit channel:location_ctrl",
         "    [ 161.448616117 0x90dee57dc3f]   [glink_pkt_poll]: Wait for pkt on channel:location_ctrl",
         "    [ 161.448627731 0x90dee57dd1d]   [glink_pkt_poll]: Exit channel:location_ctrl",
@@ -144,9 +146,12 @@ void IPCLog::init_command(void) {
         "    [ 161.475946481 0x90dee5fde06]   [glink_pkt_rpdev_copy_cb]: Data queued on:ss_bt_ctrl len:60",
         "    [ 161.475976325 0x90dee5fe043]   [glink_pkt_poll]: Wait for pkt on channel:ss_bt_ctrl",
         "\n",
-        "  Save all ipc log",
+        "  Save all IPC logs to files:",
         "    %s> ipc -s",
+        "    Save rpm-glink to /xxx/ipc_log/rpm-glink",
+        "    Save qrtr_ns to /xxx/ipc_log/qrtr_ns",
         "    Save mmc0 to /xxx/ipc_log/mmc0",
+        "    Save glink_pkt to /xxx/ipc_log/glink_pkt",
         "\n",
     };
 }

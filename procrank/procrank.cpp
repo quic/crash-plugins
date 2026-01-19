@@ -63,22 +63,24 @@ Procrank::Procrank(){
 void Procrank::init_command(void){
     cmd_name = "procrank";
     help_str_list={
-        "procrank",                            /* command name */
-        "dump process memory information",        /* short description */
-        "-a \n"
-            "  This command dumps the process info. sorted by rss",
-        "  procrank -c \n"
-            "  This command dumps the process cmdline.",
+        "procrank",                                /* command name */
+        "display process memory usage and ranking information",  /* short description */
+        "[-a] [-c]\n"
+        "  This command analyzes process memory usage and provides detailed ranking\n"
+        "  information sorted by RSS (Resident Set Size). It calculates various\n"
+        "  memory metrics including VSS, RSS, PSS, USS, and swap usage.\n"
+        "\n"
+        "    -a              display all processes with detailed memory statistics\n"
+        "    -c              display process command lines and names\n",
         "\n",
         "EXAMPLES",
-        "  Display process memory info:",
+        "  Display all processes ranked by memory usage:",
         "    %s> procrank -a",
         "    PID        Vss        Rss        Pss        Uss        Swap        Comm",
         "    975      1.97Gb     51.09Mb    13.71Mb    3.54Mb     1.99Mb     Binder:975_3",
         "    465      1.69Gb     4.53Mb     286.01Kb   36.00Kb    26.01Mb    main",
         "\n",
-        "EXAMPLES",
-        "  Display process cmdline:",
+        "  Display process command lines and names:",
         "    %s> procrank -c",
         "    PID      Comm                 Cmdline",
         "    1        init                 /system/bin/init",

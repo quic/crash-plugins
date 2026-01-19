@@ -130,16 +130,18 @@ void ICC::init_offset(void) {
 void ICC::init_command(void) {
     cmd_name = "icc";
     help_str_list={
-        "icc",                            /* command name */
-        "dump icc information",        /* short description */
-        "-a \n"
-            "  icc -p\n"
-            "  icc -n <icc provider name>\n"
-            "  icc -r <icc node name>\n"
-            "  This command dumps the cma info.",
+        "icc",                                         /* command name */
+        "dump ICC (Interconnect) information",        /* short description */
+        "[-a] [-p] [-n provider_name] [-r node_name]\n"
+        "  This command dumps ICC (Interconnect) framework information.\n"
+        "\n"
+        "    -a              display comprehensive interconnect topology and bandwidth information\n"
+        "    -p              display interconnect provider summary table\n"
+        "    -n provider_name display nodes for specific interconnect provider\n"
+        "    -r node_name    display bandwidth requests for specific interconnect node\n",
         "\n",
         "EXAMPLES",
-        "  Display all icc provider/node/request info:",
+        "  Display all ICC provider/node/request information:",
         "    %s> icc -a",
         "    icc_provider:ffffff8002241140 soc:interconnect",
         "       icc_node:ffffff8002106980 avg_bw:2 peak_bw:1 [qup0_core_master]",
@@ -147,7 +149,7 @@ void ICC::init_command(void) {
         "           icc_req:ffffff801adf7790 avg_bw:1 peak_bw:1 [4a84000.i2c]",
         "           icc_req:ffffff8019444e10 avg_bw:1 peak_bw:1 [4a80000.i2c]",
         "\n",
-        "  Display all icc provider:",
+        "  Display all ICC providers:",
         "    %s> icc -p",
         "    icc_provider     users data             Name",
         "    ffffff8002241140 10    ffffff8006998040 soc:interconnect",
@@ -155,15 +157,15 @@ void ICC::init_command(void) {
         "    ffffff8002249b40 12    ffffff8002220040 soc:interconnect@1",
         "    ffffff8002249340 30    ffffff8002224040 1900000.interconnect",
         "\n",
-        "  Display all icc node of specified provider by provider name:",
-        "    %s> icc -n 4480000.interconnect",
-        "    icc_node         id    avg_bw     peak_bw    data             Name",
+        "  Display all ICC nodes of specified provider:",
+        "    %s> icc -n 1900000.interconnect",
+        "    icc_node         id    avg_bw     peak_bw    qcom_icc_node    Name",
         "    ffffff8002254400 0     478572     2188000    ffffffeedf05e1f0 apps_proc",
         "    ffffff800224b480 1     0          0          ffffffeedf05e360 mas_snoc_bimc_rt",
         "    ffffff800224be80 2     0          0          ffffffeedf05e4d0 mas_snoc_bimc_nrt",
         "    ffffff8002254f80 3     396800     2160000    ffffffeedf05e640 mas_snoc_bimc",
         "\n",
-        "  Display all icc request of specified node by node name:",
+        "  Display all ICC requests for specified node:",
         "    %s> icc -r apps_proc",
         "    icc_req          enabled tag  avg_bw     peak_bw    Name",
         "    ffffff8018162e10 true    0    0          40000      4e00000.hsusb",

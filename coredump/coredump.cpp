@@ -172,15 +172,18 @@ Coredump::Coredump(){
 void Coredump::init_command(void){
     ParserPlugin::cmd_name = "coredump";
     help_str_list={
-        "coredump",                            /* command name */
-        "generate process coredump",        /* short description */
-        "-p <pid>\n"
-            "  coredump -m <pid>\n"
-            "  coredump -d <path>\n"
-            "  coredump -p <pid> -s <symbols_path> -f\n"
-            "  coredump -p <pid> -s <symbols_path> -r\n"
-            "  coredump -l <pid> -s <symbols_path>\n"
-            "  This command generate process coredump.",
+        "coredump",                                /* command name */
+        "generate process coredump",              /* short description */
+        "[-p pid] [-m pid] [-l pid] [-d path] [-s symbols_path] [-f] [-r]\n"
+        "  This command generates process coredump files and displays process memory information.\n"
+        "\n"
+        "    -p pid          generate coredump for specified process ID\n"
+        "    -m pid          display process memory mappings (VMA information)\n"
+        "    -l pid          display linkmap with main executable symbols\n"
+        "    -d path         specify output directory path for coredump file\n"
+        "    -s symbols_path specify directory containing symbol files\n"
+        "    -f              generate fake coredump with symbols (requires -s)\n"
+        "    -r              replace only main executable PHDR (requires -s)\n",
         "\n",
         "EXAMPLES",
         "  Generate process coredump, the default path is the current directory:",

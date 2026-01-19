@@ -103,16 +103,17 @@ void Zram::init_offset(void) {
 void Zram::init_command(void) {
     cmd_name = "zram";
     help_str_list={
-        "zram",                            /* command name */
-        "dump zram information",        /* short description */
-        "-a \n"
-            "  zram -m <zram addr>\n"
-            "  zram -f <zram addr>\n"
-            "  zram -p <zram addr>\n"
-            "  zram -z <zram addr>\n"
-            "  zram -o <size_class/zspage/page addr>\n"
-            "  zram -d\n"
-            "  This command dumps the zram info.",
+        "zram",                                 /* command name */
+        "display zram information",             /* short description */
+        "[-a] [-m zram_addr] [-f zram_addr] [-p zram_addr] [-z zram_addr] [-o addr]\n"
+        "  This command displays zram information.\n"
+        "\n"
+        "    -a              display all zram info\n"
+        "    -m zram_addr    display memory pool of specified zram\n"
+        "    -f zram_addr    display full info of specified zram\n"
+        "    -p zram_addr    display all pages of specified zram\n"
+        "    -z zram_addr    display all zspage of specified zram\n"
+        "    -o addr         display all obj info by size_class/zspage/page address\n",
         "\n",
         "EXAMPLES",
         "  Display all zram info:",

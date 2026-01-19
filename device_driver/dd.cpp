@@ -167,21 +167,23 @@ void DDriver::cmd_main(void) {
 void DDriver::init_command(void) {
     cmd_name = "dd";
     help_str_list={
-        "dd",                            /* command name */
-        "dump device driver information",        /* short description */
-        "-b \n"
-            "  dd -B <bus name> \n"
-            "  dd -c \n"
-            "  dd -C <class name> \n"
-            "  dd -l \n"
-            "  dd -L \n"
-            "  dd -s <driver name> \n"
-            "  dd -a \n"
-            "  dd -m \n"
-            "  dd -D \n"
-            "  dd -d \n"
-            "  dd -p <disk name> \n"
-            "  This command dumps the device driver info.",
+        "dd",                                     /* command name */
+        "display device driver information",      /* short description */
+        "[-b] [-B bus_name] [-c] [-C class_name] [-l] [-L] [-s driver_name] [-a] [-m] [-D] [-d] [-p disk_name]\n"
+        "  This command displays device driver information.\n"
+        "\n"
+        "    -b              display all bus info\n"
+        "    -B bus_name     display all device and driver info for specified bus\n"
+        "    -c              display all class info\n"
+        "    -C class_name   display all device and driver info for specified class\n"
+        "    -l              display all device info\n"
+        "    -L              display all driver info\n"
+        "    -s driver_name  display all device for specified driver\n"
+        "    -a              display all char device\n"
+        "    -m              display all misc device\n"
+        "    -D              display all block device\n"
+        "    -d              display all disk\n"
+        "    -p disk_name    display all partition for specified disk\n",
         "\n",
         "EXAMPLES",
         "  Display all bus info:",

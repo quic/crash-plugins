@@ -102,16 +102,12 @@ void Memblock::init_offset(void) {
 void Memblock::init_command(void) {
     cmd_name = "memblock";
     help_str_list = {
-        "memblock",                            /* command name */
-        "display memblock memory allocator information",        /* short description */
-        "-a \n"
-        "  This command displays information about the memblock memory allocator,",
-        "  which is used during early boot before the buddy allocator is initialized.",
-        "\n",
-        "OPTIONS",
-        "  -a",
-        "    Display all memblock regions including memory and reserved types.",
-        "    Shows detailed information about each region's address, size, and flags.",
+        "memblock",                                      /* command name */
+        "display memblock memory allocator information", /* short description */
+        "[-a]\n"
+        "  This command displays information about the memblock memory allocator.\n"
+        "\n"
+        "    -a              display all memblock regions including memory and reserved types\n",
         "\n",
         "EXAMPLES",
         "  Display memblock memory info:",

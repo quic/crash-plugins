@@ -87,17 +87,19 @@ void Dts::init_offset(void) {}
 void Dts::init_command(void) {
     cmd_name = "dts";
     help_str_list={
-        "dts",                            /* command name */
-        "dump dts info",        /* short description */
-        "-a \n"
-            "  dts -f\n"
-            "  dts -b <path of *.dtb>\n"
-            "  dts -s <name>\n"
-            "  dts -m\n"
-            "  This command dumps the dts info.",
+        "dts",                                /* command name */
+        "display device tree information",    /* short description */
+        "[-a] [-f] [-b path] [-s name] [-m]\n"
+        "  This command displays device tree (DTS) information.\n"
+        "\n"
+        "    -a              display whole device tree\n"
+        "    -f              display whole device tree with addresses\n"
+        "    -b path         read out the whole dtb memory to file\n"
+        "    -s name         display one node info by node name or node address\n"
+        "    -m              display physical memory ranges\n",
         "\n",
         "EXAMPLES",
-        "  Display whole dts info:",
+        "  Display whole device tree:",
         "    %s> dts -a",
         "       memory{",
         "           ddr_device_hbb_ch0_rank0=< d >;",
@@ -106,7 +108,7 @@ void Dts::init_command(void) {
         "           device_type=<memory>;",
         "       };",
         "\n",
-        "  Display whole dts info with address:",
+        "  Display whole device tree with addresses:",
         "    %s> dts -f",
         "       ffffff806f28a458:memory{",
         "           ffffff806f28a5b8:ddr_device_hbb_ch0_rank0=< d >;",
@@ -115,8 +117,8 @@ void Dts::init_command(void) {
         "           ffffff806f28a7f8:device_type=<memory>;",
         "       };",
         "\n",
-        "  Display one node info by node name or node path",
-        "    %s> dts -n memory",
+        "  Display one node info by node name or node address:",
+        "    %s> dts -s memory",
         "       memory{",
         "           ddr_device_type=< 0x7 >;",
         "           device_type=<memory>;",
@@ -125,35 +127,35 @@ void Dts::init_command(void) {
         "\n",
         "  Display physical memory ranges:",
         "    %s> dts -m",
-        "       ┌────────────────────────────────────────────────────────────┐",
-        "       │                   DDR MEMORY RANGES                        │",
-        "       ├─────┬────────────────────┬────────────────────┬────────────┤",
-        "       │ No. │    Start Address   │     End Address    │    Size    │",
-        "       ├─────┼────────────────────┼────────────────────┼────────────┤",
-        "       │   1 │ 0x0000000080e00000 │ 0x00000000817fffff │       10MB │",
-        "       │   2 │ 0x0000000081cf5000 │ 0x0000000081cfefff │       40KB │",
-        "       │   3 │ 0x0000000081f20000 │ 0x000000008249ffff │     5.50MB │",
-        "       │   4 │ 0x0000000082800000 │ 0x000000009927ffff │   362.50MB │",
-        "       │   5 │ 0x000000009ea9c000 │ 0x000000009eafffff │      400KB │",
-        "       │   6 │ 0x000000009f300000 │ 0x00000000a63fffff │      113MB │",
-        "       │   7 │ 0x00000000a7000000 │ 0x00000000e05fffff │      918MB │",
-        "       │   8 │ 0x00000000e0a00000 │ 0x00000000e88fffff │      127MB │",
-        "       │   9 │ 0x00000000ea700000 │ 0x00000000fc7fffff │      289MB │",
-        "       │  10 │ 0x00000000fca00000 │ 0x00000000ffffffff │       54MB │",
-        "       │  11 │ 0x0000000880000000 │ 0x00000008afbfefff │   764.00MB │",
-        "       │  12 │ 0x00000008b0000000 │ 0x00000008ba6fffff │      167MB │",
-        "       │  13 │ 0x00000008bf800000 │ 0x00000008bfffffff │        8MB │",
-        "       │  14 │ 0x00000008c0000000 │ 0x000000097fffffff │        3GB │",
-        "       ├─────┴────────────────────┴────────────────────┴────────────┤",
-        "       │ Total Memory Size: 5.75GB                                  │",
-        "       └────────────────────────────────────────────────────────────┘",
+        "    ┌────────────────────────────────────────────────────────────┐",
+        "    │                   DDR MEMORY RANGES                        │",
+        "    ├─────┬────────────────────┬────────────────────┬────────────┤",
+        "    │ No. │    Start Address   │     End Address    │    Size    │",
+        "    ├─────┼────────────────────┼────────────────────┼────────────┤",
+        "    │   1 │ 0x0000000080e00000 │ 0x00000000817fffff │       10MB │",
+        "    │   2 │ 0x0000000081cf5000 │ 0x0000000081cfefff │       40KB │",
+        "    │   3 │ 0x0000000081f20000 │ 0x000000008249ffff │     5.50MB │",
+        "    │   4 │ 0x0000000082800000 │ 0x000000009927ffff │   362.50MB │",
+        "    │   5 │ 0x000000009ea9c000 │ 0x000000009eafffff │      400KB │",
+        "    │   6 │ 0x000000009f300000 │ 0x00000000a63fffff │      113MB │",
+        "    │   7 │ 0x00000000a7000000 │ 0x00000000e05fffff │      918MB │",
+        "    │   8 │ 0x00000000e0a00000 │ 0x00000000e88fffff │      127MB │",
+        "    │   9 │ 0x00000000ea700000 │ 0x00000000fc7fffff │      289MB │",
+        "    │  10 │ 0x00000000fca00000 │ 0x00000000ffffffff │       54MB │",
+        "    │  11 │ 0x0000000880000000 │ 0x00000008afbfefff │   764.00MB │",
+        "    │  12 │ 0x00000008b0000000 │ 0x00000008ba6fffff │      167MB │",
+        "    │  13 │ 0x00000008bf800000 │ 0x00000008bfffffff │        8MB │",
+        "    │  14 │ 0x00000008c0000000 │ 0x000000097fffffff │        3GB │",
+        "    ├─────┴────────────────────┴────────────────────┴────────────┤",
+        "    │ Total Memory Size: 5.75GB                                  │",
+        "    └────────────────────────────────────────────────────────────┘",
         "\n",
         "  Read out the whole dtb memory:",
         "    %s> dts -b ./dts.dtb",
-        "       save dtb to ./dts.dtb",
+        "    save dtb to ./dts.dtb",
         "\n",
-        "       please use below command to generate dts file:",
-        "           dtc -I dtb -O dts -o ./xx.dts ./dts.dtb",
+        "    please use below command to generate dts file:",
+        "        dtc -I dtb -O dts -o ./xx.dts ./dts.dtb",
         "\n",
     };
 }

@@ -79,16 +79,12 @@ void Reserved::init_offset(void) {
 void Reserved::init_command(void) {
     cmd_name = "reserved";
     help_str_list={
-        "reserved",                            /* command name */
-        "display reserved memory regions information",  /* short description */
-        "-a",
-        "  This command displays information about reserved memory regions",
-        "  defined in the device tree.",
-        "\n",
-        "OPTIONS",
-        "  -a",
-        "    List all reserved memory regions with detailed information.",
-        "    Shows region name, base address, physical range, size and status.",
+        "reserved",                                    /* command name */
+        "display reserved memory regions information", /* short description */
+        "[-a]\n"
+        "  This command displays information about reserved memory regions.\n"
+        "\n"
+        "    -a              display all reserved memory regions with detailed information\n",
         "\n",
         "EXAMPLES",
         "  List all reserved memory regions:",

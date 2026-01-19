@@ -135,12 +135,14 @@ void Buddy::init_offset(void) {
 void Buddy::init_command(void) {
     cmd_name = "buddy";
     help_str_list = {
-        "buddy",                            /* command name */
-        "dump buddy information",           /* short description */
-        "-a \n"
-            "  buddy -n\n"
-            "  buddy -z <zone addr>\n"
-            "  This command dumps the buddy info.",
+        "buddy",                                  /* command name */
+        "display buddy allocator information",    /* short description */
+        "[-a] [-n] [-z zone_addr]\n"
+        "  This command displays buddy allocator information.\n"
+        "\n"
+        "    -a              display buddy info\n"
+        "    -n              display memory node info\n"
+        "    -z zone_addr    display page info of zone\n",
         "\n",
         "EXAMPLES",
         "\n",

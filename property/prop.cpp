@@ -80,12 +80,16 @@ Prop::Prop() : PropInfo(std::make_shared<Swapinfo>()) {}
 void Prop::init_command(void){
     cmd_name = "getprop";
     help_str_list={
-        "getprop",                            /* command name */
-        "dump android property information",        /* short description */
-        "-s <symbol directory path>\n"
-            "  getprop -a\n"
-            "  getprop -p <prop name>\n"
-            "  This command dumps the property info.",
+        "getprop",                                /* command name */
+        "display Android system property information and analysis",  /* short description */
+        "[-s symbol_dir] [-a] [-p prop_name]\n"
+        "  This command analyzes Android system properties from crash dumps,\n"
+        "  providing comprehensive property information extraction and display.\n"
+        "  It supports symbol-based parsing and fallback VMA parsing methods.\n"
+        "\n"
+        "    -s symbol_dir   load symbol files from specified directory for parsing\n"
+        "    -a              display all system properties with formatted output\n"
+        "    -p prop_name    query and display value of specific property by name\n",
         "\n",
         "EXAMPLES",
         "  Load symbol for property:",

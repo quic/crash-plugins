@@ -101,25 +101,12 @@ void Cma::init_command(void) {
     help_str_list={
         "cma",                                /* command name */
         "display CMA (Contiguous Memory Allocator) information",  /* short description */
-        "-a \n"
-        "  cma -p <physical addr> \n"
-        "  cma -b <cma name>\n"
-        "  This command displays CMA memory allocation information.",
-        "  Without options, it shows a summary of all CMA areas.",
-        "  Use -a to list all CMA areas with detailed statistics.",
-        "  Use -p to check the status of a specific page.",
-        "  Use -b to display allocated CMA pages with pageowner stack traces.",
-        "\n",
-        "OPTIONS",
-        "  -a",
-        "    Display all CMA areas with allocation statistics.",
-        "",
-        "  -p <physical addr>",
-        "    Display the status of a specific page.",
-        "",
-        "  -b [cma_name]",
-        "    Display allocated CMA pages with pageowner stack traces.",
-        "    If cma_name is specified, only show stack traces for that CMA area.",
+        "[-a] [-p physical_addr] [-b cma_name]\n"
+        "  This command displays CMA memory allocation information.\n"
+        "\n"
+        "    -a              display all CMA areas with allocation statistics\n"
+        "    -p physical_addr  check the status of a specific page by physical address\n"
+        "    -b cma_name     display allocated CMA pages with pageowner stack traces\n",
         "\n",
         "EXAMPLES",
         "  List all CMA areas with detailed information:",

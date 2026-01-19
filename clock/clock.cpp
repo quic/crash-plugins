@@ -161,14 +161,18 @@ void Clock::init_offset(void) {
 void Clock::init_command(void) {
     cmd_name = "ccf";
     help_str_list={
-        "ccf",                            /* command name */
-        "dump clock information",        /* short description */
-        "-c \n"
-            "  ccf -t\n"
-            "  ccf -e\n"
-            "  ccf -d\n"
-            "  ccf -p\n"
-            "  This command dumps the clock info.",
+        "ccf",                                /* command name */
+        "display Common Clock Framework (CCF) information and analysis",  /* short description */
+        "[-c] [-t] [-e] [-d] [-p]\n"
+        "  This command analyzes the Linux Common Clock Framework from crash dumps,\n"
+        "  providing comprehensive information about clock providers, clock trees,\n"
+        "  and clock states including enable/disable and prepare/unprepare status.\n"
+        "\n"
+        "    -c              display all clock providers with detailed clock information\n"
+        "    -t              display clock tree hierarchy showing provider-consumer relationships\n"
+        "    -e              display only enabled clocks with their current rates\n"
+        "    -d              display only disabled clocks for power analysis\n"
+        "    -p              display only prepared clocks ready for operation\n",
         "\n",
         "EXAMPLES",
         "  Display all clock provider info:",
