@@ -323,13 +323,7 @@ void DmaHeap::parser_heaps() {
         // Parse operations name
         heap_ptr->ops = "";
         ulong ops_addr = ULONG(heap_buf + field_offset(dma_heap, ops));
-        if (is_kvaddr(ops_addr)) {
-            ulong offset;
-            struct syment *sp = value_search(ops_addr, &offset);
-            if (sp) {
-                heap_ptr->ops = sp->name;
-            }
-        }
+        heap_ptr->ops = to_symbol(ops_addr);
         // Find all buffers allocated from this heap
         int buf_count = 0;
         for (const auto& dmabuf_ptr : dmabuf_ptr->buf_list) {

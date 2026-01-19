@@ -1393,26 +1393,8 @@ ulong Slub::get_free_pointer(std::shared_ptr<kmem_cache> cache_ptr, ulong object
  * @return Formatted string containing symbol information
  */
 std::string Slub::extract_callstack(ulong frames_addr){
-    struct syment *sp;
-    ulong offset;
     std::ostringstream oss;
-
-    // Validate that the address is a valid kernel virtual address
-    if (!is_kvaddr(frames_addr)){
-        LOGD("          Invalid frame address %#lx, skipping", frames_addr);
-        return "";
-    }
-
-    // Perform symbol lookup to find the function containing this address
-    sp = value_search(frames_addr, &offset);
-    if (sp){
-        // Symbol found - format as: [<address>] symbol_name+offset
-        oss << "   [<" << std::hex << frames_addr << ">] "
-            << sp->name << "+" << std::hex << offset << std::dec << "\n";
-    } else {
-        // Symbol not found - may be module symbols or corrupted frames
-        oss << "   [<" << std::hex << frames_addr << ">] Unknown, Maybe should load module symbol\n";
-    }
+    oss << "   [<" << std::hex << frames_addr << ">] " << to_symbol(frames_addr) << "\n";
     return oss.str();
 }
 

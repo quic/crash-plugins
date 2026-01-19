@@ -218,33 +218,6 @@ double Rtb::get_timestamp(struct rtb_layout& layout){
 }
 
 /**
- * get_fun_name - Get function name from caller address
- * @layout: RTB layout structure containing caller address
- *
- * Looks up the symbol name for the caller address.
- *
- * Returns: Function name string, or "Unknown function" if not found
- */
-std::string Rtb::get_fun_name(struct rtb_layout& layout){
-    struct syment *sp;
-    ulong offset;
-    std::string res = "Unknown function";
-
-    // Validate caller address is a kernel virtual address
-    if (!is_kvaddr(layout.caller)){
-        LOGD("Invalid caller address: 0x%llx", (ulonglong)layout.caller);
-        return res;
-    }
-
-    // Look up symbol for the caller address
-    sp = value_search(layout.caller, &offset);
-    if (sp) {
-        res = sp->name;
-    }
-    return res;
-}
-
-/**
  * get_caller - Get source code location for caller address
  * @layout: RTB layout structure containing caller address
  *
@@ -316,7 +289,7 @@ static std::vector<std::string> type_str = {
 };
 
 void Rtb::print_read_write(int cpu, struct rtb_layout& layout) {
-    std::string name = get_fun_name(layout);
+    std::string name = to_symbol(layout.caller);
     std::string line = get_caller(layout);
     PRINT("[%f] [%lld] <%d>: %s from address:%llx(%llx) called from addr %llx %s %s\n",
         get_timestamp(layout),
@@ -332,7 +305,7 @@ void Rtb::print_read_write(int cpu, struct rtb_layout& layout) {
 }
 
 void Rtb::print_logbuf(int cpu, struct rtb_layout& layout) {
-    std::string name = get_fun_name(layout);
+    std::string name = to_symbol(layout.caller);
     std::string line = get_caller(layout);
     PRINT("[%f] [%lld] <%d>: %s log end:%llx called from addr %llx %s %s\n",
         get_timestamp(layout),
@@ -347,7 +320,7 @@ void Rtb::print_logbuf(int cpu, struct rtb_layout& layout) {
 }
 
 void Rtb::print_hotplug(int cpu, struct rtb_layout& layout) {
-    std::string name = get_fun_name(layout);
+    std::string name = to_symbol(layout.caller);
     std::string line = get_caller(layout);
     PRINT("[%f] [%lld] <%d>: %s cpu data:%llx called from addr %llx %s %s\n",
         get_timestamp(layout),
@@ -362,7 +335,7 @@ void Rtb::print_hotplug(int cpu, struct rtb_layout& layout) {
 }
 
 void Rtb::print_ctxid(int cpu, struct rtb_layout& layout) {
-    std::string name = get_fun_name(layout);
+    std::string name = to_symbol(layout.caller);
     std::string line = get_caller(layout);
     PRINT("[%f] [%lld] <%d>: %s ctxid:%lld called from addr %llx %s %s\n",
         get_timestamp(layout),
@@ -377,7 +350,7 @@ void Rtb::print_ctxid(int cpu, struct rtb_layout& layout) {
 }
 
 void Rtb::print_timestamp(int cpu, struct rtb_layout& layout) {
-    std::string name = get_fun_name(layout);
+    std::string name = to_symbol(layout.caller);
     std::string line = get_caller(layout);
     PRINT("[%f] [%lld] <%d>: %s timestamp:%llx called from addr %llx %s %s\n",
         get_timestamp(layout),
@@ -392,7 +365,7 @@ void Rtb::print_timestamp(int cpu, struct rtb_layout& layout) {
 }
 
 void Rtb::print_l2cpread_write(int cpu, struct rtb_layout& layout) {
-    std::string name = get_fun_name(layout);
+    std::string name = to_symbol(layout.caller);
     std::string line = get_caller(layout);
     PRINT("[%f] [%lld] <%d>: %s from offset:%llx called from addr %llx %s %s\n",
         get_timestamp(layout),
@@ -407,7 +380,7 @@ void Rtb::print_l2cpread_write(int cpu, struct rtb_layout& layout) {
 }
 
 void Rtb::print_irq(int cpu, struct rtb_layout& layout) {
-    std::string name = get_fun_name(layout);
+    std::string name = to_symbol(layout.caller);
     std::string line = get_caller(layout);
     PRINT("[%f] [%lld] <%d>: %s interrupt:%lld handled from addr %llx %s %s\n",
         get_timestamp(layout),

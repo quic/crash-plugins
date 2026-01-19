@@ -232,11 +232,7 @@ std::shared_ptr<dma_buf> Dmabuf::parser_dma_buf(ulong addr) {
     }
     // Parse operations name
     ulong ops_addr = ULONG(dmabuf + field_offset(dma_buf, ops));
-    ulong offset;
-    struct syment *sp = value_search(ops_addr, &offset);
-    if (sp) {
-        buf_ptr->ops_name = sp->name;
-    }
+    buf_ptr->ops_name = to_symbol(ops_addr);
     FREEBUF(dmabuf);
     return buf_ptr;
 }

@@ -99,7 +99,6 @@ private:
 
     // Helper functions for extracting information
     std::string get_caller(struct rtb_layout& layout);    // Get source code location
-    std::string get_fun_name(struct rtb_layout& layout);  // Get function name from address
     double get_timestamp(struct rtb_layout& layout);      // Convert timestamp to seconds
 
 public:

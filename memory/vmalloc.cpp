@@ -332,21 +332,7 @@ void Vmalloc::parser_vmap_area(ulong addr) {
         } else {
             vm_ptr->flags.assign("unknow");
         }
-
-        // Resolve caller symbol
-        ulong offset;
-        struct syment *sp = value_search(caller, &offset);
-        if (sp) {
-            vm_ptr->caller = sp->name;
-            // Remove suffix after '.' (e.g., ".isra.0")
-            size_t pos = vm_ptr->caller.find('.');
-            if (pos != std::string::npos) {
-                vm_ptr->caller = vm_ptr->caller.substr(0, pos);
-            }
-            if (offset) {
-                vm_ptr->caller.append("+").append(std::to_string(offset));
-            }
-        }
+        vm_ptr->caller = to_symbol(caller);
 
         // Parse page list
         if (is_kvaddr(pages)) {

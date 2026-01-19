@@ -2127,26 +2127,7 @@ std::shared_ptr<bus_type> ParserPlugin::parser_bus_info(ulong addr){
     // Read and resolve the probe function address
     // Path: bus_type->probe (function pointer)
     size_t probe_addr = read_pointer(addr + field_offset(bus_type, probe), "probe addr");
-    if (is_kvaddr(probe_addr)) {
-        // Try to resolve the function address to a symbolic name
-        ulong offset;
-        struct syment *sp = value_search(probe_addr, &offset);
-
-        if (sp) {
-            // Found symbol: format as "symbol_name+offset"
-            std::ostringstream oss;
-            oss << sp->name << "+" << offset;
-            bus_ptr->probe = oss.str();
-        } else {
-            // Symbol not found: use raw hexadecimal address
-            std::ostringstream oss;
-            oss << "0x" << std::hex << probe_addr;
-            bus_ptr->probe = oss.str();
-        }
-    } else {
-        // Invalid probe pointer, use empty string
-        bus_ptr->probe = "";
-    }
+    bus_ptr->probe = to_symbol(probe_addr);
 
     // Retrieve the subsys_private structure for this bus
     // This contains internal management data like device/driver lists
@@ -2300,26 +2281,7 @@ std::shared_ptr<driver> ParserPlugin::parser_driver(ulong addr){
     // Read and resolve the probe function address
     // Path: device_driver->probe (function pointer)
     const size_t probe_addr = read_pointer(addr + probe_offset, "probe addr");
-    if (is_kvaddr(probe_addr)) {
-        // Try to resolve the function address to a symbolic name
-        ulong offset;
-        struct syment *sp = value_search(probe_addr, &offset);
-
-        if (sp) {
-            // Found symbol: format as "symbol_name+offset"
-            std::ostringstream oss;
-            oss << sp->name << "+" << offset;
-            driv_ptr->probe = oss.str();
-        } else {
-            // Symbol not found: use raw hexadecimal address
-            std::ostringstream oss;
-            oss << "0x" << std::hex << probe_addr;
-            driv_ptr->probe = oss.str();
-        }
-    } else {
-        // Invalid probe pointer, use empty string
-        driv_ptr->probe = "";
-    }
+    driv_ptr->probe = to_symbol(probe_addr);
 
     // Read device tree compatible string if present
     // Path: device_driver->of_match_table->compatible
@@ -3768,16 +3730,7 @@ std::string ParserPlugin::get_call_stack(std::shared_ptr<stack_record_t> record_
     if(is_kvaddr(entries) && nr_size < entry_len){
         for(uint i = 0; i < nr_size; i++){
             ulong frame_addr = read_pointer(entries + sizeof(unsigned long) * i, "frame_addr");
-            if(is_kvaddr(frame_addr)){
-                struct syment *sp;
-                ulong offset;
-                sp = value_search(frame_addr, &offset);
-                if (sp){
-                    oss << "[<" << std::hex << frame_addr << ">] " << sp->name << "+" << std::hex << offset << std::dec << "\n";
-                } else {
-                    oss << "[<" << std::hex << frame_addr << ">] Unknown\n";
-                }
-            }
+            oss << "[<" << std::hex << frame_addr << ">] " << to_symbol(frame_addr) << "\n";
         }
     }
     return oss.str();
@@ -4778,4 +4731,66 @@ bool ParserPlugin::is_page_allocated(std::shared_ptr<page_owner> owner_ptr) {
     return true;
 }
 
+/**
+ * Convert a kernel address to its symbolic representation
+ *
+ * This function converts a kernel virtual address to a human-readable symbolic
+ * representation by looking up the symbol in the kernel's symbol table. It
+ * provides enhanced formatting and error handling compared to the basic symbol
+ * lookup functions.
+ *
+ * The function performs the following operations:
+ * 1. Validates the input address as a kernel virtual address
+ * 2. Performs symbol table lookup using value_search()
+ * 3. Formats the result based on whether a symbol was found:
+ *    - If symbol found: "symbol_name+0xoffset" format
+ *    - If no symbol found: "0xaddress" format with appropriate prefix
+ * 4. Handles edge cases like zero offset and invalid addresses
+ *
+ * @param addr The kernel virtual address to resolve to a symbol
+ * @return Formatted string containing symbol information or raw address
+ *
+ * Examples:
+ * - to_symbol(0xffffffc008123456) -> "do_sys_open+0x123"
+ * - to_symbol(0xffffffc008000000) -> "start_kernel+0x0"
+ * - to_symbol(0x12345678) -> "0x12345678" (if not a valid kernel address)
+ * - to_symbol(0xdeadbeef) -> "[unknown:0xdeadbeef]" (if symbol lookup fails)
+ */
+std::string ParserPlugin::to_symbol(ulong addr) {
+    // Early validation: check for zero address
+    if (addr == 0) {
+        return "0x0";
+    }
+
+    // Validate kernel virtual address
+    if (!is_kvaddr(addr)) {
+        // Not a kernel virtual address, return raw address with prefix
+        std::ostringstream oss;
+        oss << "0x" << std::hex << addr;
+        return oss.str();
+    }
+
+    // Perform symbol table lookup
+    ulong offset = 0;
+    struct syment *sp = value_search(addr, &offset);
+
+    std::ostringstream oss;
+
+    if (sp && sp->name) {
+        // Symbol found: format as "symbol_name+0xoffset"
+        oss << sp->name;
+
+        if (offset > 0) {
+            // Non-zero offset: add offset information
+            oss << "+0x" << std::hex << offset;
+        }
+        // Zero offset case: just return symbol name without "+0x0"
+    } else {
+        // Symbol not found: format as "[unknown:0xaddress]"
+        // This helps distinguish between raw addresses and failed lookups
+        oss << "[unknown:0x" << std::hex << addr << "]";
+    }
+
+    return oss.str();
+}
 #pragma GCC diagnostic pop

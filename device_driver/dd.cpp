@@ -1229,13 +1229,7 @@ void DDriver::print_misc_device(){
         }
 
         size_t ops_addr = read_pointer(addr + field_offset(miscdevice, fops), "fops addr");
-        if (is_kvaddr(ops_addr)){
-            ulong offset;
-            struct syment *sp = value_search(ops_addr, &offset);
-            if (sp) {
-                info.ops_name = sp->name;
-            }
-        }
+        info.ops_name = to_symbol(ops_addr);
         misc_list.push_back(info);
     }
 

@@ -477,13 +477,7 @@ void IonHeap::parser_heaps() {
         // Parse operations name
         heap_ptr->ops = "";
         ulong ops_addr = ULONG(heap_buf + field_offset(ion_heap, ops));
-        if (is_kvaddr(ops_addr)) {
-            ulong offset;
-            struct syment *sp = value_search(ops_addr, &offset);
-            if (sp) {
-                heap_ptr->ops = sp->name;
-            }
-        }
+        heap_ptr->ops = to_symbol(ops_addr);
 
         // Parse buffer count (if field exists)
         if (field_offset(ion_heap, num_of_buffers) != -1) {

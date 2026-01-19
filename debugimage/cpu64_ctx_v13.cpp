@@ -36,24 +36,11 @@ void Cpu64_Context_V13::print_stack(std::shared_ptr<Dump_entry> entry_ptr){
     uint64_t lr = reg_dump.sc_regs.x[30];
     uint64_t pc = pac_ignore(reg_dump.sc_regs.pc);
     LOGD("Core %d: PC=%#lx, LR=%#lx", core, pc, lr);
-    struct syment *sym;
-    ulong offset;
-    sym = value_search(pc, &offset);
     std::ostringstream oss;
     oss << "Core" << std::dec << core << " " << "\n";
-    if (sym) {
-        oss << "PC: " << "<" << std::hex << pc << ">: " << sym->name  << "+" << std::hex << offset << "\n";
-    } else {
-        oss << "PC: " << "<" << std::hex << pc << ">: " << "UNKNOWN"  << "+" << std::hex << 0 << "\n";
-    }
-
+    oss << "PC: " << "<" << std::hex << pc << ">: " << to_symbol(pc) << "\n";
     lr = pac_ignore(lr);
-    sym = value_search(lr, &offset);
-    if (sym) {
-        oss << "LR: " << "<" << std::hex << lr << ">: " << sym->name  << "+" << std::hex << offset << "\n";
-    } else {
-        oss << "LR: " << "<" << std::hex << lr << ">: " << "UNKNOWN"  << "+" << std::hex << 0 << "\n";
-    }
+    oss << "LR: " << "<" << std::hex << pc << ">: " << to_symbol(lr) << "\n";
     PRINT("%s\n\n", oss.str().c_str());
 #if defined(ARM64)
     struct task_context *tc;
