@@ -238,7 +238,7 @@ void Workqueue::print_pool_by_addr(std::string addr) {
         // Get current work information
         std::string current_work = "None";
         if (worker_ptr->current_func != 0) {
-            current_work = print_func_name(worker_ptr->current_func);
+            current_work = to_symbol(worker_ptr->current_func);
         }
 
         PRINT("   %s [%s] pid:%d | current_func=%s | flags=%s\n",
@@ -252,31 +252,14 @@ void Workqueue::print_pool_by_addr(std::string addr) {
     PRINT("\nDelayed Work:\n");
     for (const auto& pool_workqueue_ptr : worker_pool->pwq_list) {
         for (const auto& work_struct_ptr : pool_workqueue_ptr->delay_works_list) {
-            PRINT("   %s\n", print_func_name(work_struct_ptr->func).c_str());
+            PRINT("   %s\n", to_symbol(work_struct_ptr->func).c_str());
         }
     }
     // Print pending work
     PRINT("\nPending Work:\n");
     for (const auto& work_struct_ptr : worker_pool->worklist) {
-        PRINT("   %s\n", print_func_name(work_struct_ptr->func).c_str());
+        PRINT("   %s\n", to_symbol(work_struct_ptr->func).c_str());
     }
-}
-
-std::string Workqueue::print_func_name(ulong func_addr) {
-    LOGD("Looking up function at address: 0x%lx", func_addr);
-    if (!is_kvaddr(func_addr)) {
-        return "None";
-    }
-    ulong offset;
-    struct syment *sp = value_search(func_addr, &offset);
-    if (sp) {
-        std::ostringstream oss;
-        oss << sp->name << "+0x" << std::hex << offset;
-        return oss.str();
-    }
-    std::ostringstream oss;
-    oss << "[<" << std::hex << func_addr << ">]";
-    return oss.str();
 }
 
 template <typename T>
@@ -789,7 +772,7 @@ void Workqueue::print_detailed() {
                         PRINT(" ...");
                         break;
                     }
-                    PRINT(" %s", print_func_name(work->func).c_str());
+                    PRINT(" %s", to_symbol(work->func).c_str());
                 }
                 PRINT("\n");
             }
@@ -911,7 +894,7 @@ void Workqueue::print_check(std::string arg) {
                     // Get current work information
                     std::string current_work = "None";
                     if (worker->current_func != 0) {
-                        current_work = print_func_name(worker->current_func);
+                        current_work = to_symbol(worker->current_func);
                     }
 
                     PRINT("    - %s [pid:%d] %s | current_func=%s | flags=%s\n",
@@ -927,7 +910,7 @@ void Workqueue::print_check(std::string arg) {
             if (!pool->worklist.empty()) {
                 PRINT("  Pending Works:\n");
                 for (const auto& work : pool->worklist) {
-                    PRINT("    - %s\n", print_func_name(work->func).c_str());
+                    PRINT("    - %s\n", to_symbol(work->func).c_str());
                 }
             }
 

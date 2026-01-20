@@ -135,7 +135,6 @@ private:
     void parse_cpu_worker_pools();
     void parse_unbound_pool_hash();
     void parse_workqueue();
-    std::string print_func_name(ulong func_addr);
     template <typename T>
     std::string parser_flags(uint flags, const std::unordered_map<T, std::string>& flags_array);
 

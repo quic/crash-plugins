@@ -2007,6 +2007,81 @@ std::vector<ulong> ParserPlugin::for_each_subdirs(ulong dentry){
 }
 
 /**
+ * Retrieve per-CPU variable addresses for all CPUs in the system
+ *
+ * This function traverses all CPUs in the system and calculates the per-CPU
+ * variable addresses by adding the per-CPU offset to the base address. The
+ * results are returned in CPU order, where CPU0's address is stored at index 0,
+ * CPU1's address at index 1, and so on.
+ *
+ * The function handles both SMP and non-SMP systems:
+ * - For SMP systems with per-CPU offsets: calculates actual per-CPU addresses
+ * - For non-SMP systems or systems without per-CPU offsets: returns base address for CPU0
+ * - For offline or invalid CPUs: stores 0 at the corresponding index
+ *
+ * @param addr The base address of the per-CPU variable to resolve
+ * @return Vector of per-CPU addresses indexed by CPU number (CPU0 at index 0, etc.)
+ *         Returns empty vector if addr is invalid or system doesn't support per-CPU variables
+ *         Returns vector with 0 values for offline/invalid CPUs at their respective indices
+ *
+ */
+std::vector<ulong> ParserPlugin::for_each_percpu(ulong addr) {
+    std::vector<ulong> cpu_list;
+
+    // Early validation: check if base address is valid
+    if (addr == 0) {
+        LOGE("Invalid base address (0x0) for per-CPU variable\n");
+        return cpu_list;
+    }
+
+    // Check if system supports SMP and has per-CPU offsets configured
+    if (!(kt->flags & SMP) || !(kt->flags & PER_CPU_OFF)) {
+        // Non-SMP system or no per-CPU offsets: return base address for CPU0 only
+        cpu_list.reserve(1);
+        cpu_list.push_back(addr);
+        return cpu_list;
+    }
+
+    // Validate that we have a reasonable number of CPUs to prevent excessive memory allocation
+    if (NR_CPUS == 0 || NR_CPUS > 1024) {  // Sanity check for reasonable CPU count
+        LOGE("Invalid CPU count: %zu (expected 1-1024)\n", NR_CPUS);
+        return cpu_list;
+    }
+
+    // Pre-allocate vector capacity to avoid reallocations during insertion
+    // This is a key optimization for performance
+    cpu_list.reserve(NR_CPUS);
+
+    // Iterate through all possible CPU indices to maintain index correspondence
+    for (size_t cpu_id = 0; cpu_id < NR_CPUS; cpu_id++) {
+        // Check if this CPU has a valid per-CPU offset
+        if (kt->__per_cpu_offset[cpu_id] == 0) {
+            // CPU is offline or invalid: store 0 to maintain index correspondence
+            // This ensures cpu_list[i] always corresponds to CPU i
+            cpu_list.push_back(0);
+            continue;
+        }
+
+        // Calculate the per-CPU address for this CPU
+        // Formula: per_cpu_addr = base_addr + per_cpu_offset[cpu_id]
+        ulong percpu_addr = addr + kt->__per_cpu_offset[cpu_id];
+
+        // Validate the calculated address is reasonable (basic sanity check)
+        if (!is_kvaddr(percpu_addr)) {
+            // Invalid calculated address: store 0 for this CPU
+            LOGD("Invalid per-CPU address calculated for CPU%zu: 0x%lx\n", cpu_id, percpu_addr);
+            cpu_list.push_back(0);
+            continue;
+        }
+
+        // Store the valid per-CPU address at the corresponding CPU index
+        cpu_list.push_back(percpu_addr);
+    }
+
+    return cpu_list;
+}
+
+/**
  * Parse device class information from kernel memory
  *
  * This function extracts and structures information about a device class from

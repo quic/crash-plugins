@@ -426,10 +426,9 @@ void Watchdog::parser_upstream_wdt(ulong addr){
         }
     }
     // Per-CPU tick device information
-    for (size_t i = 0; i < NR_CPUS; i++) {
-        if (!kt->__per_cpu_offset[i])
-            continue;
-        ulong tick_cpu_device_addr = csymbol_value("tick_cpu_device") + kt->__per_cpu_offset[i];
+    std::vector<ulong> percpu_list = for_each_percpu(csymbol_value("tick_cpu_device"));
+    for (size_t i = 0; i < percpu_list.size(); i++){
+        ulong tick_cpu_device_addr = percpu_list[i];
         if (!is_kvaddr(tick_cpu_device_addr)) continue;
         ulong evt_dev_addr = read_structure_field(tick_cpu_device_addr, "tick_device", "evtdev");
         if(is_kvaddr(evt_dev_addr)){
@@ -540,8 +539,6 @@ void Watchdog::parser_msm_wdt(){
     ulong ping_start_addr = wdt_addr + field_offset(msm_watchdog_data,ping_start);
     ulong ping_end_addr = wdt_addr + field_offset(msm_watchdog_data,ping_end);
     for (size_t i = 0; i < NR_CPUS; i++) {
-        if (!kt->__per_cpu_offset[i])
-            continue;
         ulong ping_start = read_ulonglong(ping_start_addr + i * sizeof(unsigned long long),"ping_start");
         ulong ping_end =  read_ulonglong(ping_end_addr + i * sizeof(unsigned long long),"ping_end");
         oss << std::left << std::setw(25) << ("  ping_cpu[" + std::to_string(i) + "]")

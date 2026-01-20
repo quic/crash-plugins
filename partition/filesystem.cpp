@@ -270,13 +270,8 @@ long long Ext4::percpu_counter_sum(ulong addr) {
     ulong counters = read_ulong(addr + field_offset(percpu_counter, counters), "percpu_counter counters");
 
     // Aggregate per-CPU values
-    for (size_t i = 0; i < NR_CPUS; i++) {
-        if (!kt->__per_cpu_offset[i])
-            continue;
-
-        ulong per_cpu_counter_addr = counters + kt->__per_cpu_offset[i];
+    for (auto& per_cpu_counter_addr : for_each_percpu(counters)) {
         if (!is_kvaddr(per_cpu_counter_addr)) continue;
-
         int cpu_val = read_int(per_cpu_counter_addr, "per_cpu_counter");
         count += cpu_val;
     }

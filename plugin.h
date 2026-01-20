@@ -271,6 +271,7 @@ public:
     std::vector<ulong> for_each_class();
     std::vector<ulong> for_each_address_space(ulong i_mapping);
     std::vector<ulong> for_each_subdirs(ulong dentry);
+    std::vector<ulong> for_each_percpu(ulong addr);
     std::vector<std::shared_ptr<device>> for_each_device();
     std::vector<std::shared_ptr<device>> for_each_device_for_bus(const std::string& bus_name);
     std::vector<std::shared_ptr<device>> for_each_device_for_class(const std::string& class_name);

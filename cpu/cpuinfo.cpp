@@ -146,12 +146,9 @@ void CpuInfo::parser_cpu_policy(){
         return;
     }
     LOGD("cpufreq_cpu_data symbol found at address: %lx\n", cpufreq_cpu_addr);
-
-    for (size_t i = 0; i < NR_CPUS; i++) {
-        if (!kt->__per_cpu_offset[i])
-            continue;
-        LOGD("Processing CPU %zu\n", i);
-        ulong addr = cpufreq_cpu_addr + kt->__per_cpu_offset[i];
+    std::vector<ulong> percpu_list = for_each_percpu(cpufreq_cpu_addr);
+    for (size_t i = 0; i < percpu_list.size(); i++){
+        ulong addr = percpu_list[i];
         if (!is_kvaddr(addr)) {
             LOGW("Invalid per-cpu address for CPU %zu: %lx\n", i, addr);
             continue;

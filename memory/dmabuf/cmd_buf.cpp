@@ -194,16 +194,18 @@ void DmaIon::init_command(void) {
     help_str_list = {
         "dmabuf",                            /* command name */
         "dump dmabuf information",           /* short description */
-        "-b \n"
-            "  dmabuf -B <dmabuf addr>\n"
-            "  dmabuf -h\n"
-            "  dmabuf -H <heap name>\n"
-            "  dmabuf -p \n"
-            "  dmabuf -P <pid>\n"
-            "  dmabuf -s \n"
-            "  dmabuf -S <dmabuf addr>\n"
-            "  dmabuf -T\n"
-            "  This command dumps the dmabuf information.",
+        "[-a] [-b] [-B dmabuf_addr] [-h] [-H heap_name] [-p] [-P pid] [-s] [-S dmabuf_addr] [-T]\n"
+            "\n"
+            "  -a              display all dmabuf with detailed information\n"
+            "  -b              display all dmabuf (concise list)\n"
+            "  -B dmabuf_addr  display detailed info for specific dmabuf by address\n"
+            "  -h              display summary of all heaps\n"
+            "  -H heap_name    display detailed info for specific heap by name\n"
+            "  -p              display dmabuf usage statistics per process\n"
+            "  -P pid          display dmabuf info for specific process by PID\n"
+            "  -s              display system heap memory pool information\n"
+            "  -S dmabuf_addr  save dmabuf contents to file\n"
+            "  -T              display page allocation stack traces for all dmabufs\n",
             "\n",
         "EXAMPLES",
         "  Display all dmabuf with detailed info:",

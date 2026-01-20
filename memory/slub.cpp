@@ -867,120 +867,92 @@ std::vector<std::shared_ptr<kmem_cache_node>> Slub::parser_kmem_cache_node(std::
  */
 std::vector<std::shared_ptr<kmem_cache_cpu>> Slub::parser_kmem_cache_cpu(std::shared_ptr<kmem_cache> cache_ptr, ulong cpu_addr){
     std::vector<std::shared_ptr<kmem_cache_cpu>> cpu_list;
-
-    // Check if this is an SMP system with per-CPU offset support
-    // SMP: Symmetric Multi-Processing flag
-    // PER_CPU_OFF: Per-CPU offset array is available
-    if ((kt->flags & SMP) && (kt->flags & PER_CPU_OFF)) {
-        LOGD(" Parsing per-CPU slabs for cache '%s' (base addr: %#lx)",
-             cache_ptr->name.c_str(), cpu_addr);
-
-        size_t active_cpus = 0;
-
-        // Iterate through all possible CPUs in the system
-        for (size_t i = 0; i < NR_CPUS; i++) {
-            // Skip CPUs that don't have a valid per-CPU offset
-            // This happens for offline CPUs or systems with fewer CPUs than NR_CPUS
-            if (!kt->__per_cpu_offset[i]) {
-                continue;
-            }
-
-            // Calculate the actual address for this CPU's data
-            // Per-CPU variables are accessed as: base_addr + per_cpu_offset[cpu_id]
-            ulong addr = cpu_addr + kt->__per_cpu_offset[i];
-
-            // Validate the calculated address
-            if (!is_kvaddr(addr)) {
-                LOGD("  CPU[%zu]: skipped (invalid address %#lx)", i, addr);
-                continue;
-            }
-
-            active_cpus++;
-            LOGD("  CPU[%zu]: reading kmem_cache_cpu at %#lx", i, addr);
-
-            // Read the kmem_cache_cpu structure from kernel memory
-            void *cpu_buf = read_struct(addr, "kmem_cache_cpu");
-            if(cpu_buf == nullptr) {
-                LOGE("  CPU[%zu]: failed to read kmem_cache_cpu at %#lx", i, addr);
-                continue;
-            }
-
-            // Create a new CPU slab object
-            std::shared_ptr<kmem_cache_cpu> cpu_ptr = std::make_shared<kmem_cache_cpu>();
-            cpu_ptr->addr = addr;
-
-            // Parse the transaction ID (used for lockless operations)
-            // The tid is incremented on each allocation/free to detect concurrent modifications
-            cpu_ptr->tid = ULONG(cpu_buf + field_offset(kmem_cache_cpu, tid));
-            // Parse the current active slab address
-            // The field name changed from 'page' to 'slab' in newer kernels
-            // We check which structure is available and use the appropriate field
-            ulong cur_slab_addr = 0;
-            if (struct_size(slab) != -1){
-                // Newer kernel: use 'slab' field
-                cur_slab_addr = ULONG(cpu_buf + field_offset(kmem_cache_cpu, slab));
-            } else {
-                // Older kernel: use 'page' field
-                cur_slab_addr = ULONG(cpu_buf + field_offset(kmem_cache_cpu, page));
-            }
-            LOGD("  CPU[%zu]: current slab at %#lx", i, cur_slab_addr);
-            // Parse the current active slab
-            // This is the slab from which new allocations are served
-            cpu_ptr->cur_slab = parser_slab(cache_ptr, cur_slab_addr);
-
-            // Parse the per-CPU partial slab list
-            // This is a linked list of slabs cached on this CPU for fast allocation
-            // When the current slab is exhausted, the next slab comes from this list
-            ulong partial_addr = ULONG(cpu_buf + field_offset(kmem_cache_cpu, partial));
-            LOGD("  CPU[%zu]: partial slab list at %#lx", i, partial_addr);
-
-            ulong slab_page_addr = partial_addr;
-            size_t partial_count = 0;
-            size_t partial_obj_count = 0;
-
-            // Traverse the linked list of partial slabs
-            while (is_kvaddr(slab_page_addr)){
-                std::shared_ptr<slab> slab_ptr = parser_slab(cache_ptr, slab_page_addr);
-                if (slab_ptr) {
-                    cpu_ptr->partial.push_back(slab_ptr);
-                    partial_count++;
-                    partial_obj_count += slab_ptr->totalobj;
-
-                    // Get the next slab in the list
-                    // Again, handle both old ('page') and new ('slab') structure names
-                    if (struct_size(slab) != -1){
-                        slab_page_addr = read_structure_field(slab_page_addr, "slab", "next");
-                    } else {
-                        slab_page_addr = read_structure_field(slab_page_addr, "page", "next");
-                    }
-                } else {
-                    // Failed to parse slab, break to avoid infinite loop
-                    LOGE("  CPU[%zu]: failed to parse slab at %#lx, stopping list traversal", i, slab_page_addr);
-                    break;
-                }
-            }
-
-            LOGD("  CPU[%zu]: partial list contains %zu slab(s) with %zu total objects",
-                 i, partial_count, partial_obj_count);
-
-            // Free the temporary buffer
-            FREEBUF(cpu_buf);
-
-            // Add the successfully parsed CPU slab to the list
-            cpu_list.push_back(cpu_ptr);
+    std::vector<ulong> percpu_list = for_each_percpu(cpu_addr);
+    size_t active_cpus = 0;
+    for (size_t i = 0; i < percpu_list.size(); i++){
+        ulong addr = percpu_list[i];
+        // Validate the calculated address
+        if (!is_kvaddr(addr)) {
+            LOGD("  CPU[%zu]: skipped (invalid address %#lx)", i, addr);
+            continue;
         }
 
-        LOGD(" Scanned %zu active CPU(s), successfully parsed %zu per-CPU slab structure(s)",
-             active_cpus, cpu_list.size());
-    } else {
-        // Not an SMP system or per-CPU offsets not available
-        if (!(kt->flags & SMP)) {
-            LOGD(" Single-processor system (no per-CPU slabs)");
+        active_cpus++;
+        LOGD("  CPU[%zu]: reading kmem_cache_cpu at %#lx", i, addr);
+
+        // Read the kmem_cache_cpu structure from kernel memory
+        void *cpu_buf = read_struct(addr, "kmem_cache_cpu");
+        if(cpu_buf == nullptr) {
+            LOGE("  CPU[%zu]: failed to read kmem_cache_cpu at %#lx", i, addr);
+            continue;
+        }
+
+        // Create a new CPU slab object
+        std::shared_ptr<kmem_cache_cpu> cpu_ptr = std::make_shared<kmem_cache_cpu>();
+        cpu_ptr->addr = addr;
+
+        // Parse the transaction ID (used for lockless operations)
+        // The tid is incremented on each allocation/free to detect concurrent modifications
+        cpu_ptr->tid = ULONG(cpu_buf + field_offset(kmem_cache_cpu, tid));
+        // Parse the current active slab address
+        // The field name changed from 'page' to 'slab' in newer kernels
+        // We check which structure is available and use the appropriate field
+        ulong cur_slab_addr = 0;
+        if (struct_size(slab) != -1){
+            // Newer kernel: use 'slab' field
+            cur_slab_addr = ULONG(cpu_buf + field_offset(kmem_cache_cpu, slab));
         } else {
-            LOGD(" Per-CPU offset information not available");
+            // Older kernel: use 'page' field
+            cur_slab_addr = ULONG(cpu_buf + field_offset(kmem_cache_cpu, page));
         }
-    }
+        LOGD("  CPU[%zu]: current slab at %#lx", i, cur_slab_addr);
+        // Parse the current active slab
+        // This is the slab from which new allocations are served
+        cpu_ptr->cur_slab = parser_slab(cache_ptr, cur_slab_addr);
 
+        // Parse the per-CPU partial slab list
+        // This is a linked list of slabs cached on this CPU for fast allocation
+        // When the current slab is exhausted, the next slab comes from this list
+        ulong partial_addr = ULONG(cpu_buf + field_offset(kmem_cache_cpu, partial));
+        LOGD("  CPU[%zu]: partial slab list at %#lx", i, partial_addr);
+
+        ulong slab_page_addr = partial_addr;
+        size_t partial_count = 0;
+        size_t partial_obj_count = 0;
+
+        // Traverse the linked list of partial slabs
+        while (is_kvaddr(slab_page_addr)){
+            std::shared_ptr<slab> slab_ptr = parser_slab(cache_ptr, slab_page_addr);
+            if (slab_ptr) {
+                cpu_ptr->partial.push_back(slab_ptr);
+                partial_count++;
+                partial_obj_count += slab_ptr->totalobj;
+
+                // Get the next slab in the list
+                // Again, handle both old ('page') and new ('slab') structure names
+                if (struct_size(slab) != -1){
+                    slab_page_addr = read_structure_field(slab_page_addr, "slab", "next");
+                } else {
+                    slab_page_addr = read_structure_field(slab_page_addr, "page", "next");
+                }
+            } else {
+                // Failed to parse slab, break to avoid infinite loop
+                LOGE("  CPU[%zu]: failed to parse slab at %#lx, stopping list traversal", i, slab_page_addr);
+                break;
+            }
+        }
+
+        LOGD("  CPU[%zu]: partial list contains %zu slab(s) with %zu total objects",
+                i, partial_count, partial_obj_count);
+
+        // Free the temporary buffer
+        FREEBUF(cpu_buf);
+
+        // Add the successfully parsed CPU slab to the list
+        cpu_list.push_back(cpu_ptr);
+    }
+    LOGD(" Scanned %zu active CPU(s), successfully parsed %zu per-CPU slab structure(s)",
+             active_cpus, cpu_list.size());
     // Log summary statistics
     if (cpu_list.size() > 0) {
         size_t total_partial_slabs = 0;
