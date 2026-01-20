@@ -286,6 +286,15 @@ public:
      * all DMA buffers in the system.
      */
     void parser_dma_bufs();
+
+    /**
+     * @brief Print page allocation stack traces for all DMA buffers
+     *
+     * Iterates through all DMA buffers and displays the allocation stack trace
+     * for the first valid page of each buffer. This provides a quick overview
+     * of where all buffers were allocated from.
+     */
+    void print_all_dmabuf_page_stacks();
 };
 
 #endif // DMABUF_DEFS_H_
