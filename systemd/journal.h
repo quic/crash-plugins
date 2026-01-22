@@ -70,7 +70,7 @@ private:
     struct task_context *tc_systemd_journal = nullptr;                          ///< systemd-journal process context
 
     // Data containers
-    std::unordered_map<std::string, std::vector<std::shared_ptr<vma_struct>>> log_vma_list;  ///< Journal files in process VMA
+    std::unordered_map<ulong, std::shared_ptr<vma_struct>> log_vma_list;        ///< Journal files in process VMA (key: VMA start address)
     std::unordered_map<std::string, ulong> log_inode_list;                      ///< Journal files in page cache
     std::vector<std::shared_ptr<journal_log>> log_list;                         ///< Parsed journal log entries
 

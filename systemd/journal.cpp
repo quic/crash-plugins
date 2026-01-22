@@ -125,9 +125,7 @@ void Journal::init_command(void){
         "EXAMPLES",
         "  List all journal files with detailed information:",
         "    %s> systemd -l",
-        "    ╔══════════════════════════════════════════════════════════════════════════════╗",
-        "    ║                            SYSTEMD JOURNAL FILES                             ║",
-        "    ╚══════════════════════════════════════════════════════════════════════════════╝",
+        "    ═══════════════════════════════════════════════════════════════════════════════",
         "    Process Memory (VMA) - 2 files:",
         "     [ 1] system@bf00ed31f63c44bd8311c1e4185809e9-00000000000c340d-000000103eef2e0f.journal   8.00MB     SYSTEM",
         "     [ 2] system.journal                                       8.00MB     SYSTEM",
@@ -202,15 +200,11 @@ void Journal::get_journal_vma_list(){
         }
         journal_vmas_found++;
         LOGD("Found journal VMA: %s (size: %lu bytes)\n", vma_name.c_str(), vma_ptr->vm_size);
-        // Extract filename more efficiently
-        size_t pos = vma_name.find_last_of("/\\");
-        std::string fileName = (pos != std::string::npos) ?
-            vma_name.substr(pos + 1) : vma_name;
-        log_vma_list[fileName].emplace_back(vma_ptr);
+        // Use VMA start address as key instead of filename to handle duplicate names
+        log_vma_list[vma_ptr->addr] = vma_ptr;
     }
     LOGD("VMA scan completed: %zu VMAs scanned, %zu journal VMAs found\n",
          vma_scanned, journal_vmas_found);
-    LOGD("Unique journal files in VMA: %zu\n", log_vma_list.size());
 }
 
 /**
@@ -218,6 +212,7 @@ void Journal::get_journal_vma_list(){
  *
  * Extracts data from a list of VMAs and writes it to a single output file.
  * This is used to reconstruct journal files from process memory mappings.
+ * Each VMA is written to its correct file offset based on vm_pgoff.
  *
  * @param vma_list List of VMA structures containing journal data
  * @param filename Output filename
@@ -240,36 +235,67 @@ void Journal::write_vma_to_file(const std::vector<std::shared_ptr<vma_struct>>& 
         LOGE("Error: Failed to create directory %s: %s\n", dst_dir.c_str(), strerror(errno));
         return;
     }
+
+    // Sort VMAs by file offset (vm_pgoff) to ensure correct ordering
+    std::vector<std::shared_ptr<vma_struct>> sorted_vmas = vma_list;
+    std::sort(sorted_vmas.begin(), sorted_vmas.end(),
+              [](const std::shared_ptr<vma_struct>& a, const std::shared_ptr<vma_struct>& b) {
+                  return a->vm_pgoff < b->vm_pgoff;
+              });
+
+    // Calculate total file size needed
+    size_t max_file_size = 0;
+    for (const auto& vma_ptr : sorted_vmas) {
+        if (vma_ptr && vma_ptr->vm_size > 0) {
+            size_t file_offset = vma_ptr->vm_pgoff * page_size;
+            size_t end_offset = file_offset + vma_ptr->vm_size;
+            max_file_size = std::max(max_file_size, end_offset);
+        }
+    }
+
     // Open output file
     const std::string log_path = dst_dir + "/" + filename;
-    LOGD("Opening output file: %s\n", log_path.c_str());
+    LOGD("Opening output file: %s (estimated size: %zu bytes)\n", log_path.c_str(), max_file_size);
     FILE* logfile = fopen(log_path.c_str(), "wb");
     if (!logfile) {
         LOGE("Can't open %s for writing\n", log_path.c_str());
         return;
     }
+
     size_t total_written = 0;
     size_t vma_count = 0;
     size_t vma_processed = 0;
-    // Process each VMA in the list
-    for (const auto& vma_ptr : vma_list) {
+
+    // Process each VMA in sorted order
+    for (const auto& vma_ptr : sorted_vmas) {
         vma_processed++;
         if (!vma_ptr || vma_ptr->vm_size == 0) {
             LOGE("Skipping invalid VMA %zu (null or zero size)\n", vma_processed);
             continue;
         }
-        LOGD("Processing VMA %zu: size=%lu bytes\n", vma_processed, vma_ptr->vm_size);
+
+        // Calculate file offset based on vm_pgoff
+        size_t file_offset = vma_ptr->vm_pgoff * page_size;
+        LOGD("Processing VMA %zu: size=%lu bytes, vm_pgoff=%lu, file_offset=%zu\n",
+             vma_processed, vma_ptr->vm_size, vma_ptr->vm_pgoff, file_offset);
+
+        // Seek to the correct position in the file
+        if (fseek(logfile, file_offset, SEEK_SET) != 0) {
+            LOGE("Failed to seek to offset %zu in file %s: %s\n", file_offset, filename.c_str(), strerror(errno));
+            continue;
+        }
+
         // Read VMA data from process memory
         std::vector<char> vma_data = task_ptr->read_vma_data(vma_ptr);
         if (!vma_data.empty()) {
             const size_t write_size = std::min(vma_data.size(), static_cast<size_t>(vma_ptr->vm_size));
-            // Write data to file
+            // Write data to file at the correct offset
             if (fwrite(vma_data.data(), 1, write_size, logfile) == write_size) {
                 total_written += write_size;
                 vma_count++;
-                LOGD("Successfully wrote %zu bytes from VMA %zu\n", write_size, vma_processed);
+                LOGD("Successfully wrote %zu bytes from VMA %zu at offset %zu\n", write_size, vma_processed, file_offset);
             } else {
-                LOGE("Warning: Failed to write VMA data for %s (VMA %zu)\n", filename.c_str(), vma_processed);
+                LOGE("Warning: Failed to write VMA data for %s (VMA %zu) at offset %zu\n", filename.c_str(), vma_processed, file_offset);
             }
         } else {
             LOGE("Warning: Empty data read from VMA %zu\n", vma_processed);
@@ -282,7 +308,8 @@ void Journal::write_vma_to_file(const std::vector<std::shared_ptr<vma_struct>>& 
     if (show_log){
         PRINT("Save %s to %s\n", filename.c_str(), log_path.c_str());
         PRINT("  - VMAs processed: %zu\n", vma_count);
-        PRINT("  - Total bytes written: %zu\n\n", total_written);
+        PRINT("  - Total bytes written: %zu\n", total_written);
+        PRINT("  - File size: %zu bytes\n\n", max_file_size);
     }
     return;
 }
@@ -296,9 +323,7 @@ void Journal::list_journal_log(){
         get_journal_inode_list();
     }
     PRINT( "\n");
-    PRINT( "╔══════════════════════════════════════════════════════════════════════════════╗\n");
-    PRINT( "║                            SYSTEMD JOURNAL FILES                             ║\n");
-    PRINT( "╚══════════════════════════════════════════════════════════════════════════════╝\n");
+    PRINT( "═══════════════════════════════════════════════════════════════════════════════\n");
     size_t total_files = log_vma_list.size() + log_inode_list.size();
     if (total_files == 0) {
         PRINT( "\n");
@@ -318,18 +343,21 @@ void Journal::list_journal_log(){
         PRINT( "Process Memory (VMA) - %zu files:\n", log_vma_list.size());
         size_t vma_index = 1;
         for(const auto& pair : log_vma_list){
-            const std::string& filename = pair.first;
-            const auto& vma_vector = pair.second;
-            // Calculate total size of all VMAs for this file
-            size_t total_size = 0;
-            for (const auto& vma : vma_vector) {
-                total_size += vma->vm_size;
-            }
+            const ulong vma_addr = pair.first;
+            const auto& vma_ptr = pair.second;
+
+            // Extract filename from VMA name
+            const std::string& vma_name = vma_ptr->name;
+            size_t pos = vma_name.find_last_of("/\\");
+            std::string filename = (pos != std::string::npos) ?
+                vma_name.substr(pos + 1) : vma_name;
+
             // Format file info
-            std::string size_str = csize(total_size);
+            std::string size_str = csize(vma_ptr->vm_size);
             std::string type_str = get_journal_file_type(filename);
-            PRINT( " [%2zu] %-50s %8s %10s \n",
+            PRINT( " [%2zu] 0x%016lx %-40s %8s %10s \n",
                    vma_index++,
+                   vma_addr,
                    filename.c_str(),
                    size_str.c_str(),
                    type_str.c_str());
@@ -412,9 +440,7 @@ void Journal::display_summary_statistics() {
     // Calculate total sizes
     size_t total_vma_size = 0;
     for (const auto& pair : log_vma_list) {
-        for (const auto& vma : pair.second) {
-            total_vma_size += vma->vm_size;
-        }
+        total_vma_size += pair.second->vm_size;
     }
     ulonglong total_inode_size = 0;
     ulong total_cached_pages = 0;
@@ -508,6 +534,7 @@ void Journal::parser_journal_log(const std::string &filepath) {
             if (msg_content) {
                 msg_content++;
                 log_ptr->message = std::string(msg_content, (int)(length - (msg_content - message)));
+                LOGD( "%s \n", log_ptr->message.c_str());
             }
         }
         log_list.emplace_back(std::move(log_ptr));
@@ -648,16 +675,37 @@ void Journal::show_journal_log(){
         size_t vma_files_processed = 0;
         size_t inode_files_processed = 0;
 
-        // Process VMA logs
+        // Process VMA logs - group VMAs by filename
         LOGD("Processing %zu VMA journal files\n", log_vma_list.size());
+
+        // Group VMAs by filename
+        std::unordered_map<std::string, std::vector<std::shared_ptr<vma_struct>>> grouped_vmas;
         for(const auto& pair : log_vma_list){
-            const std::string& log_name = pair.first;
-            const std::vector<std::shared_ptr<vma_struct>>& vma_vector = pair.second;
+            const auto& vma_ptr = pair.second;
+
+            // Extract filename from VMA name
+            const std::string& vma_name = vma_ptr->name;
+            size_t pos = vma_name.find_last_of("/\\");
+            std::string filename = (pos != std::string::npos) ?
+                vma_name.substr(pos + 1) : vma_name;
+
+            grouped_vmas[filename].push_back(vma_ptr);
+        }
+
+        // Process each file (which may have multiple VMAs)
+        for(const auto& file_pair : grouped_vmas){
+            const std::string& log_name = file_pair.first;
+            const auto& vma_vector = file_pair.second;
 
             LOGD("Processing VMA file: %s (%zu VMAs)\n", log_name.c_str(), vma_vector.size());
-            write_vma_to_file(vma_vector, log_name, "/tmp", false);
-            std::string temp_file = std::string("/tmp/") + log_name;
-            parser_journal_log(temp_file);
+
+            // Generate random filename for /tmp directory
+            srand(time(nullptr) + vma_files_processed); // Add counter to ensure uniqueness
+            char random_suffix[16];
+            snprintf(random_suffix, sizeof(random_suffix), "%08x", rand());
+            std::string random_filename = std::string("journal_vma_") + random_suffix + ".journal";
+            write_vma_to_file(vma_vector, random_filename, "/tmp", false);
+            parser_journal_log(std::string("/tmp/") + random_filename);
             vma_files_processed++;
         }
 
@@ -666,11 +714,15 @@ void Journal::show_journal_log(){
         for(const auto& pair : log_inode_list){
             const std::string& log_name = pair.first;
             const ulong inode_addr = pair.second;
-
             LOGD("Processing inode file: %s (addr: 0x%lx)\n", log_name.c_str(), inode_addr);
-            write_pagecache_to_file(inode_addr, log_name, "/tmp", false);
-            std::string temp_file = std::string("/tmp/") + log_name;
-            parser_journal_log(temp_file);
+
+            // Generate random filename for /tmp directory
+            srand(time(nullptr) + inode_files_processed); // Add counter to ensure uniqueness
+            char random_suffix[16];
+            snprintf(random_suffix, sizeof(random_suffix), "%08x", rand());
+            std::string random_filename = std::string("journal_cache_") + random_suffix + ".journal";
+            write_pagecache_to_file(inode_addr, random_filename, "/tmp", false);
+            parser_journal_log(std::string("/tmp/") + random_filename);
             inode_files_processed++;
         }
 
@@ -752,7 +804,7 @@ void Journal::dump_journal_log(){
     size_t vma_files_dumped = 0;
 
     // Dump files from page cache (inodes)
-    std::string log_path = get_curpath().str() + "/systemd/cache/";
+    std::string log_path = get_curpath().str() + "/systemd/cache";
     LOGD("Dumping %zu inode journal files to: %s\n", log_inode_list.size(), log_path.c_str());
 
     for (const auto& inode_it : log_inode_list) {
@@ -761,13 +813,31 @@ void Journal::dump_journal_log(){
         inode_files_dumped++;
     }
 
-    // Dump files from process memory (VMA)
-    log_path = get_curpath().str() + "/systemd/vma/";
+    // Dump files from process memory (VMA) - group VMAs by filename
+    log_path = get_curpath().str() + "/systemd/vma";
     LOGD("Dumping %zu VMA journal files to: %s\n", log_vma_list.size(), log_path.c_str());
 
-    for (const auto& vma_it : log_vma_list) {
-        LOGD("Dumping VMA file: %s (%zu VMAs)\n", vma_it.first.c_str(), vma_it.second.size());
-        write_vma_to_file(vma_it.second, vma_it.first, log_path, true);
+    // Group VMAs by filename
+    std::unordered_map<std::string, std::vector<std::shared_ptr<vma_struct>>> grouped_vmas;
+    for(const auto& vma_it : log_vma_list) {
+        const auto& vma_ptr = vma_it.second;
+
+        // Extract filename from VMA name
+        const std::string& vma_name = vma_ptr->name;
+        size_t pos = vma_name.find_last_of("/\\");
+        std::string filename = (pos != std::string::npos) ?
+            vma_name.substr(pos + 1) : vma_name;
+
+        grouped_vmas[filename].push_back(vma_ptr);
+    }
+
+    // Dump each file (which may have multiple VMAs)
+    for(const auto& file_pair : grouped_vmas){
+        const std::string& filename = file_pair.first;
+        const auto& vma_vector = file_pair.second;
+
+        LOGD("Dumping VMA file: %s (%zu VMAs)\n", filename.c_str(), vma_vector.size());
+        write_vma_to_file(vma_vector, filename, log_path, true);
         vma_files_dumped++;
     }
 
