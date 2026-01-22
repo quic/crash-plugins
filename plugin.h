@@ -363,7 +363,7 @@ public:
     ulong get_entry(ulong base, ulong pfn);
     bool is_page_allocated(std::shared_ptr<page_owner> owner_ptr);
     std::string to_symbol(ulong addr);
-
+    unsigned long jiffies_to_msecs(unsigned long jiffies_val);
     virtual cmd_func_t get_wrapper_func();
     void print_page_owner_info(std::shared_ptr<page_owner> owner_ptr);
 };

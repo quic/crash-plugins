@@ -2043,17 +2043,17 @@ std::vector<ulong> ParserPlugin::for_each_percpu(ulong addr) {
     }
 
     // Validate that we have a reasonable number of CPUs to prevent excessive memory allocation
-    if (NR_CPUS == 0 || NR_CPUS > 1024) {  // Sanity check for reasonable CPU count
-        LOGE("Invalid CPU count: %zu (expected 1-1024)\n", NR_CPUS);
+    if (kt->cpus == 0 || kt->cpus > 8192) {  // Support up to 8192 CPUs (reasonable upper bound)
+        LOGE("Invalid CPU count: %zu (expected 1-8192)\n", kt->cpus);
         return cpu_list;
     }
 
     // Pre-allocate vector capacity to avoid reallocations during insertion
     // This is a key optimization for performance
-    cpu_list.reserve(NR_CPUS);
+    cpu_list.reserve(kt->cpus);
 
     // Iterate through all possible CPU indices to maintain index correspondence
-    for (size_t cpu_id = 0; cpu_id < NR_CPUS; cpu_id++) {
+    for (int cpu_id = 0; cpu_id < kt->cpus; cpu_id++) {
         // Check if this CPU has a valid per-CPU offset
         if (kt->__per_cpu_offset[cpu_id] == 0) {
             // CPU is offline or invalid: store 0 to maintain index correspondence
@@ -4868,4 +4868,61 @@ std::string ParserPlugin::to_symbol(ulong addr) {
 
     return oss.str();
 }
+
+/**
+ * Convert jiffies to milliseconds
+ *
+ * This function converts kernel jiffies (timer ticks) to milliseconds based on
+ * the system's HZ value (timer frequency). It provides the same functionality
+ * as the kernel's jiffies_to_msecs() function for userspace analysis tools.
+ *
+ * The conversion formula is: milliseconds = (jiffies * 1000) / HZ
+ * where HZ is the kernel's timer frequency (typically 100, 250, 300, or 1000).
+ *
+ * @param jiffies The number of timer ticks to convert
+ * @return The equivalent time in milliseconds
+ *
+ * Examples (assuming HZ=1000):
+ * - jiffies_to_msecs(1000) -> 1000ms (1 second)
+ * - jiffies_to_msecs(500) -> 500ms (0.5 seconds)
+ * - jiffies_to_msecs(100) -> 100ms (0.1 seconds)
+ */
+unsigned long ParserPlugin::jiffies_to_msecs(unsigned long jiffies_val) {
+    // Get the kernel's HZ value (timer frequency)
+    static unsigned long hz_value = 0;
+
+    // Cache HZ value on first call for performance
+    if (hz_value == 0) {
+        if (csymbol_exists("jiffies_64")) {
+            // Try to get HZ from kernel configuration or symbols
+            std::string hz_config = get_config_val("CONFIG_HZ");
+            if (hz_config != "n" && !hz_config.empty()) {
+                try {
+                    hz_value = std::stoul(hz_config);
+                } catch (const std::exception&) {
+                    // Fall back to default if parsing fails
+                    hz_value = 1000;  // Common default for modern kernels
+                }
+            } else {
+                // Try to read HZ from kernel symbol if available
+                if (csymbol_exists("HZ")) {
+                    hz_value = read_ulong(csymbol_value("HZ"), "HZ");
+                } else {
+                    // Use common default value
+                    hz_value = 1000;
+                }
+            }
+        } else {
+            // Fallback for systems without jiffies support
+            hz_value = 1000;
+        }
+
+        LOGD("Using HZ value: %lu", hz_value);
+    }
+
+    // Perform the conversion: milliseconds = (jiffies * 1000) / HZ
+    // Use 64-bit arithmetic to avoid overflow for large jiffies values
+    return (unsigned long)((uint64_t)jiffies_val * 1000ULL / hz_value);
+}
+
 #pragma GCC diagnostic pop

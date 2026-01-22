@@ -22,12 +22,20 @@
 DEFINE_PLUGIN_COMMAND(Workqueue)
 #endif
 
+/**
+ * @brief Main command entry point for workqueue analysis
+ *
+ * Parses command line arguments and dispatches to appropriate handler functions:
+ * -W: Display active workqueues with detailed information
+ * -w: Display worker pools with comprehensive statistics
+ */
 void Workqueue::cmd_main(void) {
     if (argcnt < 2) {
         cmd_usage(pc->curcmd, SYNOPSIS);
         return;
     }
 
+    /* Parse workqueue data if not already cached */
     if (workqueue_list.empty()) {
         LOGI("Workqueue list is empty, parsing workqueues");
         parse_workqueue();
@@ -36,22 +44,13 @@ void Workqueue::cmd_main(void) {
     }
 
     int c;
-    std::string arg_str;
-
-    while ((c = getopt(argcnt, args, "sdc:")) != EOF) {
+    while ((c = getopt(argcnt, args, "Ww")) != EOF) {
         switch(c) {
-            case 's':
-                LOGI("Executing print_summary command");
-                print_summary();
+            case 'W':
+                print_workqueue_detailed();
                 break;
-            case 'd':
-                LOGI("Executing print_detailed command");
-                print_detailed();
-                break;
-            case 'c':
-                arg_str.assign(optarg);
-                LOGI("Executing print_check with argument: %s", arg_str.c_str());
-                print_check(arg_str);
+            case 'w':
+                print_worker_pool_detailed();
                 break;
             default:
                 LOGW("Unknown option: %c", c);
@@ -67,12 +66,20 @@ void Workqueue::cmd_main(void) {
     LOGD("Command execution completed");
 }
 
+/**
+ * @brief Initialize kernel structure field offsets
+ *
+ * Sets up field offsets for workqueue-related kernel structures.
+ * These offsets are essential for reading workqueue data from kernel memory.
+ */
 void Workqueue::init_offset(void) {
+    /* Initialize workqueue_struct field offsets */
     field_init(workqueue_struct, list);
     field_init(workqueue_struct, name);
     field_init(workqueue_struct, flags);
     field_init(workqueue_struct, pwqs);
 
+    /* Initialize pool_workqueue field offsets */
     field_init(pool_workqueue, pwqs_node);
     field_init(pool_workqueue, inactive_works);
     field_init(pool_workqueue, pool);
@@ -80,6 +87,7 @@ void Workqueue::init_offset(void) {
     field_init(pool_workqueue, nr_active);
     field_init(pool_workqueue, max_active);
 
+    /* Initialize worker_pool field offsets */
     field_init(worker_pool, cpu);
     field_init(worker_pool, node);
     field_init(worker_pool, id);
@@ -92,15 +100,19 @@ void Workqueue::init_offset(void) {
     field_init(worker_pool, idle_list);
     field_init(worker_pool, workers);
     field_init(worker_pool, busy_hash);
+    field_init(worker_pool, manager);
     field_init(worker_pool, attrs);
 
+    /* Initialize workqueue_attrs field offsets */
     struct_init(workqueue_attrs);
     field_init(workqueue_attrs, nice);
 
+    /* Initialize worker field offsets */
     field_init(worker, node);
     field_init(worker, entry);
     field_init(worker, current_work);
     field_init(worker, current_func);
+    field_init(worker, current_pwq);
     field_init(worker, task);
     field_init(worker, last_active);
     field_init(worker, id);
@@ -110,173 +122,109 @@ void Workqueue::init_offset(void) {
     field_init(worker, flags);
     field_init(worker, hentry);
 
+    /* Initialize work_struct field offsets */
     field_init(work_struct, entry);
     field_init(work_struct, data);
     field_init(work_struct, func);
 
+    /* Initialize structure sizes */
     struct_init(workqueue_struct);
     struct_init(pool_workqueue);
     struct_init(worker_pool);
     struct_init(worker);
     struct_init(work_struct);
 
+    /* Initialize hash list structures */
     struct_init(hlist_head);
-    field_init(worker_pool,hash_node);
-    field_init(hlist_head,first);
-    field_init(hlist_node,next);
+    field_init(worker_pool, hash_node);
+    field_init(hlist_head, first);
+    field_init(hlist_node, next);
 }
 
 void Workqueue::init_command(void) {
     cmd_name = "wq";
     help_str_list={
-        "wq",
-        "dump workqueue information",
-        "-s | -d | -c <cpu|addr>\n"
-            "  This command dumps workqueue information with different levels of detail.",
-        "\n",
-        "OPTIONS",
-        "  -s              Display summary statistics (system status, quick stats, warnings)",
-        "  -d              Display detailed information (per-CPU pools, unbound pools)",
-        "  -c <cpu|addr>   Check specific CPU or worker pool address",
+        "wq",                                /* command name */
+        "display workqueue information",     /* short description */
+        "[-W] [-w]\n"
+        "  This command displays Linux kernel workqueue information.\n"
+        "\n"
+        "    -W              display active workqueues with detailed information\n"
+        "    -w              display worker pools with comprehensive statistics\n",
         "\n",
         "EXAMPLES",
-        "  Display summary:",
-        "    %s> wq -s",
-        "    ========== Workqueue Summary ==========",
-        "    System Status: OK",
-        "    Quick Stats:",
-        "      Pools: 16 (16 per-CPU + 0 unbound)",
-        "      Workers: 32 (4 busy, 28 idle)",
-        "      Pending Works: 2",
+        "  Display active workqueues with activity details:",
+        "    %s> wq -W",
+        "    [WORKQUEUE] events (WQ_MEM_RECLAIM)",
+        "      ├─ pwq:0xffffff8003e40000 → worker_pool[0xffffff8003e40400] CPU:0  Normal (workers:4, idle:3, busy:1, pending:2)",
+        "      │                               ├─ BUSY WORKERS:",
+        "      │                               │  └─ kworker/0:1     [pid:123   ] → schedule_work_func",
+        "      │                               └─ PENDING WORKS: (2 items)",
+        "      │                                  ├─ delayed_work_timer_fn",
+        "      │                                  └─ flush_to_ldisc",
         "\n",
-        "  Display detailed information:",
-        "    %s> wq -d",
-        "    ========== Detailed Workqueue Information ==========",
-        "    Per-CPU Pools:",
-        "    CPU 0:",
-        "      [Normal] 0xffffff800303e400 | 4 workers (3 idle, 1 busy) | 1 pending",
-        "      [High] 0xffffff800303e800 | 2 workers (2 idle, 0 busy) | 0 pending",
-        "\n",
-        "  Check specific CPU:",
-        "    %s> wq -c 0",
-        "    ========== CPU 0 Details ==========",
-        "    [Normal Priority] 0xffffff800303e400",
-        "      Workers: 4 (3 idle, 1 busy)",
-        "      Pending: 1 works",
-        "\n",
-        "  Check specific pool address:",
-        "    %s> wq -c 0xffffff800303e400",
-        "    worker:",
-        "       kworker/0:0 [Idle] pid:8",
-        "       kworker/0:1 [Busy] pid:10",
-        "    Pending Work:",
-        "       func_name+0x10",
+        "  Display comprehensive worker pool information:",
+        "    %s> wq -w",
+        "    ===============================================================================",
+        "                               WORKER POOL SUMMARY",
+        "    ===============================================================================",
+        "    System Overview:",
+        "      CPUs: 8          Pools: 16       Workers: 32       Pending: 5",
+        "    ",
+        "    Pool Distribution:",
+        "      Per-CPU Pools: 16 (8 Normal, 8 High Priority)",
+        "      Unbound Pools: 0 (0 Normal, 0 High Priority)",
+        "    ===============================================================================",
+        "    ",
+        "    CPU[0]: 2 pools, 4 workers, 2 pending works",
+        "    ├─ worker_pool:0xffffff8003e40400 Normal (workers:2, idle:1, busy:1, pending:2)",
+        "    │  ├─ Status: Normal | Flags: None",
+        "    │  ├─ Idle Workers:",
+        "    │  │  └─ kworker/0:0 (pid:8)",
+        "    │  ├─ Busy Workers:",
+        "    │  │  └─ kworker/0:1 (pid:10) → schedule_work_func",
+        "    │  └─ Pending Works:",
+        "    │     ├─ delayed_work_timer_fn",
+        "    │     └─ flush_to_ldisc",
+        "    └─ worker_pool:0xffffff8003e40800 High (workers:2, idle:2, busy:0, pending:0)",
+        "       ├─ Status: Normal | Flags: None",
+        "       └─ Idle Workers:",
+        "          ├─ kworker/0:0H (pid:12)",
+        "          └─ kworker/0:1H (pid:14)",
         "\n",
     };
 }
 
-Workqueue::Workqueue(){}
+/**
+ * @brief Default constructor
+ */
+Workqueue::Workqueue() {}
 
-void Workqueue::print_pool_by_addr(std::string addr) {
-    LOGD("Starting with address string: %s", addr.c_str());
-    ulong address = 0;
-    try {
-        address = std::stoul(addr, nullptr, 16);
-    } catch (const std::exception& e) {
-        LOGE("Exception parsing address: %s", e.what());
-        return;
-    }
-    if (!is_kvaddr(address)) {
-        LOGE("Invalid kernel virtual address: 0x%lx", address);
-        return;
-    }
-    auto it = worker_pool_map.find(address);
-    if (it == worker_pool_map.end()) {
-        PRINT("No such worker pool\n");
-        return;
-    }
-    const auto& worker_pool = it->second;
-    LOGI("Found worker pool at 0x%lx (cpu=%d, workers=%d)",
-         address, worker_pool->cpu, worker_pool->nr_workers);
-
-    // Print pool info with nr_running
-    const char* pool_type = (worker_pool->nice == 0) ? "Normal Pool" : "High Pool";
-    PRINT("\n[%s] 0x%lx (cpu=%d, nr_running=%lu)\n",
-          pool_type, address, worker_pool->cpu, worker_pool->nr_running);
-
-    // Collect pool_workqueue information
-    std::string pwq_info = "";
-    if (!worker_pool->pwq_list.empty()) {
-        for (const auto& pwq : worker_pool->pwq_list) {
-            if (!pwq_info.empty()) pwq_info += ", ";
-            std::ostringstream pwq_addr;
-            pwq_addr << std::hex << pwq->addr;
-            pwq_info += "pwq[0x" + pwq_addr.str() + "]";
-
-            // Add workqueue information if available
-            if (pwq->wq_ptr) {
-                std::ostringstream wq_addr;
-                wq_addr << std::hex << pwq->wq_ptr->addr;
-                pwq_info += " -> workqueue_struct[0x" + wq_addr.str() + "]";
-
-                if (!pwq->wq_ptr->name.empty()) {
-                    pwq_info += " " + pwq->wq_ptr->name;
-                }
-            }
-        }
-        PRINT("  %s\n", pwq_info.c_str());
-    }
-
-    // Print workers
-    PRINT("Workers:\n");
-    LOGD("Printing %zu workers", worker_pool->workers.size());
-    for (const auto& worker_ptr : worker_pool->workers) {
-        bool is_idle = std::find(idle_worker_list.begin(),
-                                 idle_worker_list.end(),
-                                 worker_ptr) != idle_worker_list.end();
-
-        // Get current work information
-        std::string current_work = "None";
-        if (worker_ptr->current_func != 0) {
-            current_work = to_symbol(worker_ptr->current_func);
-        }
-
-        PRINT("   %s [%s] pid:%d | current_func=%s | flags=%s\n",
-                worker_ptr->comm.c_str(),
-                is_idle ? "Idle" : "Busy",
-                worker_ptr->pid,
-                current_work.c_str(),
-                worker_ptr->flags.c_str());
-    }
-    // Print delayed work
-    PRINT("\nDelayed Work:\n");
-    for (const auto& pool_workqueue_ptr : worker_pool->pwq_list) {
-        for (const auto& work_struct_ptr : pool_workqueue_ptr->delay_works_list) {
-            PRINT("   %s\n", to_symbol(work_struct_ptr->func).c_str());
-        }
-    }
-    // Print pending work
-    PRINT("\nPending Work:\n");
-    for (const auto& work_struct_ptr : worker_pool->worklist) {
-        PRINT("   %s\n", to_symbol(work_struct_ptr->func).c_str());
-    }
-}
-
+/**
+ * @brief Parse kernel flags into human-readable string format
+ *
+ * @param flags Raw flag value from kernel
+ * @param flags_array Map of flag values to string names
+ * @return String representation of flags
+ */
 template <typename T>
 std::string Workqueue::parser_flags(uint flags,
                                     const std::unordered_map<T, std::string>& flags_array) {
     if (flags == 0) {
         return "None";
     }
+
     std::vector<std::string> flag_names;
     for (const auto& pair : flags_array) {
         if (flags & pair.first) {
             flag_names.push_back(pair.second);
         }
     }
+
     if (flag_names.empty()) {
         return "None";
     }
+
     std::ostringstream oss;
     for (size_t i = 0; i < flag_names.size(); ++i) {
         if (i > 0) oss << "|";
@@ -285,10 +233,8 @@ std::string Workqueue::parser_flags(uint flags,
     return oss.str();
 }
 
-
 std::shared_ptr<worker> Workqueue::parser_worker(ulong addr,
                                                   std::shared_ptr<worker_pool> wp_ptr) {
-    LOGD("          Parsing worker at address: 0x%lx", addr);
     auto worker_ptr = std::make_shared<worker>();
     worker_ptr->addr = addr;
     worker_ptr->wp_ptr = wp_ptr;
@@ -305,6 +251,7 @@ std::shared_ptr<worker> Workqueue::parser_worker(ulong addr,
     worker_ptr->flags = parser_flags(flags, flag_names);
     worker_flags_len = std::max(worker_flags_len, worker_ptr->flags.size());
     worker_ptr->current_func = ULONG(worker_buf + field_offset(worker, current_func));
+    worker_ptr->current_pwq = ULONG(worker_buf + field_offset(worker, current_pwq));
     worker_ptr->task_addr = ULONG(worker_buf + field_offset(worker, task));
     worker_ptr->last_active = ULONG(worker_buf + field_offset(worker, last_active));
     worker_ptr->id = INT(worker_buf + field_offset(worker, id));
@@ -319,26 +266,21 @@ std::shared_ptr<worker> Workqueue::parser_worker(ulong addr,
     if (tc) {
         worker_ptr->comm = tc->comm;
         worker_ptr->pid = tc->pid;
-        LOGD("          Worker task: %s (pid=%d)", tc->comm, tc->pid);
     } else {
-        LOGW("          Failed to get task context for task_addr: 0x%lx", worker_ptr->task_addr);
         worker_ptr->comm = "";
         worker_ptr->pid = -1;
     }
     FREEBUF(worker_buf);
-    LOGI("          Successfully parsed worker at 0x%lx (id=%d, flags=%s)",
-         addr, worker_ptr->id, worker_ptr->flags.c_str());
+    LOGI("    worker at 0x%lx (id=%d, flags=%s), task: %s (pid=%d)",
+         addr, worker_ptr->id, worker_ptr->flags.c_str(),worker_ptr->comm, worker_ptr->pid);
     return worker_ptr;
 }
 
 
 std::vector<std::shared_ptr<worker>> Workqueue::parser_worker_list(ulong list_head_addr,int offset,std::shared_ptr<worker_pool> wp_ptr){
-    LOGD("        Parsing worker list at 0x%lx (offset=%d)", list_head_addr, offset);
     std::vector<std::shared_ptr<worker>> worker_list;
-    std::vector<ulong> list = for_each_list(list_head_addr, offset);
-    LOGD("        Found %zu workers in list", list.size());
     std::shared_ptr<worker> worker_ptr;
-    for(const auto& worker_addr : list){
+    for(const auto& worker_addr : for_each_list(list_head_addr, offset)){
         if (worker_list_map.find(worker_addr) == worker_list_map.end()) {
             worker_ptr = parser_worker(worker_addr,wp_ptr);
             worker_list_map[worker_addr] = worker_ptr;
@@ -347,29 +289,24 @@ std::vector<std::shared_ptr<worker>> Workqueue::parser_worker_list(ulong list_he
         }
         worker_list.push_back(worker_ptr);
     }
-    LOGI("        Parsed %zu workers", worker_list.size());
     return worker_list;
 }
 
 std::vector<std::shared_ptr<work_struct>> Workqueue::parser_work_list(ulong list_head_addr){
-    LOGD("        Parsing work list at 0x%lx", list_head_addr);
     std::vector<std::shared_ptr<work_struct>> work_list;
-    int offset = field_offset(work_struct, entry);
-    std::vector<ulong> list = for_each_list(list_head_addr, offset);
-    LOGD("        Found %zu work items in list", list.size());
-    for(const auto& work_addr : list){
+    for(const auto& work_addr : for_each_list(list_head_addr, field_offset(work_struct, entry))){
+        LOGD("  Parsed work_struct at 0x%lx", work_addr);
         auto work_ptr = std::make_shared<work_struct>();
         work_ptr->addr = work_addr;
         work_ptr->data = read_ulong(work_addr + field_offset(work_struct, data), "work_struct_data");
         work_ptr->func = read_pointer(work_addr + field_offset(work_struct, func), "work_struct_func");
         work_list.push_back(work_ptr);
     }
-    LOGD("        Parsed %zu work items", work_list.size());
     return work_list;
 }
 
-std::shared_ptr<worker_pool> Workqueue::parser_worker_pool(ulong addr,std::shared_ptr<pool_workqueue> pwq_ptr){
-    LOGD("      Parsing worker pool at address: 0x%lx", addr);
+std::shared_ptr<worker_pool> Workqueue::parser_worker_pool(ulong addr){
+    LOGD("Parsing worker_pool at address: 0x%lx", addr);
     auto wp_ptr = std::make_shared<worker_pool>();
     wp_ptr->addr = addr;
     void *wp_buf = read_struct(addr, "worker_pool");
@@ -383,7 +320,6 @@ std::shared_ptr<worker_pool> Workqueue::parser_worker_pool(ulong addr,std::share
         void *attrs_buf = read_struct(attrs_addr, "workqueue_attrs");
         if (attrs_buf) {
             wp_ptr->nice = INT(attrs_buf + field_offset(workqueue_attrs, nice));
-            LOGD("      Worker pool 0x%lx has nice=%d", addr, wp_ptr->nice);
             FREEBUF(attrs_buf);
         }
     }
@@ -392,9 +328,6 @@ std::shared_ptr<worker_pool> Workqueue::parser_worker_pool(ulong addr,std::share
         {POOL_MANAGER_ACTIVE, "POOL_MANAGER_ACTIVE"},
         {POOL_DISASSOCIATED, "POOL_DISASSOCIATED"}
     };
-    if (pwq_ptr) {
-        wp_ptr->pwq_list.insert(pwq_ptr);
-    }
     unsigned int flags = UINT(wp_buf + field_offset(worker_pool, flags));
     wp_ptr->flags = parser_flags(flags, str_flag_array);
     worker_pool_flags_len = std::max(worker_pool_flags_len, wp_ptr->flags.size());
@@ -408,16 +341,36 @@ std::shared_ptr<worker_pool> Workqueue::parser_worker_pool(ulong addr,std::share
     offset = field_offset(worker, entry);
     wp_ptr->idle_list = parser_worker_list(addr + field_offset(worker_pool, idle_list), offset,wp_ptr);
     idle_worker_list.insert(idle_worker_list.end(), wp_ptr->idle_list.begin(), wp_ptr->idle_list.end());
+
+    // Parse manager field
+    ulong manager_addr = ULONG(wp_buf + field_offset(worker_pool, manager));
+    if (is_kvaddr(manager_addr)) {
+        // Check if we already parsed this worker
+        auto manager_it = worker_list_map.find(manager_addr);
+        if (manager_it != worker_list_map.end()) {
+            wp_ptr->manager = manager_it->second;
+        } else {
+            // Parse new manager worker
+            wp_ptr->manager = parser_worker(manager_addr, wp_ptr);
+            worker_list_map[manager_addr] = wp_ptr->manager;
+        }
+        LOGI("  Found manager worker at 0x%lx (pid=%d)",
+             manager_addr, wp_ptr->manager->pid);
+    }
+
+    // Parse busy_hash
+    parse_busy_hash(wp_ptr, addr);
+
     FREEBUF(wp_buf);
-    LOGI("      Successfully parsed worker pool at 0x%lx (cpu=%d, workers=%d, idle=%d, works=%zu)",
-         addr, wp_ptr->cpu, wp_ptr->nr_workers, wp_ptr->nr_idle, wp_ptr->worklist.size());
+    LOGI("worker_pool at 0x%lx (cpu=%d, workers=%d, idle=%d, busy=%zu, works=%zu)",
+         addr, wp_ptr->cpu, wp_ptr->nr_workers, wp_ptr->nr_idle,
+         wp_ptr->busy_workers.size(), wp_ptr->worklist.size());
     return wp_ptr;
 }
 
-std::shared_ptr<pool_workqueue> Workqueue::parser_pool_workqueue(ulong addr,std::shared_ptr<workqueue_struct> wq_ptr){
+std::shared_ptr<pool_workqueue> Workqueue::parser_pool_workqueue(ulong addr){
     auto pwq_ptr = std::make_shared<pool_workqueue>();
     pwq_ptr->addr = addr;
-    pwq_ptr->wq_ptr = wq_ptr;
     void *pwq_buf = read_struct(addr, "pool_workqueue");
     pwq_ptr->refcnt = INT(pwq_buf + field_offset(pool_workqueue, refcnt));
     pwq_ptr->nr_active = INT(pwq_buf + field_offset(pool_workqueue, nr_active));
@@ -425,40 +378,32 @@ std::shared_ptr<pool_workqueue> Workqueue::parser_pool_workqueue(ulong addr,std:
     ulong pool_addr = ULONG(pwq_buf + field_offset(pool_workqueue, pool));
     FREEBUF(pwq_buf);
     if (is_kvaddr(pool_addr)){
-        LOGD("    Valid pool address: 0x%lx", pool_addr);
         std::shared_ptr<worker_pool> wp_ptr;
         if (worker_pool_map.find(pool_addr) == worker_pool_map.end()){ // Do not find the pool_addr
-            LOGD("    Creating new worker pool for address: 0x%lx", pool_addr);
-            wp_ptr = parser_worker_pool(pool_addr,pwq_ptr);
+            wp_ptr = parser_worker_pool(pool_addr);
+            wp_ptr->pwq_list.insert(pwq_ptr);
             worker_pool_map[pool_addr] = wp_ptr;
         }else{
-            LOGD("    Using cached worker pool for address: 0x%lx", pool_addr);
             wp_ptr = worker_pool_map[pool_addr];
         }
         pwq_ptr->wp_ptr = wp_ptr;
-    } else {
-        LOGW("    Invalid pool address: 0x%lx", pool_addr);
     }
     if(field_offset(pool_workqueue, inactive_works) >= 0){
-        LOGD("    Parsing inactive_works");
-        pwq_ptr->delay_works_list = parser_work_list(addr + field_offset(pool_workqueue, inactive_works));
+        pwq_ptr->inactive_works = parser_work_list(addr + field_offset(pool_workqueue, inactive_works));
     } else {
-        LOGD("    Parsing delayed_works (inactive_works not available)");
         field_init(pool_workqueue, delayed_works);
-        pwq_ptr->delay_works_list = parser_work_list(addr + field_offset(pool_workqueue, delayed_works));
+        pwq_ptr->inactive_works = parser_work_list(addr + field_offset(pool_workqueue, delayed_works));
     }
-    LOGI("    Successfully parsed pool_workqueue at 0x%lx (refcnt=%d, nr_active=%d, max_active=%d)",
+    LOGI("    pool_workqueue at 0x%lx (refcnt=%d, nr_active=%d, max_active=%d)",
          addr, pwq_ptr->refcnt, pwq_ptr->nr_active, pwq_ptr->max_active);
     return pwq_ptr;
 }
 
 std::shared_ptr<workqueue_struct> Workqueue::parser_workqueue_struct(ulong addr){
-    LOGD("  Parsing workqueue_struct at address: 0x%lx", addr);
     auto wq_ptr = std::make_shared<workqueue_struct>();
     wq_ptr->addr = addr;
-    wq_ptr->name = read_cstring(addr + field_offset(workqueue_struct, name), 24, "workqueue_struct_name");
-    LOGD("  Workqueue name: %s", wq_ptr->name.c_str());
-    unsigned int flags = read_uint(addr + field_offset(workqueue_struct, flags), "workqueue_struct_flags");
+    wq_ptr->name = read_cstring(addr + field_offset(workqueue_struct, name), 24, "name");
+    unsigned int flags = read_uint(addr + field_offset(workqueue_struct, flags), "flags");
     static const std::unordered_map<workqueue_struct_flags, std::string> str_flag_array = {
         {WQ_UNBOUND, "WQ_UNBOUND"},
         {WQ_FREEZABLE, "WQ_FREEZABLE"},
@@ -469,23 +414,18 @@ std::shared_ptr<workqueue_struct> Workqueue::parser_workqueue_struct(ulong addr)
     };
     wq_ptr->flags = parser_flags(flags, str_flag_array);
     ulong pwqs_head_addr = addr + field_offset(workqueue_struct, pwqs);
-    int offset = field_offset(pool_workqueue, pwqs_node);
-    std::vector<ulong> pwq_list = for_each_list(pwqs_head_addr, offset);
-    LOGD("  Found %zu pool_workqueues", pwq_list.size());
-    size_t pwq_index = 0;
+    std::vector<ulong> pwq_list = for_each_list(pwqs_head_addr, field_offset(pool_workqueue, pwqs_node));
     for (const auto& pwq_addr : pwq_list){
-        pwq_index++;
-        LOGD("    [%zu/%zu] Parsing pool_workqueue at address: 0x%lx", pwq_index, pwq_list.size(), pwq_addr);
-        wq_ptr->pwqs.push_back(parser_pool_workqueue(pwq_addr,wq_ptr));
+        std::shared_ptr<pool_workqueue> pwq_ptr = parser_pool_workqueue(pwq_addr);
+        pwq_ptr->wq_ptr = wq_ptr;
+        wq_ptr->pwqs.push_back(pwq_ptr);
     }
-    LOGI("  Successfully parsed workqueue '%s' at 0x%lx (flags=%s, pwqs=%zu)",
+    LOGI("workqueue_struct '%s' at 0x%lx (flags=%s, pwqs=%zu)",
          wq_ptr->name.c_str(), addr, wq_ptr->flags.c_str(), wq_ptr->pwqs.size());
-    LOGI("  ========================================  ");
     return wq_ptr;
 }
 
 void Workqueue::parse_cpu_worker_pools() {
-    LOGI("========== parse_cpu_worker_pools START ==========");
     if (!csymbol_exists("cpu_worker_pools")) {
         LOGW("cpu_worker_pools symbol not found");
         return;
@@ -493,444 +433,126 @@ void Workqueue::parse_cpu_worker_pools() {
     ulong cpu_worker_pools_addr = csymbol_value("cpu_worker_pools");
     ulong n_pools = read_enum_val("NR_STD_WORKER_POOLS");
     int worker_pool_size = struct_size(worker_pool);
-    for (size_t i = 0; i < NR_CPUS; i++) {
-        if (!kt->__per_cpu_offset[i])
-            continue;
-        ulong worker_pool_addr = cpu_worker_pools_addr + kt->__per_cpu_offset[i];
-        if (!is_kvaddr(worker_pool_addr)) {
-            continue;
-        }
+    std::vector<ulong> percpu_list = for_each_percpu(cpu_worker_pools_addr);
+    for (size_t i = 0; i < percpu_list.size(); i++){
+        ulong cwp_addr = percpu_list[i];
         // Parse normal pool + high pool
         for (size_t j = 0; j < n_pools; j++) {
-            ulong worker_pool_j = worker_pool_addr + j * worker_pool_size;
+            ulong wq_addr = cwp_addr + j * worker_pool_size;
 
             // Check if already parsed
-            if (worker_pool_map.find(worker_pool_j) != worker_pool_map.end()) {
-                LOGD("CPU %zu pool %zu already parsed, skipping", i, j);
+            if (worker_pool_map.find(wq_addr) != worker_pool_map.end()) {
+                LOGD("CPU[%zu] pool#%zu already parsed, skipping", i, j);
                 continue;
             }
 
             // Use existing parser_worker_pool to parse and fill data
-            LOGD("Parsing CPU %zu pool %zu at 0x%lx", i, j, worker_pool_j);
-            auto wp_ptr = parser_worker_pool(worker_pool_j, nullptr);
-            worker_pool_map[worker_pool_j] = wp_ptr;
+            LOGD("Parsing CPU[%zu] pool#%zu at 0x%lx", i, j, wq_addr);
+            auto wp_ptr = parser_worker_pool(wq_addr);
+            worker_pool_map[wq_addr] = wp_ptr;
         }
     }
-
-    LOGI("========== parse_cpu_worker_pools END (parsed %zu pools) ==========",
-         worker_pool_map.size());
 }
 
 void Workqueue::parse_unbound_pool_hash() {
-    LOGI("========== parse_unbound_pool_hash START ==========");
-
     if (!csymbol_exists("unbound_pool_hash")) {
         LOGW("unbound_pool_hash symbol not found");
         return;
     }
 
     ulong unbound_pool_hash = csymbol_value("unbound_pool_hash");
-    ulong unbound_pool_hash_base = unbound_pool_hash;
-
-    size_t hash_size = 64;
     int hash_entry_size = struct_size(hlist_head);
-    int hash_node_offset = field_offset(worker_pool, hash_node);
-    int first_offset = field_offset(hlist_head, first);
-    int next_offset = field_offset(hlist_node, next);
-
     size_t total_unbound_pools = 0;
-
-    for (size_t hash_index = 0; hash_index < hash_size; hash_index++){
-        ulong bucket_addr = unbound_pool_hash_base + hash_index * hash_entry_size;
-
-        // Read hlist_head.first pointer
-        ulong first_worker_pool = read_pointer(bucket_addr + first_offset, "first");
-        if (!is_kvaddr(first_worker_pool)) {
-            continue;
-        }
-
-        LOGD("Processing bucket %zu", hash_index);
-        ulong next_worker_pool = first_worker_pool;
-
-        while(is_kvaddr(next_worker_pool)){
-            // Calculate worker_pool address from hash_node
-            ulong worker_pool_addr = next_worker_pool - hash_node_offset;
-
+    for (size_t hash_index = 0; hash_index < 64; hash_index++){
+        ulong hlist_head = unbound_pool_hash + hash_index * hash_entry_size;
+        for (auto& wp_addr : for_each_hlist(hlist_head,field_offset(worker_pool, hash_node))) {
             // Check if already parsed
-            if (worker_pool_map.find(worker_pool_addr) != worker_pool_map.end()) {
-                LOGD("  Unbound pool 0x%lx already parsed, skipping", worker_pool_addr);
-                next_worker_pool = read_pointer(next_worker_pool + next_offset, "next");
+            if (worker_pool_map.find(wp_addr) != worker_pool_map.end()) {
+                LOGD("  Unbound pool 0x%lx already parsed, skipping", wp_addr);
                 continue;
             }
 
             total_unbound_pools++;
 
             // Use existing parser_worker_pool to parse and fill data
-            LOGD("  Parsing unbound pool at 0x%lx", worker_pool_addr);
-            auto wp_ptr = parser_worker_pool(worker_pool_addr, nullptr);
-            worker_pool_map[worker_pool_addr] = wp_ptr;
-
-            // Get next worker_pool in the hlist chain
-            next_worker_pool = read_pointer(next_worker_pool + next_offset, "next");
+            auto wp_ptr = parser_worker_pool(wp_addr);
+            worker_pool_map[wp_addr] = wp_ptr;
         }
     }
-
-    LOGI("========== parse_unbound_pool_hash END (parsed %zu unbound pools) ==========",
-         total_unbound_pools);
 }
 
-void Workqueue::print_summary() {
-    LOGD("Starting print_summary");
+void Workqueue::print_workqueue_detailed() {
+    LOGD("Starting print_workqueue_detailed");
+    // Traverse all workqueues and show details for active ones
+    for (const auto& wq : workqueue_list) {
+        if (has_activity(wq)) {
+            show_workqueue_details(wq);
+        }
+    }
+}
 
-    // Calculate statistics
-    size_t total_workers = worker_list_map.size();
-    size_t total_idle = idle_worker_list.size();
-    size_t total_busy = total_workers - total_idle;
+void Workqueue::print_worker_pool_detailed() {
+    LOGD("Starting print_worker_pool_detailed");
 
-    size_t total_pending = 0;
-    size_t cpu_pools = 0;
-    size_t unbound_pools = 0;
-
-    std::map<int, size_t> cpu_pending_map;
+    // Separate per-CPU and unbound pools
+    std::map<int, std::vector<std::shared_ptr<worker_pool>>> cpu_pools;
+    std::vector<std::shared_ptr<worker_pool>> unbound_pools;
 
     for (const auto& pair : worker_pool_map) {
-        const auto& pool = pair.second;
-        total_pending += pool->worklist.size();
-
+        auto pool = pair.second;
         if (pool->cpu >= 0) {
-            cpu_pools++;
-            cpu_pending_map[pool->cpu] += pool->worklist.size();
+            cpu_pools[pool->cpu].push_back(pool);
         } else {
-            unbound_pools++;
+            unbound_pools.push_back(pool);
         }
     }
 
-    // Find busiest CPU
-    int busiest_cpu = -1;
-    size_t max_pending = 0;
-    for (const auto& pair : cpu_pending_map) {
-        if (pair.second > max_pending) {
-            max_pending = pair.second;
-            busiest_cpu = pair.first;
-        }
-    }
+    // Print summary first
+    print_worker_pool_summary(cpu_pools, unbound_pools);
 
-    // Print summary
-    PRINT("\n========== Workqueue Summary ==========\n");
-
-    // System status
-    if (max_pending > 5 || total_busy > total_workers * 0.5) {
-        PRINT("System Status: WARNING (high load detected)\n");
-    } else {
-        PRINT("System Status: OK\n");
-    }
-
-    PRINT("\nQuick Stats:\n");
-    PRINT("  Pools: %zu (%zu per-CPU + %zu unbound)\n",
-          worker_pool_map.size(), cpu_pools, unbound_pools);
-    PRINT("  Workers: %zu (%zu busy, %zu idle)\n",
-          total_workers, total_busy, total_idle);
-    PRINT("  Pending Works: %zu\n", total_pending);
-
-    // Per-CPU summary
-    if (!cpu_pending_map.empty()) {
-        PRINT("\nPer-CPU Summary:\n");
-        for (const auto& pair : cpu_pending_map) {
-            const char* warning = (pair.second > 5) ? "  [HIGH]" : "";
-            PRINT("  CPU %-2d: %-4zu pending%s\n", pair.first, pair.second, warning);
-        }
-    }
-
-    // Warnings
-    bool has_warnings = false;
-    if (max_pending > 5) {
-        if (!has_warnings) {
-            PRINT("\nWarnings:\n");
-            has_warnings = true;
-        }
-        PRINT("  - CPU %d has %zu pending works\n",
-              busiest_cpu, max_pending);
-    }
-
-    if (!has_warnings) {
-        PRINT("\nNo issues detected.\n");
-    }
-
-    PRINT("\nTip: Use 'wq -d' for details, 'wq -c %d' for CPU %d details\n",
-          busiest_cpu >= 0 ? busiest_cpu : 0,
-          busiest_cpu >= 0 ? busiest_cpu : 0);
-    PRINT("=======================================\n\n");
-}
-
-void Workqueue::print_detailed() {
-    LOGD("Starting print_detailed");
-
-    PRINT("\n========== Detailed Workqueue Information ==========\n");
-
-    // Print explanation
-    PRINT("\nNote:\n");
-    PRINT("  - Idle: Worker is in idle_list (not currently executing work)\n");
-    PRINT("  - Pending: Work items in worklist waiting to be executed\n");
-    PRINT("  - nr_running: Number of workers currently executing work\n");
-    PRINT("  - [DETACHED]: Pool is DISASSOCIATED (detached from CPU, legacy pool)\n");
-    PRINT("  - When nr_running > 0, idle workers won't be woken up even if there are pending works\n");
-
-    // Group pools by CPU
-    std::map<int, std::vector<std::shared_ptr<worker_pool>>> cpu_pools_map;
-    std::vector<std::shared_ptr<worker_pool>> unbound_pools_list;
-
-    for (const auto& pair : worker_pool_map) {
-        if (pair.second->cpu >= 0) {
-            cpu_pools_map[pair.second->cpu].push_back(pair.second);
-        } else {
-            unbound_pools_list.push_back(pair.second);
-        }
-    }
-
-    // Print per-CPU pools
-    PRINT("\nPer-CPU Pools:\n");
-    for (const auto& cpu_pair : cpu_pools_map) {
+    // Display per-CPU pools
+    for (const auto& cpu_pair : cpu_pools) {
         int cpu = cpu_pair.first;
         const auto& pools = cpu_pair.second;
 
-        PRINT("\nCPU %d:\n", cpu);
+        // Calculate CPU statistics
+        size_t total_workers = 0, total_pending = 0;
         for (const auto& pool : pools) {
-            int busy_count = pool->nr_workers - pool->nr_idle;
-
-            // void __init workqueue_init_early(void)
-            const char* pool_type = (pool->nice == 0) ? "Normal Pool" : "High Pool";
-            const char* warning = (pool->worklist.size() > 5) ? " [HIGH]" : "";
-
-            LOGD("CPU %d: pool 0x%lx has id=%d, nice=%d, flags=%s",
-                 cpu, pool->addr, pool->id, pool->nice, pool->flags.c_str());
-
-            // Collect pool_workqueue information
-            std::string pwq_info = "";
-            if (!pool->pwq_list.empty()) {
-                for (const auto& pwq : pool->pwq_list) {
-                    if (!pwq_info.empty()) pwq_info += ", ";
-                    std::ostringstream pwq_addr;
-                    pwq_addr << std::hex << pwq->addr;
-                    pwq_info += "pool_workqueue:0x" + pwq_addr.str();
-
-                    // Add workqueue information if available
-                    if (pwq->wq_ptr) {
-                        std::ostringstream wq_addr;
-                        wq_addr << std::hex << pwq->wq_ptr->addr;
-                        pwq_info += " -> workqueue_struct[0x" + wq_addr.str() + "]";
-
-                        if (!pwq->wq_ptr->name.empty()) {
-                            pwq_info += " " + pwq->wq_ptr->name;
-                        }
-                    }
-                }
-            }
-
-            // Show flags if not "None"
-            if (pool->flags != "None") {
-                // Check if DISASSOCIATED and add [DETACHED] marker
-                std::string detached_marker = "";
-                if (pool->flags.find("DISASSOCIATED") != std::string::npos) {
-                    detached_marker = " [DETACHED]";
-                }
-                PRINT("  [%-11s] 0x%-16lx | %d workers (%d idle, %d busy) | %zu pending | nr_running=%lu%s | %s%s\n",
-                      pool_type, pool->addr, pool->nr_workers, pool->nr_idle,
-                      busy_count, pool->worklist.size(), pool->nr_running, warning,
-                      pool->flags.c_str(), detached_marker.c_str());
-                if (!pwq_info.empty()) {
-                    PRINT("    %s\n", pwq_info.c_str());
-                }
-            } else {
-                PRINT("  [%-11s] 0x%-16lx | %d workers (%d idle, %d busy) | %zu pending | nr_running=%lu%s\n",
-                      pool_type, pool->addr, pool->nr_workers, pool->nr_idle,
-                      busy_count, pool->worklist.size(), pool->nr_running, warning);
-                if (!pwq_info.empty()) {
-                    PRINT("    %s\n", pwq_info.c_str());
-                }
-            }
-
-            // Show busy workers (not in idle_list)
-            if (busy_count > 0) {
-                PRINT("    Busy:");
-                for (const auto& worker : pool->workers) {
-                    bool is_idle = std::find(pool->idle_list.begin(),
-                                           pool->idle_list.end(),
-                                           worker) != pool->idle_list.end();
-                    if (!is_idle) {
-                        PRINT(" %s pid: %d", worker->comm.c_str(), worker->pid);
-                    }
-                }
-                PRINT("\n");
-            }
-
-            // Show pending works (first 3)
-            if (!pool->worklist.empty()) {
-                PRINT("    Pending:");
-                size_t count = 0;
-                for (const auto& work : pool->worklist) {
-                    if (count++ >= 3) {
-                        PRINT(" ...");
-                        break;
-                    }
-                    PRINT(" %s", to_symbol(work->func).c_str());
-                }
-                PRINT("\n");
-            }
-        }
-    }
-
-    // Print unbound pools
-    if (!unbound_pools_list.empty()) {
-        PRINT("\nUnbound Pools:\n");
-        for (const auto& pool : unbound_pools_list) {
-            int busy_count = pool->nr_workers - pool->nr_idle;
-            PRINT("  0x%lx | %d workers (%d idle, %d busy) | %zu pending\n",
-                  pool->addr, pool->nr_workers, pool->nr_idle,
-                  busy_count, pool->worklist.size());
-        }
-    }
-
-    PRINT("\nSummary: %zu pools, %zu workers, %zu total pending works\n",
-          worker_pool_map.size(), worker_list_map.size(),
-          [this]() {
-              size_t total = 0;
-              for (const auto& p : worker_pool_map) total += p.second->worklist.size();
-              return total;
-          }());
-    PRINT("====================================================\n\n");
-}
-
-void Workqueue::print_check(std::string arg) {
-    LOGD("Starting print_check with arg: %s", arg.c_str());
-
-    // Check if the argument starts with "0x" to identify it as a hex address
-    bool is_address = (arg.length() > 2 && arg.substr(0, 2) == "0x");
-
-    // If not clearly an address, try to parse as CPU number
-    bool is_cpu = !is_address;
-    int cpu_num = -1;
-
-    if (is_cpu) {
-        try {
-            cpu_num = std::stoi(arg);
-            // Valid CPU number
-            is_cpu = (cpu_num >= 0);
-        } catch (...) {
-            // Not a valid CPU number
-            is_cpu = false;
-            // Check if it might be an address without 0x prefix
-            try {
-                std::stoul(arg, nullptr, 16);
-                is_address = true;
-            } catch (...) {
-                // Not a valid address either
-                LOGE("Not a valid address either");
-            }
-        }
-    }
-
-    if (is_cpu) {
-        // Print CPU details
-        PRINT("\n========== CPU %d Details ==========\n", cpu_num);
-
-        std::vector<std::shared_ptr<worker_pool>> cpu_pools;
-        for (const auto& pair : worker_pool_map) {
-            if (pair.second->cpu == cpu_num) {
-                cpu_pools.push_back(pair.second);
-            }
-        }
-
-        if (cpu_pools.empty()) {
-            PRINT("No pools found for CPU %d\n", cpu_num);
-            return;
-        }
-
-        size_t total_workers = 0;
-        size_t total_idle = 0;
-        size_t total_pending = 0;
-
-        for (const auto& pool : cpu_pools) {
-            const char* pool_type = (pool->nice == 0) ? "Normal" : "High";
-            int busy_count = pool->nr_workers - pool->nr_idle;
-            // queue_work() / __queue_work()
-            //     → kick_pool()
-            //         → wake_up_process(idle_worker)
-            PRINT("\n[%s Priority] 0x%lx (nr_running=%lu)\n", pool_type, pool->addr, pool->nr_running);
-            PRINT("  Workers: %d (%d idle, %d busy)\n",
-                  pool->nr_workers, pool->nr_idle, busy_count);
-            PRINT("  Pending: %zu works\n", pool->worklist.size());
-
-    // Collect pool_workqueue information
-    std::string pwq_info = "";
-    if (!pool->pwq_list.empty()) {
-        for (const auto& pwq : pool->pwq_list) {
-            if (!pwq_info.empty()) pwq_info += ", ";
-            std::ostringstream pwq_addr;
-            pwq_addr << std::hex << pwq->addr;
-            pwq_info += "pool_workqueue[0x" + pwq_addr.str() + "]";
-
-            // Add workqueue information if available
-            if (pwq->wq_ptr) {
-                std::ostringstream wq_addr;
-                wq_addr << std::hex << pwq->wq_ptr->addr;
-                pwq_info += " -> workqueue_struct[0x" + wq_addr.str() + "]";
-
-                if (!pwq->wq_ptr->name.empty()) {
-                    pwq_info += " " + pwq->wq_ptr->name;
-                }
-            }
-        }
-        PRINT("  %s\n", pwq_info.c_str());
-    }
-
-            // Show workers
-            if (!pool->workers.empty()) {
-                PRINT("  Workers:\n");
-                for (const auto& worker : pool->workers) {
-                    bool is_idle = std::find(pool->idle_list.begin(),
-                                           pool->idle_list.end(),
-                                           worker) != pool->idle_list.end();
-
-                    // Get current work information
-                    std::string current_work = "None";
-                    if (worker->current_func != 0) {
-                        current_work = to_symbol(worker->current_func);
-                    }
-
-                    PRINT("    - %s [pid:%d] %s | current_func=%s | flags=%s\n",
-                          worker->comm.c_str(),
-                          worker->pid,
-                          is_idle ? "idle" : "busy",
-                          current_work.c_str(),
-                          worker->flags.c_str());
-                }
-            }
-
-            // Show pending works
-            if (!pool->worklist.empty()) {
-                PRINT("  Pending Works:\n");
-                for (const auto& work : pool->worklist) {
-                    PRINT("    - %s\n", to_symbol(work->func).c_str());
-                }
-            }
-
             total_workers += pool->nr_workers;
-            total_idle += pool->nr_idle;
             total_pending += pool->worklist.size();
         }
 
-        PRINT("\nCPU %d Summary:\n", cpu_num);
-        PRINT("  Total Workers: %zu (%zu busy, %zu idle)\n",
-              total_workers, total_workers - total_idle, total_idle);
-        PRINT("  Total Pending: %zu works\n", total_pending);
-        PRINT("=====================================\n\n");
+        // Determine CPU status
+        std::string cpu_status = "";
+        if (total_pending > 100) {
+            cpu_status = " [HIGH LOAD]";
+        }
 
-    } else if (is_address) {
-        // Handle as address
-        LOGI("Handling %s as an address", arg.c_str());
-        print_pool_by_addr(arg);
-    } else {
-        PRINT("Invalid argument: %s (not a CPU number or valid address)\n", arg.c_str());
+        PRINT("\nCPU[%d]: %zu pools, %zu workers, %zu pending works%s\n",
+              cpu, pools.size(), total_workers, total_pending, cpu_status.c_str());
+
+        // Display pools with tree structure
+        for (size_t i = 0; i < pools.size(); ++i) {
+            bool is_last = (i == pools.size() - 1);
+            show_worker_pool_info(pools[i], is_last);
+        }
+    }
+
+    // Display unbound pools
+    if (!unbound_pools.empty()) {
+        size_t total_workers = 0, total_pending = 0;
+        for (const auto& pool : unbound_pools) {
+            total_workers += pool->nr_workers;
+            total_pending += pool->worklist.size();
+        }
+
+        PRINT("\nUnbound Pools: %zu pools, %zu workers, %zu pending works\n",
+              unbound_pools.size(), total_workers, total_pending);
+
+        for (size_t i = 0; i < unbound_pools.size(); ++i) {
+            bool is_last = (i == unbound_pools.size() - 1);
+            show_worker_pool_info(unbound_pools[i], is_last);
+        }
     }
 }
 
@@ -941,30 +563,602 @@ void Workqueue::parse_workqueue() {
         LOGD("Workqueue list already populated (size=%zu)", workqueue_list.size());
         return;
     }
+    // 1. Parse per-CPU worker pools
+    parse_cpu_worker_pools();
 
-    // 1. Parse workqueues list
+    // 2. Parse unbound worker pools
+    parse_unbound_pool_hash();
+
+    // 3. Parse workqueues list
     if (csymbol_exists("workqueues")) {
         ulong workqueues_addr = csymbol_value("workqueues");
         LOGD("workqueues symbol address: 0x%lx", workqueues_addr);
         if (is_kvaddr(workqueues_addr)) {
-            int offset = field_offset(workqueue_struct, list);
-            std::vector<ulong> list = for_each_list(workqueues_addr, offset);
-            LOGI("Found %zu workqueues to parse", list.size());
-            for (const auto& addr : list) {
+            for (const auto& addr : for_each_list(workqueues_addr, field_offset(workqueue_struct, list))) {
                 auto workqueue_struct = parser_workqueue_struct(addr);
                 workqueue_list.push_back(workqueue_struct);
             }
         }
     }
-
-    // 2. Parse per-CPU worker pools
-    parse_cpu_worker_pools();
-
-    // 3. Parse unbound worker pools
-    parse_unbound_pool_hash();
-
     LOGI("Successfully parsed all workqueues (total=%zu, worker_pools=%zu, workers=%zu)",
          workqueue_list.size(), worker_pool_map.size(), worker_list_map.size());
+}
+
+void Workqueue::parse_busy_hash(std::shared_ptr<worker_pool> wp_ptr, ulong pool_addr) {
+    LOGD("Parsing busy_hash for worker_pool at 0x%lx", pool_addr);
+
+    // busy_hash is a hashtable with 64 buckets (BUSY_WORKER_HASH_ORDER = 6)
+    const int BUSY_WORKER_HASH_SIZE = 64;
+
+    ulong busy_hash_addr = pool_addr + field_offset(worker_pool, busy_hash);
+    int hlist_head_size = struct_size(hlist_head);
+
+    for (int bucket = 0; bucket < BUSY_WORKER_HASH_SIZE; bucket++) {
+        ulong hlist_head_addr = busy_hash_addr + bucket * hlist_head_size;
+        for (ulong worker_addr : for_each_hlist(hlist_head_addr, field_offset(worker, hentry))) {
+            LOGD("  Found busy worker at 0x%lx in bucket %d", worker_addr, bucket);
+
+            // Find the corresponding worker object in the already parsed workers
+            auto worker_it = std::find_if(wp_ptr->workers.begin(), wp_ptr->workers.end(),
+                [worker_addr](const std::shared_ptr<worker>& w) {
+                    return w->addr == worker_addr;
+                });
+
+            if (worker_it != wp_ptr->workers.end()) {
+                wp_ptr->busy_workers.push_back(*worker_it);
+                LOGD("    Added busy worker: %s (pid=%d, current_func=0x%lx)",
+                     (*worker_it)->comm.c_str(), (*worker_it)->pid, (*worker_it)->current_func);
+            } else {
+                LOGW("    Worker 0x%lx found in busy_hash but not in workers list", worker_addr);
+            }
+        }
+    }
+
+    LOGI("Parsed busy_hash: found %zu busy workers out of %d total workers",
+         wp_ptr->busy_workers.size(), wp_ptr->nr_workers);
+}
+
+bool Workqueue::has_activity(std::shared_ptr<workqueue_struct> wq) {
+    // Check if workqueue has any activity (busy workers, pending works, inactive works)
+    for (const auto& pwq : wq->pwqs) {
+        if (pwq->nr_active > 0 || !pwq->inactive_works.empty()) {
+            return true;
+        }
+        if (pwq->wp_ptr) {
+            if (!pwq->wp_ptr->busy_workers.empty() || !pwq->wp_ptr->worklist.empty()) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void Workqueue::show_workqueue_details(std::shared_ptr<workqueue_struct> wq) {
+    PRINT("[WORKQUEUE] %s (%s)\n", wq->name.c_str(), wq->flags.c_str());
+
+    // Group PWQs by worker_pool address to detect relationship type
+    std::map<ulong, std::vector<std::shared_ptr<pool_workqueue>>> pool_groups;
+
+    // Collect PWQs grouped by worker_pool
+    for (const auto& pwq : wq->pwqs) {
+        if (pwq->wp_ptr) {
+            pool_groups[pwq->wp_ptr->addr].push_back(pwq);
+        }
+    }
+
+    // Track displayed worker_pools and PWQs to avoid duplicates
+    std::set<ulong> displayed_pools;
+    std::set<ulong> displayed_pwqs;
+
+    // Count items to display for proper tree formatting
+    std::vector<std::pair<std::shared_ptr<pool_workqueue>, bool>> display_items; // pwq, is_multi_to_one
+
+    for (const auto& pwq : wq->pwqs) {
+        if (!pwq->wp_ptr) continue;
+
+        // Skip if this PWQ has already been processed
+        if (displayed_pwqs.find(pwq->addr) != displayed_pwqs.end()) {
+            continue;
+        }
+
+        auto pool = pwq->wp_ptr;
+
+        // Check if this is a multi-to-one relationship
+        if (pool_groups[pool->addr].size() > 1) {
+            // Multi-to-one: Only add the first PWQ of this group
+            if (displayed_pools.find(pool->addr) == displayed_pools.end()) {
+                display_items.push_back({pwq, true});
+                displayed_pools.insert(pool->addr);
+                displayed_pwqs.insert(pwq->addr);
+            }
+        } else {
+            // One-to-one: Add this PWQ
+            display_items.push_back({pwq, false});
+            displayed_pwqs.insert(pwq->addr);
+        }
+    }
+
+    // Reset displayed_pools for actual display
+    displayed_pools.clear();
+
+    // Display information based on relationship type
+    for (size_t item_idx = 0; item_idx < display_items.size(); ++item_idx) {
+        auto& item = display_items[item_idx];
+        auto pwq = item.first;
+        bool is_multi_to_one = item.second;
+
+        bool is_last_item = (item_idx == display_items.size() - 1);
+        const char* pwq_prefix = is_last_item ? "  └─" : "  ├─";
+
+        auto pool = pwq->wp_ptr;
+        const char* pool_type = (pool->nice == 0) ? "Normal" : "High";
+
+        if (is_multi_to_one) {
+            // Multi-to-one: Use grouped display
+            PRINT("%s PWQs:\n", pwq_prefix);
+            for (size_t i = 0; i < pool_groups[pool->addr].size(); ++i) {
+                PRINT("  │     pwq:0x%lx\n", pool_groups[pool->addr][i]->addr);
+            }
+
+            // Display worker_pool details
+            PRINT("  └─ worker_pool[0x%lx] CPU:%-2d %-6s (workers:%-2d, idle:%-2d, busy:%-2zu, pending:%zu)\n",
+                  pool->addr, pool->cpu, pool_type,
+                  pool->nr_workers, pool->nr_idle, pool->busy_workers.size(), pool->worklist.size());
+
+            // Show worker_pool details with appropriate indentation
+            show_worker_pool_details(pool, true);
+        } else {
+            // One-to-one: Use original format
+            PRINT("%s pwq:0x%-16lx → worker_pool[0x%-16lx] CPU:%-2d %-6s (workers:%-2d, idle:%-2d, busy:%-2zu, pending:%zu)\n",
+                  pwq_prefix, pwq->addr, pool->addr, pool->cpu, pool_type,
+                  pool->nr_workers, pool->nr_idle, pool->busy_workers.size(), pool->worklist.size());
+
+            // Check if this worker_pool has any activity
+            bool has_activity = !pool->busy_workers.empty() || !pool->worklist.empty();
+
+            // Check for inactive works
+            size_t total_inactive = 0;
+            for (const auto& pwq_check : pool->pwq_list) {
+                total_inactive += pwq_check->inactive_works.size();
+            }
+            if (total_inactive > 0) has_activity = true;
+
+            if (has_activity) {
+                // Show details with proper indentation (aligned to worker_pool address)
+                show_pwq_details(pwq, pwq_prefix, is_last_item);
+            }
+        }
+    }
+    PRINT("\n");
+}
+
+void Workqueue::show_worker_pool_details(std::shared_ptr<worker_pool> pool, bool is_last_group) {
+    // Prepare indentation for worker_pool sub-items
+    const char* pool_indent = is_last_group ? "     " : "  │  ";
+
+    // Show busy workers
+    if (!pool->busy_workers.empty()) {
+        bool has_pending = !pool->worklist.empty();
+        bool has_inactive = false;
+
+        // Check if any PWQ has inactive works
+        for (const auto& pwq : pool->pwq_list) {
+            if (!pwq->inactive_works.empty()) {
+                has_inactive = true;
+                break;
+            }
+        }
+
+        const char* busy_prefix = (has_pending || has_inactive) ? "├─" : "└─";
+        PRINT("%s%s BUSY WORKERS:\n", pool_indent, busy_prefix);
+
+        for (size_t i = 0; i < pool->busy_workers.size(); ++i) {
+            const auto& worker = pool->busy_workers[i];
+            bool is_last_worker = (i == pool->busy_workers.size() - 1);
+            const char* worker_prefix = is_last_worker ? "└─" : "├─";
+
+            std::string func_name = "None";
+            if (is_kvaddr(worker->current_func)) {
+                func_name = to_symbol(worker->current_func);
+            }
+
+            PRINT("%s│  %s %-16s [pid:%-6d] → %s\n",
+                  pool_indent, worker_prefix, worker->comm.c_str(), worker->pid, func_name.c_str());
+        }
+    }
+
+    // Show pending works
+    if (!pool->worklist.empty()) {
+        // Count work functions
+        std::map<std::string, int> func_count;
+        for (const auto& work : pool->worklist) {
+            if (is_kvaddr(work->func)) {
+                std::string func_name = to_symbol(work->func);
+                func_count[func_name]++;
+            }
+        }
+
+        // Check if any PWQ has inactive works
+        bool has_inactive = false;
+        for (const auto& pwq : pool->pwq_list) {
+            if (!pwq->inactive_works.empty()) {
+                has_inactive = true;
+                break;
+            }
+        }
+
+        const char* pending_prefix = has_inactive ? "├─" : "└─";
+        PRINT("%s%s PENDING WORKS: (%zu items)\n", pool_indent, pending_prefix, pool->worklist.size());
+
+        size_t func_idx = 0;
+        for (const auto& pair : func_count) {
+            bool is_last_func = (func_idx == func_count.size() - 1);
+            const char* func_prefix = is_last_func ? "└─" : "├─";
+
+            if (pair.second > 1) {
+                PRINT("%s│  %s %s (×%d)\n", pool_indent, func_prefix, pair.first.c_str(), pair.second);
+            } else {
+                PRINT("%s│  %s %s\n", pool_indent, func_prefix, pair.first.c_str());
+            }
+            func_idx++;
+        }
+    }
+
+    // Show inactive works (collect from all PWQs pointing to this pool)
+    std::map<std::string, int> inactive_func_count;
+    size_t total_inactive = 0;
+
+    for (const auto& pwq : pool->pwq_list) {
+        for (const auto& work : pwq->inactive_works) {
+            if (is_kvaddr(work->func)) {
+                std::string func_name = to_symbol(work->func);
+                inactive_func_count[func_name]++;
+                total_inactive++;
+            }
+        }
+    }
+
+    if (total_inactive > 0) {
+        PRINT("%s└─ INACTIVE WORKS: (%zu items)\n", pool_indent, total_inactive);
+
+        size_t func_idx = 0;
+        for (const auto& pair : inactive_func_count) {
+            bool is_last_func = (func_idx == inactive_func_count.size() - 1);
+            const char* func_prefix = is_last_func ? "└─" : "├─";
+
+            if (pair.second > 1) {
+                PRINT("%s   %s %s (×%d)\n", pool_indent, func_prefix, pair.first.c_str(), pair.second);
+            } else {
+                PRINT("%s   %s %s\n", pool_indent, func_prefix, pair.first.c_str());
+            }
+            func_idx++;
+        }
+    }
+}
+
+
+void Workqueue::show_pwq_details(std::shared_ptr<pool_workqueue> pwq, const char* prefix, bool is_last_pwq) {
+    auto pool = pwq->wp_ptr;
+    if (!pool) {
+        return;
+    }
+    // Prepare indentation for worker_pool sub-items (deeper level)
+    const char* pool_indent = is_last_pwq ? "                                " : "  │                             ";
+
+    // Show busy workers
+    if (!pool->busy_workers.empty()) {
+        PRINT("%s├─ BUSY WORKERS:\n", pool_indent);
+        for (size_t i = 0; i < pool->busy_workers.size(); ++i) {
+            const auto& worker = pool->busy_workers[i];
+            bool is_last_worker = (i == pool->busy_workers.size() - 1);
+            const char* worker_prefix = is_last_worker ? "└─" : "├─";
+
+            std::string func_name = "None";
+            if (is_kvaddr(worker->current_func)) {
+                func_name = to_symbol(worker->current_func);
+            }
+
+            PRINT("%s│  %s %-16s [pid:%-6d] → %s\n",
+                  pool_indent, worker_prefix, worker->comm.c_str(), worker->pid, func_name.c_str());
+        }
+    }
+
+    // Show pending works
+    if (!pool->worklist.empty()) {
+        // Count work functions
+        std::map<std::string, int> func_count;
+        for (const auto& work : pool->worklist) {
+            if (is_kvaddr(work->func)) {
+                std::string func_name = to_symbol(work->func);
+                func_count[func_name]++;
+            }
+        }
+        bool has_inactive = !pwq->inactive_works.empty();
+        const char* pending_prefix = (has_inactive) ? "├─" : "└─";
+
+        PRINT("%s%s PENDING WORKS: (%zu items)\n", pool_indent, pending_prefix, pool->worklist.size());
+
+        size_t func_idx = 0;
+        for (const auto& pair : func_count) {
+            bool is_last_func = (func_idx == func_count.size() - 1);
+            const char* func_prefix = is_last_func ? "└─" : "├─";
+
+            if (pair.second > 1) {
+                PRINT("%s│  %s %s (×%d)\n", pool_indent, func_prefix, pair.first.c_str(), pair.second);
+            } else {
+                PRINT("%s│  %s %s\n", pool_indent, func_prefix, pair.first.c_str());
+            }
+            func_idx++;
+        }
+    }
+
+    // Show inactive works
+    if (!pwq->inactive_works.empty()) {
+        // Count work functions
+        std::map<std::string, int> func_count;
+        for (const auto& work : pwq->inactive_works) {
+            if (is_kvaddr(work->func)) {
+                std::string func_name = to_symbol(work->func);
+                func_count[func_name]++;
+            }
+        }
+
+        PRINT("%s└─ INACTIVE WORKS: (%zu items)\n", pool_indent, pwq->inactive_works.size());
+
+        size_t func_idx = 0;
+        for (const auto& pair : func_count) {
+            bool is_last_func = (func_idx == func_count.size() - 1);
+            const char* func_prefix = is_last_func ? "└─" : "├─";
+
+            if (pair.second > 1) {
+                PRINT("%s   %s %s (×%d)\n", pool_indent, func_prefix, pair.first.c_str(), pair.second);
+            } else {
+                PRINT("%s   %s %s\n", pool_indent, func_prefix, pair.first.c_str());
+            }
+            func_idx++;
+        }
+    }
+}
+
+void Workqueue::print_worker_pool_summary(const std::map<int, std::vector<std::shared_ptr<worker_pool>>>& cpu_pools,
+                                          const std::vector<std::shared_ptr<worker_pool>>& unbound_pools) {
+    // Calculate statistics
+    size_t total_pools = 0;
+    size_t total_workers = 0;
+    size_t total_pending = 0;
+    size_t cpu_normal_pools = 0;
+    size_t cpu_high_pools = 0;
+    size_t unbound_normal_pools = 0;
+    size_t unbound_high_pools = 0;
+
+    std::vector<std::string> critical_warnings;
+    // Process CPU pools
+    for (const auto& cpu_pair : cpu_pools) {
+        int cpu = cpu_pair.first;
+        const auto& pools = cpu_pair.second;
+        size_t cpu_pending = 0;
+        size_t hung_pools = 0;
+
+        for (const auto& pool : pools) {
+            total_pools++;
+            total_workers += pool->nr_workers;
+            total_pending += pool->worklist.size();
+            cpu_pending += pool->worklist.size();
+
+            // Count pool types
+            if (pool->nice == 0) {
+                cpu_normal_pools++;
+            } else {
+                cpu_high_pools++;
+            }
+
+            // Check for hung pools
+            if (!pool->worklist.empty()) {
+                ulong current_jiffies = read_ulong(csymbol_value("jiffies"), "jiffies");
+                unsigned long hung = jiffies_to_msecs(current_jiffies - pool->watchdog_ts) / 1000;
+                if (hung > 10) {
+                    hung_pools++;
+                }
+            }
+        }
+
+        // Check CPU load
+        if (cpu_pending > 100) {
+            critical_warnings.push_back("CPU[" + std::to_string(cpu) + "]: High load detected (" +
+                                       std::to_string(cpu_pending) + " pending works)");
+        }
+
+        if (hung_pools > 0) {
+            critical_warnings.push_back(std::to_string(hung_pools) + " pools hung (>10s) on CPU[" + std::to_string(cpu) + "]");
+        }
+    }
+
+    // Process unbound pools
+    for (const auto& pool : unbound_pools) {
+        total_pools++;
+        total_workers += pool->nr_workers;
+        total_pending += pool->worklist.size();
+
+        // Count unbound pool types (based on flags or other criteria)
+        if (pool->flags.find("WQ_HIGHPRI") != std::string::npos) {
+            unbound_high_pools++;
+        } else {
+            unbound_normal_pools++;
+        }
+    }
+
+    // Print summary
+    PRINT("===============================================================================\n");
+    PRINT("                           WORKER POOL SUMMARY\n");
+    PRINT("===============================================================================\n");
+
+    PRINT("System Overview:\n");
+    PRINT("  CPUs: %-10zu Pools: %-8zu Workers: %-8zu Pending: %zu\n\n",
+          cpu_pools.size(), total_pools, total_workers, total_pending);
+
+    PRINT("Pool Distribution:\n");
+    PRINT("  Per-CPU Pools: %zu (%zu Normal, %zu High Priority)\n",
+          cpu_normal_pools + cpu_high_pools, cpu_normal_pools, cpu_high_pools);
+    PRINT("  Unbound Pools: %zu (%zu Normal, %zu High Priority)\n\n",
+          unbound_normal_pools + unbound_high_pools, unbound_normal_pools, unbound_high_pools);
+
+    // Print warnings
+    bool has_warnings = !critical_warnings.empty();
+    if (has_warnings) {
+        PRINT("Warnings:\n");
+
+        for (const auto& warning : critical_warnings) {
+            PRINT("  [CRITICAL] %s\n", warning.c_str());
+        }
+    }
+    PRINT("===============================================================================");
+}
+
+void Workqueue::show_worker_pool_info(std::shared_ptr<worker_pool> pool, bool is_last) {
+    // Determine pool type
+    const char* pool_type;
+    if (pool->cpu >= 0) {
+        pool_type = (pool->nice == 0) ? "Normal" : "High";
+    } else {
+        pool_type = "Unbound";
+    }
+
+    // Calculate hung time
+    unsigned long hung = 0;
+    if (!pool->worklist.empty()) {
+        ulong current_jiffies = read_ulong(csymbol_value("jiffies"), "jiffies");
+        hung = jiffies_to_msecs(current_jiffies - pool->watchdog_ts) / 1000;
+    }
+
+    // Tree structure prefix
+    const char* tree_prefix = is_last ? "└─" : "├─";
+    const char* indent = is_last ? "   " : "│  ";
+
+    // Print main pool line
+    PRINT("%s worker_pool:0x%lx %s (workers:%d, idle:%d, busy:%zu, pending:%zu)",
+          tree_prefix, pool->addr, pool_type, pool->nr_workers, pool->nr_idle,
+          pool->busy_workers.size(), pool->worklist.size());
+
+    if (hung > 0) {
+        PRINT(" hung=%lus", hung);
+    }
+    PRINT("\n");
+
+    // Print status and flags
+    PRINT("%s├─ Status: ", indent);
+    if (hung > 60) {
+        PRINT("Critical");
+    } else if (hung > 10) {
+        PRINT("Blocked");
+    } else if (pool->busy_workers.size() > pool->nr_workers * 0.7) {
+        PRINT("High Load");
+    } else {
+        PRINT("Normal");
+    }
+    PRINT(" | Flags: %s\n", pool->flags.c_str());
+
+    // Count sections to display
+    bool has_manager = (pool->manager != nullptr);
+    bool has_idle = !pool->idle_list.empty();
+    bool has_busy = !pool->busy_workers.empty();
+    bool has_pending = !pool->worklist.empty();
+
+    int sections = (has_manager ? 1 : 0) + (has_idle ? 1 : 0) + (has_busy ? 1 : 0) + (has_pending ? 1 : 0);
+    int current_section = 0;
+
+    // Display manager worker
+    if (has_manager) {
+        current_section++;
+        bool is_last_section = (current_section == sections);
+        const char* section_prefix = is_last_section ? "└─" : "├─";
+
+        PRINT("%s%s Manager Worker:\n", indent, section_prefix);
+        const auto& manager = pool->manager;
+
+        if (manager->pid > 0 && !manager->comm.empty()) {
+            PRINT("%s│  └─ %s (pid:%d)\n", indent, manager->comm.c_str(), manager->pid);
+        } else {
+            PRINT("%s│  └─ worker:0x%lx\n", indent, manager->addr);
+        }
+    }
+
+    // Display idle workers
+    if (has_idle) {
+        current_section++;
+        bool is_last_section = (current_section == sections);
+        const char* section_prefix = is_last_section ? "└─" : "├─";
+
+        PRINT("%s%s Idle Workers:\n", indent, section_prefix);
+        for (size_t i = 0; i < pool->idle_list.size(); ++i) {
+            const auto& worker = pool->idle_list[i];
+            bool is_last_worker = (i == pool->idle_list.size() - 1);
+            const char* worker_prefix = is_last_worker ? "└─" : "├─";
+
+            if (worker->pid > 0 && !worker->comm.empty()) {
+                PRINT("%s│  %s %s (pid:%d)\n", indent, worker_prefix, worker->comm.c_str(), worker->pid);
+            } else {
+                PRINT("%s│  %s worker:0x%lx\n", indent, worker_prefix, worker->addr);
+            }
+        }
+    }
+
+    // Display busy workers
+    if (has_busy) {
+        current_section++;
+        bool is_last_section = (current_section == sections);
+        const char* section_prefix = is_last_section ? "└─" : "├─";
+
+        PRINT("%s%s Busy Workers:\n", indent, section_prefix);
+        for (size_t i = 0; i < pool->busy_workers.size(); ++i) {
+            const auto& worker = pool->busy_workers[i];
+            bool is_last_worker = (i == pool->busy_workers.size() - 1);
+            const char* worker_prefix = is_last_worker ? "└─" : "├─";
+
+            std::string func_name = "unknown";
+            if (is_kvaddr(worker->current_func)) {
+                func_name = to_symbol(worker->current_func);
+            }
+
+            if (worker->pid > 0 && !worker->comm.empty()) {
+                PRINT("%s│  %s %s (pid:%d) → %s\n", indent, worker_prefix,
+                      worker->comm.c_str(), worker->pid, func_name.c_str());
+            } else {
+                PRINT("%s│  %s worker:0x%lx → %s\n", indent, worker_prefix,
+                      worker->addr, func_name.c_str());
+            }
+        }
+    }
+
+    // Display pending works
+    if (has_pending) {
+        current_section++;
+        bool is_last_section = (current_section == sections);
+        const char* section_prefix = is_last_section ? "└─" : "├─";
+
+        PRINT("%s%s Pending Works:\n", indent, section_prefix);
+
+        // Count work functions
+        std::map<std::string, int> func_count;
+        for (const auto& work : pool->worklist) {
+            if (is_kvaddr(work->func)) {
+                std::string func_name = to_symbol(work->func);
+                func_count[func_name]++;
+            }
+        }
+
+        size_t func_idx = 0;
+        for (const auto& pair : func_count) {
+            bool is_last_func = (func_idx == func_count.size() - 1);
+            const char* func_prefix = is_last_func ? "└─" : "├─";
+
+            if (pair.second > 1) {
+                PRINT("%s│  %s %s (×%d)\n", indent, func_prefix, pair.first.c_str(), pair.second);
+            } else {
+                PRINT("%s│  %s %s\n", indent, func_prefix, pair.first.c_str());
+            }
+            func_idx++;
+        }
+    }
 }
 
 #pragma GCC diagnostic pop
