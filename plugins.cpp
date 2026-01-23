@@ -54,6 +54,7 @@
 #include "logger/logger.h"
 #include "iommu/iommu.h"
 #include "lockdep/lockdep.h"
+#include "rcu/rcu.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -132,6 +133,7 @@ std::shared_ptr<T32>           T32::instance           = nullptr;
 std::shared_ptr<Logger>        Logger::instance        = nullptr;
 std::shared_ptr<IOMMU>         IOMMU::instance         = nullptr;
 std::shared_ptr<Lockdep>       Lockdep::instance       = nullptr;
+std::shared_ptr<Rcu>           Rcu::instance           = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -176,6 +178,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<Logger>());
     plugins.push_back(make_and_init<IOMMU>());
     plugins.push_back(make_and_init<Lockdep>());
+    plugins.push_back(make_and_init<Rcu>());
     std::cout << "\033[32m"
             << std::fixed << std::setprecision(6)
             << "[Load] Constructor: " << total_construct_time.count() << " s, "

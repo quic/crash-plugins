@@ -82,6 +82,7 @@ list(APPEND PLUGIN_SOURCES
     memory/dmabuf/ion_heap.cpp
     memory/buddy.cpp
     memory/slub.cpp
+    rcu/rcu.cpp
     memory/zraminfo.cpp
     memory/zram.cpp
     memory/swapinfo.cpp
@@ -388,4 +389,8 @@ add_plugin(t32
 # =================== build lockdep ===================
 add_plugin(lockdep
     lockdep/lockdep.cpp)
+
+# =================== build rcu ===================
+add_plugin(rcu
+    rcu/rcu.cpp)
 endif()
