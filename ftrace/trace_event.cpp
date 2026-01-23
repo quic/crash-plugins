@@ -1417,9 +1417,28 @@ std::string TraceEvent::format_arg(std::shared_ptr<print_arg> arg_ptr) {
             break;
         }
 
-        case 'p': {  // Pointer address
-            void* value = *reinterpret_cast<void**>(arg_ptr->data);
-            snprintf(buffer, sizeof(buffer), full_format.c_str(), value);
+        case 'p': {  // Pointer address and extensions
+            // Check for %pS (symbol) format
+            if (fmt.length() >= 3 && fmt.substr(fmt.length()-2) == "pS") {
+                ulong addr_value = *reinterpret_cast<ulong*>(arg_ptr->data);
+                std::string symbol = plugin_ptr->to_symbol(addr_value);
+                if (!symbol.empty()) {
+                    // Replace %pS with %s and use symbol name
+                    std::string modified_format = arg_ptr->prefix + "%s";
+                    if (!arg_ptr->suffix.empty()) {
+                        modified_format += arg_ptr->suffix;
+                    }
+                    snprintf(buffer, sizeof(buffer), modified_format.c_str(), symbol.c_str());
+                } else {
+                    // Fallback to address if symbol not found
+                    void* value = *reinterpret_cast<void**>(arg_ptr->data);
+                    snprintf(buffer, sizeof(buffer), full_format.c_str(), value);
+                }
+            } else {
+                // Standard %p format
+                void* value = *reinterpret_cast<void**>(arg_ptr->data);
+                snprintf(buffer, sizeof(buffer), full_format.c_str(), value);
+            }
             break;
         }
 

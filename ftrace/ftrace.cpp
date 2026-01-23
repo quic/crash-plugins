@@ -36,7 +36,7 @@ void Ftrace::cmd_main(void) {
 
     // Check minimum argument count
     if (argcnt < 2) {
-        LOGE("Insufficient arguments provided");
+        LOGD("Insufficient arguments provided");
         cmd_usage(pc->curcmd, SYNOPSIS);
         return;
     }
@@ -57,10 +57,14 @@ void Ftrace::cmd_main(void) {
     }
 
     // Process command line options
-    while ((c = getopt(argcnt, args, "als:fec:Sd")) != EOF) {
+    while ((c = getopt(argcnt, args, "aA:lfec:")) != EOF) {
         switch(c) {
             case 'a':
                 print_trace_log();
+                break;
+            case 'A':
+                cppString.assign(optarg);
+                print_trace_log(cppString);
                 break;
             case 'l':
                 print_trace_array();
@@ -75,10 +79,6 @@ void Ftrace::cmd_main(void) {
                     LOGE("Invalid CPU argument: %s", cppString.c_str());
                 }
                 break;
-            case 's':
-                cppString.assign(optarg);
-                print_trace_log(cppString);
-                break;
             case 'f':
                 print_event_format();
                 break;
@@ -88,7 +88,7 @@ void Ftrace::cmd_main(void) {
             case 'd':
                 ftrace_dump();
                 break;
-            case 'S':
+            case 't':
                 ftrace_show();
                 break;
             default:
@@ -214,17 +214,17 @@ void Ftrace::init_command(void) {
     help_str_list={
         "ftrace",                                 /* command name */
         "display ftrace information",             /* short description */
-        "[-a] [-l] [-c cpu] [-s name] [-f] [-e] [-d] [-S]\n"
+        "[-a] [-A name] [-l] [-c cpu] [-f] [-e] [-d] [-t]\n"
         "  This command displays ftrace information.\n"
         "\n"
         "    -a              display all ftrace log\n"
+        "    -A name         display ftrace log of specified trace array by name\n"
         "    -l              list all trace array\n"
         "    -c cpu          display ftrace log of specified cpu\n"
-        "    -s name         display ftrace log of specified trace array by name\n"
         "    -f              display all trace event info\n"
         "    -e              display skip events\n"
         "    -d              dump all trace to file\n"
-        "    -S              display all trace via trace-cmd\n",
+        "    -t              display all trace via trace-cmd\n",
         "\n",
         "EXAMPLES",
         "  List all trace array:",
@@ -248,7 +248,7 @@ void Ftrace::init_command(void) {
         "       usb        UsbFfs-worker-1908   [0] d..2. 165.323293: dwc3_gadget_ep_cmd ep4in: cmd 589831params 000--> status: 0",
         "\n",
         "  Display ftrace log of specified trace array by name:",
-        "    %s> ftrace -s binder",
+        "    %s> ftrace -A binder",
         "       binder     binder:943_4-1443    [0] ..... 227.397723: binder_transaction transaction=89703 dest_node=0 dest_proc=1067 dest_thread=3576 reply=1 flags=0x0 code=0x0",
         "       binder     binder:943_4-1443    [0] ...1. 227.397729: binder_update_page_range proc=1067 allocate=1 offset=0 size=0",
         "       binder     binder:943_4-1443    [0] ..... 227.397735: binder_transaction_alloc_buf transaction=89703 data_size=0 offsets_size=0 extra_buffers_size=0",
@@ -278,7 +278,7 @@ void Ftrace::init_command(void) {
         "    Save to /path/ftrace.data",
         "\n",
         "  Display all trace via trace-cmd:",
-        "    %s> ftrace -S",
+        "    %s> ftrace -t",
         "    memory:            <...>-67    [001]    43.835156: tlbi_end:             group=5800000.qcom,ipa:ipa_smmu_ap",
         "    memory:            <...>-67    [001]    43.835160: tlbi_start:           group=5800000.qcom,ipa:ipa_smmu_ap",
         "\n",

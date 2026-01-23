@@ -880,12 +880,14 @@ void gpio_direction_event::handle(ulong addr) {
  * Processes MMIO read event including caller address, width, and address.
  */
 void rwmmio_read_event::handle(ulong addr) {
-    arg_list[0]->name = "caller";
-    arg_list[1]->name = "width";
-    arg_list[2]->name = "addr";
+    arg_list[0]->name = "caller0";
+    arg_list[1]->name = "caller";
+    arg_list[2]->name = "width";
+    arg_list[3]->name = "addr";
     read_trace_field(addr, arg_list[0]);
     read_trace_field(addr, arg_list[1]);
     read_trace_field(addr, arg_list[2]);
+    read_trace_field(addr, arg_list[3]);
 }
 
 /**
@@ -894,14 +896,16 @@ void rwmmio_read_event::handle(ulong addr) {
  * Processes MMIO write event including caller address, width, value, and address.
  */
 void rwmmio_write_event::handle(ulong addr) {
-    arg_list[0]->name = "caller";
-    arg_list[1]->name = "width";
-    arg_list[2]->name = "val";
-    arg_list[3]->name = "addr";
+    arg_list[0]->name = "caller0";
+    arg_list[1]->name = "caller";
+    arg_list[2]->name = "width";
+    arg_list[3]->name = "val";
+    arg_list[4]->name = "addr";
     read_trace_field(addr, arg_list[0]);
     read_trace_field(addr, arg_list[1]);
     read_trace_field(addr, arg_list[2]);
     read_trace_field(addr, arg_list[3]);
+    read_trace_field(addr, arg_list[4]);
 }
 
 /**
@@ -910,14 +914,16 @@ void rwmmio_write_event::handle(ulong addr) {
  * Processes MMIO post-write event including caller address, width, value, and address.
  */
 void rwmmio_post_write_event::handle(ulong addr) {
-    arg_list[0]->name = "caller";
-    arg_list[1]->name = "width";
-    arg_list[2]->name = "val";
-    arg_list[3]->name = "addr";
+    arg_list[0]->name = "caller0";
+    arg_list[1]->name = "caller";
+    arg_list[2]->name = "width";
+    arg_list[3]->name = "val";
+    arg_list[4]->name = "addr";
     read_trace_field(addr, arg_list[0]);
     read_trace_field(addr, arg_list[1]);
     read_trace_field(addr, arg_list[2]);
     read_trace_field(addr, arg_list[3]);
+    read_trace_field(addr, arg_list[4]);
 }
 
 /**
@@ -926,14 +932,16 @@ void rwmmio_post_write_event::handle(ulong addr) {
  * Processes MMIO post-read event including caller address, width, value, and address.
  */
 void rwmmio_post_read_event::handle(ulong addr) {
-    arg_list[0]->name = "caller";
-    arg_list[1]->name = "width";
-    arg_list[2]->name = "val";
-    arg_list[3]->name = "addr";
+    arg_list[0]->name = "caller0";
+    arg_list[1]->name = "caller";
+    arg_list[2]->name = "width";
+    arg_list[3]->name = "val";
+    arg_list[4]->name = "addr";
     read_trace_field(addr, arg_list[0]);
     read_trace_field(addr, arg_list[1]);
     read_trace_field(addr, arg_list[2]);
     read_trace_field(addr, arg_list[3]);
+    read_trace_field(addr, arg_list[4]);
 }
 
 // Binder return command strings
