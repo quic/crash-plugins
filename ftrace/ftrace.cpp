@@ -376,7 +376,7 @@ void Ftrace::print_trace_log(int cpu){
         }
         // Sort logs by timestamp (newest first)
         std::sort(trace_logs.begin(), trace_logs.end(),[&](std::shared_ptr<trace_log> a, std::shared_ptr<trace_log> b){
-            return a->timestamp > b->timestamp;
+            return a->timestamp < b->timestamp;
         });
         LOGD("Parsed %zu trace log entries", trace_logs.size());
     }
@@ -415,7 +415,7 @@ void Ftrace::print_trace_log(){
         }
         // Sort logs by timestamp (newest first)
         std::sort(trace_logs.begin(), trace_logs.end(),[&](std::shared_ptr<trace_log> a, std::shared_ptr<trace_log> b){
-            return a->timestamp > b->timestamp;
+            return a->timestamp < b->timestamp;
         });
         LOGD("Parsed %zu trace log entries", trace_logs.size());
     }
@@ -452,7 +452,7 @@ void Ftrace::print_trace_log(std::string name){
         }
         // Sort logs by timestamp (newest first)
         std::sort(trace_logs.begin(), trace_logs.end(),[&](std::shared_ptr<trace_log> a, std::shared_ptr<trace_log> b){
-            return a->timestamp > b->timestamp;
+            return a->timestamp < b->timestamp;
         });
         LOGD("Parsed %zu trace log entries", trace_logs.size());
     }
