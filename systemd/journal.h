@@ -27,11 +27,12 @@
  * timestamp, process information, and message content
  */
 struct journal_log {
-    uint64_t timestamp;     ///< Log timestamp in microseconds since epoch (1970-01-01)
-    std::string pid;        ///< Process ID as string
-    std::string message;    ///< Log message content
-    std::string com;        ///< Process command name
-    std::string hostname;   ///< Hostname where the log was generated
+    uint64_t timestamp;          ///< Log timestamp in microseconds since epoch (1970-01-01) - CLOCK_REALTIME
+    uint64_t monotonic_timestamp; ///< Monotonic timestamp in microseconds since boot - CLOCK_MONOTONIC
+    std::string pid;             ///< Process ID as string
+    std::string message;         ///< Log message content
+    std::string com;             ///< Process command name
+    std::string hostname;        ///< Hostname where the log was generated
 };
 
 /**

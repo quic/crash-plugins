@@ -14,6 +14,7 @@
  */
 
 #include "journal.h"
+#include <iomanip>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -156,8 +157,8 @@ void Journal::init_command(void){
         "    %s> systemd -s system.journal",
         "     Journal Logs (274270 entries):",
         "     ================================================================================",
-        "     Jan 02 00:43:47 xxx kernel: [drm:sde_encoder_wait_for_event:6374] [sde error]enc66 intf_type:16, event:0 i:0, failed:-110",
-        "     Jan 02 00:43:47 xxx systemd-journal[320]: /run/log/journal/0306e3733ef9480a8ef2e76eaa2834f9/system.journal: Journal header limits reached or header out-of-date, rotating.",
+        "     [   11.343612] gen5 owfds0[1368]: [2348806272][LUTDMA_SetVqCmdDesc:1215] Workload Dirty Map for VQ0: 0x1",
+        "     [   11.345555] gen5 owfds0[1368]: [2348806272][LUTDMA_SetVqCmdDesc:1215] Workload Dirty Map for VQ1: 0x0",
         "\n",
     };
 }
@@ -498,6 +499,15 @@ void Journal::parser_journal_log(const std::string &filepath) {
             error_count++;
             continue;
         }
+        sd_id128_t boot_id = SD_ID128_NULL;
+        // Get monotonic timestamp for accurate boot-relative time
+        ret = sd_journal_get_monotonic_usec(journal, &log_ptr->monotonic_timestamp, &boot_id);
+        if (ret < 0) {
+            LOGE( "Failed to get monotonic_timestamp for entry %zu: %s\n", entry_count, strerror(-ret));
+            error_count++;
+            continue;
+        }
+
         const char *message = nullptr;
         const char *pid = nullptr;
         const char *comm = nullptr;
@@ -548,33 +558,55 @@ void Journal::parser_journal_log(const std::string &filepath) {
 
 void Journal::print_syslog(std::shared_ptr<journal_log> log_ptr) {
     std::ostringstream oss;
+    // Convert monotonic timestamp from microseconds to seconds
+    double monotonic_seconds = (double)log_ptr->monotonic_timestamp / 1000000.0;
+
+    // Format timestamp to match journalctl -o short-monotonic: [   11.343612]
+    // Right-aligned within brackets, 6 decimal places, total width ~12 characters
+    oss << "[" << std::setw(11) << std::right << std::fixed << std::setprecision(6)
+        << monotonic_seconds << "] ";
+
     time_t time_sec = log_ptr->timestamp / 1000000;
     struct tm *tm_info = localtime(&time_sec);
     if (tm_info) {
         char time_str[32];
         strftime(time_str, sizeof(time_str), "%b %d %H:%M:%S", tm_info);
-        oss << time_str;
+        oss << time_str << " ";
     } else {
-        oss << "Unknown_Time";
+        oss << "Unknown_Time ";
     }
+
+    // Format hostname
     if (!log_ptr->hostname.empty()) {
-        oss << " " << log_ptr->hostname;
+        oss << log_ptr->hostname;
+    } else {
+        oss << "localhost";
     }
+
+    oss << " ";
+
+    // Format command name
     if (!log_ptr->com.empty()) {
-        oss << " " << log_ptr->com;
-    }else{
-        oss << " " << "kernel";
+        oss << log_ptr->com;
+    } else {
+        oss << "kernel";
     }
+
+    // Format PID if available
     if (!log_ptr->pid.empty()) {
         oss << "[" << log_ptr->pid << "]";
     }
+
     oss << ": ";
+
+    // Format message
     if (!log_ptr->message.empty()) {
         oss << log_ptr->message;
     } else {
         oss << "(no message)";
     }
-    PRINT( "%s \n", oss.str().c_str());
+
+    PRINT("%s\n", oss.str().c_str());
 }
 
 bool Journal::find_journal_log(ulong inode,std::string& file){
