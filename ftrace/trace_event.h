@@ -178,20 +178,6 @@ public:
     void print_dwc3_trb_event(ulong addr);
 
     /**
-     * @brief Print stack trace event
-     * @param addr Address of event data
-     * @param oss Output string stream
-     */
-    void print_stack_event(ulong addr);
-
-    /**
-     * @brief Print instruction pointer with symbol
-     * @param addr Address of event data
-     * @param oss Output string stream
-     */
-    void print_ip(ulong addr);
-
-    /**
      * @brief Print DMA unmap event
      * @param addr Address of event data
      * @param oss Output string stream
@@ -247,8 +233,8 @@ public:
     void copy_str(std::shared_ptr<print_arg> arg_ptr, const std::string &data);
 
     virtual void handle(ulong addr);
-    void print_log(std::ostringstream &oss);
-
+    virtual void print_log(std::ostringstream &oss);
+    void print_rwmmio_event(std::ostringstream& oss);
     // Common helper functions for decoding event fields
     std::string decode_dma_direction(int dir);
     std::string decode_dma_attrs(ulong attrs);

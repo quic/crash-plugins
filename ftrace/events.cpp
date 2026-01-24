@@ -890,6 +890,19 @@ void rwmmio_read_event::handle(ulong addr) {
     read_trace_field(addr, arg_list[3]);
 }
 
+void rwmmio_read_event::print_log(std::ostringstream& oss) {
+    for (const auto& arg_ptr : arg_list) {
+        oss << format_arg(arg_ptr);
+    }
+    ulong addr_value = *reinterpret_cast<ulong*>(arg_list[3]->data);
+    physaddr_t paddr = 0;
+    if (kvtop(NULL, addr_value, &paddr, 0)) {
+        oss << "(0x" << std::hex << paddr << ")";
+    } else {
+        oss << "(N/A)";
+    }
+}
+
 /**
  * @brief Handle write MMIO event
  *
@@ -906,6 +919,10 @@ void rwmmio_write_event::handle(ulong addr) {
     read_trace_field(addr, arg_list[2]);
     read_trace_field(addr, arg_list[3]);
     read_trace_field(addr, arg_list[4]);
+}
+
+void rwmmio_write_event::print_log(std::ostringstream& oss) {
+    print_rwmmio_event(oss);
 }
 
 /**
@@ -926,6 +943,10 @@ void rwmmio_post_write_event::handle(ulong addr) {
     read_trace_field(addr, arg_list[4]);
 }
 
+void rwmmio_post_write_event::print_log(std::ostringstream& oss) {
+    print_rwmmio_event(oss);
+}
+
 /**
  * @brief Handle post-read MMIO event
  *
@@ -942,6 +963,10 @@ void rwmmio_post_read_event::handle(ulong addr) {
     read_trace_field(addr, arg_list[2]);
     read_trace_field(addr, arg_list[3]);
     read_trace_field(addr, arg_list[4]);
+}
+
+void rwmmio_post_read_event::print_log(std::ostringstream& oss) {
+    print_rwmmio_event(oss);
 }
 
 // Binder return command strings

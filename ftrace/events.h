@@ -46,6 +46,7 @@
  *
  * This macro creates a class that inherits from TraceEvent and
  * implements the handle() method for specific event formatting.
+ * Uses the base class default print_log implementation.
  *
  * @param name The base name of the event (e.g., "sched_switch")
  */
@@ -53,6 +54,22 @@
 class name##_event : public TraceEvent {                        \
     public:                                                     \
     void handle(ulong addr) override;                           \
+};
+
+/**
+ * @brief Macro to define a trace event handler class with custom print_log
+ *
+ * This macro creates a class that inherits from TraceEvent and
+ * implements both handle() and print_log() methods for events that
+ * need custom formatting logic.
+ *
+ * @param name The base name of the event (e.g., "rwmmio_read")
+ */
+#define DEFINE_EVENT_WITH_CUSTOM_LOG(name)                      \
+class name##_event : public TraceEvent {                        \
+    public:                                                     \
+    void handle(ulong addr) override;                           \
+    void print_log(std::ostringstream& oss) override;           \
 };
 
 // Core ftrace events
@@ -93,10 +110,10 @@ DEFINE_EVENT(dwc3_gadget_ep_enable)         /**< DWC3 gadget EP enable event han
 DEFINE_EVENT(dwc3_gadget_ep_disable)        /**< DWC3 gadget EP disable event handler */
 
 // Memory-mapped I/O events
-DEFINE_EVENT(rwmmio_read)                   /**< Read MMIO event handler */
-DEFINE_EVENT(rwmmio_write)                  /**< Write MMIO event handler */
-DEFINE_EVENT(rwmmio_post_read)              /**< Post-read MMIO event handler */
-DEFINE_EVENT(rwmmio_post_write)             /**< Post-write MMIO event handler */
+DEFINE_EVENT_WITH_CUSTOM_LOG(rwmmio_read)   /**< Read MMIO event handler */
+DEFINE_EVENT_WITH_CUSTOM_LOG(rwmmio_write)  /**< Write MMIO event handler */
+DEFINE_EVENT_WITH_CUSTOM_LOG(rwmmio_post_read) /**< Post-read MMIO event handler */
+DEFINE_EVENT_WITH_CUSTOM_LOG(rwmmio_post_write) /**< Post-write MMIO event handler */
 
 // GPIO events
 DEFINE_EVENT(gpio_value)                    /**< GPIO value change event handler */

@@ -231,34 +231,17 @@ void TraceEvent::print_dwc3_trb_event(ulong addr) {
     copy_str(arg_list[15], decode_dwc3_trb_type(trb_type));
 }
 
-/**
- * @brief Print kernel stack trace event information
- *
- * Formats and outputs a kernel stack trace showing up to 8 return addresses.
- * Each address is displayed on a separate line with an arrow indicator.
- * This is used for debugging kernel call paths.
- *
- * @param addr Address of the event data in memory
- */
-void TraceEvent::print_stack_event(ulong addr) {
-    // TODO: Implement stack trace printing
-    // Currently commented out - needs integration with crash utility's
-    // symbol resolution functions
-}
-
-/**
- * @brief Print instruction pointer (IP) information
- *
- * Formats and outputs the instruction pointer, attempting to resolve it
- * to a symbol name if it's a valid kernel address. If the address can be
- * resolved, prints the symbol name; otherwise prints the raw address.
- *
- * @param addr Address of the event data in memory
- */
-void TraceEvent::print_ip(ulong addr) {
-    // TODO: Implement IP symbol resolution
-    // Currently commented out - needs integration with crash utility's
-    // symbol resolution functions
+void TraceEvent::print_rwmmio_event(std::ostringstream& oss) {
+    for (const auto& arg_ptr : arg_list) {
+        oss << format_arg(arg_ptr);
+    }
+    ulong addr_value = *reinterpret_cast<ulong*>(arg_list[4]->data);
+    physaddr_t paddr = 0;
+    if (kvtop(NULL, addr_value, &paddr, 0)) {
+        oss << "(0x" << std::hex << paddr << ")";
+    } else {
+        oss << "(N/A)";
+    }
 }
 
 /**
